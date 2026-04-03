@@ -1,0 +1,53 @@
+import React from "react";
+import { motion } from "framer-motion";
+import { Play } from "lucide-react";
+
+export default function PhotoGrid({ photos, onPhotoClick }) {
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+      {photos.map((photo, index) => (
+        <motion.div
+          key={photo.id}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, delay: index * 0.05 }}
+          onClick={() => onPhotoClick(photo)}
+          className="group cursor-pointer"
+        >
+          <div className="relative aspect-square rounded-2xl overflow-hidden bg-gray-100 shadow-md hover:shadow-xl transition-all duration-300">
+            {photo.file_type === 'video' ? (
+              <>
+                <video
+                  src={photo.file_url}
+                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                  preload="metadata"
+                />
+                <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+                  <div className="w-16 h-16 bg-white/90 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                    <Play className="w-8 h-8 text-purple-600 ml-1" />
+                  </div>
+                </div>
+              </>
+            ) : (
+              <img
+                src={photo.file_url}
+                alt={photo.ai_description}
+                className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                loading="lazy"
+              />
+            )}
+            
+            {/* Hover Overlay */}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+              <div className="absolute bottom-0 left-0 right-0 p-4">
+                <p className="text-white text-sm line-clamp-2">
+                  {photo.ai_description}
+                </p>
+              </div>
+            </div>
+          </div>
+        </motion.div>
+      ))}
+    </div>
+  );
+}

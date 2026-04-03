@@ -1,0 +1,241 @@
+import React, { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { 
+  X, 
+  FolderInput, 
+  CheckSquare, 
+  Square,
+  Loader2,
+  Trash2,
+  Share2,
+  Folder
+} from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import MobileDrawerMenu from "./MobileDrawerMenu";
+
+function useIsMobile() {
+  return typeof window !== "undefined" && window.innerWidth < 768;
+}
+
+export default function SelectionToolbar({ 
+  selectedCount, 
+  selectedFolderCount = 0,
+  onCancel, 
+  onSelectAll, 
+  onDeselectAll,
+  folders,
+  onMoveToFolder,
+  onRemoveFromFolder,
+  onDelete,
+  onDeleteFolders,
+  isMoving,
+  currentFolderId,
+  selectedPhotos = []
+}) {
+  const [sharing, setSharing] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const isMobile = useIsMobile();
+
+  const handleShare = async () => {
+    if (selectedPhotos.length === 0) return;
+    setSharing(true);
+    try {
+      if (navigator.share) {
+        const filePromises = selectedPhotos.map(async (photo) => {
+          const response = await fetch(photo.file_url);
+          const blob = await response.blob();
+          return new File(
+            [blob], 
+            photo.original_filename || `media-${photo.id}.${photo.file_type === 'video' ? 'mp4' : 'jpg'}`,
+            { type: blob.type }
+          );
+        });
+        const files = await Promise.all(filePromises);
+        await navigator.share({
+          files,
+          title: `Share ${selectedCount} item${selectedCount !== 1 ? 's' : ''}`,
+          text: `Sharing ${selectedCount} ${selectedCount === 1 ? 'item' : 'items'} from Restorebraine`
+        });
+      } else {
+        await navigator.clipboard.writeText(selectedPhotos[0].file_url);
+        alert('First item link copied to clipboard!');
+      }
+    } catch (error) {
+      if (error.name !== 'AbortError') {
+        console.error('Share failed:', error);
+        alert('Sharing failed. Please try again.');
+      }
+    } finally {
+      setSharing(false);
+    }
+  };
+
+  const handleMoveClick = (folderId) => {
+    setDrawerOpen(false);
+    onMoveToFolder(folderId);
+  };
+
+  const handleRemoveClick = () => {
+    setDrawerOpen(false);
+    if (onRemoveFromFolder) onRemoveFromFolder();
+  };
+
+  // Folder picker content (shared between drawer and dropdown)
+  const folderList = (
+    <>
+      {currentFolderId && (
+        <button
+          onClick={handleRemoveClick}
+          className="w-full flex items-center gap-3 px-4 py-3 text-purple-600 font-medium hover:bg-purple-50 rounded-lg"
+        >
+          <X className="w-4 h-4" />
+          Move to Main Library
+        </button>
+      )}
+      {folders.length === 0 ? (
+        <p className="px-4 py-3 text-sm text-gray-500 text-center">
+          No folders yet. Use "Organize" to create folders.
+        </p>
+      ) : (
+        folders.map(folder => (
+          <button
+            key={folder.id}
+            onClick={() => handleMoveClick(folder.id)}
+            disabled={folder.id === currentFolderId}
+            className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 rounded-lg disabled:opacity-40"
+          >
+            <Folder className="w-4 h-4 text-orange-500 flex-shrink-0" />
+            <span className="text-sm text-gray-800 truncate">{folder.name}</span>
+          </button>
+        ))
+      )}
+    </>
+  );
+
+  return (
+    <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50">
+      <div className="bg-white rounded-2xl shadow-2xl border border-purple-200 px-4 py-3 flex items-center gap-3 flex-wrap justify-center max-w-[calc(100vw-2rem)]">
+        <Button variant="ghost" size="sm" onClick={onCancel} className="text-gray-500 select-none">
+          <X className="w-4 h-4 mr-1" />
+          Cancel
+        </Button>
+        
+        <div className="h-6 w-px bg-gray-200" />
+        
+        <span className="text-sm font-medium text-purple-600 select-none">
+          {selectedCount} photo{selectedCount !== 1 ? 's' : ''}
+          {selectedFolderCount > 0 && `, ${selectedFolderCount} folder${selectedFolderCount !== 1 ? 's' : ''}`}
+        </span>
+        
+        <div className="h-6 w-px bg-gray-200" />
+        
+        <Button variant="ghost" size="sm" onClick={onSelectAll} className="text-gray-600 select-none">
+          <CheckSquare className="w-4 h-4 mr-1" />
+          All
+        </Button>
+        
+        <Button variant="ghost" size="sm" onClick={onDeselectAll} className="text-gray-600 select-none">
+          <Square className="w-4 h-4 mr-1" />
+          None
+        </Button>
+        
+        <div className="h-6 w-px bg-gray-200" />
+
+        <Button
+          onClick={handleShare}
+          disabled={sharing || isMoving || selectedCount === 0}
+          variant="outline"
+          size="sm"
+          className="gap-2 select-none"
+        >
+          {sharing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Share2 className="w-4 h-4" />}
+          Share
+        </Button>
+        
+        {/* Move to folder — drawer on mobile, dropdown on desktop */}
+        {(selectedCount > 0 || selectedFolderCount > 0) && (
+          <>
+            {isMobile ? (
+              <>
+                <Button
+                  disabled={isMoving}
+                  onClick={() => setDrawerOpen(true)}
+                  className="bg-purple-500 hover:bg-purple-600 text-white gap-2 select-none"
+                >
+                  {isMoving ? <Loader2 className="w-4 h-4 animate-spin" /> : <FolderInput className="w-4 h-4" />}
+                  Move to Folder
+                </Button>
+                <MobileDrawerMenu open={drawerOpen} onOpenChange={setDrawerOpen} title="Move to Folder">
+                  {folderList}
+                </MobileDrawerMenu>
+              </>
+            ) : (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button disabled={isMoving} className="bg-purple-500 hover:bg-purple-600 text-white gap-2 select-none">
+                    {isMoving ? <Loader2 className="w-4 h-4 animate-spin" /> : <FolderInput className="w-4 h-4" />}
+                    Move to Folder
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56 p-0">
+                  {currentFolderId && (
+                    <>
+                      <DropdownMenuItem
+                        className="text-purple-600 font-medium m-2"
+                        onSelect={(e) => { e.preventDefault(); handleRemoveClick(); }}
+                      >
+                        <X className="w-4 h-4 mr-2" />
+                        Move to Main Library
+                      </DropdownMenuItem>
+                      <div className="h-px bg-gray-200 mx-2" />
+                    </>
+                  )}
+                  {folders.length === 0 ? (
+                    <div className="px-2 py-3 text-sm text-gray-500 text-center">
+                      No folders yet. Use "Organize" to create folders.
+                    </div>
+                  ) : (
+                    <ScrollArea className="h-[300px]">
+                      <div className="p-2 space-y-1">
+                        {folders.map(folder => (
+                          <DropdownMenuItem
+                            key={folder.id}
+                            disabled={folder.id === currentFolderId}
+                            onSelect={(e) => { e.preventDefault(); handleMoveClick(folder.id); }}
+                          >
+                            <Folder className="w-4 h-4 mr-2 text-orange-500" />
+                            {folder.name}
+                          </DropdownMenuItem>
+                        ))}
+                      </div>
+                    </ScrollArea>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+          </>
+        )}
+
+        <Button
+          onClick={() => {
+            if (selectedCount > 0) onDelete();
+            if (selectedFolderCount > 0 && onDeleteFolders) onDeleteFolders();
+          }}
+          disabled={isMoving || (selectedCount === 0 && selectedFolderCount === 0)}
+          variant="outline"
+          size="sm"
+          className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200 gap-2 select-none"
+        >
+          <Trash2 className="w-4 h-4" />
+          Delete {(selectedCount + selectedFolderCount) > 0 && `(${selectedCount + selectedFolderCount})`}
+        </Button>
+      </div>
+    </div>
+  );
+}

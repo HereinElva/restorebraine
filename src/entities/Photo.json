@@ -1,0 +1,43 @@
+{
+  "name": "Photo",
+  "type": "object",
+  "properties": {
+    "file_url": {
+      "type": "string",
+      "description": "URL of the uploaded photo or video"
+    },
+    "file_type": {
+      "type": "string",
+      "enum": [
+        "image",
+        "video"
+      ],
+      "description": "Type of media file"
+    },
+    "ai_description": {
+      "type": "string",
+      "description": "AI-generated description of the content for searching"
+    },
+    "ai_tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "AI-generated tags extracted from the media"
+    },
+    "upload_date": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the file was uploaded"
+    },
+    "original_filename": {
+      "type": "string",
+      "description": "Original filename of the uploaded file"
+    }
+  },
+  "required": [
+    "file_url",
+    "file_type",
+    "ai_description"
+  ]
+}
