@@ -8,14 +8,24 @@ import { createAxiosClient } from '@base44/sdk/dist/utils/axios-client';
 const AuthContext = createContext();
 
 export const EMAIL_VERIFICATION_REQUIRED = 'email_verification_required';
+export const USER_ALREADY_EXISTS = 'user_already_exists';
 
 const getAuthErrorMessage = (error) => error?.data?.message || error?.message || 'Something went wrong';
 
 const isVerificationRequiredMessage = (message) => /verify your email|verification code/i.test(message || '');
 
+const isUserAlreadyExistsMessage = (message) => /already exists/i.test(message || '');
+
 const createVerificationError = (message, email) => {
   const error = new Error(message);
   error.code = EMAIL_VERIFICATION_REQUIRED;
+  error.email = email;
+  return error;
+};
+
+const createUserAlreadyExistsError = (message, email) => {
+  const error = new Error(message);
+  error.code = USER_ALREADY_EXISTS;
   error.email = email;
   return error;
 };
@@ -236,10 +246,13 @@ export const AuthProvider = ({ children }) => {
 
       throw new Error(message);
     } catch (error) {
-      if (error.code === EMAIL_VERIFICATION_REQUIRED) {
+      if (error.code === EMAIL_VERIFICATION_REQUIRED || error.code === USER_ALREADY_EXISTS) {
         throw error;
       }
       const message = getAuthErrorMessage(error);
+      if (isUserAlreadyExistsMessage(message)) {
+        throw createUserAlreadyExistsError(message, email);
+      }
       if (isVerificationRequiredMessage(message)) {
         throw createVerificationError(message, email);
       }
@@ -251,6 +264,10 @@ export const AuthProvider = ({ children }) => {
       });
       throw error;
     }
+  };
+
+  const requestPasswordReset = async (email) => {
+    return base44.auth.resetPasswordRequest(email);
   };
 
   const verifyEmailOtp = async ({ email, otpCode }) => {
@@ -296,6 +313,7 @@ export const AuthProvider = ({ children }) => {
       registerWithEmailPassword,
       verifyEmailOtp,
       resendEmailOtp,
+      requestPasswordReset,
       checkAppState
     }}>
       {children}

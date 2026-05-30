@@ -9,7 +9,7 @@ import { pagesConfig } from './pages.config'
 import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import { setupIframeMessaging } from './lib/iframe-messaging';
 import PageNotFound from './lib/PageNotFound';
-import { AuthProvider, useAuth, EMAIL_VERIFICATION_REQUIRED } from '@/lib/AuthContext';
+import { AuthProvider, useAuth, EMAIL_VERIFICATION_REQUIRED, USER_ALREADY_EXISTS } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import { NATIVE_BUILD_LABEL } from '@/lib/build-info';
 
@@ -52,7 +52,7 @@ const ProviderButton = ({ children, onClick, dark = false }) => (
 );
 
 const LoginCard = () => {
-  const { loginWithEmailPassword, registerWithEmailPassword, verifyEmailOtp, resendEmailOtp } = useAuth();
+  const { loginWithEmailPassword, registerWithEmailPassword, verifyEmailOtp, resendEmailOtp, requestPasswordReset } = useAuth();
   const [mode, setMode] = useState('signin');
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
@@ -80,6 +80,31 @@ const LoginCard = () => {
     resetMessages();
     setNoticeMessage(message);
     window.alert(message);
+  };
+
+  const showExistingAccountHelp = (existingEmail) => {
+    setEmail(existingEmail);
+    setMode('signin');
+    resetMessages();
+    setNoticeMessage('This email is already registered. Sign in with your password below. If you originally used Google, tap Forgot password to set one.');
+  };
+
+  const handleForgotPassword = async () => {
+    if (!email.trim()) {
+      setErrorMessage('Enter your email first.');
+      return;
+    }
+
+    resetMessages();
+    setIsSubmitting(true);
+    try {
+      await requestPasswordReset(email.trim());
+      setNoticeMessage('If this email is registered, a password reset link was sent. Check your inbox.');
+    } catch (error) {
+      setErrorMessage(error?.data?.message || error?.message || 'Unable to send password reset email.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleResendCode = async () => {
@@ -151,6 +176,10 @@ const LoginCard = () => {
         return;
       }
       const message = error?.data?.message || error?.message || (mode === 'signup' ? 'Unable to create account' : 'Invalid email or password');
+      if (mode === 'signup' && (error?.code === USER_ALREADY_EXISTS || /already exists/i.test(message))) {
+        showExistingAccountHelp(error.email || email.trim());
+        return;
+      }
       setErrorMessage(message);
     } finally {
       setIsSubmitting(false);
@@ -233,8 +262,26 @@ const LoginCard = () => {
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               required
-              style={{width:'100%',boxSizing:'border-box',padding:'13px 14px',border:'1px solid #d1d5db',borderRadius:'12px',fontSize:'16px',marginBottom:'16px'}}
+              style={{width:'100%',boxSizing:'border-box',padding:'13px 14px',border:'1px solid #d1d5db',borderRadius:'12px',fontSize:'16px',marginBottom: mode === 'signin' ? '8px' : '16px'}}
             />
+            {mode === 'signin' ? (
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'12px',gap:'12px'}}>
+                <button
+                  type="button"
+                  onClick={handleForgotPassword}
+                  style={{background:'transparent',border:'none',color:'#7c3aed',fontSize:'13px',fontWeight:'600',cursor:'pointer',padding:0}}
+                >
+                  Forgot password?
+                </button>
+                <button
+                  type="button"
+                  onClick={() => showVerifyStep(email.trim(), 'Enter the verification code sent to your email.')}
+                  style={{background:'transparent',border:'none',color:'#6b7280',fontSize:'13px',fontWeight:'600',cursor:'pointer',padding:0}}
+                >
+                  Have a code?
+                </button>
+              </div>
+            ) : null}
           </>
         )}
         {errorMessage ? <p style={{color:'#dc2626',fontSize:'13px',margin:'0 0 12px'}}>{errorMessage}</p> : null}
