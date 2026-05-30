@@ -154,7 +154,6 @@ export const AuthProvider = ({ children }) => {
   };
 
   const loginWithEmailPassword = async ({ email, password }) => {
-    setIsLoadingAuth(true);
     setAuthError(null);
     localStorage.removeItem('b44_signed_out');
     localStorage.removeItem('base44_logged_out');
@@ -191,7 +190,6 @@ export const AuthProvider = ({ children }) => {
   };
 
   const registerWithEmailPassword = async ({ email, password, fullName }) => {
-    setIsLoadingAuth(true);
     setAuthError(null);
     localStorage.removeItem('b44_signed_out');
     localStorage.removeItem('base44_logged_out');

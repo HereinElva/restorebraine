@@ -82,6 +82,7 @@ const LoginCard = () => {
       return;
     }
 
+    setNoticeMessage(mode === 'signup' ? 'Creating your account...' : 'Signing in...');
     setIsSubmitting(true);
     try {
       if (mode === 'signup') {
@@ -90,9 +91,12 @@ const LoginCard = () => {
         setMode('signin');
       } else {
         await loginWithEmailPassword({ email: email.trim(), password });
+        setNoticeMessage('Signed in. Loading your memories...');
       }
     } catch (error) {
-      setErrorMessage(error?.data?.message || error?.message || (mode === 'signup' ? 'Unable to create account' : 'Invalid email or password'));
+      setNoticeMessage('');
+      const message = error?.data?.message || error?.message || (mode === 'signup' ? 'Unable to create account' : 'Invalid email or password');
+      setErrorMessage(message);
     } finally {
       setIsSubmitting(false);
     }
