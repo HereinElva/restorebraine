@@ -116,8 +116,16 @@ export const AuthProvider = ({ children }) => {
     if (!token) return;
     appParams.token = token;
     base44.auth.setToken(token);
-    await persistentStorage.set('base44_access_token', token);
-    await persistentStorage.set('token', token);
+    persistentStorage._mirror('base44_access_token', token);
+    persistentStorage._mirror('token', token);
+    try {
+      await Promise.all([
+        persistentStorage.set('base44_access_token', token),
+        persistentStorage.set('token', token),
+      ]);
+    } catch (error) {
+      console.warn('Token persistence failed; continuing with in-memory session.', error);
+    }
   };
 
   const completeAuthSession = async (accessToken, authUser) => {
@@ -125,12 +133,21 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem('base44_logged_out');
     await persistAccessToken(accessToken);
     setManuallyLoggedOut(false);
-    setUser(authUser ?? null);
-    setIsAuthenticated(true);
-    setIsLoadingAuth(false);
-    setIsLoadingPublicSettings(false);
     setAuthError(null);
-    await checkUserAuth();
+    setIsLoadingPublicSettings(false);
+    setIsLoadingAuth(false);
+
+    let resolvedUser = authUser;
+    if (!resolvedUser?.email) {
+      try {
+        resolvedUser = await base44.auth.me();
+      } catch (error) {
+        console.warn('Could not load user profile after sign-in:', error);
+      }
+    }
+
+    setUser(resolvedUser ?? null);
+    setIsAuthenticated(true);
   };
 
   const checkUserAuth = async () => {
@@ -198,7 +215,12 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem('base44_logged_out');
 
     try {
-      const response = await base44.auth.loginViaEmailPassword(email, password);
+      const authClient = createAxiosClient({
+        baseURL: `${appParams.serverUrl}/api`,
+        headers: { 'X-App-Id': appParams.appId },
+        interceptResponses: true,
+      });
+      const response = await authClient.post(`/apps/${appParams.appId}/auth/login`, { email, password });
 
       if (!response?.access_token) {
         throw new Error('Sign in failed. Please try again.');

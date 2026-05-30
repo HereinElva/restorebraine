@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import './App.css'
 import { Toaster } from "@/components/ui/toaster"
 import { QueryClientProvider } from '@tanstack/react-query'
@@ -54,7 +54,7 @@ const ProviderButton = ({ children, onClick, dark = false }) => (
 );
 
 const LoginCard = () => {
-  const { loginWithEmailPassword, registerWithEmailPassword, verifyEmailOtp, resendEmailOtp, requestPasswordReset } = useAuth();
+  const { loginWithEmailPassword, registerWithEmailPassword, verifyEmailOtp, resendEmailOtp, requestPasswordReset, isAuthenticated } = useAuth();
   const [mode, setMode] = useState('signin');
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
@@ -64,6 +64,12 @@ const LoginCard = () => {
   const [noticeMessage, setNoticeMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [suggestPasswordReset, setSuggestPasswordReset] = useState(false);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      setIsSubmitting(false);
+    }
+  }, [isAuthenticated]);
 
   const resetMessages = () => {
     setErrorMessage('');
