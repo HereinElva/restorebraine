@@ -4,6 +4,7 @@ import { clearPersistedToken } from '@/lib/app-params';
 import { appParams } from '@/lib/app-params';
 import { persistentStorage } from '@/lib/persistentStorage';
 import { createAxiosClient } from '@base44/sdk/dist/utils/axios-client';
+import { openBase44Login } from '@/lib/auth-urls';
 
 const AuthContext = createContext();
 
@@ -320,6 +321,10 @@ export const AuthProvider = ({ children }) => {
     return base44.auth.resendOtp(email);
   };
 
+  const navigateToLogin = () => {
+    openBase44Login();
+  };
+
   return (
     <AuthContext.Provider value={{ 
       user, 
@@ -336,6 +341,7 @@ export const AuthProvider = ({ children }) => {
       verifyEmailOtp,
       resendEmailOtp,
       requestPasswordReset,
+      navigateToLogin,
       checkAppState
     }}>
       {children}

@@ -1,0 +1,24 @@
+{
+	"appId": "com.restorebraine.app",
+	"appName": "Restorebraine",
+	"webDir": "dist",
+	"server": {
+		"url": "https://restorebraine.base44.app",
+		"cleartext": false,
+		"allowNavigation": [
+			"app.base44.com",
+			"base44.com",
+			"restorebraine.base44.app",
+			"accounts.google.com",
+			"appleid.apple.com"
+		]
+	},
+	"ios": {
+		"contentInset": "automatic",
+		"backgroundColor": "#ffffff"
+	},
+	"packageClassList": [
+		"AppPlugin",
+		"PreferencesPlugin"
+	]
+}

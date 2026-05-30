@@ -3,7 +3,7 @@ import { resolve } from 'node:path';
 
 const stamp = new Date().toISOString().slice(0, 16).replace('T', ' ');
 const contents = `export const BASE44_APP_ID = '68fdc5f42768c4d045fe1bac';
-export const NATIVE_BUILD_LABEL = 'Hosted shell v12 · ${stamp}';
+export const NATIVE_BUILD_LABEL = 'Hosted shell v13 · ${stamp}';
 `;
 
 writeFileSync(resolve('src/lib/build-info.js'), contents);
