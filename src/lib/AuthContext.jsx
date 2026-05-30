@@ -190,6 +190,50 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const registerWithEmailPassword = async ({ email, password, fullName }) => {
+    setIsLoadingAuth(true);
+    setAuthError(null);
+    localStorage.removeItem('b44_signed_out');
+    localStorage.removeItem('base44_logged_out');
+
+    try {
+      const authClient = createAxiosClient({
+        baseURL: `${appParams.serverUrl}/api`,
+        headers: { 'X-App-Id': appParams.appId },
+        interceptResponses: true,
+      });
+      const response = await authClient.post(`/apps/${appParams.appId}/auth/register`, {
+        email,
+        password,
+        full_name: fullName,
+        name: fullName,
+      });
+
+      if (response?.access_token) {
+        await persistAccessToken(response.access_token);
+        setManuallyLoggedOut(false);
+        setUser(response.user ?? null);
+        setIsAuthenticated(true);
+        setAuthError(null);
+        await checkUserAuth();
+      } else {
+        setAuthError({ type: 'auth_required', message: 'Account created. Please sign in.' });
+      }
+
+      setIsLoadingAuth(false);
+      setIsLoadingPublicSettings(false);
+      return response;
+    } catch (error) {
+      setIsLoadingAuth(false);
+      setIsAuthenticated(false);
+      setAuthError({
+        type: 'auth_required',
+        message: error?.data?.message || error?.message || 'Unable to create account',
+      });
+      throw error;
+    }
+  };
+
   return (
     <AuthContext.Provider value={{ 
       user, 
@@ -202,6 +246,7 @@ export const AuthProvider = ({ children }) => {
       localLogout,
       manuallyLoggedOut,
       loginWithEmailPassword,
+      registerWithEmailPassword,
       checkAppState
     }}>
       {children}
