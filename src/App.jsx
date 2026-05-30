@@ -63,10 +63,12 @@ const LoginCard = () => {
   const [errorMessage, setErrorMessage] = useState('');
   const [noticeMessage, setNoticeMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [suggestPasswordReset, setSuggestPasswordReset] = useState(false);
 
   const resetMessages = () => {
     setErrorMessage('');
     setNoticeMessage('');
+    setSuggestPasswordReset(false);
   };
 
   const showVerifyStep = (nextEmail, message) => {
@@ -87,8 +89,9 @@ const LoginCard = () => {
   const showExistingAccountHelp = (existingEmail) => {
     setEmail(existingEmail);
     setMode('signin');
-    resetMessages();
-    setNoticeMessage('This email is already registered. Sign in with your password below. If you originally used Google, tap Forgot password to set one.');
+    setErrorMessage('');
+    setSuggestPasswordReset(true);
+    setNoticeMessage('This email already has a Restorebraine account. That can happen if you signed in with Google on the website, even without creating a password. Use the button below to email yourself a password reset link.');
   };
 
   const handleForgotPassword = async () => {
@@ -300,7 +303,17 @@ const LoginCard = () => {
           </>
         )}
         {errorMessage ? <p style={{color:'#dc2626',fontSize:'13px',margin:'0 0 12px'}}>{errorMessage}</p> : null}
-        {noticeMessage ? <p style={{color:'#6b7280',fontSize:'13px',margin:'0 0 12px'}}>{noticeMessage}</p> : null}
+        {noticeMessage ? <p style={{color:'#6b7280',fontSize:'13px',margin:'0 0 12px',lineHeight:1.5}}>{noticeMessage}</p> : null}
+        {suggestPasswordReset ? (
+          <button
+            type="button"
+            disabled={isSubmitting}
+            onClick={handleForgotPassword}
+            style={{width:'100%',padding:'13px',background:'#f5f3ff',color:'#6d28d9',border:'1px solid #ddd6fe',borderRadius:'12px',fontSize:'15px',fontWeight:'600',cursor:'pointer',marginBottom:'12px'}}
+          >
+            Email Me a Password Reset Link
+          </button>
+        ) : null}
         <button disabled={isSubmitting} type="submit" style={{width:'100%',padding:'14px',background:'linear-gradient(135deg,#60a5fa,#a78bfa)',color:'white',border:'none',borderRadius:'14px',fontSize:'16px',fontWeight:'600',cursor:isSubmitting ? 'default' : 'pointer',opacity:isSubmitting ? 0.7 : 1}}>
           {submitLabel}
         </button>
