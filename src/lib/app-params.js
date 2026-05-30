@@ -25,7 +25,7 @@ const isNativeRuntime = () => {
 };
 
 const STORAGE_PREFIX = 'base44_';
-const NATIVE_AUTH_STORAGE_VERSION = 'restorebraine-native-email-v3';
+const NATIVE_AUTH_STORAGE_VERSION = 'restorebraine-native-email-v4';
 
 export const BASE44_APP_ID = '68fdc53372ff0fbf07eee38d';
 export const BASE44_SERVER_URL = 'https://app.base44.com';

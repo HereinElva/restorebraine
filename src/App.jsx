@@ -11,6 +11,7 @@ import { setupIframeMessaging } from './lib/iframe-messaging';
 import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
+import { NATIVE_BUILD_LABEL } from '@/lib/build-info';
 
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
@@ -163,6 +164,7 @@ const LoginCard = () => {
         >
           {mode === 'signup' ? 'Already have an account? Sign in' : "Don't have an account? Sign up"}
         </button>
+        <p style={{margin:'14px 0 0',color:'#c4b5fd',fontSize:'11px',fontWeight:'600'}}>{NATIVE_BUILD_LABEL}</p>
       </form>
     </div>
   );
