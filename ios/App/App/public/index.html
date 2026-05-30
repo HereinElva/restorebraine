@@ -5,8 +5,18 @@
     <link rel="icon" type="image/png" href="/AppIcon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Restorebraine</title>
-    <script type="module" crossorigin src="/assets/index-BUu9tBLq.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-D96j7RSt.css">
+    <script>
+      (function () {
+        try {
+          var cap = window.Capacitor;
+          var native = cap && cap.isNativePlatform && cap.isNativePlatform();
+          if (native && window.location.hostname !== 'restorebraine.base44.app') {
+            window.location.replace('https://restorebraine.base44.app');
+          }
+        } catch (e) {}
+      })();
+    </script>
+    <script type="module" crossorigin src="/assets/index-DeJsmJM8.js"></script>
   </head>
   <body>
     <div id="root"></div>

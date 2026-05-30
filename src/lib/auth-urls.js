@@ -12,7 +12,5 @@ export const getBase44LoginUrl = () => {
 };
 
 export const openBase44Login = () => {
-  localStorage.removeItem('b44_signed_out');
-  localStorage.removeItem('base44_logged_out');
   window.location.href = getBase44LoginUrl();
 };
