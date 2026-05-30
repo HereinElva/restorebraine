@@ -28,11 +28,10 @@ const LoginLogo = () => (
   </div>
 );
 
-const ProviderButton = ({ children, dark = false }) => (
+const ProviderButton = ({ children, onClick, dark = false }) => (
   <button
     type="button"
-    disabled
-    aria-disabled="true"
+    onClick={onClick}
     style={{
       width:'100%',
       padding:'13px 14px',
@@ -42,9 +41,8 @@ const ProviderButton = ({ children, dark = false }) => (
       borderRadius:'10px',
       fontSize:'15px',
       fontWeight:'600',
-      cursor:'not-allowed',
+      cursor:'pointer',
       marginBottom:'10px',
-      opacity:0.65,
       boxShadow: dark ? 'none' : '0 2px 8px rgba(0,0,0,0.04)',
     }}
   >
@@ -61,6 +59,11 @@ const LoginCard = () => {
   const [errorMessage, setErrorMessage] = useState('');
   const [noticeMessage, setNoticeMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleProviderClick = (provider) => {
+    setErrorMessage('');
+    setNoticeMessage(`${provider} sign-in will be enabled after native ${provider} credentials are configured. Please use email sign-in for this build.`);
+  };
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -89,9 +92,9 @@ const LoginCard = () => {
         <h1 style={{fontSize:'24px',fontWeight:'700',color:'#111',marginBottom:'8px'}}>Restorebraine</h1>
         <p style={{color:'#666',marginBottom:'24px',fontSize:'14px'}}>Sign in to access your memories</p>
 
-        <ProviderButton><span style={{color:'#4285F4',fontWeight:'800',marginRight:'10px'}}>G</span>Continue with Google</ProviderButton>
-        <ProviderButton dark>Continue with Apple</ProviderButton>
-        <p style={{color:'#6b7280',fontSize:'12px',lineHeight:1.4,margin:'0 0 12px'}}>Google and Apple sign-in require native developer credentials before they can be enabled. Use email sign-in for this build.</p>
+        <ProviderButton onClick={() => handleProviderClick('Google')}><span style={{color:'#4285F4',fontWeight:'800',marginRight:'10px'}}>G</span>Continue With Google</ProviderButton>
+        <ProviderButton onClick={() => handleProviderClick('Apple')} dark>Continue With Apple</ProviderButton>
+        <p style={{color:'#6b7280',fontSize:'12px',lineHeight:1.4,margin:'0 0 12px'}}>Google and Apple sign-in require native developer credentials. Tap either option for details, or use email sign-in now.</p>
 
         <div style={{display:'flex',alignItems:'center',gap:'14px',margin:'18px 0',color:'#9ca3af',fontSize:'13px'}}>
           <div style={{height:'1px',background:'#e5e7eb',flex:1}} />
@@ -134,7 +137,7 @@ const LoginCard = () => {
         {errorMessage ? <p style={{color:'#dc2626',fontSize:'13px',margin:'0 0 12px'}}>{errorMessage}</p> : null}
         {noticeMessage ? <p style={{color:'#6b7280',fontSize:'13px',margin:'0 0 12px'}}>{noticeMessage}</p> : null}
         <button disabled={isSubmitting} type="submit" style={{width:'100%',padding:'14px',background:'linear-gradient(135deg,#60a5fa,#a78bfa)',color:'white',border:'none',borderRadius:'14px',fontSize:'16px',fontWeight:'600',cursor:isSubmitting ? 'default' : 'pointer',opacity:isSubmitting ? 0.7 : 1}}>
-          {isSubmitting ? (mode === 'signup' ? 'Creating Account...' : 'Signing In...') : (mode === 'signup' ? 'Create Account' : 'Sign In with Email')}
+          {isSubmitting ? (mode === 'signup' ? 'Creating Account...' : 'Signing In...') : (mode === 'signup' ? 'Create Account' : 'Sign In With Email')}
         </button>
         <button
           type="button"
