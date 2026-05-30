@@ -24,7 +24,6 @@ const STORAGE_PREFIX = 'base44_';
 
 export const BASE44_APP_ID = '68fdc53372ff0fbf07eee38d';
 export const BASE44_SERVER_URL = 'https://app.base44.com';
-export const BASE44_HOSTED_APP_URL = 'https://restorebraine.base44.app';
 
 const getAppParamValueSync = (paramName, { defaultValue = undefined, removeFromUrl = false } = {}) => {
   if (isNode) return defaultValue;

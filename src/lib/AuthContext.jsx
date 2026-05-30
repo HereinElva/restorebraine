@@ -2,8 +2,8 @@ import React, { createContext, useState, useContext, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { clearPersistedToken } from '@/lib/app-params';
 import { appParams } from '@/lib/app-params';
+import { persistentStorage } from '@/lib/persistentStorage';
 import { createAxiosClient } from '@base44/sdk/dist/utils/axios-client';
-import { openLogin, setupNativeAuthCallback } from '@/lib/nativeAuth';
 
 const AuthContext = createContext();
 
@@ -17,19 +17,7 @@ export const AuthProvider = ({ children }) => {
   const [manuallyLoggedOut, setManuallyLoggedOut] = useState(false); // Contains only { id, public_settings }
 
   useEffect(() => {
-    let nativeAuthListener;
-
-    setupNativeAuthCallback(() => {
-      window.location.replace('/');
-    }).then((listener) => {
-      nativeAuthListener = listener;
-    });
-
     checkAppState();
-
-    return () => {
-      nativeAuthListener?.remove?.();
-    };
   }, []);
 
   const checkAppState = async () => {
@@ -103,6 +91,14 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const persistAccessToken = async (token) => {
+    if (!token) return;
+    appParams.token = token;
+    base44.auth.setToken(token);
+    await persistentStorage.set('base44_access_token', token);
+    await persistentStorage.set('token', token);
+  };
+
   const checkUserAuth = async () => {
     if (manuallyLoggedOut) return;
     if (localStorage.getItem("b44_signed_out") === "1") { setIsLoadingAuth(false); setIsAuthenticated(false); setAuthError({ type: "auth_required", message: "Authentication required" }); return; }
@@ -135,13 +131,17 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const localLogout = () => { setManuallyLoggedOut(true);
+  const localLogout = async () => {
+    setManuallyLoggedOut(true);
     try {
       localStorage.removeItem('base44_access_token');
       localStorage.removeItem('token');
       sessionStorage.clear();
       localStorage.setItem('b44_signed_out', '1');
     } catch {}
+    appParams.token = null;
+    await clearPersistedToken();
+    await persistentStorage.remove('token');
     setUser(null);
     setIsAuthenticated(false);
     setIsLoadingAuth(false);
@@ -149,23 +149,45 @@ export const AuthProvider = ({ children }) => {
     setAuthError({ type: 'auth_required', message: 'Authentication required' });
   };
 
-  const logout = async (shouldRedirect = true) => {
-    setUser(null);
-    setIsAuthenticated(false);
-    await clearPersistedToken();
-    
-    if (shouldRedirect) {
-      // Use the SDK's logout method which handles token cleanup and redirect
-      base44.auth.logout(window.location.href);
-    } else {
-      // Just remove the token without redirect
-      base44.auth.logout();
-    }
+  const logout = async () => {
+    await localLogout();
   };
 
-  const navigateToLogin = async () => {
+  const loginWithEmailPassword = async ({ email, password }) => {
+    setIsLoadingAuth(true);
+    setAuthError(null);
     localStorage.removeItem('b44_signed_out');
-    await openLogin();
+    localStorage.removeItem('base44_logged_out');
+
+    try {
+      const authClient = createAxiosClient({
+        baseURL: `${appParams.serverUrl}/api`,
+        headers: { 'X-App-Id': appParams.appId },
+        interceptResponses: true,
+      });
+      const response = await authClient.post(`/apps/${appParams.appId}/auth/login`, { email, password });
+
+      if (!response?.access_token) {
+        throw new Error('Sign in failed. Please try again.');
+      }
+
+      await persistAccessToken(response.access_token);
+      setManuallyLoggedOut(false);
+      setUser(response.user ?? null);
+      setIsAuthenticated(true);
+      setIsLoadingAuth(false);
+      setIsLoadingPublicSettings(false);
+      setAuthError(null);
+      await checkUserAuth();
+    } catch (error) {
+      setIsLoadingAuth(false);
+      setIsAuthenticated(false);
+      setAuthError({
+        type: 'auth_required',
+        message: error?.data?.message || error?.message || 'Invalid email or password',
+      });
+      throw error;
+    }
   };
 
   return (
@@ -179,7 +201,7 @@ export const AuthProvider = ({ children }) => {
       logout,
       localLogout,
       manuallyLoggedOut,
-      navigateToLogin,
+      loginWithEmailPassword,
       checkAppState
     }}>
       {children}
