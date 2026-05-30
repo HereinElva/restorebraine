@@ -28,10 +28,11 @@ const LoginLogo = () => (
   </div>
 );
 
-const ProviderButton = ({ children, onClick, dark = false }) => (
+const ProviderButton = ({ children, dark = false }) => (
   <button
     type="button"
-    onClick={onClick}
+    disabled
+    aria-disabled="true"
     style={{
       width:'100%',
       padding:'13px 14px',
@@ -41,8 +42,9 @@ const ProviderButton = ({ children, onClick, dark = false }) => (
       borderRadius:'10px',
       fontSize:'15px',
       fontWeight:'600',
-      cursor:'pointer',
+      cursor:'not-allowed',
       marginBottom:'10px',
+      opacity:0.65,
       boxShadow: dark ? 'none' : '0 2px 8px rgba(0,0,0,0.04)',
     }}
   >
@@ -59,11 +61,6 @@ const LoginCard = () => {
   const [errorMessage, setErrorMessage] = useState('');
   const [noticeMessage, setNoticeMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const providerNotice = (provider) => {
-    setErrorMessage('');
-    setNoticeMessage(`${provider} sign-in needs native Apple/Google developer credentials before it can be enabled. Use email sign in for this build.`);
-  };
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -92,8 +89,9 @@ const LoginCard = () => {
         <h1 style={{fontSize:'24px',fontWeight:'700',color:'#111',marginBottom:'8px'}}>Restorebraine</h1>
         <p style={{color:'#666',marginBottom:'24px',fontSize:'14px'}}>Sign in to access your memories</p>
 
-        <ProviderButton onClick={() => providerNotice('Google')}><span style={{color:'#4285F4',fontWeight:'800',marginRight:'10px'}}>G</span>Continue with Google</ProviderButton>
-        <ProviderButton onClick={() => providerNotice('Apple')} dark><span style={{fontSize:'18px',marginRight:'10px'}}>Apple</span>Continue with Apple</ProviderButton>
+        <ProviderButton><span style={{color:'#4285F4',fontWeight:'800',marginRight:'10px'}}>G</span>Continue with Google</ProviderButton>
+        <ProviderButton dark>Continue with Apple</ProviderButton>
+        <p style={{color:'#6b7280',fontSize:'12px',lineHeight:1.4,margin:'0 0 12px'}}>Google and Apple sign-in require native developer credentials before they can be enabled. Use email sign-in for this build.</p>
 
         <div style={{display:'flex',alignItems:'center',gap:'14px',margin:'18px 0',color:'#9ca3af',fontSize:'13px'}}>
           <div style={{height:'1px',background:'#e5e7eb',flex:1}} />
