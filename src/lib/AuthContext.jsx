@@ -3,6 +3,7 @@ import { base44 } from '@/api/base44Client';
 import { clearPersistedToken } from '@/lib/app-params';
 import { appParams } from '@/lib/app-params';
 import { createAxiosClient } from '@base44/sdk/dist/utils/axios-client';
+import { openLogin, setupNativeAuthCallback } from '@/lib/nativeAuth';
 
 const AuthContext = createContext();
 
@@ -16,7 +17,19 @@ export const AuthProvider = ({ children }) => {
   const [manuallyLoggedOut, setManuallyLoggedOut] = useState(false); // Contains only { id, public_settings }
 
   useEffect(() => {
+    let nativeAuthListener;
+
+    setupNativeAuthCallback(() => {
+      window.location.replace('/');
+    }).then((listener) => {
+      nativeAuthListener = listener;
+    });
+
     checkAppState();
+
+    return () => {
+      nativeAuthListener?.remove?.();
+    };
   }, []);
 
   const checkAppState = async () => {
@@ -150,9 +163,9 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const navigateToLogin = () => {
-    // Use the SDK's redirectToLogin method
-    base44.auth.redirectToLogin("https://restorebraine.base44.app");
+  const navigateToLogin = async () => {
+    localStorage.removeItem('b44_signed_out');
+    await openLogin();
   };
 
   return (

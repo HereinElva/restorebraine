@@ -12,7 +12,19 @@ const isNode = typeof window === 'undefined';
 
 const toSnakeCase = (str) => str.replace(/([A-Z])/g, '_$1').toLowerCase();
 
+const isNativeRuntime = () => {
+  try {
+    return typeof window !== 'undefined' && window.Capacitor?.isNativePlatform?.();
+  } catch {
+    return false;
+  }
+};
+
 const STORAGE_PREFIX = 'base44_';
+
+export const BASE44_APP_ID = '68fdc53372ff0fbf07eee38d';
+export const BASE44_SERVER_URL = 'https://app.base44.com';
+export const BASE44_HOSTED_APP_URL = 'https://restorebraine.base44.app';
 
 const getAppParamValueSync = (paramName, { defaultValue = undefined, removeFromUrl = false } = {}) => {
   if (isNode) return defaultValue;
@@ -32,6 +44,11 @@ const getAppParamValueSync = (paramName, { defaultValue = undefined, removeFromU
     return searchParam;
   }
 
+  if (isNativeRuntime() && paramName === 'server_url') {
+    persistentStorage.set(storageKey, BASE44_SERVER_URL);
+    return BASE44_SERVER_URL;
+  }
+
   if (defaultValue) {
     persistentStorage.set(storageKey, defaultValue);
     return defaultValue;
@@ -44,8 +61,8 @@ const getAppParamValueSync = (paramName, { defaultValue = undefined, removeFromU
 
 const getAppParams = () => {
   return {
-    appId: getAppParamValueSync('app_id', { defaultValue: import.meta.env.VITE_BASE44_APP_ID }),
-    serverUrl: getAppParamValueSync('server_url', { defaultValue: import.meta.env.VITE_BASE44_BACKEND_URL }),
+    appId: getAppParamValueSync('app_id', { defaultValue: import.meta.env.VITE_BASE44_APP_ID || BASE44_APP_ID }),
+    serverUrl: getAppParamValueSync('server_url', { defaultValue: import.meta.env.VITE_BASE44_BACKEND_URL || BASE44_SERVER_URL }),
     token: getAppParamValueSync('access_token', { removeFromUrl: true }),
     fromUrl: getAppParamValueSync('from_url', { defaultValue: isNode ? '' : window.location.href }),
     functionsVersion: getAppParamValueSync('functions_version'),
