@@ -383,9 +383,9 @@ export default function Gallery() {
         <div className="max-w-3xl mx-auto mb-12">
           <div className="relative group">
             <div className="absolute inset-0 bg-gradient-to-r from-blue-300 to-purple-400 rounded-2xl blur-xl opacity-20 group-hover:opacity-30 transition-opacity duration-300" />
-            <div className="relative bg-white rounded-2xl shadow-lg border border-purple-100 p-2">
+            <div className="relative bg-blue-50 rounded-2xl shadow-lg border border-blue-100 p-2">
               <div className="flex items-center gap-3 px-4 py-3">
-                <Search className="w-5 h-5 text-gray-400" />
+                <Search className="w-5 h-5 text-blue-300" />
                 <Input
                   type="text"
                   placeholder='Try "sunset on the beach" or "people laughing" or "red car"...'

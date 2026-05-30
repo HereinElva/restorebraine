@@ -106,6 +106,14 @@ export const AuthProvider = ({ children }) => {
       // Now check if the user is authenticated
       setIsLoadingAuth(true);
       const currentUser = await base44.auth.me();
+      if (!currentUser?.email) {
+        await clearPersistedToken();
+        setUser(null);
+        setIsAuthenticated(false);
+        setAuthError({ type: 'auth_required', message: 'Please sign in with your Restorebraine email.' });
+        setIsLoadingAuth(false);
+        return;
+      }
       setUser(currentUser);
       setIsAuthenticated(true);
       setIsLoadingAuth(false);

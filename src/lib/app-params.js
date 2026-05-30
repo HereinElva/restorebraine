@@ -14,19 +14,48 @@ const toSnakeCase = (str) => str.replace(/([A-Z])/g, '_$1').toLowerCase();
 
 const isNativeRuntime = () => {
   try {
-    return typeof window !== 'undefined' && window.Capacitor?.isNativePlatform?.();
+    return typeof window !== 'undefined' && (
+      window.Capacitor?.isNativePlatform?.() ||
+      window.location?.protocol === 'capacitor:' ||
+      window.location?.protocol === 'ionic:'
+    );
   } catch {
     return false;
   }
 };
 
 const STORAGE_PREFIX = 'base44_';
+const NATIVE_AUTH_STORAGE_VERSION = 'restorebraine-native-email-v3';
 
 export const BASE44_APP_ID = '68fdc53372ff0fbf07eee38d';
 export const BASE44_SERVER_URL = 'https://app.base44.com';
 
+const clearBrowserAuthStorageSync = () => {
+  try {
+    window.localStorage.removeItem('base44_access_token');
+    window.localStorage.removeItem('token');
+    window.localStorage.removeItem('base44_server_url');
+    window.localStorage.removeItem('base44_app_id');
+  } catch {}
+};
+
 const getAppParamValueSync = (paramName, { defaultValue = undefined, removeFromUrl = false } = {}) => {
   if (isNode) return defaultValue;
+
+  const nativeRuntime = isNativeRuntime();
+
+  if (nativeRuntime && paramName === 'app_id') return BASE44_APP_ID;
+  if (nativeRuntime && paramName === 'server_url') return BASE44_SERVER_URL;
+
+  if (nativeRuntime && paramName === 'access_token') {
+    const storedVersion = window.localStorage.getItem('restorebraine_auth_storage_version');
+    if (storedVersion !== NATIVE_AUTH_STORAGE_VERSION) {
+      clearBrowserAuthStorageSync();
+      window.localStorage.setItem('restorebraine_skip_preference_token_restore', '1');
+      window.localStorage.setItem('restorebraine_auth_storage_version', NATIVE_AUTH_STORAGE_VERSION);
+      return null;
+    }
+  }
 
   const storageKey = `${STORAGE_PREFIX}${toSnakeCase(paramName)}`;
   const urlParams = new URLSearchParams(window.location.search);
@@ -41,11 +70,6 @@ const getAppParamValueSync = (paramName, { defaultValue = undefined, removeFromU
   if (searchParam) {
     persistentStorage.set(storageKey, searchParam);
     return searchParam;
-  }
-
-  if (isNativeRuntime() && paramName === 'server_url') {
-    persistentStorage.set(storageKey, BASE44_SERVER_URL);
-    return BASE44_SERVER_URL;
   }
 
   if (defaultValue) {
@@ -75,15 +99,22 @@ export const appParams = {
 // On launch, restore token from Capacitor Preferences into localStorage
 if (!isNode) {
   const tokenKey = `${STORAGE_PREFIX}access_token`;
-  persistentStorage.get(tokenKey).then((storedToken) => {
-    if (storedToken && !appParams.token) {
-      appParams.token = storedToken;
-      persistentStorage._mirror(tokenKey, storedToken);
-    }
-  });
+  if (window.localStorage.getItem('restorebraine_skip_preference_token_restore') === '1') {
+    window.localStorage.removeItem('restorebraine_skip_preference_token_restore');
+    persistentStorage.remove(tokenKey);
+    persistentStorage.remove('token');
+  } else {
+    persistentStorage.get(tokenKey).then((storedToken) => {
+      if (storedToken && !appParams.token) {
+        appParams.token = storedToken;
+        persistentStorage._mirror(tokenKey, storedToken);
+      }
+    });
+  }
 }
 
 export const clearPersistedToken = async () => {
-  const tokenKey = `${STORAGE_PREFIX}access_token`;
-  await persistentStorage.remove(tokenKey);
+  appParams.token = null;
+  await persistentStorage.remove(`${STORAGE_PREFIX}access_token`);
+  await persistentStorage.remove('token');
 };
