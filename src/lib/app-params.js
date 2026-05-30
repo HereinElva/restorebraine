@@ -25,7 +25,7 @@ const isNativeRuntime = () => {
 };
 
 const STORAGE_PREFIX = 'base44_';
-const NATIVE_AUTH_STORAGE_VERSION = 'restorebraine-native-email-v5';
+const NATIVE_AUTH_STORAGE_VERSION = 'restorebraine-native-email-v6';
 
 export const BASE44_APP_ID = '68fdc5f42768c4d045fe1bac';
 export const BASE44_SERVER_URL = 'https://app.base44.com';
@@ -44,8 +44,8 @@ const getAppParamValueSync = (paramName, { defaultValue = undefined, removeFromU
 
   const nativeRuntime = isNativeRuntime();
 
-  if (nativeRuntime && paramName === 'app_id') return BASE44_APP_ID;
-  if (nativeRuntime && paramName === 'server_url') return BASE44_SERVER_URL;
+  if (paramName === 'app_id') return BASE44_APP_ID;
+  if (paramName === 'server_url') return BASE44_SERVER_URL;
 
   if (nativeRuntime && paramName === 'access_token') {
     const storedVersion = window.localStorage.getItem('restorebraine_auth_storage_version');
@@ -84,8 +84,8 @@ const getAppParamValueSync = (paramName, { defaultValue = undefined, removeFromU
 
 const getAppParams = () => {
   return {
-    appId: getAppParamValueSync('app_id', { defaultValue: import.meta.env.VITE_BASE44_APP_ID || BASE44_APP_ID }),
-    serverUrl: getAppParamValueSync('server_url', { defaultValue: import.meta.env.VITE_BASE44_BACKEND_URL || BASE44_SERVER_URL }),
+    appId: getAppParamValueSync('app_id', { defaultValue: BASE44_APP_ID }),
+    serverUrl: getAppParamValueSync('server_url', { defaultValue: BASE44_SERVER_URL }),
     token: getAppParamValueSync('access_token', { removeFromUrl: true }),
     fromUrl: getAppParamValueSync('from_url', { defaultValue: isNode ? '' : window.location.href }),
     functionsVersion: getAppParamValueSync('functions_version'),

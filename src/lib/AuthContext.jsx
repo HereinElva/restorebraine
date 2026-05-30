@@ -7,6 +7,19 @@ import { createAxiosClient } from '@base44/sdk/dist/utils/axios-client';
 
 const AuthContext = createContext();
 
+export const EMAIL_VERIFICATION_REQUIRED = 'email_verification_required';
+
+const getAuthErrorMessage = (error) => error?.data?.message || error?.message || 'Something went wrong';
+
+const isVerificationRequiredMessage = (message) => /verify your email|verification code/i.test(message || '');
+
+const createVerificationError = (message, email) => {
+  const error = new Error(message);
+  error.code = EMAIL_VERIFICATION_REQUIRED;
+  error.email = email;
+  return error;
+};
+
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -14,7 +27,7 @@ export const AuthProvider = ({ children }) => {
   const [isLoadingPublicSettings, setIsLoadingPublicSettings] = useState(true);
   const [authError, setAuthError] = useState(null);
   const [appPublicSettings, setAppPublicSettings] = useState(null);
-  const [manuallyLoggedOut, setManuallyLoggedOut] = useState(false); // Contains only { id, public_settings }
+  const [manuallyLoggedOut, setManuallyLoggedOut] = useState(false);
 
   useEffect(() => {
     checkAppState();
@@ -26,14 +39,12 @@ export const AuthProvider = ({ children }) => {
       setIsLoadingPublicSettings(true);
       setAuthError(null);
       
-      // First, check app public settings (with token if available)
-      // This will tell us if auth is required, user not registered, etc.
       const appClient = createAxiosClient({
         baseURL: `${appParams.serverUrl}/api/apps/public`,
         headers: {
           'X-App-Id': appParams.appId
         },
-        token: appParams.token, // Include token if available
+        token: appParams.token,
         interceptResponses: true
       });
       
@@ -41,19 +52,17 @@ export const AuthProvider = ({ children }) => {
         const publicSettings = await appClient.get(`/prod/public-settings/by-id/${appParams.appId}`);
         setAppPublicSettings(publicSettings);
         
-        // If we got the app public settings successfully, check if user is authenticated
         if (appParams.token) {
           await checkUserAuth();
         } else {
           setIsLoadingAuth(false);
           setIsAuthenticated(false);
-    await clearPersistedToken();
+          await clearPersistedToken();
         }
         setIsLoadingPublicSettings(false);
       } catch (appError) {
         console.error('App state check failed:', appError);
         
-        // Handle app-level errors
         if (appError.status === 403 && appError.data?.extra_data?.reason) {
           const reason = appError.data.extra_data.reason;
           if (reason === 'auth_required') {
@@ -69,9 +78,11 @@ export const AuthProvider = ({ children }) => {
           setAuthError({ type: 'auth_required', message: 'Authentication required' });
           setIsLoadingPublicSettings(false);
           setIsLoadingAuth(false);
+        } else if (appError.status === 404) {
+          setAuthError({ type: 'auth_required', message: 'App not found. Rebuild with the latest native build from Xcode.' });
+          setIsLoadingPublicSettings(false);
+          setIsLoadingAuth(false);
         } else {
-          // Network error or transient failure — if we have a stored token, still try to auth
-          // This prevents logging users out on flaky connections or app resume
           setIsLoadingPublicSettings(false);
           if (appParams.token) {
             await checkUserAuth();
@@ -99,11 +110,23 @@ export const AuthProvider = ({ children }) => {
     await persistentStorage.set('token', token);
   };
 
+  const completeAuthSession = async (accessToken, authUser) => {
+    localStorage.removeItem('b44_signed_out');
+    localStorage.removeItem('base44_logged_out');
+    await persistAccessToken(accessToken);
+    setManuallyLoggedOut(false);
+    setUser(authUser ?? null);
+    setIsAuthenticated(true);
+    setIsLoadingAuth(false);
+    setIsLoadingPublicSettings(false);
+    setAuthError(null);
+    await checkUserAuth();
+  };
+
   const checkUserAuth = async () => {
     if (manuallyLoggedOut) return;
     if (localStorage.getItem("b44_signed_out") === "1") { setIsLoadingAuth(false); setIsAuthenticated(false); setAuthError({ type: "auth_required", message: "Authentication required" }); return; }
     try {
-      // Now check if the user is authenticated
       setIsLoadingAuth(true);
       const currentUser = await base44.auth.me();
       if (!currentUser?.email) {
@@ -121,10 +144,8 @@ export const AuthProvider = ({ children }) => {
       console.error('User auth check failed:', error);
       setIsLoadingAuth(false);
       setIsAuthenticated(false);
-    await clearPersistedToken();
+      await clearPersistedToken();
       
-      // Only redirect to login on 401 (unauthenticated).
-      // 403 means the user IS authenticated but not registered/invited — show that error instead.
       if (error.status === 401) {
         setAuthError({
           type: 'auth_required',
@@ -167,31 +188,24 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem('base44_logged_out');
 
     try {
-      const authClient = createAxiosClient({
-        baseURL: `${appParams.serverUrl}/api`,
-        headers: { 'X-App-Id': appParams.appId },
-        interceptResponses: true,
-      });
-      const response = await authClient.post(`/apps/${appParams.appId}/auth/login`, { email, password });
+      const response = await base44.auth.loginViaEmailPassword(email, password);
 
       if (!response?.access_token) {
         throw new Error('Sign in failed. Please try again.');
       }
 
-      await persistAccessToken(response.access_token);
-      setManuallyLoggedOut(false);
-      setUser(response.user ?? null);
-      setIsAuthenticated(true);
-      setIsLoadingAuth(false);
-      setIsLoadingPublicSettings(false);
-      setAuthError(null);
-      await checkUserAuth();
+      await completeAuthSession(response.access_token, response.user);
+      return response;
     } catch (error) {
+      const message = getAuthErrorMessage(error);
+      if (isVerificationRequiredMessage(message)) {
+        throw createVerificationError(message, email);
+      }
       setIsLoadingAuth(false);
       setIsAuthenticated(false);
       setAuthError({
         type: 'auth_required',
-        message: error?.data?.message || error?.message || 'Invalid email or password',
+        message,
       });
       throw error;
     }
@@ -203,12 +217,7 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem('base44_logged_out');
 
     try {
-      const authClient = createAxiosClient({
-        baseURL: `${appParams.serverUrl}/api`,
-        headers: { 'X-App-Id': appParams.appId },
-        interceptResponses: true,
-      });
-      const response = await authClient.post(`/apps/${appParams.appId}/auth/register`, {
+      const response = await base44.auth.register({
         email,
         password,
         full_name: fullName,
@@ -216,28 +225,60 @@ export const AuthProvider = ({ children }) => {
       });
 
       if (response?.access_token) {
-        await persistAccessToken(response.access_token);
-        setManuallyLoggedOut(false);
-        setUser(response.user ?? null);
-        setIsAuthenticated(true);
-        setAuthError(null);
-        await checkUserAuth();
-      } else {
-        setAuthError({ type: 'auth_required', message: 'Account created. Please sign in.' });
+        await completeAuthSession(response.access_token, response.user);
+        return { signedIn: true, ...response };
       }
 
-      setIsLoadingAuth(false);
-      setIsLoadingPublicSettings(false);
-      return response;
+      const message = response?.message || 'Registration successful. Check your email for the verification code.';
+      if (isVerificationRequiredMessage(message)) {
+        throw createVerificationError(message, email);
+      }
+
+      throw new Error(message);
     } catch (error) {
+      if (error.code === EMAIL_VERIFICATION_REQUIRED) {
+        throw error;
+      }
+      const message = getAuthErrorMessage(error);
+      if (isVerificationRequiredMessage(message)) {
+        throw createVerificationError(message, email);
+      }
       setIsLoadingAuth(false);
       setIsAuthenticated(false);
       setAuthError({
         type: 'auth_required',
-        message: error?.data?.message || error?.message || 'Unable to create account',
+        message,
       });
       throw error;
     }
+  };
+
+  const verifyEmailOtp = async ({ email, otpCode }) => {
+    setAuthError(null);
+
+    try {
+      const response = await base44.auth.verifyOtp({ email, otpCode: otpCode.trim() });
+
+      if (!response?.access_token) {
+        throw new Error('Invalid verification code. Please try again.');
+      }
+
+      await completeAuthSession(response.access_token, response.user);
+      return response;
+    } catch (error) {
+      setIsLoadingAuth(false);
+      setIsAuthenticated(false);
+      const message = getAuthErrorMessage(error);
+      setAuthError({
+        type: 'auth_required',
+        message,
+      });
+      throw error;
+    }
+  };
+
+  const resendEmailOtp = async (email) => {
+    return base44.auth.resendOtp(email);
   };
 
   return (
@@ -253,6 +294,8 @@ export const AuthProvider = ({ children }) => {
       manuallyLoggedOut,
       loginWithEmailPassword,
       registerWithEmailPassword,
+      verifyEmailOtp,
+      resendEmailOtp,
       checkAppState
     }}>
       {children}
