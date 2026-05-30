@@ -61,14 +61,27 @@ const LoginCard = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleProviderClick = (provider) => {
+    const message = `${provider} sign-in will be enabled after native ${provider} credentials are configured. Please use email sign-in for this build.`;
     setErrorMessage('');
-    setNoticeMessage(`${provider} sign-in will be enabled after native ${provider} credentials are configured. Please use email sign-in for this build.`);
+    setNoticeMessage(message);
+    window.alert(message);
   };
 
   const handleSubmit = async (event) => {
     event.preventDefault();
     setErrorMessage('');
     setNoticeMessage('');
+
+    if (!email.trim() || !password) {
+      setErrorMessage('Enter your email and password to sign in.');
+      return;
+    }
+
+    if (mode === 'signup' && !fullName.trim()) {
+      setErrorMessage('Enter your name to create an account.');
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       if (mode === 'signup') {
@@ -87,7 +100,7 @@ const LoginCard = () => {
 
   return (
     <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'linear-gradient(135deg,#eff6ff,#f5f3ff,#fdf2f8)',padding:'20px'}}>
-      <form onSubmit={handleSubmit} style={{background:'white',borderRadius:'24px',padding:'30px',boxShadow:'0 10px 40px rgba(0,0,0,0.1)',maxWidth:'390px',width:'100%',textAlign:'center'}}>
+      <form onSubmit={handleSubmit} noValidate style={{background:'white',borderRadius:'24px',padding:'30px',boxShadow:'0 10px 40px rgba(0,0,0,0.1)',maxWidth:'390px',width:'100%',textAlign:'center'}}>
         <LoginLogo />
         <h1 style={{fontSize:'24px',fontWeight:'700',color:'#111',marginBottom:'8px'}}>Restorebraine</h1>
         <p style={{color:'#666',marginBottom:'24px',fontSize:'14px'}}>Sign in to access your memories</p>
