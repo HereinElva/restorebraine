@@ -1,6 +1,9 @@
 import { redirectNativeToHostedApp } from '@/lib/native-hosted-redirect';
+import { installNativeOAuthFix } from '@/lib/native-oauth-fix';
 
 async function bootstrapApp() {
+  installNativeOAuthFix();
+
   if (redirectNativeToHostedApp()) {
     return;
   }

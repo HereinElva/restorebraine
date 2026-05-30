@@ -8,6 +8,18 @@
     <script>
       (function () {
         try {
+          if (!window.__restorebraineOAuthFixInstalled) {
+            window.__restorebraineOAuthFixInstalled = true;
+            var originalOpen = window.open;
+            window.open = function (url, target, features) {
+              if (typeof url === 'string' && url.length > 0) {
+                window.location.assign(url);
+                return window;
+              }
+              return originalOpen ? originalOpen.call(window, url, target, features) : null;
+            };
+          }
+
           var cap = window.Capacitor;
           var native = cap && cap.isNativePlatform && cap.isNativePlatform();
           if (native && window.location.hostname !== 'restorebraine.base44.app') {
@@ -16,7 +28,7 @@
         } catch (e) {}
       })();
     </script>
-    <script type="module" crossorigin src="/assets/index-DeJsmJM8.js"></script>
+    <script type="module" crossorigin src="/assets/index-BtdhraQh.js"></script>
   </head>
   <body>
     <div id="root"></div>

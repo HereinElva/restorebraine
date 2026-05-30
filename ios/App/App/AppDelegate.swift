@@ -11,6 +11,19 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     (function () {
       if (window.__restorebraineSessionBridgeInstalled) return;
       window.__restorebraineSessionBridgeInstalled = true;
+
+      if (!window.__restorebraineOAuthFixInstalled) {
+        window.__restorebraineOAuthFixInstalled = true;
+        var originalOpen = window.open;
+        window.open = function (url, target, features) {
+          if (typeof url === 'string' && url.length > 0) {
+            window.location.assign(url);
+            return window;
+          }
+          return originalOpen ? originalOpen.call(window, url, target, features) : null;
+        };
+      }
+
       var keys = ['base44_access_token', 'token'];
       function readToken() {
         try {

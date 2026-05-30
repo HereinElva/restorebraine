@@ -8,9 +8,15 @@
     "allowNavigation": [
       "app.base44.com",
       "base44.com",
+      "*.base44.com",
       "restorebraine.base44.app",
       "accounts.google.com",
-      "appleid.apple.com"
+      "google.com",
+      "*.google.com",
+      "*.googleapis.com",
+      "*.gstatic.com",
+      "appleid.apple.com",
+      "*.apple.com"
     ]
   },
   "ios": {
