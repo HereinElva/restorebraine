@@ -19,6 +19,8 @@ const MainPage = mainPageKey ? Pages[mainPageKey] : <></>;
 
 setupIframeMessaging();
 
+const isValidEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+
 const LayoutWrapper = ({ children, currentPageName }) => Layout ?
   <Layout currentPageName={currentPageName}>{children}</Layout>
   : <>{children}</>;
@@ -154,8 +156,18 @@ const LoginCard = () => {
       return;
     }
 
+    if (!isValidEmail(email)) {
+      setErrorMessage('Enter a valid email address in the Email field (example: you@gmail.com).');
+      return;
+    }
+
     if (mode === 'signup' && !fullName.trim()) {
-      setErrorMessage('Enter your name to create an account.');
+      setErrorMessage('Enter your name in the Name field.');
+      return;
+    }
+
+    if (mode === 'signup' && isValidEmail(fullName)) {
+      setErrorMessage('It looks like your email is in the Name field. Put your name in Name and your email in Email.');
       return;
     }
 
@@ -221,6 +233,7 @@ const LoginCard = () => {
             <input
               type="text"
               autoComplete="name"
+              placeholder="Your name"
               value={fullName}
               onChange={(event) => setFullName(event.target.value)}
               required
@@ -233,6 +246,7 @@ const LoginCard = () => {
           type="email"
           autoCapitalize="none"
           autoComplete="email"
+          placeholder="you@example.com"
           value={email}
           onChange={(event) => setEmail(event.target.value)}
           readOnly={mode === 'verify'}
@@ -259,6 +273,7 @@ const LoginCard = () => {
             <input
               type="password"
               autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
+              placeholder="Your password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               required
