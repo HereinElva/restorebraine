@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "node scripts/sync-app-icon.mjs && vite build",
+    "build": "node scripts/write-build-info.mjs && node scripts/sync-app-icon.mjs && vite build && npx cap sync ios",
+    "build:web": "node scripts/write-build-info.mjs && node scripts/sync-app-icon.mjs && vite build",
     "lint": "eslint .",
     "preview": "vite preview"
   },
