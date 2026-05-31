@@ -7,7 +7,6 @@ import { ArrowLeft, Trash2, AlertTriangle, LogOut } from "lucide-react";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { NATIVE_BUILD_LABEL } from '@/lib/build-info';
 
 export default function Account() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -22,6 +21,10 @@ export default function Account() {
 
   const handleLogout = () => {
     queryClient.clear();
+    if (typeof window !== 'undefined' && window.__restorebrainePerformSignOut) {
+      window.__restorebrainePerformSignOut();
+      return;
+    }
     localLogout();
   };
 
@@ -49,22 +52,19 @@ export default function Account() {
           </Button>
         </Link>
         <div className="bg-white rounded-2xl shadow-lg p-8">
-          <div className="mb-6">
-            <h1 className="text-3xl font-bold text-gray-900">Account Settings</h1>
-            <p className="text-xs font-semibold text-purple-300 mt-1">{NATIVE_BUILD_LABEL}</p>
-          </div>
+          <h1 className="text-3xl font-bold text-gray-900 mb-6">Account Settings</h1>
           {user && (
             <div className="mb-8 p-4 bg-purple-50 rounded-lg">
               <p className="text-sm text-gray-600 mb-1">Email</p>
               <p className="font-medium text-gray-900">{user.email}</p>
             </div>
           )}
-          <div className="mb-6 p-4 bg-gray-50 border border-gray-200 rounded-lg flex items-center justify-between">
+          <div className="mb-6 p-4 bg-gray-50 border border-gray-200 rounded-lg flex items-center justify-between" data-rb-sign-out-row>
             <div>
               <h3 className="font-semibold text-gray-900">Sign Out</h3>
               <p className="text-sm text-gray-600 mt-0.5">Sign out of your Restorebraine account</p>
             </div>
-            <Button onClick={handleLogout} variant="outline" className="gap-2 border-gray-300">
+            <Button onClick={handleLogout} variant="outline" className="gap-2 border-gray-300" data-rb-sign-out>
               <LogOut className="w-4 h-4" />
               Sign Out
             </Button>
