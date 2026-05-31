@@ -23,10 +23,14 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         let defaults = UserDefaults.standard
         defaults.set(token, forKey: "CapacitorStorage.base44_access_token")
         defaults.set(token, forKey: "CapacitorStorage.token")
+        defaults.removeObject(forKey: "CapacitorStorage.b44_signed_out")
     }
 
     private func storedNativeToken() -> String? {
         let defaults = UserDefaults.standard
+        if defaults.string(forKey: "CapacitorStorage.b44_signed_out") == "1" {
+            return nil
+        }
         return defaults.string(forKey: "CapacitorStorage.base44_access_token")
             ?? defaults.string(forKey: "CapacitorStorage.token")
     }
@@ -44,6 +48,14 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         (function () {
           if (window.__restorebraineSessionBridgeInstalled) return;
           window.__restorebraineSessionBridgeInstalled = true;
+          (function injectBase44HideStyles() {
+            if (document.getElementById('rb-hide-base44-boot')) return;
+            var style = document.createElement('style');
+            style.id = 'rb-hide-base44-boot';
+            style.textContent = '#base44-edit-badge, #base44-modal-overlay { display:none !important; visibility:hidden !important; opacity:0 !important; pointer-events:none !important; }';
+            (document.head || document.documentElement).appendChild(style);
+          })();
+
 
           var RESTOREBRAINE = 'https://restorebraine.base44.app';
           var PLATFORM = 'https://app.base44.com';
@@ -110,6 +122,30 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
           }
 
           var keys = ['base44_access_token', 'token'];
+          var SIGNED_OUT_KEY = 'b44_signed_out';
+
+          function isSignedOut() {
+            try { return localStorage.getItem(SIGNED_OUT_KEY) === '1'; } catch (e) {}
+            return false;
+          }
+
+          function clearNativeSession() {
+            try {
+              localStorage.removeItem('base44_access_token');
+              localStorage.removeItem('token');
+              localStorage.removeItem('base44_logged_out');
+              localStorage.setItem(SIGNED_OUT_KEY, '1');
+            } catch (e) {}
+            try {
+              var prefs = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Preferences;
+              if (prefs) {
+                prefs.remove({ key: 'base44_access_token' });
+                prefs.remove({ key: 'token' });
+                prefs.set({ key: SIGNED_OUT_KEY, value: '1' });
+              }
+            } catch (e) {}
+          }
+
           function readToken() {
             try {
               for (var i = 0; i < keys.length; i++) {
@@ -121,8 +157,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
           }
 
           function saveToken(token) {
-            if (!token) return false;
+            if (!token || isSignedOut()) return false;
             try {
+              localStorage.removeItem(SIGNED_OUT_KEY);
               localStorage.setItem('base44_access_token', token);
               localStorage.setItem('token', token);
               persistToken();
@@ -149,25 +186,36 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
           function persistToken() {
             try {
+              if (isSignedOut()) return;
               var token = readToken();
               if (!token || !window.Capacitor || !window.Capacitor.Plugins || !window.Capacitor.Plugins.Preferences) return;
               window.Capacitor.Plugins.Preferences.set({ key: 'base44_access_token', value: token });
               window.Capacitor.Plugins.Preferences.set({ key: 'token', value: token });
+              window.Capacitor.Plugins.Preferences.remove({ key: SIGNED_OUT_KEY });
             } catch (e) {}
           }
 
           function restoreToken() {
             try {
-              var syncToken = '\(escapedToken)';
-              if (syncToken) {
-                saveToken(syncToken);
+              if (isSignedOut()) return;
+              var prefs = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Preferences;
+              if (prefs) {
+                prefs.get({ key: SIGNED_OUT_KEY }).then(function (flag) {
+                  if (flag && flag.value === '1') return;
+                  var syncToken = '\(escapedToken)';
+                  if (syncToken) {
+                    saveToken(syncToken);
+                    return;
+                  }
+                  prefs.get({ key: 'base44_access_token' }).then(function (result) {
+                    if (!result || !result.value || isSignedOut()) return;
+                    saveToken(result.value);
+                  });
+                });
                 return;
               }
-              if (!window.Capacitor || !window.Capacitor.Plugins || !window.Capacitor.Plugins.Preferences) return;
-              window.Capacitor.Plugins.Preferences.get({ key: 'base44_access_token' }).then(function (result) {
-                if (!result || !result.value) return;
-                saveToken(result.value);
-              });
+              var syncToken = '\(escapedToken)';
+              if (syncToken) saveToken(syncToken);
             } catch (e) {}
           }
 
@@ -395,7 +443,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
               if (!document.getElementById('rb-hide-base44')) {
                 var style = document.createElement('style');
                 style.id = 'rb-hide-base44';
-                style.textContent = '[href*="app.base44.com"], iframe[src*="base44"], script[src*="badge.js"] { display:none !important; visibility:hidden !important; pointer-events:none !important; }';
+                style.textContent = '#base44-edit-badge, #base44-modal-overlay, [id*="base44-edit"], [id*="base44-modal"], [href*="app.base44.com"], iframe[src*="base44"], script[src*="badge.js"] { display:none !important; visibility:hidden !important; opacity:0 !important; pointer-events:none !important; max-height:0 !important; overflow:hidden !important; }';
                 (document.head || document.documentElement).appendChild(style);
               }
               document.querySelectorAll('button, a, div, span, iframe, p').forEach(function (node) {
@@ -413,6 +461,19 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                 }
               });
             } catch (e) {}
+          }
+
+
+          function interceptNativeSignOut() {
+            if (window.__restorebraineSignOutInterceptor) return;
+            window.__restorebraineSignOutInterceptor = true;
+            document.addEventListener('click', function (event) {
+              var target = event.target.closest('button, a, [role="button"]');
+              if (!target) return;
+              var label = (target.textContent || '').trim();
+              if (!/^sign out$/i.test(label)) return;
+              clearNativeSession();
+            }, true);
           }
 
           function interceptNativeSignInClicks() {
@@ -445,6 +506,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             guardPlatformNavigation();
             guardGoogleOAuthInWebView();
             hideBase44EditorWidget();
+            interceptNativeSignOut();
             interceptNativeSignInClicks();
             window.addEventListener('popstate', function () {
               guardPlatformNavigation();
@@ -461,6 +523,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
           restoreToken();
           captureAccessTokenFromUrl();
           installOAuthDeepLinkHandler();
+          watchSignedOutFlag();
           installPlatformGuard();
           document.addEventListener('visibilitychange', function () {
             if (document.visibilityState === 'hidden') persistToken();
