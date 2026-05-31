@@ -24,10 +24,8 @@ git checkout -- ios/App/App/capacitor.config.json 2>/dev/null || true
 echo "==> Pulling latest $BRANCH"
 git pull origin "$BRANCH"
 
-echo "==> Installing npm dependencies (if needed)"
-if [ ! -d node_modules ]; then
-  npm install
-fi
+echo "==> Installing npm dependencies (required after every pull)"
+npm install
 
 echo "==> Building web app + syncing iOS bundle"
 npm run ios:prepare
@@ -42,4 +40,4 @@ open App.xcworkspace
 
 echo
 echo "In Xcode: delete app from iPhone → Product → Clean Build Folder → Run"
-echo "On device: look for badge bottom-left showing 'kbrown native v17'"
+echo "On device: look for badge bottom-left showing 'kbrown native v19'"
