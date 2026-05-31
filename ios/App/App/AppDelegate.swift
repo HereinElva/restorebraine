@@ -58,7 +58,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             .replacingOccurrences(of: "\\", with: "\\\\")
             .replacingOccurrences(of: "'", with: "\\'")
 
-        return """
+        // restorebraine-session-bridge-raw
+        return #"""
 
         (function () {
           if (window.__restorebraineSessionBridgeInstalled) return;
@@ -79,8 +80,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
           var APP_LOGIN_URL = RESTOREBRAINE + '/login?from_url=' + encodeURIComponent(FROM_URL) + '&app_id=' + APP_ID + '&prompt=select_account';
 
           function providerFromPath(pathname) {
-            if (/\\/apple\\//i.test(pathname || '')) return 'apple';
-            if (/\\/microsoft\\//i.test(pathname || '')) return 'microsoft';
+            if (/\/apple\//i.test(pathname || '')) return 'apple';
+            if (/\/microsoft\//i.test(pathname || '')) return 'microsoft';
             return 'google';
           }
 
@@ -119,9 +120,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
               var href = typeof url === 'string' ? url : (url.href || String(url));
               var parsed = new URL(href, window.location.href);
               var target = parsed.hostname + parsed.pathname + parsed.search;
-              return /accounts\\.google\\.com|google\\.com\\/o\\/oauth|oauth2\\.googleapis\\.com|\\/api\\/apps\\/auth\\/login/i.test(target);
+              return /accounts\.google\.com|google\.com\/o\/oauth|oauth2\.googleapis\.com|\/api\/apps\/auth\/login/i.test(target);
             } catch (e) {
-              return /accounts\\.google\\.com|google\\.com\\/o\\/oauth|\\/api\\/apps\\/auth\\/login/i.test(String(url));
+              return /accounts\.google\.com|google\.com\/o\/oauth|\/api\/apps\/auth\/login/i.test(String(url));
             }
           }
 
@@ -143,7 +144,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             if (!url) return false;
             try {
               var parsed = new URL(String(url), window.location.href);
-              return /\\/api\\/apps\\/auth\\/logout/i.test(parsed.pathname);
+              return /\/api\/apps\/auth\/logout/i.test(parsed.pathname);
             } catch (e) {}
             return false;
           }
@@ -151,7 +152,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
           function guardSignedOutLoginPage() {
             try {
               if (!isSignedOut()) return;
-              var path = (window.location.pathname || '/').replace(/\\/$/, '') || '/';
+              var path = (window.location.pathname || '/').replace(/\/$/, '') || '/';
               if (path === '/login') {
                 window.location.replace(RESTOREBRAINE + '/');
               }
@@ -194,7 +195,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             if (target.closest('[data-rb-sign-out-row]')) return true;
             var btn = target.closest('button, a, [role="button"]');
             if (btn) {
-              var label = (btn.textContent || '').replace(/\\s+/g, ' ').trim();
+              var label = (btn.textContent || '').replace(/\s+/g, ' ').trim();
               var aria = ((btn.getAttribute && btn.getAttribute('aria-label')) || '').trim();
               if (/^sign out$/i.test(label) || /^sign out$/i.test(aria)) return true;
               if (/sign out/i.test(label) && label.length < 40) return true;
@@ -283,7 +284,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
               if (prefs) {
                 prefs.get({ key: SIGNED_OUT_KEY }).then(function (flag) {
                   if (flag && flag.value === '1') return;
-                  var syncToken = '\(escapedToken)';
+                  var syncToken = '\#(escapedToken)';
                   if (syncToken) {
                     if (!isSignedOut()) saveToken(syncToken);
                     return;
@@ -295,7 +296,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                 });
                 return;
               }
-              var syncToken = '\(escapedToken)';
+              var syncToken = '\#(escapedToken)';
               if (syncToken && !isSignedOut()) saveToken(syncToken);
             } catch (e) {}
           }
@@ -554,7 +555,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
           function findRestorebraineTitle() {
             var nodes = document.querySelectorAll('h1, h2, [role="heading"]');
             for (var i = 0; i < nodes.length; i++) {
-              var text = (nodes[i].textContent || '').replace(/\\s+/g, ' ').trim();
+              var text = (nodes[i].textContent || '').replace(/\s+/g, ' ').trim();
               if (/^restorebraine$/i.test(text)) return nodes[i];
             }
             return null;
@@ -589,7 +590,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             var subtitle = null;
             document.querySelectorAll('p, span, h1, h2, div').forEach(function (node) {
               if (subtitle) return;
-              var text = (node.textContent || '').replace(/\\s+/g, ' ').trim();
+              var text = (node.textContent || '').replace(/\s+/g, ' ').trim();
               if (/sign in to continue/i.test(text) && text.length < 80) subtitle = node;
             });
             if (!subtitle) return;
@@ -611,7 +612,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             var subtitle = null;
             document.querySelectorAll('p, span, h1, h2, div').forEach(function (node) {
               if (subtitle) return;
-              var text = (node.textContent || '').replace(/\\s+/g, ' ').trim();
+              var text = (node.textContent || '').replace(/\s+/g, ' ').trim();
               if (/sign in to access your memories/i.test(text) && text.length < 80) subtitle = node;
             });
             if (!subtitle) return;
@@ -660,7 +661,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
               var title = findRestorebraineTitle();
               fixLoginLogoNearTitle(title);
 
-              if (/\\/login/i.test(window.location.pathname)) {
+              if (/\/login/i.test(window.location.pathname)) {
                 document.querySelectorAll('div').forEach(function (div) {
                   if (div.querySelector('img[data-rb-logo="1"]')) return;
                   if (!div.querySelector('svg')) return;
@@ -687,7 +688,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
               document.querySelectorAll('button, a, div, span, iframe, p').forEach(function (node) {
                 if (node.id === 'rb-native-stamp') return;
                 var text = (node.textContent || '').trim();
-                if (/edit with base\\s*44/i.test(text) && text.length < 60) {
+                if (/edit with base\s*44/i.test(text) && text.length < 60) {
                   var el = node;
                   for (var i = 0; i < 8 && el && el !== document.body; i++) {
                     el.style.setProperty('display', 'none', 'important');
@@ -721,7 +722,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
               var label = (target.textContent || '').trim();
               var href = (target.href || (target.getAttribute && target.getAttribute('href')) || '');
               var isProvider = /continue with google|continue with apple|continue with microsoft|sign in with email|sign in with google|sign in with apple|sign in with microsoft/i.test(label);
-              var isAuthLink = /auth\\/login|auth\\/apple|auth\\/microsoft/i.test(href);
+              var isAuthLink = /auth\/login|auth\/apple|auth\/microsoft/i.test(href);
               if (!isProvider && !isAuthLink) return;
               event.preventDefault();
               event.stopPropagation();
@@ -760,7 +761,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
           window.__restorebraineClearSession = clearNativeSession;
           window.__restorebrainePerformSignOut = performNativeSignOut;
-          window.__RESTOREBRAINE_NATIVE_BUILD__ = '\(escapedLabel)';
+          window.__RESTOREBRAINE_NATIVE_BUILD__ = '\#(escapedLabel)';
           restoreToken();
           captureAccessTokenFromUrl();
           installOAuthDeepLinkHandler();
@@ -774,7 +775,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
         })();
 
-        """
+        """#
     }
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
