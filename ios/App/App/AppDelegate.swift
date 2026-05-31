@@ -450,6 +450,10 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             }, 100);
           }
 
+          window.__restorebraineOpenLogin = function () {
+            openLoginInSystemBrowser(getCanonicalOAuthUrl('google'), 'google');
+          };
+
           function installOAuthDeepLinkHandler() {
             try {
               var appPlugin = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App;
@@ -789,13 +793,11 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
               if (!target) return;
               var label = (target.textContent || '').replace(/\s+/g, ' ').trim();
               var href = (target.href || (target.getAttribute && target.getAttribute('href')) || '');
-              var isSignInButton = /^sign in$/i.test(label);
               var isProvider = /continue with google|continue with apple|continue with microsoft|sign in with email|sign in with google|sign in with apple|sign in with microsoft/i.test(label);
               var isAuthLink = /auth\/login|auth\/apple|auth\/microsoft|app\.base44\.com\/login/i.test(href);
-              if (!isSignInButton && !isProvider && !isAuthLink) return;
+              if (!isProvider && !isAuthLink) return;
               event.preventDefault();
               event.stopPropagation();
-              event.stopImmediatePropagation();
               try { localStorage.removeItem(SIGNED_OUT_KEY); } catch (e) {}
               var provider = providerFromLabel(label);
               var authUrl = href && (isAuthNavigationUrl(href) || isPlatformLoginUrl(href)) ? getCanonicalOAuthUrl(provider) : getCanonicalOAuthUrl(provider);
@@ -889,9 +891,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
           }
 
           window.__restorebraineClearSession = clearNativeSession;
-          window.__restorebraineOpenLogin = function () {
-            openLoginInSystemBrowser(getCanonicalOAuthUrl('google'), 'google');
-          };
           window.__restorebrainePerformSignOut = performNativeSignOut;
           window.__RESTOREBRAINE_NATIVE_BUILD__ = '\#(escapedLabel)';
           restoreToken();

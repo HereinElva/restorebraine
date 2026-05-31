@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "node scripts/write-build-info.mjs && node scripts/generate-ios-app-icons.mjs && node scripts/sync-app-icon.mjs && vite build && node scripts/patch-native-purchases-podspec.mjs && npx cap sync ios && node scripts/verify-ios-sync.mjs && node scripts/capacitor-audit.mjs",
+    "build": "node scripts/write-build-info.mjs && node scripts/generate-ios-app-icons.mjs && node scripts/sync-app-icon.mjs && vite build && node scripts/patch-native-purchases-podspec.mjs && npx cap sync ios && node scripts/verify-ios-sync.mjs && node scripts/verify-ios-icons.mjs && node scripts/capacitor-audit.mjs",
     "build:web": "node scripts/write-build-info.mjs && node scripts/sync-app-icon.mjs && vite build",
     "lint": "eslint .",
     "preview": "vite preview",

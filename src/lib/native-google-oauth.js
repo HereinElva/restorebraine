@@ -77,14 +77,30 @@ const attachOAuthCompletionListener = async () => {
 /** Google blocks embedded WebViews — must use SFSafariViewController (openInSystemBrowser). */
 export const openLoginInSystemBrowser = async (url = getGoogleOAuthUrl(), providerHint) => {
   const normalizedUrl = normalizeAuthUrl(url, providerHint);
+
+  const launch = async () => {
+    oauthListenerAttached = false;
+    await attachOAuthCompletionListener();
+    await InAppBrowser.openInSystemBrowser({ url: normalizedUrl, options: SYSTEM_BROWSER_OPTIONS });
+  };
+
   if (!isNativeShell()) {
     window.location.replace(normalizedUrl);
     return;
   }
 
-  oauthListenerAttached = false;
-  await attachOAuthCompletionListener();
-  await InAppBrowser.openInSystemBrowser({ url: normalizedUrl, options: SYSTEM_BROWSER_OPTIONS });
+  try {
+    await launch();
+  } catch (error) {
+    console.warn('InAppBrowser open failed, retrying…', error);
+    setTimeout(() => {
+      launch().catch(() => {
+        if (typeof window !== 'undefined' && window.__restorebraineOpenLogin) {
+          window.__restorebraineOpenLogin();
+        }
+      });
+    }, 300);
+  }
 };
 
 const handleAuthNavigation = (url, providerHint) => {

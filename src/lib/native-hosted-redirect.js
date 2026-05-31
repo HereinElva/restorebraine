@@ -2,12 +2,13 @@ export const HOSTED_APP_URL = 'https://restorebraine.base44.app';
 
 export const isNativeShell = () => {
   try {
-    return typeof window !== 'undefined' && (
+    if (typeof window === 'undefined') return false;
+    const protocol = window.location?.protocol || '';
+    if (protocol === 'capacitor:' || protocol === 'ionic:') return true;
+    return Boolean(
       window.Capacitor?.isNativePlatform?.() ||
       window.__RESTOREBRAINE_NATIVE_BUILD__ ||
-      window.__restorebraineSessionBridgeInstalled ||
-      window.location?.protocol === 'capacitor:' ||
-      window.location?.protocol === 'ionic:'
+      window.__restorebraineSessionBridgeInstalled
     );
   } catch {
     return false;
