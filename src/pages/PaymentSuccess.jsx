@@ -18,7 +18,7 @@ export default function PaymentSuccess() {
           // Verify payment and update paid tier
           const response = await base44.functions.invoke('verifyPayment', { sessionId });
           if (response.data.success) {
-            // Payment verified, tier updated on backend
+            await queryClient.invalidateQueries({ queryKey: ['current-user'] });
             setLoading(false);
           } else {
             setLoading(false);

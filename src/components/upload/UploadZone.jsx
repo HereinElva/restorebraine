@@ -44,7 +44,6 @@ export default function UploadZone({ onFilesSelected }) {
   const handleDrop = async (e) => {
     e.preventDefault();
     setIsDragging(false);
-    setDebugMsg("Files dropped!");
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       await onFilesSelected(e.dataTransfer.files);
     }

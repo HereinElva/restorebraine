@@ -18,13 +18,13 @@ Deno.serve(async (req) => {
         const session = await stripe.checkout.sessions.retrieve(sessionId);
 
         if (session.payment_status === 'paid') {
-            const tiersPassed = parseInt(session.metadata.tiersPassed);
-            const currentPhotoCount = await base44.asServiceRole.entities.Photo.filter({ created_by: user.email }).then(photos => photos.length);
-            const newPaidTier = Math.floor(currentPhotoCount / 250) + tiersPassed;
+            const tiersPassed = parseInt(session.metadata.tiersPassed, 10) || 1;
+            const currentPaidTier = Number(user.paid_tier) || 0;
+            const newPaidTier = currentPaidTier + tiersPassed;
 
-            // Update user's paid tier
             await base44.asServiceRole.entities.User.update(user.id, {
-                paid_tier: newPaidTier
+                paid_tier: newPaidTier,
+                last_stripe_session_id: sessionId,
             });
 
             return Response.json({ success: true, paidTier: newPaidTier });

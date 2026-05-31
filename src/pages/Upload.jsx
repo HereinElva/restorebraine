@@ -1,336 +1,279 @@
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 import { base44 } from "@/api/base44Client";
-import { Button } from "@/components/ui/button";
-import { FolderPlus, Loader2, Sparkles } from "lucide-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useIsMobile } from "@/hooks/use-mobile";
+import UploadZone from "@/components/upload/UploadZone";
+import MobileUpload from "@/components/upload/MobileUpload";
+import PaymentModal from "@/components/upload/PaymentModal";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Textarea } from "@/components/ui/textarea";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
+  getStorageLimit,
+  getTiersNeeded,
+  wouldExceedStorageLimit,
+} from "@/lib/storage-billing";
 
-// How many photos to send per AI call, and how many calls to run at once
-const CHUNK_SIZE = 40;
-const CONCURRENCY = 4;
+const MAX_VIDEO_BYTES = 500 * 1024 * 1024; // ~5 min cap for large videos
 
-/**
- * Run an array of async task-factories with a max concurrency limit.
- */
-async function runConcurrent(tasks, concurrency) {
-  const results = [];
-  let index = 0;
-
-  async function runNext() {
-    while (index < tasks.length) {
-      const i = index++;
-      results[i] = await tasks[i]();
-    }
-  }
-
-  const workers = Array.from({ length: Math.min(concurrency, tasks.length) }, runNext);
-  await Promise.all(workers);
-  return results;
-}
-
-/**
- * Ask the AI to assign a single chunk of photos to folder names.
- * Returns an array of { name, photo_ids } objects.
- */
-async function organiseChunk(chunk, customInstructions) {
-  const photoData = chunk.map(p => ({
-    id: p.id,
-    desc: (p.ai_description || '').substring(0, 120),
-    tags: (p.ai_tags || []).slice(0, 3).join(', '),
-  }));
-
+async function analyzeMedia(fileUrl, fileType, filename) {
+  const isVideo = fileType === "video";
   const result = await base44.integrations.Core.InvokeLLM({
-    prompt: `You are organizing ${photoData.length} photos/videos into broad thematic folders.
-
-RULES:
-1. Assign EVERY item to exactly one folder. Do not skip any.
-2. Use broad categories: People & Portraits, Outdoor Activities, Food & Dining,
-   Travel & Landmarks, Celebrations & Events, Home & Indoor, Nature & Landscapes,
-   Animals & Pets, Screenshots & Documents, or similar.
-3. Only create a folder if it has 2+ items.
-4. Items that don't fit a group go into "Miscellaneous".
-${customInstructions ? `\nUSER INSTRUCTIONS: ${customInstructions}` : ''}
-
-Items:
-${JSON.stringify(photoData)}
-
-Return ONLY valid JSON matching the schema. Every item ID must appear exactly once.`,
+    prompt: `Analyze this ${isVideo ? "video" : "photo"} named "${filename}".
+Return a concise searchable description (1-2 sentences) and 5-10 relevant tags.
+Focus on people, places, activities, objects, and mood.`,
+    file_urls: [fileUrl],
     response_json_schema: {
       type: "object",
       properties: {
-        folders: {
-          type: "array",
-          items: {
-            type: "object",
-            properties: {
-              name: { type: "string" },
-              photo_ids: { type: "array", items: { type: "string" } },
-            },
-          },
-        },
+        ai_description: { type: "string" },
+        ai_tags: { type: "array", items: { type: "string" } },
       },
+      required: ["ai_description", "ai_tags"],
     },
   });
 
-  return result.folders || [];
+  return {
+    ai_description: result.ai_description || filename,
+    ai_tags: Array.isArray(result.ai_tags) ? result.ai_tags : [],
+  };
 }
 
-/**
- * Merge folder arrays from multiple chunks into a single deduplicated list.
- * If two chunks produced a folder with the same name, merge their photo_ids.
- */
-function mergeFolderResults(chunkResults) {
-  const folderMap = new Map(); // name (lowercase) → { name, photo_ids: Set }
-
-  for (const folders of chunkResults) {
-    for (const folder of folders) {
-      const key = folder.name.toLowerCase().trim();
-      if (!folderMap.has(key)) {
-        folderMap.set(key, { name: folder.name, ids: new Set(folder.photo_ids || []) });
-      } else {
-        for (const id of folder.photo_ids || []) {
-          folderMap.get(key).ids.add(id);
-        }
-      }
-    }
-  }
-
-  return Array.from(folderMap.values()).map(f => ({
-    name: f.name,
-    photo_ids: [...f.ids],
-  }));
-}
-
-export default function OrganizeButton({ photos, squareStyle = false }) {
-  const [organizing, setOrganizing] = useState(false);
-  const [progress, setProgress] = useState("");
-  const [showDialog, setShowDialog] = useState(false);
-  const [customInstructions, setCustomInstructions] = useState("");
-  const [includeOrganized, setIncludeOrganized] = useState(false);
+export default function Upload() {
   const queryClient = useQueryClient();
+  const isMobile = useIsMobile();
+  const [files, setFiles] = useState([]);
+  const [processing, setProcessing] = useState(false);
+  const [showPayment, setShowPayment] = useState(false);
+  const [pendingFiles, setPendingFiles] = useState(null);
 
-  const handleOrganize = async () => {
-    if (photos.length < 2) {
-      alert("You need at least 2 photos to organize.");
-      return;
-    }
+  const { data: currentUser } = useQuery({
+    queryKey: ["current-user"],
+    queryFn: () => base44.auth.me(),
+  });
 
-    setShowDialog(false);
-    setOrganizing(true);
+  const { data: photos = [] } = useQuery({
+    queryKey: ["photos", currentUser?.email],
+    queryFn: () => base44.entities.Photo.filter({ created_by: currentUser.email }, "-created_date"),
+    enabled: !!currentUser?.email,
+    initialData: [],
+  });
 
-    try {
-      const existingFolders = await base44.entities.Folder.list();
-      const organizedPhotoIds = new Set(existingFolders.flatMap(f => f.photo_ids || []));
+  const currentPhotoCount = photos.length;
+  const currentPaidTier = currentUser?.paid_tier || 0;
+  const storageLimit = getStorageLimit(currentPaidTier);
 
-      let photosToOrganize = includeOrganized
-        ? photos
-        : photos.filter(p => !organizedPhotoIds.has(p.id));
+  const addFilesToQueue = (incoming) => {
+    const list = Array.from(incoming || []);
+    const queued = list.map((file) => ({
+      file,
+      status: "pending",
+      progress: 0,
+      error: null,
+      ai_description: null,
+      ai_tags: null,
+    }));
+    setFiles((prev) => [...prev, ...queued]);
+  };
 
-      if (photosToOrganize.length < 2) photosToOrganize = photos;
-      if (photosToOrganize.length < 2) {
-        alert("Not enough photos to organize.");
-        setOrganizing(false);
+  const handleFileSelection = useCallback(
+    (incoming) => {
+      const list = Array.from(incoming || []);
+      if (!list.length) return;
+
+      const oversized = list.find((f) => f.type.startsWith("video/") && f.size > MAX_VIDEO_BYTES);
+      if (oversized) {
+        alert(`${oversized.name} is too large. Videos must be under 5 minutes / 500MB.`);
         return;
       }
 
-      // Split into chunks
-      const chunks = [];
-      for (let i = 0; i < photosToOrganize.length; i += CHUNK_SIZE) {
-        chunks.push(photosToOrganize.slice(i, i + CHUNK_SIZE));
+      if (wouldExceedStorageLimit(currentPhotoCount, list.length, currentPaidTier)) {
+        setPendingFiles(list);
+        setShowPayment(true);
+        return;
       }
 
-      const totalChunks = chunks.length;
-      let completedChunks = 0;
+      addFilesToQueue(list);
+    },
+    [currentPhotoCount, currentPaidTier]
+  );
 
-      setProgress(`Analysing ${photosToOrganize.length} items in ${totalChunks} batch${totalChunks > 1 ? 'es' : ''}...`);
-
-      // Build task list and run concurrently
-      const tasks = chunks.map((chunk, i) => async () => {
-        const result = await organiseChunk(chunk, customInstructions);
-        completedChunks++;
-        setProgress(
-          totalChunks > 1
-            ? `Analysing batches… ${completedChunks}/${totalChunks} done`
-            : "Creating folders…"
-        );
-        return result;
-      });
-
-      const chunkResults = await runConcurrent(tasks, CONCURRENCY);
-
-      setProgress("Merging results…");
-
-      // Merge all chunk results into unified folder list
-      const mergedFolders = mergeFolderResults(chunkResults);
-
-      // Deduplicate: each photo in at most one folder
-      const assignedIds = new Set(includeOrganized ? [] : [...organizedPhotoIds]);
-      const deduplicatedFolders = [];
-      for (const folder of mergedFolders) {
-        const uniqueIds = (folder.photo_ids || []).filter(id => {
-          if (assignedIds.has(id)) return false;
-          assignedIds.add(id);
-          return true;
-        });
-        if (uniqueIds.length >= 2) {
-          deduplicatedFolders.push({ ...folder, photo_ids: uniqueIds });
-        }
-      }
-
-      setProgress("Saving folders…");
-
-      // Create or merge folders in parallel (batches of 5 to avoid rate limits)
-      const folderTasks = deduplicatedFolders.map(folder => async () => {
-        const matchingFolder = existingFolders.find(
-          f => f.name.toLowerCase() === folder.name.toLowerCase()
-        );
-
-        if (matchingFolder) {
-          const mergedIds = [...new Set([...matchingFolder.photo_ids, ...folder.photo_ids])];
-          const coverPhoto = !matchingFolder.cover_photo_url && mergedIds.length > 0
-            ? photos.find(p => p.id === mergedIds[0])
-            : null;
-          await base44.entities.Folder.update(matchingFolder.id, {
-            photo_ids: mergedIds,
-            ...(coverPhoto && { cover_photo_url: coverPhoto.file_url }),
-          });
-        } else {
-          const coverPhoto = photos.find(p => p.id === folder.photo_ids[0]);
-          await base44.entities.Folder.create({
-            name: folder.name,
-            description: "",
-            photo_ids: folder.photo_ids,
-            cover_photo_url: coverPhoto?.file_url || "",
-          });
-        }
-      });
-
-      await runConcurrent(folderTasks, 5);
-
-      setProgress("");
-      queryClient.invalidateQueries({ queryKey: ['folders'] });
-      queryClient.invalidateQueries({ queryKey: ['photos'] });
-
-      if (deduplicatedFolders.length === 0) {
-        alert("No similar photos found to group into folders.");
-      }
-    } catch (error) {
-      console.error("Error organizing:", error);
-      alert(error?.message || "Failed to organize photos. Please try again.");
-      setProgress("");
-    } finally {
-      setOrganizing(false);
+  const handlePaymentComplete = async () => {
+    setShowPayment(false);
+    await queryClient.invalidateQueries({ queryKey: ["current-user"] });
+    if (pendingFiles?.length) {
+      addFilesToQueue(pendingFiles);
+      setPendingFiles(null);
     }
   };
 
+  const processSingleFile = async (fileItem, index) => {
+    setFiles((prev) =>
+      prev.map((item, i) =>
+        i === index ? { ...item, status: "processing", progress: 10, error: null } : item
+      )
+    );
+
+    try {
+      const fileType = fileItem.file.type.startsWith("video/") ? "video" : "image";
+      const uploadResult = await base44.integrations.Core.UploadFile({ file: fileItem.file });
+
+      setFiles((prev) =>
+        prev.map((item, i) => (i === index ? { ...item, progress: 45 } : item))
+      );
+
+      const analysis = await analyzeMedia(uploadResult.file_url, fileType, fileItem.file.name);
+
+      setFiles((prev) =>
+        prev.map((item, i) => (i === index ? { ...item, progress: 80 } : item))
+      );
+
+      await base44.entities.Photo.create({
+        file_url: uploadResult.file_url,
+        file_type: fileType,
+        ai_description: analysis.ai_description,
+        ai_tags: analysis.ai_tags,
+        upload_date: new Date().toISOString(),
+        original_filename: fileItem.file.name,
+      });
+
+      setFiles((prev) =>
+        prev.map((item, i) =>
+          i === index
+            ? {
+                ...item,
+                status: "success",
+                progress: 100,
+                ai_description: analysis.ai_description,
+                ai_tags: analysis.ai_tags,
+              }
+            : item
+        )
+      );
+    } catch (error) {
+      console.error("Upload failed:", error);
+      setFiles((prev) =>
+        prev.map((item, i) =>
+          i === index
+            ? { ...item, status: "error", error: error.message || "Upload failed", progress: 0 }
+            : item
+        )
+      );
+    }
+  };
+
+  const processPhotos = async () => {
+    const pendingIndexes = files
+      .map((item, index) => ({ item, index }))
+      .filter(({ item }) => item.status === "pending")
+      .map(({ index }) => index);
+
+    if (!pendingIndexes.length) return;
+
+    const pendingCount = pendingIndexes.length;
+    if (wouldExceedStorageLimit(currentPhotoCount, pendingCount, currentPaidTier)) {
+      setPendingFiles(pendingIndexes.map((i) => files[i].file));
+      setShowPayment(true);
+      return;
+    }
+
+    setProcessing(true);
+    for (const index of pendingIndexes) {
+      await processSingleFile(files[index], index);
+    }
+    setProcessing(false);
+    queryClient.invalidateQueries({ queryKey: ["photos"] });
+  };
+
+  const removeFile = (index) => {
+    setFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const retryFile = async (index) => {
+    setFiles((prev) =>
+      prev.map((item, i) =>
+        i === index ? { ...item, status: "pending", progress: 0, error: null } : item
+      )
+    );
+    setProcessing(true);
+    await processSingleFile(files[index], index);
+    setProcessing(false);
+    queryClient.invalidateQueries({ queryKey: ["photos"] });
+  };
+
+  const allProcessed = files.length > 0 && files.every((f) => f.status === "success" || f.status === "error");
+  const hasSuccess = files.some((f) => f.status === "success");
+  const tiersNeeded = getTiersNeeded(
+    currentPhotoCount,
+    pendingFiles?.length || 0,
+    currentPaidTier
+  );
+
   return (
-    <>
-      <Dialog open={showDialog} onOpenChange={setShowDialog}>
-        <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Organize Media</DialogTitle>
-            <DialogDescription>
-              Customize how your photos and videos should be organized into folders
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="instructions">
-                Custom Instructions (Optional)
-                {customInstructions && (
-                  <span className="ml-2 text-xs text-purple-600 font-semibold">✓ Instructions added</span>
-                )}
-              </Label>
-              <Textarea
-                id="instructions"
-                placeholder="e.g., 'Group by month and year' or 'Keep vacation photos separate' or 'Focus on organizing by people' or 'Consolidate similar folders'"
-                value={customInstructions}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  setCustomInstructions(value);
-                  const needsOrganized = value.toLowerCase().match(/\b(consolidate|merge|combine|take all folders|move folders|reorganize folders)\b/);
-                  if (needsOrganized && !includeOrganized) setIncludeOrganized(true);
-                }}
-                className="min-h-[100px]"
-              />
-              {customInstructions && customInstructions.toLowerCase().match(/\b(folder|folders)\b/) && !includeOrganized && (
-                <p className="text-xs text-orange-600 font-medium">
-                  💡 Tip: Check the box below to work with existing folders
-                </p>
-              )}
-            </div>
-
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="include-organized"
-                checked={includeOrganized}
-                onCheckedChange={setIncludeOrganized}
-              />
-              <Label htmlFor="include-organized" className="text-sm font-normal cursor-pointer">
-                Include photos and videos that are already in folders (Re-organize everything).
-              </Label>
-            </div>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 py-8">
+      <div className="max-w-3xl mx-auto px-4">
+        <div className="mb-6 flex items-end justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Upload</h1>
+            <p className="text-gray-600 mt-1">
+              {currentPhotoCount} of {storageLimit} files used
+              {currentPaidTier > 0 ? ` (${currentPaidTier} paid tier${currentPaidTier > 1 ? "s" : ""})` : ""}
+            </p>
           </div>
+        </div>
 
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowDialog(false)}>Cancel</Button>
-            <Button
-              onClick={handleOrganize}
-              className="bg-gradient-to-r from-blue-400 to-purple-500 hover:from-blue-500 hover:to-purple-600"
-            >
-              <Sparkles className="w-4 h-4 mr-2" />
-              Auto Organize
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <div className="relative">
-        {squareStyle ? (
-          <button
-            onClick={() => setShowDialog(true)}
-            disabled={organizing || photos.length < 2}
-            className="w-full flex flex-col items-center justify-center gap-1.5 py-4 rounded-2xl bg-white text-gray-700 border border-gray-100 shadow-sm text-sm font-semibold disabled:opacity-50"
-          >
-            {organizing
-              ? <Loader2 className="w-5 h-5 animate-spin text-purple-500" />
-              : <Sparkles className="w-5 h-5 text-purple-500" />}
-            <span>{organizing ? 'Organizing...' : 'Organize Media'}</span>
-          </button>
+        {isMobile ? (
+          <MobileUpload
+            files={files}
+            processing={processing}
+            allProcessed={allProcessed}
+            hasSuccess={hasSuccess}
+            currentPhotoCount={currentPhotoCount}
+            handleFileSelection={handleFileSelection}
+            processPhotos={processPhotos}
+            removeFile={removeFile}
+            retryFile={retryFile}
+          />
         ) : (
-          <Button
-            onClick={() => setShowDialog(true)}
-            disabled={organizing || photos.length < 2}
-            className="bg-gradient-to-r from-blue-400 to-purple-500 hover:from-blue-500 hover:to-purple-600 text-white gap-2"
-          >
-            {organizing ? (
-              <><Loader2 className="w-4 h-4 animate-spin" />Organizing...</>
-            ) : (
-              <><FolderPlus className="w-4 h-4" />Organize</>
+          <>
+            <UploadZone onFilesSelected={handleFileSelection} />
+            {files.length > 0 && (
+              <div className="mt-6">
+                {!processing && !allProcessed && files.some((f) => f.status === "pending") && (
+                  <button
+                    onClick={processPhotos}
+                    className="w-full mb-4 bg-gradient-to-r from-purple-500 to-blue-500 text-white rounded-2xl py-4 font-semibold"
+                  >
+                    Analyze & Save {files.filter((f) => f.status === "pending").length} Files
+                  </button>
+                )}
+                <MobileUpload
+                  files={files}
+                  processing={processing}
+                  allProcessed={allProcessed}
+                  hasSuccess={hasSuccess}
+                  currentPhotoCount={currentPhotoCount}
+                  handleFileSelection={handleFileSelection}
+                  processPhotos={processPhotos}
+                  removeFile={removeFile}
+                  retryFile={retryFile}
+                />
+              </div>
             )}
-          </Button>
-        )}
-
-        {progress && (
-          <div className="absolute top-full left-0 right-0 mt-2 p-2 bg-white rounded-lg shadow-lg border border-orange-200 whitespace-nowrap z-10">
-            <div className="flex items-center gap-2 text-sm text-orange-600">
-              <Sparkles className="w-3 h-3 animate-pulse" />
-              {progress}
-            </div>
-          </div>
+          </>
         )}
       </div>
-    </>
+
+      {showPayment && (
+        <PaymentModal
+          currentPhotoCount={currentPhotoCount}
+          pendingUploadCount={pendingFiles?.length || tiersNeeded * 250}
+          currentPaidTier={currentPaidTier}
+          tiersNeeded={tiersNeeded}
+          onClose={() => {
+            setShowPayment(false);
+            setPendingFiles(null);
+          }}
+          onPaymentComplete={handlePaymentComplete}
+        />
+      )}
+    </div>
   );
 }
