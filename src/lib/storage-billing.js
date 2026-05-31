@@ -3,7 +3,7 @@
 export const MEDIA_PER_TIER = 250;
 export const PRICE_PER_TIER_USD = 0.5;
 
-/** App Store consumable product ID — create this in App Store Connect. */
+/** App Store consumable product ID — only used if not on hosted web app. */
 export const IAP_STORAGE_PRODUCT_ID = 'com.restorebraine.storage.250';
 
 export function getStorageLimit(paidTier = 0) {

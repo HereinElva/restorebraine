@@ -39,7 +39,7 @@ export default function PaymentModal({
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      if (!isNativeShell()) return;
+      if (shouldUseStripeCheckout()) return;
       const available = await isInAppPurchaseAvailable();
       if (cancelled) return;
       setUseIap(available);
@@ -63,6 +63,7 @@ export default function PaymentModal({
       const response = await base44.functions.invoke("createCheckout", {
         amount: amountDue,
         tiersPassed: tiers,
+        returnUrl: getStripeReturnBaseUrl(),
       });
       if (response.data?.url) {
         window.location.href = response.data.url;
