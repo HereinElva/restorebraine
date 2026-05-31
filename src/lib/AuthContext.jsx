@@ -108,10 +108,9 @@ export const AuthProvider = ({ children }) => {
   };
 
   const localLogout = async () => {
-    if (isNativeShell() && typeof window !== 'undefined' && window.__restorebrainePerformSignOut) {
-      window.__restorebrainePerformSignOut();
-      return;
-    }
+    if (typeof window !== 'undefined' && window.__restorebraineSigningOut) return;
+    if (typeof window !== 'undefined') window.__restorebraineSigningOut = true;
+
     setManuallyLoggedOut(true);
     await clearNativeSession();
     setUser(null);
@@ -119,13 +118,14 @@ export const AuthProvider = ({ children }) => {
     setIsLoadingAuth(false);
     setIsLoadingPublicSettings(false);
     setAuthError({ type: 'auth_required', message: 'Authentication required' });
+
+    if (typeof window !== 'undefined' && (isNativeShell() || isHostedAppOrigin())) {
+      window.location.replace(`${RESTOREBRAINE_APP_URL}/`);
+    }
   };
 
   const logout = async () => {
     await localLogout();
-    if (isHostedAppOrigin()) {
-      window.location.href = `${RESTOREBRAINE_APP_URL}/api/apps/auth/logout?from_url=${encodeURIComponent(window.location.href)}`;
-    }
   };
 
   const navigateToLogin = () => {

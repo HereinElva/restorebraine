@@ -67,6 +67,27 @@ export const isAuthNavigationUrl = (url) => {
   return false;
 };
 
+
+export const isAuthLogoutUrl = (url) => {
+  if (!url) return false;
+  try {
+    const parsed = new URL(String(url), typeof window !== 'undefined' ? window.location.href : RESTOREBRAINE_FROM_URL);
+    return /\/api\/apps\/auth\/logout/i.test(parsed.pathname);
+  } catch {}
+  return false;
+};
+
+export const guardSignedOutLoginPage = () => {
+  if (typeof window === 'undefined') return;
+  try {
+    if (localStorage.getItem('b44_signed_out') !== '1') return;
+    const path = window.location.pathname.replace(/\/$/, '') || '/';
+    if (path === '/login') {
+      window.location.replace(`${RESTOREBRAINE_FROM_URL}/`);
+    }
+  } catch {}
+};
+
 export const guardPlatformNavigation = () => {
   if (typeof window === 'undefined') return;
   const { hostname, search, pathname } = window.location;
@@ -157,22 +178,26 @@ export const installNativePlatformGuard = () => {
   if (typeof window === 'undefined' || window.__restorebrainePlatformGuardInstalled) return;
   window.__restorebrainePlatformGuardInstalled = true;
   guardPlatformNavigation();
+  guardSignedOutLoginPage();
   hideBase44EditorWidget();
   interceptNativeSignInClicks();
   guardGoogleOAuthInWebView();
   window.addEventListener('popstate', () => {
     guardPlatformNavigation();
+    guardSignedOutLoginPage();
     guardGoogleOAuthInWebView();
   });
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
       guardPlatformNavigation();
+      guardSignedOutLoginPage();
       guardGoogleOAuthInWebView();
       hideBase44EditorWidget();
     }
   });
   setInterval(() => {
     guardPlatformNavigation();
+    guardSignedOutLoginPage();
     guardGoogleOAuthInWebView();
     hideBase44EditorWidget();
   }, 500);

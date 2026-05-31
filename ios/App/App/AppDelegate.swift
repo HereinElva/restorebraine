@@ -139,6 +139,25 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
           var keys = ['base44_access_token', 'token'];
           var SIGNED_OUT_KEY = 'b44_signed_out';
 
+          function isAuthLogoutUrl(url) {
+            if (!url) return false;
+            try {
+              var parsed = new URL(String(url), window.location.href);
+              return /\/api\/apps\/auth\/logout/i.test(parsed.pathname);
+            } catch (e) {}
+            return false;
+          }
+
+          function guardSignedOutLoginPage() {
+            try {
+              if (!isSignedOut()) return;
+              var path = (window.location.pathname || '/').replace(/\/$/, '') || '/';
+              if (path === '/login') {
+                window.location.replace(RESTOREBRAINE + '/');
+              }
+            } catch (e) {}
+          }
+
           function isSignedOut() {
             try { return localStorage.getItem(SIGNED_OUT_KEY) === '1'; } catch (e) {}
             return false;
@@ -172,18 +191,17 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
           function isSignOutControl(target) {
             if (!target) return false;
+            if (target.closest('[data-rb-sign-out-row]')) return true;
             var btn = target.closest('button, a, [role="button"]');
             if (btn) {
               var label = (btn.textContent || '').replace(/\\s+/g, ' ').trim();
               var aria = ((btn.getAttribute && btn.getAttribute('aria-label')) || '').trim();
               if (/^sign out$/i.test(label) || /^sign out$/i.test(aria)) return true;
-              if (/sign out/i.test(label) && label.length < 24) return true;
+              if (/sign out/i.test(label) && label.length < 40) return true;
             }
             var row = target.closest('div');
             if (row && /sign out of your restorebraine account/i.test(row.textContent || '')) {
-              if (target.closest('button, a, [role="button"]') || /^sign out$/i.test((target.textContent || '').replace(/\\s+/g, ' ').trim())) {
-                return true;
-              }
+              return true;
             }
             return false;
           }
@@ -197,7 +215,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             window.__restorebraineSigningOut = true;
             clearNativeSession();
             setTimeout(function () {
-              window.location.replace(APP_LOGIN_URL);
+              window.location.replace(RESTOREBRAINE + '/');
             }, 0);
           }
 
@@ -407,6 +425,11 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                     window.location.replace(RESTOREBRAINE);
                     return;
                   }
+                  if (isAuthLogoutUrl(targetUrl)) {
+                    clearNativeSession();
+                    window.location.replace(RESTOREBRAINE + '/');
+                    return;
+                  }
                   if (isAuthNavigationUrl(targetUrl)) {
                     openLoginInSystemBrowser(targetUrl);
                     return;
@@ -437,6 +460,11 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                       var parsed = new URL(String(value), window.location.href);
                       if (captureAccessTokenFromUrl(parsed.href)) {
                         window.location.replace(RESTOREBRAINE);
+                        return;
+                      }
+                      if (isAuthLogoutUrl(value)) {
+                        clearNativeSession();
+                        window.location.replace(RESTOREBRAINE + '/');
                         return;
                       }
                       if (isAuthNavigationUrl(value)) {
@@ -557,6 +585,28 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             });
           }
 
+          function fixLoginPageByWelcomeTagline() {
+            var subtitle = null;
+            document.querySelectorAll('p, span, h1, h2, div').forEach(function (node) {
+              if (subtitle) return;
+              var text = (node.textContent || '').replace(/\s+/g, ' ').trim();
+              if (/sign in to continue/i.test(text) && text.length < 80) subtitle = node;
+            });
+            if (!subtitle) return;
+            var card = subtitle.closest('div');
+            if (!card) return;
+            card.querySelectorAll('div').forEach(function (div) {
+              if (div.querySelector('img[data-rb-logo="1"]')) return;
+              if (!div.querySelector('svg') && !div.querySelector('img')) return;
+              if (div.querySelector('button, form, input, textarea')) return;
+              var rect = div.getBoundingClientRect();
+              if (rect.width < 40 || rect.width > 120 || rect.height < 40 || rect.height > 120) return;
+              if (subtitle.compareDocumentPosition(div) & Node.DOCUMENT_POSITION_PRECEDING) {
+                replaceLoginLogoContainer(div);
+              }
+            });
+          }
+
           function fixLoginPageByTagline() {
             var subtitle = null;
             document.querySelectorAll('p, span, h1, h2, div').forEach(function (node) {
@@ -606,6 +656,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
               });
 
               fixLoginPageByTagline();
+              fixLoginPageByWelcomeTagline();
               var title = findRestorebraineTitle();
               fixLoginLogoNearTitle(title);
 
@@ -689,6 +740,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
           function installPlatformGuard() {
             installLocationNavigationGuard();
             guardPlatformNavigation();
+            guardSignedOutLoginPage();
             guardGoogleOAuthInWebView();
             hideBase44EditorWidget();
             fixRestorebraineBranding();

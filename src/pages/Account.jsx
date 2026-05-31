@@ -12,7 +12,7 @@ export default function Account() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const queryClient = useQueryClient();
-  const { logout } = useAuth();
+  const { localLogout } = useAuth();
 
   const { data: user } = useQuery({
     queryKey: ['user'],
@@ -21,11 +21,7 @@ export default function Account() {
 
   const handleLogout = async () => {
     queryClient.clear();
-    if (typeof window !== 'undefined' && window.__restorebrainePerformSignOut) {
-      window.__restorebrainePerformSignOut();
-      return;
-    }
-    await logout();
+    await localLogout();
   };
 
   const handleDeleteAccount = async () => {
@@ -52,16 +48,14 @@ export default function Account() {
           </Button>
         </Link>
         <div className="bg-white rounded-2xl shadow-lg p-8">
-          <div className="mb-6">
-            <h1 className="text-3xl font-bold text-gray-900">Account Settings</h1>
-          </div>
+          <h1 className="text-3xl font-bold text-gray-900 mb-6">Account Settings</h1>
           {user && (
             <div className="mb-8 p-4 bg-purple-50 rounded-lg">
               <p className="text-sm text-gray-600 mb-1">Email</p>
               <p className="font-medium text-gray-900">{user.email}</p>
             </div>
           )}
-          <div className="mb-6 p-4 bg-gray-50 border border-gray-200 rounded-lg flex items-center justify-between">
+          <div data-rb-sign-out-row className="mb-6 p-4 bg-gray-50 border border-gray-200 rounded-lg flex items-center justify-between">
             <div>
               <h3 className="font-semibold text-gray-900">Sign Out</h3>
               <p className="text-sm text-gray-600 mt-0.5">Sign out of your Restorebraine account</p>
