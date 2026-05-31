@@ -52,8 +52,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
           var APP_LOGIN_URL = RESTOREBRAINE + '/login?from_url=' + encodeURIComponent(FROM_URL) + '&app_id=' + APP_ID + '&prompt=select_account';
 
           function providerFromPath(pathname) {
-            if (/\/apple\//i.test(pathname || '')) return 'apple';
-            if (/\/microsoft\//i.test(pathname || '')) return 'microsoft';
+            if (/\\/apple\\//i.test(pathname || '')) return 'apple';
+            if (/\\/microsoft\\//i.test(pathname || '')) return 'microsoft';
             return 'google';
           }
 
@@ -424,7 +424,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
               var label = (target.textContent || '').trim();
               var href = (target.href || (target.getAttribute && target.getAttribute('href')) || '');
               var isProvider = /continue with google|continue with apple|continue with microsoft|sign in with email|sign in with google|sign in with apple|sign in with microsoft/i.test(label);
-              var isAuthLink = /auth\/login|auth\/apple|auth\/microsoft/i.test(href);
+              var isAuthLink = /auth\\/login|auth\\/apple|auth\\/microsoft/i.test(href);
               if (!isProvider && !isAuthLink) return;
               event.preventDefault();
               event.stopPropagation();

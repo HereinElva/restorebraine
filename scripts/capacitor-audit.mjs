@@ -48,10 +48,12 @@ const checks = [
   },
   {
     layer: '2 · Capacitor config',
-    name: 'Base44 platform excluded from allowNavigation',
+    name: 'OAuth hosts allowed in allowNavigation',
     ok: () => {
       const config = read('capacitor.config.json');
-      return !config.includes('app.base44.com') && config.includes('restorebraine.base44.app');
+      return config.includes('restorebraine.base44.app')
+        && config.includes('accounts.google.com')
+        && config.includes('app.base44.com');
     },
   },
   {

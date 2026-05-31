@@ -14,8 +14,8 @@ const checks = [
   },
   {
     path: 'ios/App/App/capacitor.config.json',
-    test: (content) => !content.includes('app.base44.com') && content.includes('restorebraine.base44.app'),
-    message: 'ios/App/App/capacitor.config.json still allows Base44 platform in WebView',
+    test: (content) => content.includes('restorebraine.base44.app') && content.includes('accounts.google.com'),
+    message: 'ios/App/App/capacitor.config.json missing required OAuth allowNavigation hosts',
   },
   {
     path: 'ios/App/App/public/assets',
