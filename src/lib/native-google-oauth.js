@@ -45,6 +45,23 @@ const attachOAuthCompletionListener = async () => {
   });
 };
 
+const waitForInAppBrowser = (maxAttempts = 60, intervalMs = 100) =>
+  new Promise((resolve) => {
+    const tryGet = (attempt = 0) => {
+      const ib = window.Capacitor?.Plugins?.InAppBrowser;
+      if (ib) {
+        resolve(ib);
+        return;
+      }
+      if (attempt >= maxAttempts) {
+        resolve(null);
+        return;
+      }
+      setTimeout(() => tryGet(attempt + 1), intervalMs);
+    };
+    tryGet();
+  });
+
 /** Google OAuth must use SFSafariViewController — WKWebView gets 403 disallowed_useragent. */
 export const openLoginInSystemBrowser = async (url = getAppScopedLoginUrl()) => {
   if (!isNativeShell()) {
@@ -53,12 +70,36 @@ export const openLoginInSystemBrowser = async (url = getAppScopedLoginUrl()) => 
   }
 
   await attachOAuthCompletionListener();
-  await InAppBrowser.openInSystemBrowser({ url });
+  const ib = await waitForInAppBrowser();
+  if (!ib) {
+    console.warn('InAppBrowser plugin unavailable; refusing WebView OAuth fallback');
+    return;
+  }
+  await ib.openInSystemBrowser({ url });
+};
+
+
+export const installLocationNavigationGuard = () => {
+  if (typeof window === 'undefined' || window.__restorebraineLocationGuardInstalled) return;
+  window.__restorebraineLocationGuardInstalled = true;
+
+  ['assign', 'replace'].forEach((method) => {
+    const original = Location.prototype[method];
+    Location.prototype[method] = function guardedNavigation(url) {
+      if (isGoogleOAuthUrl(url)) {
+        openLoginInSystemBrowser(getAppScopedLoginUrl());
+        return;
+      }
+      return original.call(this, url);
+    };
+  });
 };
 
 export const installNativeGoogleOAuthBrowser = () => {
   if (typeof window === 'undefined' || window.__restorebraineGoogleOAuthBrowserInstalled) return;
   window.__restorebraineGoogleOAuthBrowserInstalled = true;
+
+  installLocationNavigationGuard();
 
   const originalOpen = window.open;
   window.open = function openWithSystemBrowser(url, target, features) {

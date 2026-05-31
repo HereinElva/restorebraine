@@ -14,8 +14,8 @@ const checks = [
   },
   {
     path: 'ios/App/App/capacitor.config.json',
-    test: (content) => content.includes('*.google.com'),
-    message: 'ios/App/App/capacitor.config.json is missing Google OAuth domains',
+    test: (content) => !content.includes('accounts.google.com') && !content.includes('*.google.com'),
+    message: 'ios/App/App/capacitor.config.json still allows Google OAuth in WebView',
   },
   {
     path: 'ios/App/App/public/assets',

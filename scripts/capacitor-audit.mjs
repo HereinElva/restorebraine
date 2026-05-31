@@ -40,8 +40,11 @@ const checks = [
   },
   {
     layer: '2 · Capacitor config',
-    name: 'Google OAuth domains in allowNavigation',
-    ok: () => read('capacitor.config.json').includes('*.google.com'),
+    name: 'Google OAuth domains excluded from allowNavigation (system browser only)',
+    ok: () => {
+      const config = read('capacitor.config.json');
+      return !config.includes('accounts.google.com') && !config.includes('*.google.com');
+    },
   },
   {
     layer: '2 · Capacitor config',
@@ -58,7 +61,9 @@ const checks = [
     name: 'AppDelegate session bridge + OAuth popup fix',
     ok: () => {
       const delegate = read('ios/App/App/AppDelegate.swift');
-      return delegate.includes('openLoginInSystemBrowser') && delegate.includes('installPlatformGuard');
+      return delegate.includes('openLoginInSystemBrowser')
+        && delegate.includes('installPlatformGuard')
+        && delegate.includes('installLocationNavigationGuard');
     },
   },
   {
