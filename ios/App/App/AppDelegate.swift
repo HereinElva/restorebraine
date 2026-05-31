@@ -38,7 +38,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
           var RESTOREBRAINE = 'https://restorebraine.base44.app';
           var APP_ID = '68fdc5f42768c4d045fe1bac';
           var APP_LOGIN_URL = RESTOREBRAINE + '/login?from_url=' + encodeURIComponent(RESTOREBRAINE) + '&app_id=' + APP_ID + '&prompt=select_account';
-          var GOOGLE_OAUTH_URL = RESTOREBRAINE + '/api/apps/auth/login?app_id=' + APP_ID + '&from_url=' + encodeURIComponent(RESTOREBRAINE);
+          var NATIVE_OAUTH_CALLBACK = 'restorebraine://auth/callback';
+          var GOOGLE_OAUTH_URL = RESTOREBRAINE + '/api/apps/auth/login?app_id=' + APP_ID + '&from_url=' + encodeURIComponent(NATIVE_OAUTH_CALLBACK);
 
           function isBase44PlatformHost(hostname) {
             return hostname === 'app.base44.com' || hostname === 'base44.com';
@@ -201,35 +202,36 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
           function openLoginInSystemBrowser(url) {
             url = url || GOOGLE_OAUTH_URL;
-            function launchOAuthBrowser() {
+            function launchSystemBrowser() {
               try {
                 var ib = getInAppBrowserPlugin();
                 if (!ib) return false;
                 oauthBrowserListenerAttached = false;
                 attachOAuthBrowserListeners(ib);
-                ib.openInWebView({ url: url, options: WEBVIEW_OPTIONS }).catch(function () {
-                  ib.openInSystemBrowser({ url: url, options: SYSTEM_BROWSER_OPTIONS });
-                });
+                ib.openInSystemBrowser({ url: url, options: SYSTEM_BROWSER_OPTIONS });
                 return true;
               } catch (e) {
-                try {
-                  var ib2 = getInAppBrowserPlugin();
-                  if (!ib2) return false;
-                  oauthBrowserListenerAttached = false;
-                  attachOAuthBrowserListeners(ib2);
-                  ib2.openInSystemBrowser({ url: url, options: SYSTEM_BROWSER_OPTIONS });
-                  return true;
-                } catch (e2) {
-                  return false;
-                }
+                return false;
               }
             }
-            if (launchOAuthBrowser()) return;
+            if (launchSystemBrowser()) return;
             var attempts = 0;
             var timer = setInterval(function () {
               attempts += 1;
-              if (launchOAuthBrowser() || attempts >= 60) clearInterval(timer);
+              if (launchSystemBrowser() || attempts >= 60) clearInterval(timer);
             }, 100);
+          }
+
+          function installOAuthDeepLinkHandler() {
+            try {
+              var appPlugin = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App;
+              if (!appPlugin || window.__restorebraineOAuthDeepLinkInstalled) return;
+              window.__restorebraineOAuthDeepLinkInstalled = true;
+              appPlugin.addListener('appUrlOpen', function (data) {
+                if (!data || !data.url || data.url.indexOf('restorebraine://') !== 0) return;
+                handleOAuthBrowserUrl(data.url, getInAppBrowserPlugin());
+              });
+            } catch (e) {}
           }
 
           function installLocationNavigationGuard() {
@@ -324,8 +326,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
           }
 
           function providerOAuthUrl(label) {
-            if (/apple/i.test(label)) return RESTOREBRAINE + '/api/apps/auth/apple/login?app_id=' + APP_ID + '&from_url=' + encodeURIComponent(RESTOREBRAINE);
-            if (/microsoft/i.test(label)) return RESTOREBRAINE + '/api/apps/auth/microsoft/login?app_id=' + APP_ID + '&from_url=' + encodeURIComponent(RESTOREBRAINE);
+            if (/apple/i.test(label)) return RESTOREBRAINE + '/api/apps/auth/apple/login?app_id=' + APP_ID + '&from_url=' + encodeURIComponent(NATIVE_OAUTH_CALLBACK);
+            if (/microsoft/i.test(label)) return RESTOREBRAINE + '/api/apps/auth/microsoft/login?app_id=' + APP_ID + '&from_url=' + encodeURIComponent(NATIVE_OAUTH_CALLBACK);
             if (/google/i.test(label)) return GOOGLE_OAUTH_URL;
             return APP_LOGIN_URL;
           }
@@ -373,6 +375,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
           window.__RESTOREBRAINE_NATIVE_BUILD__ = '\(escapedLabel)';
           restoreToken();
           captureAccessTokenFromUrl();
+          installOAuthDeepLinkHandler();
           installPlatformGuard();
           document.addEventListener('visibilitychange', function () {
             if (document.visibilityState === 'hidden') persistToken();

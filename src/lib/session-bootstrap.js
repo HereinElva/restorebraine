@@ -26,10 +26,30 @@ export const restoreSessionFromNativeStorage = async () => {
   return null;
 };
 
+
+export const installNativeOAuthDeepLinkHandler = async () => {
+  try {
+    const { isNativeShell } = await import('@/lib/native-hosted-redirect');
+    if (!isNativeShell()) return;
+
+    const { App } = await import('@capacitor/app');
+    const { handleNativeOAuthCallback } = await import('@/lib/native-google-oauth');
+
+    await App.addListener('appUrlOpen', async ({ url }) => {
+      if (!url || !url.startsWith('restorebraine://')) return;
+      await handleNativeOAuthCallback(url);
+    });
+  } catch (error) {
+    console.warn('Native OAuth deep link handler unavailable.', error);
+  }
+};
+
 export const installNativeSessionPersistence = async () => {
   try {
     const { isNativeShell } = await import('@/lib/native-hosted-redirect');
     if (!isNativeShell()) return;
+
+    await installNativeOAuthDeepLinkHandler();
 
     const { App } = await import('@capacitor/app');
 

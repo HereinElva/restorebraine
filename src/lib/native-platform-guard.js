@@ -1,5 +1,6 @@
 export const RESTOREBRAINE_FROM_URL = 'https://restorebraine.base44.app';
 export const BASE44_APP_ID = '68fdc5f42768c4d045fe1bac';
+export const NATIVE_OAUTH_CALLBACK = 'restorebraine://auth/callback';
 
 const PLATFORM_HOSTS = new Set(['app.base44.com', 'base44.com']);
 
@@ -17,18 +18,18 @@ export const getAppScopedLoginUrl = () => {
 export const getGoogleOAuthUrl = () => {
   const params = new URLSearchParams({
     app_id: BASE44_APP_ID,
-    from_url: RESTOREBRAINE_FROM_URL,
+    from_url: NATIVE_OAUTH_CALLBACK,
   });
   return `${RESTOREBRAINE_FROM_URL}/api/apps/auth/login?${params.toString()}`;
 };
 
 export const getProviderOAuthUrl = (label = '') => {
   if (/apple/i.test(label)) {
-    const params = new URLSearchParams({ app_id: BASE44_APP_ID, from_url: RESTOREBRAINE_FROM_URL });
+    const params = new URLSearchParams({ app_id: BASE44_APP_ID, from_url: NATIVE_OAUTH_CALLBACK });
     return `${RESTOREBRAINE_FROM_URL}/api/apps/auth/apple/login?${params.toString()}`;
   }
   if (/microsoft/i.test(label)) {
-    const params = new URLSearchParams({ app_id: BASE44_APP_ID, from_url: RESTOREBRAINE_FROM_URL });
+    const params = new URLSearchParams({ app_id: BASE44_APP_ID, from_url: NATIVE_OAUTH_CALLBACK });
     return `${RESTOREBRAINE_FROM_URL}/api/apps/auth/microsoft/login?${params.toString()}`;
   }
   if (/google/i.test(label)) return getGoogleOAuthUrl();

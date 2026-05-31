@@ -1,8 +1,9 @@
 import { InAppBrowser } from '@capacitor/inappbrowser';
 import {
-  getAppScopedLoginUrl,
   getGoogleOAuthUrl,
+  getProviderOAuthUrl,
   RESTOREBRAINE_FROM_URL,
+  NATIVE_OAUTH_CALLBACK,
   isBase44PlatformHost,
 } from '@/lib/native-platform-guard';
 import { persistSessionToNativeStorage } from '@/lib/session-bootstrap';
@@ -13,30 +14,6 @@ const GOOGLE_OAUTH_PATTERN = /accounts\.google\.com|google\.com\/o\/oauth|oauth2
 const SYSTEM_BROWSER_OPTIONS = {
   iOS: { closeButtonText: 2, viewStyle: 2, animationEffect: 2, enableBarsCollapsing: true, enableReadersMode: false },
   android: { showTitle: false, hideToolbarOnScroll: false, viewStyle: 0, startAnimation: 0, exitAnimation: 1 },
-};
-
-const WEBVIEW_OPTIONS = {
-  showURL: true,
-  showToolbar: true,
-  clearCache: false,
-  clearSessionCache: false,
-  mediaPlaybackRequiresUserAction: false,
-  closeButtonText: 'Done',
-  toolbarPosition: 0,
-  showNavigationButtons: true,
-  leftToRight: false,
-  customWebViewUserAgent:
-    'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
-  iOS: {
-    allowOverScroll: true,
-    enableViewportScale: false,
-    allowInLineMediaPlayback: false,
-    surpressIncrementalRendering: false,
-    viewStyle: 2,
-    animationEffect: 2,
-    allowsBackForwardNavigationGestures: true,
-  },
-  android: { allowZoom: false, hardwareBack: true, pauseMedia: true },
 };
 
 export const isGoogleOAuthUrl = (url) => {
@@ -60,7 +37,8 @@ export const isAuthNavigationUrl = (url) => {
   return false;
 };
 
-const captureTokenFromUrl = async (url) => {
+export const captureOAuthTokenFromUrl = async (url) => {
+  if (!url) return null;
   try {
     const parsed = new URL(url);
     const token = parsed.searchParams.get('access_token');
@@ -79,56 +57,24 @@ const finishOAuthLogin = async () => {
   window.location.replace(RESTOREBRAINE_FROM_URL);
 };
 
-const handleOAuthBrowserUrl = async (url) => {
-  if (!url) return false;
-
-  const token = await captureTokenFromUrl(url);
-  if (token) {
-    await finishOAuthLogin();
-    return true;
-  }
-
-  try {
-    const parsed = new URL(url);
-    if (parsed.hostname === 'restorebraine.base44.app') {
-      const stored = localStorage.getItem('base44_access_token') || localStorage.getItem('token');
-      if (stored) {
-        await finishOAuthLogin();
-        return true;
-      }
-    }
-    if (isBase44PlatformHost(parsed.hostname) && !parsed.pathname.startsWith('/api/apps/auth')) {
-      const stored = localStorage.getItem('base44_access_token') || localStorage.getItem('token');
-      if (stored) {
-        await finishOAuthLogin();
-        return true;
-      }
-    }
-  } catch {}
-
-  return false;
+export const handleNativeOAuthCallback = async (url) => {
+  const token = await captureOAuthTokenFromUrl(url);
+  if (!token) return false;
+  await finishOAuthLogin();
+  return true;
 };
 
 const attachOAuthCompletionListener = async () => {
   if (oauthListenerAttached) return;
   oauthListenerAttached = true;
 
-  await InAppBrowser.addListener('browserPageNavigationCompleted', async (event) => {
-    await handleOAuthBrowserUrl(event?.url);
-  });
-
-  await InAppBrowser.addListener('browserClosed', () => {
+  await InAppBrowser.addListener('browserClosed', async () => {
     const stored = localStorage.getItem('base44_access_token') || localStorage.getItem('token');
     if (stored) window.location.replace(RESTOREBRAINE_FROM_URL);
   });
-
-  await InAppBrowser.addListener('browserPageLoaded', async () => {
-    const stored = localStorage.getItem('base44_access_token') || localStorage.getItem('token');
-    if (stored) await finishOAuthLogin();
-  });
 };
 
-/** Google OAuth uses InAppBrowser — openInSystemBrowser requires options or it silently fails. */
+/** Google blocks embedded WebViews — must use SFSafariViewController (openInSystemBrowser). */
 export const openLoginInSystemBrowser = async (url = getGoogleOAuthUrl()) => {
   if (!isNativeShell()) {
     window.location.replace(url);
@@ -137,14 +83,6 @@ export const openLoginInSystemBrowser = async (url = getGoogleOAuthUrl()) => {
 
   oauthListenerAttached = false;
   await attachOAuthCompletionListener();
-
-  try {
-    await InAppBrowser.openInWebView({ url, options: WEBVIEW_OPTIONS });
-    return;
-  } catch {
-    // fall through
-  }
-
   await InAppBrowser.openInSystemBrowser({ url, options: SYSTEM_BROWSER_OPTIONS });
 };
 
@@ -158,7 +96,7 @@ export const installLocationNavigationGuard = () => {
       try {
         const parsed = new URL(String(url), window.location.href);
         if (parsed.searchParams.get('access_token')) {
-          captureTokenFromUrl(parsed.href).then((token) => {
+          captureOAuthTokenFromUrl(parsed.href).then((token) => {
             if (token) window.location.replace(RESTOREBRAINE_FROM_URL);
           });
           return;
@@ -197,3 +135,5 @@ export const installNativeGoogleOAuthBrowser = () => {
     return originalOpen ? originalOpen.call(window, url, target, features) : null;
   };
 };
+
+export { NATIVE_OAUTH_CALLBACK, getProviderOAuthUrl };
