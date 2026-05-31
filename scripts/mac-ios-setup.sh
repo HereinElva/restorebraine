@@ -50,6 +50,8 @@ fi
 echo "==> Installing npm dependencies (required after every pull)"
 npm install
 
+node scripts/generate-ios-app-icons.mjs
+
 echo "==> Building web app + syncing iOS bundle"
 npm run ios:prepare
 

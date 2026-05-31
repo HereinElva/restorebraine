@@ -208,6 +208,14 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
           }
 
           function performNativeSignOut(event) {
+            if (window.__restorebraineSigningOut) {
+              if (event) {
+                event.preventDefault();
+                event.stopPropagation();
+                event.stopImmediatePropagation();
+              }
+              return;
+            }
             if (event) {
               event.preventDefault();
               event.stopPropagation();
@@ -215,9 +223,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             }
             window.__restorebraineSigningOut = true;
             clearNativeSession();
-            setTimeout(function () {
-              window.location.replace(RESTOREBRAINE + '/');
-            }, 0);
+            window.location.replace(RESTOREBRAINE + '/');
           }
 
           function readToken() {
@@ -706,11 +712,12 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
           function interceptNativeSignOut() {
             if (window.__restorebraineSignOutInterceptor) return;
             window.__restorebraineSignOutInterceptor = true;
-            document.addEventListener('click', function (event) {
-              var target = event.target.closest('button, a, [role="button"]');
-              if (!isSignOutControl(target)) return;
+            function handleSignOutPointer(event) {
+              if (!isSignOutControl(event.target)) return;
               performNativeSignOut(event);
-            }, true);
+            }
+            document.addEventListener('click', handleSignOutPointer, true);
+            document.addEventListener('touchend', handleSignOutPointer, true);
           }
 
           function interceptNativeSignInClicks() {
