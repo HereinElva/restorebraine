@@ -10,9 +10,10 @@ export default function NavigationTracker() {
     const { Pages, mainPage } = pagesConfig;
     const mainPageKey = mainPage ?? Object.keys(Pages)[0];
 
-    // Post navigation changes to parent window
+    // Post navigation changes to parent window (Base44 sandbox preview only)
     useEffect(() => {
-        window.parent?.postMessage({
+        if (window.parent === window) return;
+        window.parent.postMessage({
             type: "app_changed_url",
             url: window.location.href
         }, '*');

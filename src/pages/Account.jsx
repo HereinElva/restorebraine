@@ -12,16 +12,20 @@ export default function Account() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const queryClient = useQueryClient();
-  const { localLogout } = useAuth();
+  const { logout } = useAuth();
 
   const { data: user } = useQuery({
     queryKey: ['user'],
     queryFn: () => base44.auth.me(),
   });
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     queryClient.clear();
-    localLogout();
+    if (typeof window !== 'undefined' && window.__restorebrainePerformSignOut) {
+      window.__restorebrainePerformSignOut();
+      return;
+    }
+    await logout();
   };
 
   const handleDeleteAccount = async () => {
@@ -48,7 +52,9 @@ export default function Account() {
           </Button>
         </Link>
         <div className="bg-white rounded-2xl shadow-lg p-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-6">Account Settings</h1>
+          <div className="mb-6">
+            <h1 className="text-3xl font-bold text-gray-900">Account Settings</h1>
+          </div>
           {user && (
             <div className="mb-8 p-4 bg-purple-50 rounded-lg">
               <p className="text-sm text-gray-600 mb-1">Email</p>

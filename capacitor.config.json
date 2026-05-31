@@ -6,9 +6,10 @@
     "url": "https://restorebraine.base44.app",
     "cleartext": false,
     "allowNavigation": [
-      "app.base44.com",
       "restorebraine.base44.app",
+      "app.base44.com",
       "accounts.google.com",
+      "appleid.apple.com",
       "checkout.stripe.com",
       "pay.stripe.com",
       "stripe.com",

@@ -277,8 +277,8 @@ export default function MobileGallery({
 
       {/* Search bar */}
       <div className="px-4 pb-2">
-        <div className={`flex items-center gap-2 bg-gray-100 rounded-2xl px-4 py-3 transition-all duration-200 ${searchFocused ? 'bg-purple-50 ring-2 ring-purple-300' : ''}`}>
-          <Search className="w-4 h-4 text-gray-400 flex-shrink-0" />
+        <div className={`flex items-center gap-2 bg-blue-50 rounded-2xl px-4 py-3 transition-all duration-200 border border-blue-100 ${searchFocused ? 'bg-blue-100 ring-2 ring-blue-300' : ''}`}>
+          <Search className={`w-4 h-4 flex-shrink-0 transition-colors ${searchFocused ? 'text-blue-500' : 'text-blue-300'}`} />
           <input
             ref={inputRef}
             type="text"
