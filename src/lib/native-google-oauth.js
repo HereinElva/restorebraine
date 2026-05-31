@@ -106,8 +106,11 @@ export const installLocationNavigationGuard = () => {
           });
           return;
         }
-        if (isAuthNavigationUrl(url)) {
-          handleAuthNavigation(url);
+        const loginPath = parsed.pathname.replace(/\/$/, '') || '/';
+        const isLoginPage = loginPath === '/login'
+          && (isBase44PlatformHost(parsed.hostname) || parsed.hostname === 'restorebraine.base44.app');
+        if (isAuthNavigationUrl(url) || isLoginPage) {
+          handleAuthNavigation(getGoogleOAuthUrl());
           return;
         }
         if (isBase44PlatformHost(parsed.hostname)) {
@@ -141,8 +144,11 @@ export const installLocationNavigationGuard = () => {
               });
               return;
             }
-            if (isAuthNavigationUrl(value)) {
-              handleAuthNavigation(value);
+            const loginPath = parsed.pathname.replace(/\/$/, '') || '/';
+            const isLoginPage = loginPath === '/login'
+              && (isBase44PlatformHost(parsed.hostname) || parsed.hostname === 'restorebraine.base44.app');
+            if (isAuthNavigationUrl(value) || isLoginPage) {
+              handleAuthNavigation(getGoogleOAuthUrl());
               return;
             }
             if (isBase44PlatformHost(parsed.hostname)) {

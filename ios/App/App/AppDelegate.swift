@@ -137,6 +137,17 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             return false;
           }
 
+          function isPlatformLoginUrl(url) {
+            if (!url) return false;
+            try {
+              var parsed = new URL(String(url), window.location.href);
+              var path = (parsed.pathname || '/').replace(/\/$/, '') || '/';
+              if (path !== '/login') return false;
+              return isBase44PlatformHost(parsed.hostname) || parsed.hostname === 'restorebraine.base44.app';
+            } catch (e) {}
+            return false;
+          }
+
           var keys = ['base44_access_token', 'token'];
           var SIGNED_OUT_KEY = 'b44_signed_out';
 
@@ -426,8 +437,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                     window.location.replace(RESTOREBRAINE + '/');
                     return;
                   }
-                  if (isAuthNavigationUrl(targetUrl)) {
-                    openLoginInSystemBrowser(targetUrl);
+                  if (isAuthNavigationUrl(targetUrl) || isPlatformLoginUrl(targetUrl)) {
+                    openLoginInSystemBrowser(getCanonicalOAuthUrl('google'), 'google');
                     return;
                   }
                   if (isBase44PlatformHost(parsed.hostname)) {
@@ -463,8 +474,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                         window.location.replace(RESTOREBRAINE + '/');
                         return;
                       }
-                      if (isAuthNavigationUrl(value)) {
-                        openLoginInSystemBrowser(value);
+                      if (isAuthNavigationUrl(value) || isPlatformLoginUrl(value)) {
+                        openLoginInSystemBrowser(getCanonicalOAuthUrl('google'), 'google');
                         return;
                       }
                       if (isBase44PlatformHost(parsed.hostname)) {
@@ -713,16 +724,18 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             document.addEventListener('click', function (event) {
               var target = event.target.closest('button, a, [role="button"], div[role="button"], [data-provider]');
               if (!target) return;
-              var label = (target.textContent || '').trim();
+              var label = (target.textContent || '').replace(/\s+/g, ' ').trim();
               var href = (target.href || (target.getAttribute && target.getAttribute('href')) || '');
+              var isSignInButton = /^sign in$/i.test(label);
               var isProvider = /continue with google|continue with apple|continue with microsoft|sign in with email|sign in with google|sign in with apple|sign in with microsoft/i.test(label);
-              var isAuthLink = /auth\/login|auth\/apple|auth\/microsoft/i.test(href);
-              if (!isProvider && !isAuthLink) return;
+              var isAuthLink = /auth\/login|auth\/apple|auth\/microsoft|app\.base44\.com\/login/i.test(href);
+              if (!isSignInButton && !isProvider && !isAuthLink) return;
               event.preventDefault();
               event.stopPropagation();
               event.stopImmediatePropagation();
+              try { localStorage.removeItem(SIGNED_OUT_KEY); } catch (e) {}
               var provider = providerFromLabel(label);
-              var authUrl = href && isAuthNavigationUrl(href) ? href : getCanonicalOAuthUrl(provider);
+              var authUrl = href && (isAuthNavigationUrl(href) || isPlatformLoginUrl(href)) ? getCanonicalOAuthUrl(provider) : getCanonicalOAuthUrl(provider);
               openLoginInSystemBrowser(authUrl, provider);
             }, true);
           }

@@ -148,18 +148,19 @@ export const interceptNativeSignInClicks = () => {
   document.addEventListener('click', (event) => {
     const target = event.target.closest('button, a, [role="button"], div[role="button"], [data-provider]');
     if (!target) return;
-    const label = (target.textContent || '').trim();
+    const label = (target.textContent || '').replace(/\s+/g, ' ').trim();
     const href = target.href || target.getAttribute?.('href') || '';
+    const isSignInButton = /^sign in$/i.test(label);
     const isProvider = /continue with google|continue with apple|continue with microsoft|sign in with email|sign in with google|sign in with apple|sign in with microsoft/i.test(label);
-    const isAuthLink = /auth\/login|auth\/apple|auth\/microsoft/i.test(href);
-    if (!isProvider && !isAuthLink) return;
+    const isAuthLink = /auth\/login|auth\/apple|auth\/microsoft|app\.base44\.com\/login/i.test(href);
+    if (!isSignInButton && !isProvider && !isAuthLink) return;
     event.preventDefault();
     event.stopPropagation();
     event.stopImmediatePropagation();
+    try { localStorage.removeItem('b44_signed_out'); } catch {}
     const provider = providerFromLabel(label);
-    const authUrl = href && isAuthNavigationUrl(href) ? href : getCanonicalOAuthUrl(provider);
     import('@/lib/native-google-oauth').then(({ openLoginInSystemBrowser }) => {
-      openLoginInSystemBrowser(authUrl, provider);
+      openLoginInSystemBrowser(getCanonicalOAuthUrl(provider), provider);
     });
   }, true);
 };
