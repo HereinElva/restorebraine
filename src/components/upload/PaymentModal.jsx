@@ -9,7 +9,7 @@ import {
   getStorageLimit,
   getAmountDue,
 } from "@/lib/storage-billing";
-import { isNativeShell } from "@/lib/native-platform";
+import { shouldUseStripeCheckout, getStripeReturnBaseUrl } from "@/lib/native-platform";
 import {
   initializeInAppPurchases,
   isInAppPurchaseAvailable,
