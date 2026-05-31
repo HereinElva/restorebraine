@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, Trash2, AlertTriangle, LogOut } from "lucide-react";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
+import { isNativeShell } from "@/lib/native-hosted-redirect";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
 export default function Account() {
@@ -26,6 +27,10 @@ export default function Account() {
     }
     if (typeof window !== 'undefined' && window.__restorebraineSigningOut) return;
     queryClient.clear();
+    if (isNativeShell() && typeof window !== 'undefined' && typeof window.__restorebrainePerformSignOut === 'function') {
+      window.__restorebrainePerformSignOut(event);
+      return;
+    }
     await localLogout();
   };
 

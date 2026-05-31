@@ -35,12 +35,6 @@ export const getCanonicalOAuthUrl = (provider = 'google') => {
 export const normalizeAuthUrl = (rawUrl, providerHint) => {
   try {
     const parsed = new URL(String(rawUrl || ''), typeof window !== 'undefined' ? window.location.href : RESTOREBRAINE_FROM_URL);
-    if (
-      (parsed.hostname === 'restorebraine.base44.app' || isBase44PlatformHost(parsed.hostname))
-      && parsed.pathname.startsWith('/login')
-    ) {
-      return getCanonicalOAuthUrl(providerHint || 'google');
-    }
     if (!isAuthNavigationUrl(rawUrl) && !providerHint) return String(rawUrl);
     const provider = providerHint || providerFromPath(parsed.pathname);
     return getCanonicalOAuthUrl(provider);

@@ -207,27 +207,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             return false;
           }
 
-          function showRestorebraineSignInOverlay() {
-            var existing = document.getElementById('rb-native-signin-root');
-            if (existing) return;
-            var root = document.createElement('div');
-            root.id = 'rb-native-signin-root';
-            root.setAttribute('data-rb-sign-in-screen', '1');
-            root.style.cssText = 'position:fixed;inset:0;z-index:2147483647;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#eff6ff,#f5f3ff,#fdf2f8);padding:24px;';
-            root.innerHTML = '<div style="background:white;border-radius:24px;padding:40px;box-shadow:0 10px 40px rgba(0,0,0,0.1);max-width:360px;width:100%;text-align:center;">'
-              + '<img src="' + APP_LOGO_URL + '" alt="Restorebraine" style="width:64px;height:64px;border-radius:16px;object-fit:cover;margin:0 auto 16px;display:block;" />'
-              + '<h1 style="font-size:24px;font-weight:700;color:#111;margin:0 0 8px;">Restorebraine</h1>'
-              + '<p style="color:#666;margin:0 0 32px;font-size:14px;">Sign in to access your memories</p>'
-              + '<button type="button" data-rb-sign-in="1" style="width:100%;padding:14px;background:linear-gradient(135deg,#60a5fa,#a78bfa);color:white;border:none;border-radius:14px;font-size:16px;font-weight:600;cursor:pointer;">Sign In</button>'
-              + '</div>';
-            root.querySelector('[data-rb-sign-in]').addEventListener('click', function (event) {
-              event.preventDefault();
-              event.stopPropagation();
-              openLoginInSystemBrowser(getCanonicalOAuthUrl('google'), 'google');
-            });
-            (document.body || document.documentElement).appendChild(root);
-          }
-
           function performNativeSignOut(event) {
             if (window.__restorebraineSigningOut) {
               if (event) {
@@ -244,7 +223,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             }
             window.__restorebraineSigningOut = true;
             clearNativeSession();
-            showRestorebraineSignInOverlay();
+            window.location.replace(RESTOREBRAINE + '/');
           }
 
           function readToken() {
@@ -408,12 +387,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
           }
 
           function openLoginInSystemBrowser(url, providerHint) {
-            try {
-              var parsedLogin = new URL(String(url || ''), window.location.href);
-              if ((parsedLogin.hostname === 'restorebraine.base44.app' || isBase44PlatformHost(parsedLogin.hostname)) && /\/login/i.test(parsedLogin.pathname)) {
-                url = getCanonicalOAuthUrl(providerHint || 'google');
-              }
-            } catch (e) {}
             url = normalizeAuthUrl(url || getCanonicalOAuthUrl(providerHint || 'google'), providerHint);
             function launchSystemBrowser() {
               try {
@@ -543,11 +516,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
               if (captureAccessTokenFromUrl()) return;
               if (!isBase44PlatformHost(window.location.hostname)) return;
               if (window.location.pathname.indexOf('/api/apps/auth') === 0) return;
-              if (/\/login/i.test(window.location.pathname)) {
-                showRestorebraineSignInOverlay();
-                window.location.replace(RESTOREBRAINE);
-                return;
-              }
               window.location.replace(RESTOREBRAINE);
             } catch (e) {}
           }
@@ -760,10 +728,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
               if (!target) return;
               var label = (target.textContent || '').trim();
               var href = (target.href || (target.getAttribute && target.getAttribute('href')) || '');
-              var isSignInButton = /^sign in$/i.test(label) || /^opening sign in/i.test(label) || target.getAttribute('data-rb-sign-in') === '1';
               var isProvider = /continue with google|continue with apple|continue with microsoft|sign in with email|sign in with google|sign in with apple|sign in with microsoft/i.test(label);
               var isAuthLink = /auth\/login|auth\/apple|auth\/microsoft/i.test(href);
-              if (!isSignInButton && !isProvider && !isAuthLink) return;
+              if (!isProvider && !isAuthLink) return;
               event.preventDefault();
               event.stopPropagation();
               event.stopImmediatePropagation();
