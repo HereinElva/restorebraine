@@ -461,7 +461,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                 img.alt = 'Restorebraine';
               });
 
-              if (/\/login/i.test(window.location.pathname)) {
+              if (/\\/login/i.test(window.location.pathname)) {
                 document.querySelectorAll('h1, h2, p').forEach(function (heading) {
                   if (!/restorebraine/i.test(heading.textContent || '')) return;
                   var logoBox = heading.previousElementSibling;
