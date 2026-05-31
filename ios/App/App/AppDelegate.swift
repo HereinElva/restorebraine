@@ -523,7 +523,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
           restoreToken();
           captureAccessTokenFromUrl();
           installOAuthDeepLinkHandler();
-          watchSignedOutFlag();
           installPlatformGuard();
           document.addEventListener('visibilitychange', function () {
             if (document.visibilityState === 'hidden') persistToken();

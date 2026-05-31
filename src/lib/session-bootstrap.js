@@ -6,16 +6,12 @@ import { persistentStorage } from '@/lib/persistentStorage';
 const TOKEN_KEYS = ['base44_access_token', 'token'];
 const SIGNED_OUT_KEY = 'b44_signed_out';
 
-const isSignedOut = async () => {
-  try {
-    if (typeof window !== 'undefined' && localStorage.getItem(SIGNED_OUT_KEY) === '1') return true;
-  } catch {}
-  const flag = await persistentStorage.get(SIGNED_OUT_KEY);
-  return flag === '1';
-};
-
 export const restoreSessionFromNativeStorage = async () => {
-  if (await isSignedOut()) return null;
+  try {
+    if (typeof window !== 'undefined' && localStorage.getItem(SIGNED_OUT_KEY) === '1') return null;
+  } catch {}
+  const signedOut = await persistentStorage.get(SIGNED_OUT_KEY);
+  if (signedOut === '1') return null;
 
   const urlToken = captureAccessTokenFromUrl();
   if (urlToken) {
@@ -36,6 +32,7 @@ export const restoreSessionFromNativeStorage = async () => {
 
   return null;
 };
+
 
 export const installNativeOAuthDeepLinkHandler = async () => {
   try {
@@ -65,13 +62,13 @@ export const installNativeSessionPersistence = async () => {
 
     await App.addListener('appStateChange', async ({ isActive }) => {
       if (isActive) {
-        if (!(await isSignedOut())) {
+        if (localStorage.getItem(SIGNED_OUT_KEY) !== '1') {
           await restoreSessionFromNativeStorage();
         }
         return;
       }
 
-      if (await isSignedOut()) return;
+      if (localStorage.getItem(SIGNED_OUT_KEY) === '1') return;
 
       const token = localStorage.getItem('base44_access_token') || localStorage.getItem('token');
       if (token) {
@@ -84,16 +81,19 @@ export const installNativeSessionPersistence = async () => {
 };
 
 export const persistSessionToNativeStorage = async (token) => {
-  if (!token || (await isSignedOut())) return;
+  if (!token) return;
+  try {
+    if (typeof window !== 'undefined' && localStorage.getItem(SIGNED_OUT_KEY) === '1') return;
+  } catch {}
+  const signedOut = await persistentStorage.get(SIGNED_OUT_KEY);
+  if (signedOut === '1') return;
   appParams.token = token;
   base44.auth.setToken(token, false);
   persistentStorage._mirror('base44_access_token', token);
   persistentStorage._mirror('token', token);
   await Promise.all(TOKEN_KEYS.map((key) => persistentStorage.set(key, token)));
   await persistentStorage.remove(SIGNED_OUT_KEY);
-  try {
-    localStorage.removeItem(SIGNED_OUT_KEY);
-  } catch {}
+  try { localStorage.removeItem(SIGNED_OUT_KEY); } catch {}
 };
 
 export const clearNativeSession = async () => {

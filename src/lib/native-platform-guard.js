@@ -92,23 +92,15 @@ export const hideBase44EditorWidget = () => {
   if (!document.getElementById('rb-hide-base44')) {
     const style = document.createElement('style');
     style.id = 'rb-hide-base44';
-    style.textContent = '#base44-edit-badge, #base44-modal-overlay, [id*="base44-edit"], [id*="base44-modal"], [href*="app.base44.com"], iframe[src*="base44"], script[src*="badge.js"] { display:none !important; visibility:hidden !important; opacity:0 !important; pointer-events:none !important; max-height:0 !important; overflow:hidden !important; }';
+    style.textContent = '[href*="app.base44.com"], iframe[src*="base44"], script[src*="badge.js"] { display:none !important; visibility:hidden !important; pointer-events:none !important; }';
     (document.head || document.documentElement).appendChild(style);
   }
   const hideMatchingNodes = (root = document.body) => {
     if (!root?.querySelectorAll) return;
-    ['#base44-edit-badge', '#base44-modal-overlay'].forEach((selector) => {
-      root.querySelectorAll(selector).forEach((node) => node.remove());
-    });
-    root.querySelectorAll('button, a, div, span, p, iframe, img').forEach((node) => {
+    root.querySelectorAll('button, a, div, span, p, iframe').forEach((node) => {
       if (node.id === 'rb-native-stamp') return;
-      if (node.id === 'base44-edit-badge' || node.id === 'base44-modal-overlay') {
-        node.remove();
-        return;
-      }
       const text = (node.textContent || '').trim();
-      const alt = node.getAttribute?.('alt') || '';
-      if ((/edit with/i.test(text) && /base\s*44/i.test(`${text} ${alt}`)) || (/edit with base\s*44/i.test(text) && text.length < 60)) {
+      if (/edit with base\s*44/i.test(text) && text.length < 60) {
         let el = node;
         for (let i = 0; i < 8 && el && el !== document.body; i += 1) {
           el.style.setProperty('display', 'none', 'important');

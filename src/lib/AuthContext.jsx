@@ -1,9 +1,11 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
-import { clearPersistedToken } from '@/lib/app-params';
 import { appParams } from '@/lib/app-params';
-import { clearNativeSession } from '@/lib/session-bootstrap';
 import { createAxiosClient } from '@base44/sdk/dist/utils/axios-client';
+import { openRestorebraineLogin } from '@/lib/auth-urls';
+import { RESTOREBRAINE_APP_URL } from '@/lib/app-params';
+import { clearNativeSession, persistSessionToNativeStorage, restoreSessionFromNativeStorage } from '@/lib/session-bootstrap';
+import { isHostedAppOrigin } from '@/lib/native-hosted-redirect';
 
 const AuthContext = createContext();
 
@@ -14,46 +16,43 @@ export const AuthProvider = ({ children }) => {
   const [isLoadingPublicSettings, setIsLoadingPublicSettings] = useState(true);
   const [authError, setAuthError] = useState(null);
   const [appPublicSettings, setAppPublicSettings] = useState(null);
-  const [manuallyLoggedOut, setManuallyLoggedOut] = useState(false); // Contains only { id, public_settings }
+  const [manuallyLoggedOut, setManuallyLoggedOut] = useState(false);
 
   useEffect(() => {
     checkAppState();
   }, []);
 
   const checkAppState = async () => {
-    if (localStorage.getItem("b44_signed_out") === "1") { setIsLoadingPublicSettings(false); setIsLoadingAuth(false); setAuthError({ type: "auth_required", message: "Authentication required" }); return; }
     try {
       setIsLoadingPublicSettings(true);
       setAuthError(null);
-      
-      // First, check app public settings (with token if available)
-      // This will tell us if auth is required, user not registered, etc.
+
+      const restoredToken = await restoreSessionFromNativeStorage();
+      if (restoredToken) {
+        appParams.token = restoredToken;
+      }
+
       const appClient = createAxiosClient({
         baseURL: `${appParams.serverUrl}/api/apps/public`,
-        headers: {
-          'X-App-Id': appParams.appId
-        },
-        token: appParams.token, // Include token if available
-        interceptResponses: true
+        headers: { 'X-App-Id': appParams.appId },
+        token: appParams.token,
+        interceptResponses: true,
       });
-      
+
       try {
         const publicSettings = await appClient.get(`/prod/public-settings/by-id/${appParams.appId}`);
         setAppPublicSettings(publicSettings);
-        
-        // If we got the app public settings successfully, check if user is authenticated
+
         if (appParams.token) {
           await checkUserAuth();
         } else {
           setIsLoadingAuth(false);
           setIsAuthenticated(false);
-    await clearPersistedToken();
         }
         setIsLoadingPublicSettings(false);
       } catch (appError) {
         console.error('App state check failed:', appError);
-        
-        // Handle app-level errors
+
         if (appError.status === 403 && appError.data?.extra_data?.reason) {
           const reason = appError.data.extra_data.reason;
           if (reason === 'auth_required') {
@@ -63,29 +62,18 @@ export const AuthProvider = ({ children }) => {
           } else {
             setAuthError({ type: reason, message: appError.message });
           }
-          setIsLoadingPublicSettings(false);
-          setIsLoadingAuth(false);
         } else if (appError.status === 403) {
           setAuthError({ type: 'auth_required', message: 'Authentication required' });
-          setIsLoadingPublicSettings(false);
-          setIsLoadingAuth(false);
-        } else {
-          // Network error or transient failure — if we have a stored token, still try to auth
-          // This prevents logging users out on flaky connections or app resume
-          setIsLoadingPublicSettings(false);
-          if (appParams.token) {
-            await checkUserAuth();
-          } else {
-            setIsLoadingAuth(false);
-          }
+        } else if (appParams.token) {
+          await checkUserAuth();
         }
+
+        setIsLoadingPublicSettings(false);
+        setIsLoadingAuth(false);
       }
     } catch (error) {
       console.error('Unexpected error:', error);
-      setAuthError({
-        type: 'unknown',
-        message: error.message || 'An unexpected error occurred'
-      });
+      setAuthError({ type: 'unknown', message: error.message || 'An unexpected error occurred' });
       setIsLoadingPublicSettings(false);
       setIsLoadingAuth(false);
     }
@@ -93,43 +81,35 @@ export const AuthProvider = ({ children }) => {
 
   const checkUserAuth = async () => {
     if (manuallyLoggedOut) return;
-    if (localStorage.getItem("b44_signed_out") === "1") { setIsLoadingAuth(false); setIsAuthenticated(false); setAuthError({ type: "auth_required", message: "Authentication required" }); return; }
+
     try {
-      // Now check if the user is authenticated
       setIsLoadingAuth(true);
       const currentUser = await base44.auth.me();
       setUser(currentUser);
       setIsAuthenticated(true);
       setIsLoadingAuth(false);
+
+      const token = appParams.token || localStorage.getItem('base44_access_token') || localStorage.getItem('token');
+      if (token) {
+        await persistSessionToNativeStorage(token);
+      }
     } catch (error) {
       console.error('User auth check failed:', error);
       setIsLoadingAuth(false);
       setIsAuthenticated(false);
-    await clearPersistedToken();
-      
-      // Only redirect to login on 401 (unauthenticated).
-      // 403 means the user IS authenticated but not registered/invited — show that error instead.
+
       if (error.status === 401) {
-        setAuthError({
-          type: 'auth_required',
-          message: 'Authentication required'
-        });
+        await clearNativeSession();
+        setAuthError({ type: 'auth_required', message: 'Authentication required' });
       } else if (error.status === 403) {
-        setAuthError({
-          type: 'user_not_registered',
-          message: 'User not registered for this app'
-        });
+        setAuthError({ type: 'user_not_registered', message: 'User not registered for this app' });
       }
     }
   };
 
-  const localLogout = () => { setManuallyLoggedOut(true);
-    try {
-      localStorage.removeItem('base44_access_token');
-      localStorage.removeItem('token');
-      sessionStorage.clear();
-      localStorage.setItem('b44_signed_out', '1');
-    } catch {}
+  const localLogout = async () => {
+    setManuallyLoggedOut(true);
+    await clearNativeSession();
     setUser(null);
     setIsAuthenticated(false);
     setIsLoadingAuth(false);
@@ -137,29 +117,22 @@ export const AuthProvider = ({ children }) => {
     setAuthError({ type: 'auth_required', message: 'Authentication required' });
   };
 
-  const logout = async (shouldRedirect = true) => {
-    setUser(null);
-    setIsAuthenticated(false);
-    await clearPersistedToken();
-    
-    if (shouldRedirect) {
-      // Use the SDK's logout method which handles token cleanup and redirect
-      base44.auth.logout(window.location.href);
-    } else {
-      // Just remove the token without redirect
-      base44.auth.logout();
+  const logout = async () => {
+    await localLogout();
+    if (isHostedAppOrigin()) {
+      window.location.href = `${RESTOREBRAINE_APP_URL}/api/apps/auth/logout?from_url=${encodeURIComponent(window.location.href)}`;
     }
   };
 
   const navigateToLogin = () => {
-    // Use the SDK's redirectToLogin method
-    base44.auth.redirectToLogin("https://restorebraine.base44.app");
+    setManuallyLoggedOut(false);
+    openRestorebraineLogin();
   };
 
   return (
-    <AuthContext.Provider value={{ 
-      user, 
-      isAuthenticated, 
+    <AuthContext.Provider value={{
+      user,
+      isAuthenticated,
       isLoadingAuth,
       isLoadingPublicSettings,
       authError,
@@ -168,7 +141,7 @@ export const AuthProvider = ({ children }) => {
       localLogout,
       manuallyLoggedOut,
       navigateToLogin,
-      checkAppState
+      checkAppState,
     }}>
       {children}
     </AuthContext.Provider>
