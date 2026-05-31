@@ -10,6 +10,35 @@ import { isNativeShell } from '@/lib/native-hosted-redirect';
 
 const GOOGLE_OAUTH_PATTERN = /accounts\.google\.com|google\.com\/o\/oauth|oauth2\.googleapis\.com|\/api\/apps\/auth\/login/i;
 
+const SYSTEM_BROWSER_OPTIONS = {
+  iOS: { closeButtonText: 2, viewStyle: 2, animationEffect: 2, enableBarsCollapsing: true, enableReadersMode: false },
+  android: { showTitle: false, hideToolbarOnScroll: false, viewStyle: 0, startAnimation: 0, exitAnimation: 1 },
+};
+
+const WEBVIEW_OPTIONS = {
+  showURL: true,
+  showToolbar: true,
+  clearCache: false,
+  clearSessionCache: false,
+  mediaPlaybackRequiresUserAction: false,
+  closeButtonText: 'Done',
+  toolbarPosition: 0,
+  showNavigationButtons: true,
+  leftToRight: false,
+  customWebViewUserAgent:
+    'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
+  iOS: {
+    allowOverScroll: true,
+    enableViewportScale: false,
+    allowInLineMediaPlayback: false,
+    surpressIncrementalRendering: false,
+    viewStyle: 2,
+    animationEffect: 2,
+    allowsBackForwardNavigationGestures: true,
+  },
+  android: { allowZoom: false, hardwareBack: true, pauseMedia: true },
+};
+
 export const isGoogleOAuthUrl = (url) => {
   if (!url || typeof url !== 'string') return false;
   try {
@@ -92,26 +121,14 @@ const attachOAuthCompletionListener = async () => {
     const stored = localStorage.getItem('base44_access_token') || localStorage.getItem('token');
     if (stored) window.location.replace(RESTOREBRAINE_FROM_URL);
   });
+
+  await InAppBrowser.addListener('browserPageLoaded', async () => {
+    const stored = localStorage.getItem('base44_access_token') || localStorage.getItem('token');
+    if (stored) await finishOAuthLogin();
+  });
 };
 
-const waitForInAppBrowser = (maxAttempts = 60, intervalMs = 100) =>
-  new Promise((resolve) => {
-    const tryGet = (attempt = 0) => {
-      const ib = window.Capacitor?.Plugins?.InAppBrowser;
-      if (ib) {
-        resolve(ib);
-        return;
-      }
-      if (attempt >= maxAttempts) {
-        resolve(null);
-        return;
-      }
-      setTimeout(() => tryGet(attempt + 1), intervalMs);
-    };
-    tryGet();
-  });
-
-/** Google OAuth uses SFSafariViewController. Callback passes through app.base44.com — we capture the token and return. */
+/** Google OAuth uses InAppBrowser — openInSystemBrowser requires options or it silently fails. */
 export const openLoginInSystemBrowser = async (url = getGoogleOAuthUrl()) => {
   if (!isNativeShell()) {
     window.location.replace(url);
@@ -120,12 +137,15 @@ export const openLoginInSystemBrowser = async (url = getGoogleOAuthUrl()) => {
 
   oauthListenerAttached = false;
   await attachOAuthCompletionListener();
-  const ib = await waitForInAppBrowser();
-  if (!ib) {
-    console.warn('InAppBrowser plugin unavailable; refusing WebView OAuth fallback');
+
+  try {
+    await InAppBrowser.openInWebView({ url, options: WEBVIEW_OPTIONS });
     return;
+  } catch {
+    // fall through
   }
-  await ib.openInSystemBrowser({ url });
+
+  await InAppBrowser.openInSystemBrowser({ url, options: SYSTEM_BROWSER_OPTIONS });
 };
 
 export const installLocationNavigationGuard = () => {

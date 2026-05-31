@@ -162,6 +162,29 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             return false;
           }
 
+          var SYSTEM_BROWSER_OPTIONS = {
+            iOS: { closeButtonText: 2, viewStyle: 2, animationEffect: 2, enableBarsCollapsing: true, enableReadersMode: false },
+            android: { showTitle: false, hideToolbarOnScroll: false, viewStyle: 0, startAnimation: 0, exitAnimation: 1 }
+          };
+          var WEBVIEW_OPTIONS = {
+            showURL: true,
+            showToolbar: true,
+            clearCache: false,
+            clearSessionCache: false,
+            mediaPlaybackRequiresUserAction: false,
+            closeButtonText: 'Done',
+            toolbarPosition: 0,
+            showNavigationButtons: true,
+            leftToRight: false,
+            customWebViewUserAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
+            iOS: { allowOverScroll: true, enableViewportScale: false, allowInLineMediaPlayback: false, surpressIncrementalRendering: false, viewStyle: 2, animationEffect: 2, allowsBackForwardNavigationGestures: true },
+            android: { allowZoom: false, hardwareBack: true, pauseMedia: true }
+          };
+
+          function getInAppBrowserPlugin() {
+            return window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.InAppBrowser;
+          }
+
           function attachOAuthBrowserListeners(ib) {
             if (oauthBrowserListenerAttached) return;
             oauthBrowserListenerAttached = true;
@@ -171,27 +194,41 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             ib.addListener('browserClosed', function () {
               if (readToken()) window.location.replace(RESTOREBRAINE);
             });
+            ib.addListener('browserPageLoaded', function () {
+              if (readToken()) finishOAuthLogin(ib);
+            });
           }
 
           function openLoginInSystemBrowser(url) {
             url = url || GOOGLE_OAUTH_URL;
-            function launchSystemBrowser() {
+            function launchOAuthBrowser() {
               try {
-                var ib = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.InAppBrowser;
+                var ib = getInAppBrowserPlugin();
                 if (!ib) return false;
                 oauthBrowserListenerAttached = false;
                 attachOAuthBrowserListeners(ib);
-                ib.openInSystemBrowser({ url: url });
+                ib.openInWebView({ url: url, options: WEBVIEW_OPTIONS }).catch(function () {
+                  ib.openInSystemBrowser({ url: url, options: SYSTEM_BROWSER_OPTIONS });
+                });
                 return true;
               } catch (e) {
-                return false;
+                try {
+                  var ib2 = getInAppBrowserPlugin();
+                  if (!ib2) return false;
+                  oauthBrowserListenerAttached = false;
+                  attachOAuthBrowserListeners(ib2);
+                  ib2.openInSystemBrowser({ url: url, options: SYSTEM_BROWSER_OPTIONS });
+                  return true;
+                } catch (e2) {
+                  return false;
+                }
               }
             }
-            if (launchSystemBrowser()) return;
+            if (launchOAuthBrowser()) return;
             var attempts = 0;
             var timer = setInterval(function () {
               attempts += 1;
-              if (launchSystemBrowser() || attempts >= 60) clearInterval(timer);
+              if (launchOAuthBrowser() || attempts >= 60) clearInterval(timer);
             }, 100);
           }
 
@@ -254,34 +291,66 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             } catch (e) {}
           }
 
+          function blockBase44BadgeScript() {
+            try {
+              document.querySelectorAll('script[src*="badge.js"]').forEach(function (node) { node.remove(); });
+            } catch (e) {}
+          }
+
           function hideBase44EditorWidget() {
             try {
-              document.querySelectorAll('button, a, div, span, iframe').forEach(function (node) {
+              blockBase44BadgeScript();
+              if (!document.getElementById('rb-hide-base44')) {
+                var style = document.createElement('style');
+                style.id = 'rb-hide-base44';
+                style.textContent = '[href*="app.base44.com"], iframe[src*="base44"], script[src*="badge.js"] { display:none !important; visibility:hidden !important; pointer-events:none !important; }';
+                (document.head || document.documentElement).appendChild(style);
+              }
+              document.querySelectorAll('button, a, div, span, iframe, p').forEach(function (node) {
+                if (node.id === 'rb-native-stamp') return;
                 var text = (node.textContent || '').trim();
-                if (/edit with base\\s*44/i.test(text) && text.length < 40) {
-                  var container = node.closest('div');
-                  if (container) container.style.setProperty('display', 'none', 'important');
+                if (/edit with base\\s*44/i.test(text) && text.length < 60) {
+                  var el = node;
+                  for (var i = 0; i < 8 && el && el !== document.body; i++) {
+                    el.style.setProperty('display', 'none', 'important');
+                    el.style.setProperty('visibility', 'hidden', 'important');
+                    el.style.setProperty('opacity', '0', 'important');
+                    el.style.setProperty('pointer-events', 'none', 'important');
+                    el = el.parentElement;
+                  }
                 }
               });
             } catch (e) {}
+          }
+
+          function providerOAuthUrl(label) {
+            if (/apple/i.test(label)) return RESTOREBRAINE + '/api/apps/auth/apple/login?app_id=' + APP_ID + '&from_url=' + encodeURIComponent(RESTOREBRAINE);
+            if (/microsoft/i.test(label)) return RESTOREBRAINE + '/api/apps/auth/microsoft/login?app_id=' + APP_ID + '&from_url=' + encodeURIComponent(RESTOREBRAINE);
+            if (/google/i.test(label)) return GOOGLE_OAUTH_URL;
+            return APP_LOGIN_URL;
           }
 
           function interceptNativeSignInClicks() {
             if (window.__restorebraineSignInInterceptor) return;
             window.__restorebraineSignInInterceptor = true;
             document.addEventListener('click', function (event) {
-              var target = event.target.closest('button, a, [role="button"], div[data-provider], [data-testid*="google"], .google-signin-button');
+              var target = event.target.closest('button, a, [role="button"], div[role="button"], [data-provider]');
               if (!target) return;
               var label = (target.textContent || '').trim();
-              var href = target.href || target.getAttribute && target.getAttribute('href') || '';
-              var isGoogle = /google/i.test(label) || /google/i.test(href) || /auth\\/login/i.test(href) || target.closest('[class*="google"], [id*="google"]');
-              var isSignIn = /continue with|sign in with|sign in|^log in$/i.test(label) || /auth\\/login/i.test(href);
-              if (!isGoogle && !isSignIn) return;
+              var href = (target.href || (target.getAttribute && target.getAttribute('href')) || '');
+              var isProvider = /continue with google|continue with apple|continue with microsoft|sign in with email|sign in with google|sign in with apple|sign in with microsoft/i.test(label);
+              var isAuthLink = /auth\\/login|auth\\/apple|auth\\/microsoft/i.test(href);
+              if (!isProvider && !isAuthLink) return;
               event.preventDefault();
               event.stopPropagation();
               event.stopImmediatePropagation();
-              openLoginInSystemBrowser(isGoogle ? GOOGLE_OAUTH_URL : APP_LOGIN_URL);
+              openLoginInSystemBrowser(providerOAuthUrl(label));
             }, true);
+          }
+
+          if (!window.__rbBadgeObserver) {
+            window.__rbBadgeObserver = new MutationObserver(function () { blockBase44BadgeScript(); hideBase44EditorWidget(); });
+            window.__rbBadgeObserver.observe(document.documentElement, { childList: true, subtree: true });
           }
 
           function installPlatformGuard() {
