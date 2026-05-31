@@ -24,6 +24,8 @@
 	},
 	"packageClassList": [
 		"AppPlugin",
+		"CAPBrowserPlugin",
+		"InAppBrowserPlugin",
 		"PreferencesPlugin",
 		"NativePurchasesPlugin"
 	]

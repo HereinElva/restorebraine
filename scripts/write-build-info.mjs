@@ -2,7 +2,7 @@ import { writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 const stamp = new Date().toISOString().slice(0, 16).replace('T', ' ');
-const label = `kbrown native v44 · ${stamp}`;
+const label = `kbrown native v45 · ${stamp}`;
 
 writeFileSync(
   resolve('src/lib/build-info.js'),

@@ -5,7 +5,7 @@ import { createAxiosClient } from '@base44/sdk/dist/utils/axios-client';
 import { openRestorebraineLogin } from '@/lib/auth-urls';
 import { RESTOREBRAINE_APP_URL } from '@/lib/app-params';
 import { clearNativeSession, persistSessionToNativeStorage, restoreSessionFromNativeStorage } from '@/lib/session-bootstrap';
-import { isHostedAppOrigin, isNativeShell } from '@/lib/native-hosted-redirect';
+import { isHostedAppOrigin } from '@/lib/native-hosted-redirect';
 
 const AuthContext = createContext();
 
@@ -108,9 +108,6 @@ export const AuthProvider = ({ children }) => {
   };
 
   const localLogout = async () => {
-    if (typeof window !== 'undefined' && window.__restorebraineSigningOut) return;
-    if (typeof window !== 'undefined') window.__restorebraineSigningOut = true;
-
     setManuallyLoggedOut(true);
     await clearNativeSession();
     setUser(null);
@@ -118,14 +115,13 @@ export const AuthProvider = ({ children }) => {
     setIsLoadingAuth(false);
     setIsLoadingPublicSettings(false);
     setAuthError({ type: 'auth_required', message: 'Authentication required' });
-
-    if (typeof window !== 'undefined' && (isNativeShell() || isHostedAppOrigin())) {
-      window.location.replace(`${RESTOREBRAINE_APP_URL}/`);
-    }
   };
 
   const logout = async () => {
     await localLogout();
+    if (isHostedAppOrigin()) {
+      window.location.href = `${RESTOREBRAINE_APP_URL}/api/apps/auth/logout?from_url=${encodeURIComponent(window.location.href)}`;
+    }
   };
 
   const navigateToLogin = () => {

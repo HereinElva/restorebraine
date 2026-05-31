@@ -208,22 +208,11 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
           }
 
           function performNativeSignOut(event) {
-            if (window.__restorebraineSigningOut) {
-              if (event) {
-                event.preventDefault();
-                event.stopPropagation();
-                event.stopImmediatePropagation();
-              }
-              return;
-            }
             if (event) {
               event.preventDefault();
               event.stopPropagation();
-              event.stopImmediatePropagation();
             }
-            window.__restorebraineSigningOut = true;
             clearNativeSession();
-            window.location.replace(RESTOREBRAINE + '/');
           }
 
           function readToken() {
@@ -712,11 +701,10 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
           function interceptNativeSignOut() {
             if (window.__restorebraineSignOutInterceptor) return;
             window.__restorebraineSignOutInterceptor = true;
-            function handleSignOutPointer(event) {
+            document.addEventListener('click', function (event) {
               if (!isSignOutControl(event.target)) return;
               performNativeSignOut(event);
-            }
-            document.addEventListener('click', handleSignOutPointer, true);
+            }, true);
           }
 
           function interceptNativeSignInClicks() {
