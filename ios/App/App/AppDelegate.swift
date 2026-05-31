@@ -127,7 +127,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             try {
               document.querySelectorAll('button, a, div, span').forEach(function (node) {
                 var text = (node.textContent || '').trim();
-                if (/edit with base\s*44/i.test(text) && text.length < 40) {
+                if (/edit with base\\s*44/i.test(text) && text.length < 40) {
                   var container = node.closest('div');
                   if (container) container.style.setProperty('display', 'none', 'important');
                 }
