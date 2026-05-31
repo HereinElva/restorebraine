@@ -11,7 +11,10 @@
       "accounts.google.com",
       "checkout.stripe.com",
       "pay.stripe.com",
-      "stripe.com"
+      "stripe.com",
+      "js.stripe.com",
+      "m.stripe.com",
+      "hooks.stripe.com"
     ]
   },
   "ios": {

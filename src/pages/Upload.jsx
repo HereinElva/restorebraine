@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -10,6 +10,7 @@ import {
   getTiersNeeded,
   wouldExceedStorageLimit,
 } from "@/lib/storage-billing";
+import { installStripeReturnRefresh } from "@/lib/stripe-checkout";
 
 const MAX_VIDEO_BYTES = 500 * 1024 * 1024; // ~5 min cap for large videos
 
@@ -59,6 +60,13 @@ export default function Upload() {
   const currentPhotoCount = photos.length;
   const currentPaidTier = currentUser?.paid_tier || 0;
   const storageLimit = getStorageLimit(currentPaidTier);
+  useEffect(() => {
+    return installStripeReturnRefresh(() => {
+      queryClient.invalidateQueries({ queryKey: ["current-user"] });
+      queryClient.invalidateQueries({ queryKey: ["photos"] });
+    });
+  }, [queryClient]);
+
 
   const addFilesToQueue = (incoming) => {
     const list = Array.from(incoming || []);

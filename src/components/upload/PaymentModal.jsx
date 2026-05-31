@@ -10,6 +10,7 @@ import {
   getAmountDue,
 } from "@/lib/storage-billing";
 import { shouldUseStripeCheckout, getStripeReturnBaseUrl } from "@/lib/native-platform";
+import { openStripeCheckout } from "@/lib/stripe-checkout";
 import {
   initializeInAppPurchases,
   isInAppPurchaseAvailable,
@@ -66,7 +67,7 @@ export default function PaymentModal({
         returnUrl: getStripeReturnBaseUrl(),
       });
       if (response.data?.url) {
-        window.location.href = response.data.url;
+        await openStripeCheckout(response.data.url);
         return;
       }
       throw new Error("Failed to create checkout session");
