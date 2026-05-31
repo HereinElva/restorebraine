@@ -119,9 +119,6 @@ export const AuthProvider = ({ children }) => {
     setIsLoadingPublicSettings(false);
     setAuthError({ type: 'auth_required', message: 'Authentication required' });
 
-    if (typeof window !== 'undefined' && (isNativeShell() || isHostedAppOrigin())) {
-      window.location.replace(`${RESTOREBRAINE_APP_URL}/`);
-    }
   };
 
   const logout = async () => {

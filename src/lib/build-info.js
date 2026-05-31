@@ -1,2 +1,2 @@
 export const BASE44_APP_ID = '68fdc5f42768c4d045fe1bac';
-export const NATIVE_BUILD_LABEL = 'kbrown native v41 · 2026-05-31 06:20';
+export const NATIVE_BUILD_LABEL = 'kbrown native v42 · 2026-05-31 07:38';
