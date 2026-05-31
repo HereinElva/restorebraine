@@ -7,6 +7,8 @@ import { errorOverlayPlugin } from './vite-plugins/error-overlay-plugin.js'
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
   return {
+    // Required for Capacitor — absolute /assets/ paths cause a white screen in the WebView.
+    base: './',
     plugins: [
       mode === 'development' && visualEditPlugin(),
       react(),

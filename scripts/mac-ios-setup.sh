@@ -22,7 +22,8 @@ sync_to_origin() {
   echo "==> Syncing repo to origin/$BRANCH"
   echo "    (Replaces local changes to Podfile, package-lock.json, AppIcons, etc.)"
   git reset --hard "origin/$BRANCH"
-  git clean -fd
+  # Only clean generated web bundle — never wipe Assets.xcassets app icons.
+  git clean -fd -- ios/App/App/public/ 2>/dev/null || true
 }
 
 sync_to_origin
@@ -30,6 +31,7 @@ sync_to_origin
 echo "==> Installing npm dependencies (required after every pull)"
 npm install
 
+echo "==> Regenerating iOS app icons"
 node scripts/generate-ios-app-icons.mjs
 node scripts/verify-ios-icons.mjs
 
@@ -42,19 +44,15 @@ echo "Build stamp: $STAMP"
 if grep -q '"url".*restorebraine.base44.app' ios/App/App/capacitor.config.json 2>/dev/null; then
   echo
   echo "ERROR: ios/App/App/capacitor.config.json still has server.url."
-  echo "       The native app will load the wrong Base44 login page until this is removed."
   echo "       Run: npm run build"
   exit 1
 fi
 
-if ! echo "$STAMP" | grep -Eq 'kbrown native v(4[89]|[5-9][0-9]|[1-9][0-9]{2,})'; then
-  echo
-  echo "WARNING: BUILD_STAMP looks old ($STAMP)."
-  echo "         Expected v49 or newer."
-fi
+echo "==> index.html asset paths (must use ./assets/ for Capacitor):"
+grep -E 'src=' ios/App/App/public/index.html || true
 
-echo "==> capacitor.config.json (must NOT contain server.url):"
-grep -n 'url' ios/App/App/capacitor.config.json || echo "  (no url key — correct)"
+echo "==> App icon files:"
+ls ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-60@3x.png ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png
 
 echo "==> Installing CocoaPods"
 cd ios/App
@@ -65,9 +63,8 @@ echo "==> Done. Opening Xcode workspace..."
 open App.xcworkspace
 
 echo
-echo "In Xcode: delete app from iPhone → Product → Clean Build Folder → Run"
-echo "Expected build stamp after install: $STAMP"
-echo
-echo "Verify on Mac:"
-echo "  cat ios/App/App/BUILD_STAMP.txt"
-echo "  grep url ios/App/App/capacitor.config.json   # must NOT show restorebraine.base44.app url"
+echo "In Xcode:"
+echo "  1. Open App.xcworkspace (not .xcodeproj)"
+echo "  2. In Project Navigator → App → Assets.xcassets → AppIcon — icons should appear"
+echo "  3. Delete app from iPhone → Product → Clean Build Folder → Run"
+echo "Expected build stamp: $STAMP"

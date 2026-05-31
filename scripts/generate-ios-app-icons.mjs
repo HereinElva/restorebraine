@@ -12,8 +12,8 @@ const sourceCandidates = [
 const source = sourceCandidates.find((candidate) => existsSync(candidate));
 
 if (!source) {
-  console.warn('No 1024px app icon source found — skipping iOS icon generation.');
-  process.exit(0);
+  console.error('No 1024px app icon source found — run npm install and ensure public/AppIcon.png exists.');
+  process.exit(1);
 }
 
 const icons = [

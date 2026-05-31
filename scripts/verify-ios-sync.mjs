@@ -34,6 +34,11 @@ const checks = [
     message: 'ios/App/App/capacitor.config.json must NOT set server.url — run npm run build',
   },
   {
+    path: 'ios/App/App/public/index.html',
+    test: (content) => content.includes('./assets/') && !content.includes('src="/assets/'),
+    message: 'index.html must use relative ./assets/ paths (Capacitor white-screen fix)',
+  },
+  {
     path: 'ios/App/App/public/assets',
     test: () => hasOAuthFixInBundle(),
     message: 'Bundled assets are missing the OAuth fix',
