@@ -1,5 +1,12 @@
-import { existsSync, readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { join, resolve } from 'node:path';
+
+const hasOAuthFixInBundle = () => {
+  const assetsDir = resolve('ios/App/App/public/assets');
+  return readdirSync(assetsDir).some(
+    (file) => file.endsWith('.js') && readFileSync(join(assetsDir, file), 'utf8').includes('__restorebraineOAuthFixInstalled'),
+  );
+};
 
 const checks = [
   {
@@ -8,9 +15,9 @@ const checks = [
     message: 'BUILD_STAMP.txt is missing or outdated',
   },
   {
-    path: 'ios/App/App/public/index.html',
-    test: (content) => content.includes('__restorebraineOAuthFixInstalled'),
-    message: 'ios/App/App/public/index.html is missing the OAuth fix',
+    path: 'ios/App/App/public/assets',
+    test: () => hasOAuthFixInBundle(),
+    message: 'Bundled assets are missing the OAuth fix',
   },
   {
     path: 'ios/App/App/capacitor.config.json',

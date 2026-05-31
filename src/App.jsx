@@ -11,7 +11,7 @@ import { setupIframeMessaging } from './lib/iframe-messaging';
 import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
-import { NATIVE_BUILD_LABEL } from '@/lib/build-info';
+import { RESTOREBRAINE_APP_LOGO } from '@/lib/app-branding';
 import { isNativeShell } from '@/lib/native-hosted-redirect';
 
 const { Pages, Layout, mainPage } = pagesConfig;
@@ -71,10 +71,14 @@ const SignInButton = ({ onSignIn }) => {
 const SignInScreen = ({ onSignIn }) => (
   <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg,#eff6ff,#f5f3ff,#fdf2f8)', padding: '24px' }}>
     <div style={{ background: 'white', borderRadius: '24px', padding: '40px', boxShadow: '0 10px 40px rgba(0,0,0,0.1)', maxWidth: '360px', width: '100%', textAlign: 'center' }}>
+      <img
+        src={RESTOREBRAINE_APP_LOGO}
+        alt="Restorebraine"
+        style={{ width: 64, height: 64, borderRadius: 16, objectFit: 'cover', margin: '0 auto 16px', display: 'block' }}
+      />
       <h1 style={{ fontSize: '24px', fontWeight: '700', color: '#111', marginBottom: '8px' }}>Restorebraine</h1>
       <p style={{ color: '#666', marginBottom: '32px', fontSize: '14px' }}>Sign in to access your memories</p>
       <SignInButton onSignIn={onSignIn} />
-      <p style={{ color: '#999', marginTop: '16px', fontSize: '11px' }}>{NATIVE_BUILD_LABEL}</p>
     </div>
   </div>
 );

@@ -1,5 +1,5 @@
-import { existsSync, readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 
 const root = resolve('.');
 const read = (relPath) => readFileSync(resolve(root, relPath), 'utf8');
@@ -101,8 +101,13 @@ const checks = [
   },
   {
     layer: '4 · Bundled assets',
-    name: 'OAuth fix in bundled index.html',
-    ok: () => read('ios/App/App/public/index.html').includes('__restorebraineOAuthFixInstalled'),
+    name: 'OAuth fix in bundled assets',
+    ok: () => {
+      const assetsDir = resolve('ios/App/App/public/assets');
+      return readdirSync(assetsDir).some((file) =>
+        file.endsWith('.js') && readFileSync(join(assetsDir, file), 'utf8').includes('__restorebraineOAuthFixInstalled')
+      );
+    },
   },
   {
     layer: '4 · Bundled assets',

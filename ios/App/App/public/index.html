@@ -2,51 +2,10 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/png" href="/AppIcon.png" />
+    <link rel="icon" href="https://media.base44.com/images/public/68fdc5f42768c4d045fe1bac/e76571efc_appstore.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Restorebraine</title>
-    <script>
-      (function () {
-        try {
-          if (!window.__restorebraineOAuthFixInstalled) {
-            window.__restorebraineOAuthFixInstalled = true;
-            var originalOpen = window.open;
-            window.open = function (url, target, features) {
-              if (typeof url === 'string' && url.length > 0) {
-                window.location.assign(url);
-                return window;
-              }
-              return originalOpen ? originalOpen.call(window, url, target, features) : null;
-            };
-          }
-
-          var params = new URLSearchParams(window.location.search);
-          var token = params.get('access_token');
-          if (token) {
-            localStorage.setItem('base44_access_token', token);
-            localStorage.setItem('token', token);
-            params.delete('access_token');
-            var clean = window.location.pathname + (params.toString() ? '?' + params.toString() : '') + window.location.hash;
-            window.history.replaceState({}, document.title, clean);
-          }
-
-          var cap = window.Capacitor;
-          var native = cap && cap.isNativePlatform && cap.isNativePlatform();
-          var host = window.location.hostname;
-          var RESTOREBRAINE = 'https://restorebraine.base44.app';
-
-          if (native && (host === 'app.base44.com' || host === 'base44.com')) {
-            window.location.replace(RESTOREBRAINE);
-            return;
-          }
-
-          if (native && host !== 'restorebraine.base44.app') {
-            window.location.replace(RESTOREBRAINE);
-          }
-        } catch (e) {}
-      })();
-    </script>
-    <script type="module" crossorigin src="/assets/index-CwydQgGD.js"></script>
+    <script type="module" crossorigin src="/assets/index-CLDlfEsd.js"></script>
   </head>
   <body>
     <div id="root"></div>

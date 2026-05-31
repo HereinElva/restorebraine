@@ -1,1 +1,0 @@
-import{g as o}from"./_commonjsHelpers-CqkleIqs.js";import{r as a}from"./index-HFn6nm79.js";var e={},r;function i(){if(r)return e;r=1;var t=a();return e.createRoot=t.createRoot,e.hydrateRoot=t.hydrateRoot,e}var n=i();const c=o(n),f=Object.freeze(Object.defineProperty({__proto__:null,default:c},Symbol.toStringTag,{value:"Module"}));export{f as c};

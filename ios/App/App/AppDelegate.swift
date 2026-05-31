@@ -445,6 +445,33 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             } catch (e) {}
           }
 
+
+          var APP_LOGO_URL = 'https://media.base44.com/images/public/68fdc5f42768c4d045fe1bac/e76571efc_appstore.png';
+
+          function fixRestorebraineBranding() {
+            try {
+              var stamp = document.getElementById('rb-native-stamp');
+              if (stamp) stamp.remove();
+              document.querySelectorAll('[id*="native-stamp"], [class*="native-stamp"]').forEach(function (n) { n.remove(); });
+
+              if (!/restorebraine/i.test(window.location.hostname)) return;
+
+              document.querySelectorAll('img[src*="base44.com/logo"], img[alt*="Base44" i]').forEach(function (img) {
+                img.src = APP_LOGO_URL;
+                img.alt = 'Restorebraine';
+              });
+
+              if (/\/login/i.test(window.location.pathname)) {
+                document.querySelectorAll('h1, h2, p').forEach(function (heading) {
+                  if (!/restorebraine/i.test(heading.textContent || '')) return;
+                  var logoBox = heading.previousElementSibling;
+                  if (!logoBox || logoBox.querySelector('img[data-rb-logo="1"]')) return;
+                  logoBox.innerHTML = '<img data-rb-logo="1" src="' + APP_LOGO_URL + '" alt="Restorebraine" style="width:64px;height:64px;border-radius:16px;object-fit:cover;display:block;margin:0 auto;" />';
+                });
+              }
+            } catch (e) {}
+          }
+
           function hideBase44EditorWidget() {
             try {
               blockBase44BadgeScript();
@@ -505,7 +532,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
           }
 
           if (!window.__rbBadgeObserver) {
-            window.__rbBadgeObserver = new MutationObserver(function () { blockBase44BadgeScript(); hideBase44EditorWidget(); });
+            window.__rbBadgeObserver = new MutationObserver(function () { blockBase44BadgeScript(); hideBase44EditorWidget(); fixRestorebraineBranding(); });
             window.__rbBadgeObserver.observe(document.documentElement, { childList: true, subtree: true });
           }
 
@@ -514,6 +541,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             guardPlatformNavigation();
             guardGoogleOAuthInWebView();
             hideBase44EditorWidget();
+            fixRestorebraineBranding();
             interceptNativeSignOut();
             interceptNativeSignInClicks();
             window.addEventListener('popstate', function () {
@@ -524,6 +552,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
               guardPlatformNavigation();
               guardGoogleOAuthInWebView();
               hideBase44EditorWidget();
+              fixRestorebraineBranding();
             }, 1000);
           }
 
@@ -531,6 +560,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
           restoreToken();
           captureAccessTokenFromUrl();
           installOAuthDeepLinkHandler();
+          fixRestorebraineBranding();
           installPlatformGuard();
           document.addEventListener('visibilitychange', function () {
             if (document.visibilityState === 'hidden') persistToken();
@@ -538,21 +568,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
           window.addEventListener('pagehide', persistToken);
           setInterval(persistToken, 15000);
 
-          function showNativeBuildBadge() {
-            try {
-              if (!document.body || document.getElementById('rb-native-stamp')) return;
-              var badge = document.createElement('div');
-              badge.id = 'rb-native-stamp';
-              badge.textContent = '\(escapedLabel)';
-              badge.setAttribute('style', 'position:fixed;bottom:6px;left:6px;z-index:2147483647;font:10px/1.2 -apple-system,sans-serif;color:#666;background:rgba(255,255,255,0.9);padding:2px 6px;border-radius:6px;pointer-events:none;');
-              document.body.appendChild(badge);
-            } catch (e) {}
-          }
-          if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', showNativeBuildBadge);
-          } else {
-            showNativeBuildBadge();
-          }
         })();
 
         """
