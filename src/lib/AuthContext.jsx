@@ -127,6 +127,9 @@ export const AuthProvider = ({ children }) => {
 
   const navigateToLogin = () => {
     setManuallyLoggedOut(false);
+    try {
+      localStorage.removeItem('b44_signed_out');
+    } catch {}
     openRestorebraineLogin();
   };
 

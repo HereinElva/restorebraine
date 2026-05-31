@@ -55,6 +55,7 @@ const SignInButton = ({ onSignIn }) => {
   return (
     <button
       type="button"
+      data-rb-sign-in="1"
       onClick={handleClick}
       disabled={isOpening}
       style={{
