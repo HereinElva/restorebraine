@@ -7,22 +7,25 @@ import { ArrowLeft, Trash2, AlertTriangle, LogOut } from "lucide-react";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { NATIVE_BUILD_LABEL } from '@/lib/build-info';
 
 export default function Account() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const queryClient = useQueryClient();
-  const { localLogout } = useAuth();
+  const { logout } = useAuth();
 
   const { data: user } = useQuery({
     queryKey: ['user'],
     queryFn: () => base44.auth.me(),
   });
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     queryClient.clear();
-    localLogout();
+    if (typeof window !== 'undefined' && window.__restorebrainePerformSignOut) {
+      window.__restorebrainePerformSignOut();
+      return;
+    }
+    await logout();
   };
 
   const handleDeleteAccount = async () => {
@@ -51,7 +54,6 @@ export default function Account() {
         <div className="bg-white rounded-2xl shadow-lg p-8">
           <div className="mb-6">
             <h1 className="text-3xl font-bold text-gray-900">Account Settings</h1>
-            <p className="text-xs font-semibold text-purple-300 mt-1">{NATIVE_BUILD_LABEL}</p>
           </div>
           {user && (
             <div className="mb-8 p-4 bg-purple-50 rounded-lg">

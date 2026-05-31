@@ -93,15 +93,18 @@ export const persistSessionToNativeStorage = async (token) => {
 
 export const clearNativeSession = async () => {
   appParams.token = null;
-  for (const key of TOKEN_KEYS) {
-    await persistentStorage.remove(key);
-  }
   await persistentStorage.set(SIGNED_OUT_KEY, '1');
   try {
+    localStorage.setItem(SIGNED_OUT_KEY, '1');
     localStorage.removeItem('base44_access_token');
     localStorage.removeItem('token');
     localStorage.removeItem('base44_logged_out');
-    localStorage.setItem(SIGNED_OUT_KEY, '1');
     base44.auth.setToken(null, false);
   } catch {}
+  if (typeof window !== 'undefined' && window.__restorebraineClearSession) {
+    window.__restorebraineClearSession();
+  }
+  for (const key of TOKEN_KEYS) {
+    await persistentStorage.remove(key);
+  }
 };

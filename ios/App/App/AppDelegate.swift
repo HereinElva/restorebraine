@@ -2,10 +2,25 @@ import UIKit
 import Capacitor
 import WebKit
 
+private final class RestorebraineSessionMessageHandler: NSObject, WKScriptMessageHandler {
+    func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+        guard message.name == "restorebraineNativeSession",
+              let body = message.body as? [String: Any],
+              let action = body["action"] as? String,
+              action == "clear" else { return }
+        let defaults = UserDefaults.standard
+        defaults.removeObject(forKey: "CapacitorStorage.base44_access_token")
+        defaults.removeObject(forKey: "CapacitorStorage.token")
+        defaults.set("1", forKey: "CapacitorStorage.b44_signed_out")
+    }
+}
+
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
 
     var window: UIWindow?
+
+    private let sessionMessageHandler = RestorebraineSessionMessageHandler()
 
     private var nativeBuildLabel: String {
         guard let url = Bundle.main.url(forResource: "BUILD_STAMP", withExtension: "txt"),
@@ -129,21 +144,52 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             return false;
           }
 
+          function notifyNativePersistedSessionClear() {
+            try {
+              if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.restorebraineNativeSession) {
+                window.webkit.messageHandlers.restorebraineNativeSession.postMessage({ action: 'clear' });
+              }
+            } catch (e) {}
+          }
+
           function clearNativeSession() {
             try {
+              localStorage.setItem(SIGNED_OUT_KEY, '1');
               localStorage.removeItem('base44_access_token');
               localStorage.removeItem('token');
               localStorage.removeItem('base44_logged_out');
-              localStorage.setItem(SIGNED_OUT_KEY, '1');
             } catch (e) {}
+            notifyNativePersistedSessionClear();
             try {
               var prefs = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Preferences;
               if (prefs) {
+                prefs.set({ key: SIGNED_OUT_KEY, value: '1' });
                 prefs.remove({ key: 'base44_access_token' });
                 prefs.remove({ key: 'token' });
-                prefs.set({ key: SIGNED_OUT_KEY, value: '1' });
               }
             } catch (e) {}
+          }
+
+          function isSignOutControl(target) {
+            if (!target) return false;
+            var label = (target.textContent || '').replace(/\\s+/g, ' ').trim();
+            var aria = ((target.getAttribute && target.getAttribute('aria-label')) || '').trim();
+            if (/^sign out$/i.test(label) || /^sign out$/i.test(aria)) return true;
+            if (target.tagName === 'BUTTON' && /sign out/i.test(label) && label.length < 24) return true;
+            return false;
+          }
+
+          function performNativeSignOut(event) {
+            if (event) {
+              event.preventDefault();
+              event.stopPropagation();
+              event.stopImmediatePropagation();
+            }
+            window.__restorebraineSigningOut = true;
+            clearNativeSession();
+            setTimeout(function () {
+              window.location.replace(APP_LOGIN_URL);
+            }, 0);
           }
 
           function readToken() {
@@ -205,7 +251,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
           function restoreToken() {
             try {
-              if (isSignedOut()) return;
+              if (window.__restorebraineSigningOut || isSignedOut()) return;
               var prefs = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Preferences;
               if (prefs) {
                 prefs.get({ key: SIGNED_OUT_KEY }).then(function (flag) {
@@ -448,25 +494,92 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
           var APP_LOGO_URL = 'https://media.base44.com/images/public/68fdc5f42768c4d045fe1bac/e76571efc_appstore.png';
 
+          function isRestorebraineBrandingContext() {
+            if (/restorebraine/i.test(window.location.hostname)) return true;
+            try {
+              var params = new URLSearchParams(window.location.search);
+              var fromUrl = params.get('from_url') || '';
+              if (/restorebraine/i.test(fromUrl)) return true;
+            } catch (e) {}
+            return false;
+          }
+
+          function replaceLoginLogoContainer(container) {
+            if (!container || container.querySelector('img[data-rb-logo="1"]')) return;
+            container.innerHTML = '<img data-rb-logo="1" src="' + APP_LOGO_URL + '" alt="Restorebraine" style="width:64px;height:64px;border-radius:16px;object-fit:cover;display:block;margin:0 auto;" />';
+            try {
+              container.style.background = 'transparent';
+              container.style.backgroundImage = 'none';
+              container.style.boxShadow = 'none';
+            } catch (e) {}
+          }
+
+          function findRestorebraineTitle() {
+            var nodes = document.querySelectorAll('h1, h2, [role="heading"]');
+            for (var i = 0; i < nodes.length; i++) {
+              var text = (nodes[i].textContent || '').replace(/\\s+/g, ' ').trim();
+              if (/^restorebraine$/i.test(text)) return nodes[i];
+            }
+            return null;
+          }
+
+          function fixLoginLogoNearTitle(title) {
+            if (!title) return;
+            var logoBox = title.previousElementSibling;
+            if (logoBox) replaceLoginLogoContainer(logoBox);
+            var parent = title.parentElement;
+            if (!parent) return;
+            if (parent.firstElementChild && parent.firstElementChild !== title) {
+              var first = parent.firstElementChild;
+              if (first.querySelector && (first.querySelector('svg') || first.tagName === 'SVG')) {
+                replaceLoginLogoContainer(first);
+              }
+            }
+            var card = title.closest('div');
+            if (!card) return;
+            card.querySelectorAll('svg').forEach(function (svg) {
+              if (svg.closest('img[data-rb-logo="1"]')) return;
+              var box = svg.closest('div');
+              if (!box || box === card) return;
+              if (box.contains(title)) return;
+              if (title.compareDocumentPosition(box) & Node.DOCUMENT_POSITION_PRECEDING) {
+                replaceLoginLogoContainer(box);
+              }
+            });
+          }
+
           function fixRestorebraineBranding() {
             try {
               var stamp = document.getElementById('rb-native-stamp');
               if (stamp) stamp.remove();
               document.querySelectorAll('[id*="native-stamp"], [class*="native-stamp"]').forEach(function (n) { n.remove(); });
 
-              if (!/restorebraine/i.test(window.location.hostname)) return;
+              if (!isRestorebraineBrandingContext()) return;
 
-              document.querySelectorAll('img[src*="base44.com/logo"], img[alt*="Base44" i]').forEach(function (img) {
-                img.src = APP_LOGO_URL;
-                img.alt = 'Restorebraine';
+              document.querySelectorAll('img').forEach(function (img) {
+                if (img.getAttribute('data-rb-logo') === '1') return;
+                var src = img.getAttribute('src') || '';
+                var alt = img.getAttribute('alt') || '';
+                if (src.indexOf('base44.com/logo') >= 0 || /base44/i.test(alt)) {
+                  img.src = APP_LOGO_URL;
+                  img.alt = 'Restorebraine';
+                  img.setAttribute('data-rb-logo', '1');
+                }
               });
 
+              var title = findRestorebraineTitle();
+              fixLoginLogoNearTitle(title);
+
               if (/\\/login/i.test(window.location.pathname)) {
-                document.querySelectorAll('h1, h2, p').forEach(function (heading) {
-                  if (!/restorebraine/i.test(heading.textContent || '')) return;
-                  var logoBox = heading.previousElementSibling;
-                  if (!logoBox || logoBox.querySelector('img[data-rb-logo="1"]')) return;
-                  logoBox.innerHTML = '<img data-rb-logo="1" src="' + APP_LOGO_URL + '" alt="Restorebraine" style="width:64px;height:64px;border-radius:16px;object-fit:cover;display:block;margin:0 auto;" />';
+                document.querySelectorAll('div').forEach(function (div) {
+                  if (div.querySelector('img[data-rb-logo="1"]')) return;
+                  if (!div.querySelector('svg')) return;
+                  if (div.querySelector('button, form, input, textarea')) return;
+                  var rect = div.getBoundingClientRect();
+                  if (rect.width < 40 || rect.width > 120 || rect.height < 40 || rect.height > 120) return;
+                  if (title && div.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING) {
+                    replaceLoginLogoContainer(div);
+                  }
                 });
               }
             } catch (e) {}
@@ -504,10 +617,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             window.__restorebraineSignOutInterceptor = true;
             document.addEventListener('click', function (event) {
               var target = event.target.closest('button, a, [role="button"]');
-              if (!target) return;
-              var label = (target.textContent || '').trim();
-              if (!/^sign out$/i.test(label)) return;
-              clearNativeSession();
+              if (!isSignOutControl(target)) return;
+              performNativeSignOut(event);
             }, true);
           }
 
@@ -556,6 +667,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             }, 1000);
           }
 
+          window.__restorebraineClearSession = clearNativeSession;
+          window.__restorebrainePerformSignOut = performNativeSignOut;
           window.__RESTOREBRAINE_NATIVE_BUILD__ = '\(escapedLabel)';
           restoreToken();
           captureAccessTokenFromUrl();
@@ -596,6 +709,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             injectionTime: .atDocumentStart,
             forMainFrameOnly: true
         )
+        userContentController.removeScriptMessageHandler(forName: "restorebraineNativeSession")
+        userContentController.add(sessionMessageHandler, name: "restorebraineNativeSession")
         userContentController.addUserScript(script)
     }
 

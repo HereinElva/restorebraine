@@ -5,7 +5,7 @@ import { createAxiosClient } from '@base44/sdk/dist/utils/axios-client';
 import { openRestorebraineLogin } from '@/lib/auth-urls';
 import { RESTOREBRAINE_APP_URL } from '@/lib/app-params';
 import { clearNativeSession, persistSessionToNativeStorage, restoreSessionFromNativeStorage } from '@/lib/session-bootstrap';
-import { isHostedAppOrigin } from '@/lib/native-hosted-redirect';
+import { isHostedAppOrigin, isNativeShell } from '@/lib/native-hosted-redirect';
 
 const AuthContext = createContext();
 
@@ -108,6 +108,10 @@ export const AuthProvider = ({ children }) => {
   };
 
   const localLogout = async () => {
+    if (isNativeShell() && typeof window !== 'undefined' && window.__restorebrainePerformSignOut) {
+      window.__restorebrainePerformSignOut();
+      return;
+    }
     setManuallyLoggedOut(true);
     await clearNativeSession();
     setUser(null);
