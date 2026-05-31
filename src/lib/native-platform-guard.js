@@ -99,7 +99,7 @@ export const guardPlatformNavigation = () => {
     });
   }
   if (pathname.startsWith('/api/apps/auth')) return;
-  window.location.replace(RESTOREBRAINE_FROM_URL);
+  import('@/lib/native-hosted-redirect').then(({ reloadNativeAppHome }) => reloadNativeAppHome());
 };
 
 const blockBase44BadgeScript = () => {

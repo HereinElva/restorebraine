@@ -9,7 +9,7 @@ import {
   normalizeAuthUrl,
 } from '@/lib/native-platform-guard';
 import { persistSessionToNativeStorage } from '@/lib/session-bootstrap';
-import { isNativeShell } from '@/lib/native-hosted-redirect';
+import { isNativeShell, reloadNativeAppHome } from '@/lib/native-hosted-redirect';
 
 const GOOGLE_OAUTH_PATTERN = /accounts\.google\.com|google\.com\/o\/oauth|oauth2\.googleapis\.com|\/api\/apps\/auth\/login/i;
 
@@ -45,7 +45,7 @@ let oauthListenerAttached = false;
 
 const finishOAuthLogin = async () => {
   await InAppBrowser.close().catch(() => {});
-  window.location.replace(RESTOREBRAINE_FROM_URL);
+  reloadNativeAppHome();
 };
 
 export const handleNativeOAuthCallback = async (url) => {
@@ -62,7 +62,7 @@ const attachOAuthCompletionListener = async () => {
   await InAppBrowser.addListener('browserClosed', async () => {
     const stored = localStorage.getItem('base44_access_token') || localStorage.getItem('token');
     if (stored) {
-      window.location.replace(RESTOREBRAINE_FROM_URL);
+      reloadNativeAppHome();
       return;
     }
     try {
@@ -70,7 +70,7 @@ const attachOAuthCompletionListener = async () => {
       const launch = await App.getLaunchUrl();
       if (launch?.url) await handleNativeOAuthCallback(launch.url);
     } catch {}
-    window.location.replace(RESTOREBRAINE_FROM_URL);
+    reloadNativeAppHome();
   });
 };
 
@@ -102,7 +102,7 @@ export const installLocationNavigationGuard = () => {
         const parsed = new URL(String(url), window.location.href);
         if (parsed.searchParams.get('access_token')) {
           captureOAuthTokenFromUrl(parsed.href).then((token) => {
-            if (token) window.location.replace(RESTOREBRAINE_FROM_URL);
+            if (token) reloadNativeAppHome();
           });
           return;
         }
@@ -114,7 +114,7 @@ export const installLocationNavigationGuard = () => {
           return;
         }
         if (isBase44PlatformHost(parsed.hostname)) {
-          window.location.replace(RESTOREBRAINE_FROM_URL);
+          reloadNativeAppHome();
           return;
         }
       } catch {}
@@ -140,7 +140,7 @@ export const installLocationNavigationGuard = () => {
             const parsed = new URL(String(value), window.location.href);
             if (parsed.searchParams.get('access_token')) {
               captureOAuthTokenFromUrl(parsed.href).then((token) => {
-                if (token) window.location.replace(RESTOREBRAINE_FROM_URL);
+                if (token) reloadNativeAppHome();
               });
               return;
             }
@@ -152,7 +152,7 @@ export const installLocationNavigationGuard = () => {
               return;
             }
             if (isBase44PlatformHost(parsed.hostname)) {
-              window.location.replace(RESTOREBRAINE_FROM_URL);
+              reloadNativeAppHome();
               return;
             }
           } catch {}

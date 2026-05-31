@@ -22,12 +22,14 @@ export const isHostedAppOrigin = () => {
   }
 };
 
-/** Native installs should always use the live hosted app — same UI/login as kbrown9000@aol.com */
-export const redirectNativeToHostedApp = () => {
-  if (!isNativeShell() || isHostedAppOrigin()) return false;
-
-  const suffix = `${window.location.pathname}${window.location.search}${window.location.hash}`;
-  const target = suffix && suffix !== '/' ? `${HOSTED_APP_URL}${suffix}` : HOSTED_APP_URL;
+/** After OAuth or blocked navigation, reload the correct app home (local bundle or hosted). */
+export const reloadNativeAppHome = () => {
+  if (typeof window === 'undefined') return;
+  const target = isHostedAppOrigin()
+    ? `${HOSTED_APP_URL}/`
+    : `${window.location.origin}/`;
   window.location.replace(target);
-  return true;
 };
+
+/** Native app loads the bundled UI — do not redirect to the hosted Base44 site. */
+export const redirectNativeToHostedApp = () => false;

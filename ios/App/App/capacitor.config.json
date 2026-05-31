@@ -3,8 +3,6 @@
 	"appName": "Restorebraine",
 	"webDir": "dist",
 	"server": {
-		"url": "https://restorebraine.base44.app",
-		"cleartext": false,
 		"allowNavigation": [
 			"restorebraine.base44.app",
 			"app.base44.com",
