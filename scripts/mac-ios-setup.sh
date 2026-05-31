@@ -21,7 +21,6 @@ discard_regenerated_artifacts() {
   git checkout -- \
     ios/App/App.xcodeproj/project.pbxproj \
     ios/App/App/BUILD_STAMP.txt \
-    ios/App/App/capacitor.config.json \
     src/lib/build-info.js \
     public/AppIcon.png \
     2>/dev/null || true
@@ -54,6 +53,12 @@ node scripts/generate-ios-app-icons.mjs
 
 echo "==> Building web app + syncing iOS bundle"
 npm run ios:prepare
+
+if grep -q '"url".*restorebraine.base44.app' ios/App/App/capacitor.config.json 2>/dev/null; then
+  echo "ERROR: ios/App/App/capacitor.config.json still has server.url — native will load the wrong login page."
+  exit 1
+fi
+echo "Build stamp: $(tr -d '\n' < ios/App/App/BUILD_STAMP.txt)"
 
 echo "==> Installing CocoaPods"
 cd ios/App

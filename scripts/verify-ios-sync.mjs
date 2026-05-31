@@ -8,6 +8,15 @@ const hasOAuthFixInBundle = () => {
   );
 };
 
+const hasBadLoginUrlInBundle = () => {
+  const assetsDir = resolve('ios/App/App/public/assets');
+  return readdirSync(assetsDir).some((file) => {
+    if (!file.endsWith('.js')) return false;
+    const content = readFileSync(join(assetsDir, file), 'utf8');
+    return content.includes('app.base44.com/login') || content.includes('68fdc53372ff0fbf07eee38d');
+  });
+};
+
 const checks = [
   {
     path: 'ios/App/App/BUILD_STAMP.txt',
@@ -15,9 +24,24 @@ const checks = [
     message: 'BUILD_STAMP.txt is missing or outdated',
   },
   {
+    path: 'capacitor.config.json',
+    test: (content) => !/"url"\s*:\s*"https:\/\/restorebraine\.base44\.app"/.test(content),
+    message: 'capacitor.config.json must NOT set server.url to hosted app — native loads bundled UI',
+  },
+  {
+    path: 'ios/App/App/capacitor.config.json',
+    test: (content) => !/"url"\s*:\s*"https:\/\/restorebraine\.base44\.app"/.test(content),
+    message: 'ios/App/App/capacitor.config.json must NOT set server.url — run npm run build',
+  },
+  {
     path: 'ios/App/App/public/assets',
     test: () => hasOAuthFixInBundle(),
     message: 'Bundled assets are missing the OAuth fix',
+  },
+  {
+    path: 'ios/App/App/public/assets',
+    test: () => !hasBadLoginUrlInBundle(),
+    message: 'Bundled assets contain hardcoded app.base44.com/login URLs — rebuild required',
   },
   {
     path: 'ios/App/App/capacitor.config.json',

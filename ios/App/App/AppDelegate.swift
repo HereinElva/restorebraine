@@ -808,7 +808,66 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             window.__rbBadgeObserver.observe(document.documentElement, { childList: true, subtree: true });
           }
 
+
+          function isBase44HostedLoginPage() {
+            try {
+              var path = (window.location.pathname || '/').replace(/\/$/, '') || '/';
+              if (path === '/login') return true;
+              var body = document.body ? (document.body.innerText || '') : '';
+              if (!/restorebraine/i.test(body)) return false;
+              return /continue with google|sign in with email|continue with apple/i.test(body);
+            } catch (e) {}
+            return false;
+          }
+
+          function renderNativeSignInPage() {
+            if (document.getElementById('rb-native-signin-root')) return;
+            var root = document.createElement('div');
+            root.id = 'rb-native-signin-root';
+            root.setAttribute('style', 'min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#eff6ff,#f5f3ff,#fdf2f8);padding:24px;position:fixed;inset:0;z-index:2147483646;');
+            root.innerHTML = '<div style="background:white;border-radius:24px;padding:40px;max-width:360px;width:100%;text-align:center;box-shadow:0 10px 40px rgba(0,0,0,0.1);">'
+              + '<img src="' + APP_LOGO_URL + '" alt="Restorebraine" style="width:64px;height:64px;border-radius:16px;object-fit:cover;margin:0 auto 16px;display:block;" />'
+              + '<h1 style="font-size:24px;font-weight:700;color:#111;margin:0 0 8px;">Restorebraine</h1>'
+              + '<p style="color:#666;margin:0 0 32px;font-size:14px;">Sign in to access your memories</p>'
+              + '<button id="rb-native-signin-btn" type="button" style="width:100%;padding:14px;background:linear-gradient(135deg,#60a5fa,#a78bfa);color:white;border:none;border-radius:14px;font-size:16px;font-weight:600;cursor:pointer;">Sign In</button>'
+              + '<p style="color:#999;margin:16px 0 0;font-size:11px;">' + (window.__RESTOREBRAINE_NATIVE_BUILD__ || '') + '</p>'
+              + '</div>';
+            (document.documentElement || document.body).appendChild(root);
+            var btn = document.getElementById('rb-native-signin-btn');
+            if (btn) btn.addEventListener('click', function (e) {
+              e.preventDefault();
+              e.stopPropagation();
+              try { localStorage.removeItem(SIGNED_OUT_KEY); } catch (err) {}
+              window.__restorebraineOpenLogin && window.__restorebraineOpenLogin();
+            });
+            try { document.body.style.overflow = 'hidden'; } catch (e) {}
+          }
+
+          function installNativeLoginPageOverride() {
+            if (window.__restorebraineLoginOverrideInstalled) return;
+            window.__restorebraineLoginOverrideInstalled = true;
+            function guardLoginPageUI() {
+              if (!isBase44HostedLoginPage()) return;
+              try {
+                if ((window.location.pathname || '').indexOf('/login') >= 0) {
+                  history.replaceState({}, document.title, nativeAppHome());
+                }
+              } catch (e) {}
+              renderNativeSignInPage();
+              hideBase44EditorWidget();
+              fixRestorebraineBranding();
+            }
+            guardLoginPageUI();
+            document.addEventListener('DOMContentLoaded', guardLoginPageUI);
+            if (!window.__rbLoginOverrideObserver) {
+              window.__rbLoginOverrideObserver = new MutationObserver(guardLoginPageUI);
+              window.__rbLoginOverrideObserver.observe(document.documentElement, { childList: true, subtree: true });
+            }
+            setInterval(guardLoginPageUI, 400);
+          }
+
           function installPlatformGuard() {
+            installNativeLoginPageOverride();
             installLocationNavigationGuard();
             guardPlatformNavigation();
             guardSignedOutLoginPage();
