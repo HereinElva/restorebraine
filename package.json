@@ -5,11 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "node scripts/write-build-info.mjs && node scripts/sync-app-icon.mjs && vite build && npx cap sync ios && node scripts/verify-ios-sync.mjs",
+    "build": "node scripts/write-build-info.mjs && node scripts/sync-app-icon.mjs && vite build && npx cap sync ios && node scripts/verify-ios-sync.mjs && node scripts/capacitor-audit.mjs",
     "build:web": "node scripts/write-build-info.mjs && node scripts/sync-app-icon.mjs && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "ios:prepare": "npm run build"
+    "ios:prepare": "npm run build",
+    "audit:capacitor": "node scripts/capacitor-audit.mjs"
   },
   "dependencies": {
     "@base44/sdk": "^0.8.24",

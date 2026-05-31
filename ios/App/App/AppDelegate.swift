@@ -15,8 +15,17 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         return label.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    private func sessionBridgeScript(for buildLabel: String) -> String {
+    private func storedNativeToken() -> String? {
+        let defaults = UserDefaults.standard
+        return defaults.string(forKey: "CapacitorStorage.base44_access_token")
+            ?? defaults.string(forKey: "CapacitorStorage.token")
+    }
+
+    private func sessionBridgeScript(for buildLabel: String, syncToken: String) -> String {
         let escapedLabel = buildLabel
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "'", with: "\\'")
+        let escapedToken = syncToken
             .replacingOccurrences(of: "\\", with: "\\\\")
             .replacingOccurrences(of: "'", with: "\\'")
 
@@ -36,6 +45,21 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
               }
               return originalOpen ? originalOpen.call(window, url, target, features) : null;
             };
+          }
+
+          function captureAccessTokenFromUrl() {
+            try {
+              var params = new URLSearchParams(window.location.search);
+              var token = params.get('access_token');
+              if (!token) return null;
+              localStorage.setItem('base44_access_token', token);
+              localStorage.setItem('token', token);
+              params.delete('access_token');
+              var clean = window.location.pathname + (params.toString() ? '?' + params.toString() : '') + window.location.hash;
+              window.history.replaceState({}, document.title, clean);
+              return token;
+            } catch (e) {}
+            return null;
           }
 
           function showNativeBuildBadge() {
@@ -69,6 +93,12 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
           }
           function restoreToken() {
             try {
+              var syncToken = '\(escapedToken)';
+              if (syncToken) {
+                localStorage.setItem('base44_access_token', syncToken);
+                localStorage.setItem('token', syncToken);
+                return;
+              }
               if (!window.Capacitor || !window.Capacitor.Plugins || !window.Capacitor.Plugins.Preferences) return;
               window.Capacitor.Plugins.Preferences.get({ key: 'base44_access_token' }).then(function (result) {
                 if (!result || !result.value) return;
@@ -77,7 +107,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
               });
             } catch (e) {}
           }
+
           restoreToken();
+          captureAccessTokenFromUrl();
           document.addEventListener('visibilitychange', function () {
             if (document.visibilityState === 'hidden') persistToken();
           });
@@ -111,7 +143,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         guard let userContentController = userContentController else { return }
 
         let script = WKUserScript(
-            source: sessionBridgeScript(for: nativeBuildLabel),
+            source: sessionBridgeScript(for: nativeBuildLabel, syncToken: storedNativeToken() ?? ""),
             injectionTime: .atDocumentStart,
             forMainFrameOnly: true
         )

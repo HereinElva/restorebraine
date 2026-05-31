@@ -20,6 +20,16 @@
             };
           }
 
+          var params = new URLSearchParams(window.location.search);
+          var token = params.get('access_token');
+          if (token) {
+            localStorage.setItem('base44_access_token', token);
+            localStorage.setItem('token', token);
+            params.delete('access_token');
+            var clean = window.location.pathname + (params.toString() ? '?' + params.toString() : '') + window.location.hash;
+            window.history.replaceState({}, document.title, clean);
+          }
+
           var cap = window.Capacitor;
           var native = cap && cap.isNativePlatform && cap.isNativePlatform();
           if (native && window.location.hostname !== 'restorebraine.base44.app') {
@@ -28,7 +38,7 @@
         } catch (e) {}
       })();
     </script>
-    <script type="module" crossorigin src="/assets/index-p7UUzhkP.js"></script>
+    <script type="module" crossorigin src="/assets/index-BSdxB1tj.js"></script>
   </head>
   <body>
     <div id="root"></div>

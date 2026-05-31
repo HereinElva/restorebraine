@@ -4,7 +4,7 @@ import { resolve } from 'node:path';
 const checks = [
   {
     path: 'ios/App/App/BUILD_STAMP.txt',
-    test: (content) => content.includes('sign-in fix v16'),
+    test: (content) => content.includes('kbrown native v'),
     message: 'BUILD_STAMP.txt is missing or outdated',
   },
   {

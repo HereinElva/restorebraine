@@ -1,10 +1,17 @@
 import { base44 } from '@/api/base44Client';
 import { appParams } from '@/lib/app-params';
+import { captureAccessTokenFromUrl } from '@/lib/native-oauth-fix';
 import { persistentStorage } from '@/lib/persistentStorage';
 
 const TOKEN_KEYS = ['base44_access_token', 'token'];
 
 export const restoreSessionFromNativeStorage = async () => {
+  const urlToken = captureAccessTokenFromUrl();
+  if (urlToken) {
+    await persistSessionToNativeStorage(urlToken);
+    return urlToken;
+  }
+
   for (const key of TOKEN_KEYS) {
     const storedToken = await persistentStorage.get(key);
     if (!storedToken) continue;
@@ -25,8 +32,13 @@ export const installNativeSessionPersistence = async () => {
     if (!isNativeShell()) return;
 
     const { App } = await import('@capacitor/app');
+
     await App.addListener('appStateChange', async ({ isActive }) => {
-      if (isActive) return;
+      if (isActive) {
+        await restoreSessionFromNativeStorage();
+        return;
+      }
+
       const token = localStorage.getItem('base44_access_token') || localStorage.getItem('token');
       if (token) {
         await persistSessionToNativeStorage(token);
