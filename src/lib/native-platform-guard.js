@@ -22,12 +22,19 @@ export const getGoogleOAuthUrl = () => {
   return `${RESTOREBRAINE_FROM_URL}/api/apps/auth/login?${params.toString()}`;
 };
 
-/** Native must never stay on Base44 platform — redirect to hosted Restorebraine app. */
+/** Native must never stay on Base44 platform — capture token if present, then redirect. */
 export const guardPlatformNavigation = () => {
   if (typeof window === 'undefined') return;
 
-  const { hostname } = window.location;
+  const { hostname, search } = window.location;
   if (!isBase44PlatformHost(hostname)) return;
+
+  const token = new URLSearchParams(search).get('access_token');
+  if (token) {
+    import('@/lib/session-bootstrap').then(({ persistSessionToNativeStorage }) => {
+      persistSessionToNativeStorage(token);
+    });
+  }
 
   window.location.replace(RESTOREBRAINE_FROM_URL);
 };
@@ -62,20 +69,24 @@ export const interceptNativeSignInClicks = () => {
   if (typeof document === 'undefined' || window.__restorebraineSignInInterceptor) return;
   window.__restorebraineSignInInterceptor = true;
 
-  const pattern = /continue with google|continue with apple|continue with microsoft|sign in with email|^sign in$/i;
-
   document.addEventListener(
     'click',
     (event) => {
-      const target = event.target.closest('button, a, [role="button"]');
+      const target = event.target.closest(
+        'button, a, [role="button"], div[data-provider], [data-testid*="google"], [class*="google"], [id*="google"]'
+      );
       if (!target) return;
 
       const label = (target.textContent || '').trim();
-      if (!pattern.test(label)) return;
+      const href = target.href || target.getAttribute?.('href') || '';
+      const isGoogle = /google/i.test(label) || /google/i.test(href) || /auth\/login/i.test(href);
+      const isSignIn = /continue with|sign in with|sign in|^log in$/i.test(label) || /auth\/login/i.test(href);
+      if (!isGoogle && !isSignIn) return;
 
       event.preventDefault();
       event.stopPropagation();
-      const loginUrl = /google/i.test(label) ? getGoogleOAuthUrl() : getAppScopedLoginUrl();
+      event.stopImmediatePropagation();
+      const loginUrl = isGoogle ? getGoogleOAuthUrl() : getAppScopedLoginUrl();
       import('@/lib/native-google-oauth').then(({ openLoginInSystemBrowser }) => {
         openLoginInSystemBrowser(loginUrl);
       });

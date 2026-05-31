@@ -30,51 +30,41 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             .replacingOccurrences(of: "'", with: "\\'")
 
         return """
+
         (function () {
           if (window.__restorebraineSessionBridgeInstalled) return;
           window.__restorebraineSessionBridgeInstalled = true;
-          window.__RESTOREBRAINE_NATIVE_BUILD__ = '\(escapedLabel)';
 
-          if (!window.__restorebraineOAuthFixInstalled) {
-            window.__restorebraineOAuthFixInstalled = true;
-            var originalOpen = window.open;
-            window.open = function (url, target, features) {
-              if (typeof url === 'string' && url.length > 0) {
-                if (isGoogleOAuthUrl(url)) {
-                  openLoginInSystemBrowser(GOOGLE_OAUTH_URL);
-                  return window;
-                }
-                window.location.assign(url);
-                return window;
-              }
-              return originalOpen ? originalOpen.call(window, url, target, features) : null;
-            };
+          var RESTOREBRAINE = 'https://restorebraine.base44.app';
+          var APP_ID = '68fdc5f42768c4d045fe1bac';
+          var APP_LOGIN_URL = RESTOREBRAINE + '/login?from_url=' + encodeURIComponent(RESTOREBRAINE) + '&app_id=' + APP_ID + '&prompt=select_account';
+          var GOOGLE_OAUTH_URL = RESTOREBRAINE + '/api/apps/auth/login?app_id=' + APP_ID + '&from_url=' + encodeURIComponent(RESTOREBRAINE);
+
+          function isBase44PlatformHost(hostname) {
+            return hostname === 'app.base44.com' || hostname === 'base44.com';
           }
 
-          function captureAccessTokenFromUrl() {
+          function isGoogleOAuthUrl(url) {
+            if (!url) return false;
             try {
-              var params = new URLSearchParams(window.location.search);
-              var token = params.get('access_token');
-              if (!token) return null;
-              localStorage.setItem('base44_access_token', token);
-              localStorage.setItem('token', token);
-              params.delete('access_token');
-              var clean = window.location.pathname + (params.toString() ? '?' + params.toString() : '') + window.location.hash;
-              window.history.replaceState({}, document.title, clean);
-              return token;
-            } catch (e) {}
-            return null;
+              var href = typeof url === 'string' ? url : (url.href || String(url));
+              var parsed = new URL(href, window.location.href);
+              var target = parsed.hostname + parsed.pathname + parsed.search;
+              return /accounts\\.google\\.com|google\\.com\\/o\\/oauth|oauth2\\.googleapis\\.com|\\/api\\/apps\\/auth\\/login/i.test(target);
+            } catch (e) {
+              return /accounts\\.google\\.com|google\\.com\\/o\\/oauth|\\/api\\/apps\\/auth\\/login/i.test(String(url));
+            }
           }
 
-          function showNativeBuildBadge() {
+          function isAuthNavigationUrl(url) {
+            if (!url) return false;
             try {
-              if (!document.body || document.getElementById('rb-native-stamp')) return;
-              var badge = document.createElement('div');
-              badge.id = 'rb-native-stamp';
-              badge.textContent = '\(escapedLabel)';
-              badge.setAttribute('style', 'position:fixed;bottom:6px;left:6px;z-index:2147483647;font:10px/1.2 -apple-system,sans-serif;color:#666;background:rgba(255,255,255,0.9);padding:2px 6px;border-radius:6px;pointer-events:none;');
-              document.body.appendChild(badge);
+              var parsed = new URL(String(url), window.location.href);
+              if (isGoogleOAuthUrl(url)) return true;
+              if (isBase44PlatformHost(parsed.hostname) && parsed.pathname.indexOf('/api/apps/auth') === 0) return true;
+              if (parsed.hostname === 'restorebraine.base44.app' && parsed.pathname.indexOf('/api/apps/auth') === 0) return true;
             } catch (e) {}
+            return false;
           }
 
           var keys = ['base44_access_token', 'token'];
@@ -87,6 +77,34 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             } catch (e) {}
             return null;
           }
+
+          function saveToken(token) {
+            if (!token) return false;
+            try {
+              localStorage.setItem('base44_access_token', token);
+              localStorage.setItem('token', token);
+              persistToken();
+              return true;
+            } catch (e) {}
+            return false;
+          }
+
+          function captureAccessTokenFromUrl(url) {
+            try {
+              var parsed = url ? new URL(url) : window.location;
+              var token = parsed.searchParams.get('access_token');
+              if (!token) return null;
+              saveToken(token);
+              if (!url) {
+                parsed.searchParams.delete('access_token');
+                var clean = parsed.pathname + (parsed.searchParams.toString() ? '?' + parsed.searchParams.toString() : '') + parsed.hash;
+                window.history.replaceState({}, document.title, clean);
+              }
+              return token;
+            } catch (e) {}
+            return null;
+          }
+
           function persistToken() {
             try {
               var token = readToken();
@@ -95,71 +113,73 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
               window.Capacitor.Plugins.Preferences.set({ key: 'token', value: token });
             } catch (e) {}
           }
+
           function restoreToken() {
             try {
               var syncToken = '\(escapedToken)';
               if (syncToken) {
-                localStorage.setItem('base44_access_token', syncToken);
-                localStorage.setItem('token', syncToken);
+                saveToken(syncToken);
                 return;
               }
               if (!window.Capacitor || !window.Capacitor.Plugins || !window.Capacitor.Plugins.Preferences) return;
               window.Capacitor.Plugins.Preferences.get({ key: 'base44_access_token' }).then(function (result) {
                 if (!result || !result.value) return;
-                localStorage.setItem('base44_access_token', result.value);
-                localStorage.setItem('token', result.value);
+                saveToken(result.value);
               });
             } catch (e) {}
           }
 
-          restoreToken();
-          captureAccessTokenFromUrl();
-
-          var APP_LOGIN_URL = 'https://restorebraine.base44.app/login?from_url=' + encodeURIComponent('https://restorebraine.base44.app') + '&app_id=68fdc5f42768c4d045fe1bac&prompt=select_account';
-          var GOOGLE_OAUTH_URL = 'https://restorebraine.base44.app/api/apps/auth/login?app_id=68fdc5f42768c4d045fe1bac&from_url=' + encodeURIComponent('https://restorebraine.base44.app');
-
-
-          function isGoogleOAuthUrl(url) {
-            if (!url) return false;
-            try {
-              var href = typeof url === 'string' ? url : (url.href || String(url));
-              var parsed = new URL(href, window.location.href);
-              var target = parsed.hostname + parsed.pathname + parsed.search;
-              return /accounts\\.google\\.com|google\\.com\\/o\\/oauth|oauth2\\.googleapis\\.com/i.test(target);
-            } catch (e) {
-              return /accounts\\.google\\.com|google\\.com\\/o\\/oauth/i.test(String(url));
-            }
+          var oauthBrowserListenerAttached = false;
+          function finishOAuthLogin(ib) {
+            try { if (ib) ib.close(); } catch (e) {}
+            window.location.replace(RESTOREBRAINE);
           }
 
-          var oauthBrowserListenerAttached = false;
+          function handleOAuthBrowserUrl(url, ib) {
+            if (!url) return false;
+            try {
+              var parsed = new URL(url);
+              var token = parsed.searchParams.get('access_token');
+              if (token) {
+                saveToken(token);
+                finishOAuthLogin(ib);
+                return true;
+              }
+              if (parsed.hostname === 'restorebraine.base44.app') {
+                token = captureAccessTokenFromUrl(url);
+                if (token || readToken()) {
+                  finishOAuthLogin(ib);
+                  return true;
+                }
+              }
+              if (isBase44PlatformHost(parsed.hostname) && parsed.pathname.indexOf('/api/apps/auth') !== 0) {
+                if (readToken()) {
+                  finishOAuthLogin(ib);
+                  return true;
+                }
+              }
+            } catch (e) {}
+            return false;
+          }
+
           function attachOAuthBrowserListeners(ib) {
             if (oauthBrowserListenerAttached) return;
             oauthBrowserListenerAttached = true;
             ib.addListener('browserPageNavigationCompleted', function (data) {
-              if (!data || !data.url) return;
-              try {
-                var parsed = new URL(data.url);
-                if (parsed.hostname !== 'restorebraine.base44.app') return;
-                var token = parsed.searchParams.get('access_token');
-                if (!token) return;
-                localStorage.setItem('base44_access_token', token);
-                localStorage.setItem('token', token);
-                persistToken();
-                ib.close();
-                window.location.replace('https://restorebraine.base44.app');
-              } catch (e) {}
+              handleOAuthBrowserUrl(data && data.url, ib);
             });
             ib.addListener('browserClosed', function () {
-              window.location.replace('https://restorebraine.base44.app');
+              if (readToken()) window.location.replace(RESTOREBRAINE);
             });
           }
 
           function openLoginInSystemBrowser(url) {
-            url = url || APP_LOGIN_URL;
+            url = url || GOOGLE_OAUTH_URL;
             function launchSystemBrowser() {
               try {
                 var ib = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.InAppBrowser;
                 if (!ib) return false;
+                oauthBrowserListenerAttached = false;
                 attachOAuthBrowserListeners(ib);
                 ib.openInSystemBrowser({ url: url });
                 return true;
@@ -183,12 +203,16 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
               Location.prototype[method] = function (targetUrl) {
                 try {
                   var parsed = new URL(String(targetUrl), window.location.href);
+                  if (captureAccessTokenFromUrl(parsed.href)) {
+                    window.location.replace(RESTOREBRAINE);
+                    return;
+                  }
                   if (isBase44PlatformHost(parsed.hostname)) {
-                    window.location.replace('https://restorebraine.base44.app');
+                    window.location.replace(RESTOREBRAINE);
                     return;
                   }
                 } catch (e) {}
-                if (isGoogleOAuthUrl(targetUrl)) {
+                if (isAuthNavigationUrl(targetUrl)) {
                   openLoginInSystemBrowser(GOOGLE_OAUTH_URL);
                   return;
                 }
@@ -196,31 +220,43 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
               };
             });
           }
+
+          if (!window.__restorebraineOAuthFixInstalled) {
+            window.__restorebraineOAuthFixInstalled = true;
+            var originalOpen = window.open;
+            window.open = function (url, target, features) {
+              if (typeof url === 'string' && url.length > 0) {
+                if (isAuthNavigationUrl(url)) {
+                  openLoginInSystemBrowser(GOOGLE_OAUTH_URL);
+                  return window;
+                }
+                window.location.assign(url);
+                return window;
+              }
+              return originalOpen ? originalOpen.call(window, url, target, features) : null;
+            };
+          }
+
+          function guardPlatformNavigation() {
+            try {
+              if (captureAccessTokenFromUrl()) return;
+              if (!isBase44PlatformHost(window.location.hostname)) return;
+              window.location.replace(RESTOREBRAINE);
+            } catch (e) {}
           }
 
           function guardGoogleOAuthInWebView() {
             try {
               if (window.location.hostname !== 'accounts.google.com') return;
               if (window.history.length > 1) window.history.back();
-              else window.location.replace('https://restorebraine.base44.app');
+              else window.location.replace(RESTOREBRAINE);
               openLoginInSystemBrowser(GOOGLE_OAUTH_URL);
-            } catch (e) {}
-          }
-
-          function isBase44PlatformHost(hostname) {
-            return hostname === 'app.base44.com' || hostname === 'base44.com';
-          }
-
-          function guardPlatformNavigation() {
-            try {
-              if (!isBase44PlatformHost(window.location.hostname)) return;
-              window.location.replace('https://restorebraine.base44.app');
             } catch (e) {}
           }
 
           function hideBase44EditorWidget() {
             try {
-              document.querySelectorAll('button, a, div, span').forEach(function (node) {
+              document.querySelectorAll('button, a, div, span, iframe').forEach(function (node) {
                 var text = (node.textContent || '').trim();
                 if (/edit with base\\s*44/i.test(text) && text.length < 40) {
                   var container = node.closest('div');
@@ -234,21 +270,24 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             if (window.__restorebraineSignInInterceptor) return;
             window.__restorebraineSignInInterceptor = true;
             document.addEventListener('click', function (event) {
-              var target = event.target.closest('button, a, [role="button"]');
+              var target = event.target.closest('button, a, [role="button"], div[data-provider], [data-testid*="google"], .google-signin-button');
               if (!target) return;
               var label = (target.textContent || '').trim();
-              if (!/continue with google|continue with apple|continue with microsoft|sign in with email|^sign in$/i.test(label)) return;
+              var href = target.href || target.getAttribute && target.getAttribute('href') || '';
+              var isGoogle = /google/i.test(label) || /google/i.test(href) || /auth\\/login/i.test(href) || target.closest('[class*="google"], [id*="google"]');
+              var isSignIn = /continue with|sign in with|sign in|^log in$/i.test(label) || /auth\\/login/i.test(href);
+              if (!isGoogle && !isSignIn) return;
               event.preventDefault();
               event.stopPropagation();
-              var loginUrl = /google/i.test(label) ? GOOGLE_OAUTH_URL : APP_LOGIN_URL;
-              openLoginInSystemBrowser(loginUrl);
+              event.stopImmediatePropagation();
+              openLoginInSystemBrowser(isGoogle ? GOOGLE_OAUTH_URL : APP_LOGIN_URL);
             }, true);
           }
 
           function installPlatformGuard() {
             installLocationNavigationGuard();
-            guardGoogleOAuthInWebView();
             guardPlatformNavigation();
+            guardGoogleOAuthInWebView();
             hideBase44EditorWidget();
             interceptNativeSignInClicks();
             window.addEventListener('popstate', function () {
@@ -262,18 +301,33 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             }, 1000);
           }
 
+          window.__RESTOREBRAINE_NATIVE_BUILD__ = '\(escapedLabel)';
+          restoreToken();
+          captureAccessTokenFromUrl();
           installPlatformGuard();
           document.addEventListener('visibilitychange', function () {
             if (document.visibilityState === 'hidden') persistToken();
           });
           window.addEventListener('pagehide', persistToken);
           setInterval(persistToken, 15000);
+
+          function showNativeBuildBadge() {
+            try {
+              if (!document.body || document.getElementById('rb-native-stamp')) return;
+              var badge = document.createElement('div');
+              badge.id = 'rb-native-stamp';
+              badge.textContent = '\(escapedLabel)';
+              badge.setAttribute('style', 'position:fixed;bottom:6px;left:6px;z-index:2147483647;font:10px/1.2 -apple-system,sans-serif;color:#666;background:rgba(255,255,255,0.9);padding:2px 6px;border-radius:6px;pointer-events:none;');
+              document.body.appendChild(badge);
+            } catch (e) {}
+          }
           if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', showNativeBuildBadge);
           } else {
             showNativeBuildBadge();
           }
         })();
+
         """
     }
 
