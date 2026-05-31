@@ -717,7 +717,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
               performNativeSignOut(event);
             }
             document.addEventListener('click', handleSignOutPointer, true);
-            document.addEventListener('touchend', handleSignOutPointer, true);
           }
 
           function interceptNativeSignInClicks() {

@@ -27,8 +27,7 @@ export default function Account() {
     }
     if (typeof window !== 'undefined' && window.__restorebraineSigningOut) return;
     queryClient.clear();
-    if (isNativeShell() && typeof window !== 'undefined' && typeof window.__restorebrainePerformSignOut === 'function') {
-      window.__restorebrainePerformSignOut(event);
+    if (isNativeShell()) {
       return;
     }
     await localLogout();
