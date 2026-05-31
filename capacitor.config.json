@@ -7,6 +7,8 @@
     "cleartext": false,
     "allowNavigation": [
       "restorebraine.base44.app",
+      "app.base44.com",
+      "accounts.google.com",
       "appleid.apple.com",
       "*.apple.com"
     ]

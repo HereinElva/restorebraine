@@ -46,9 +46,41 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
           window.__restorebraineSessionBridgeInstalled = true;
 
           var RESTOREBRAINE = 'https://restorebraine.base44.app';
+          var PLATFORM = 'https://app.base44.com';
           var APP_ID = '68fdc5f42768c4d045fe1bac';
-          var APP_LOGIN_URL = RESTOREBRAINE + '/login?from_url=' + encodeURIComponent(RESTOREBRAINE) + '&app_id=' + APP_ID + '&prompt=select_account';
-          var GOOGLE_OAUTH_URL = RESTOREBRAINE + '/api/apps/auth/login?app_id=' + APP_ID + '&from_url=' + encodeURIComponent(RESTOREBRAINE);
+          var FROM_URL = RESTOREBRAINE;
+          var APP_LOGIN_URL = RESTOREBRAINE + '/login?from_url=' + encodeURIComponent(FROM_URL) + '&app_id=' + APP_ID + '&prompt=select_account';
+
+          function providerFromPath(pathname) {
+            if (/\/apple\//i.test(pathname || '')) return 'apple';
+            if (/\/microsoft\//i.test(pathname || '')) return 'microsoft';
+            return 'google';
+          }
+
+          function providerFromLabel(label) {
+            if (/apple/i.test(label || '')) return 'apple';
+            if (/microsoft/i.test(label || '')) return 'microsoft';
+            return 'google';
+          }
+
+          function getCanonicalOAuthUrl(provider) {
+            provider = provider || 'google';
+            var path = provider === 'google'
+              ? '/api/apps/auth/login'
+              : '/api/apps/auth/' + provider + '/login';
+            return PLATFORM + path + '?app_id=' + APP_ID + '&from_url=' + encodeURIComponent(FROM_URL);
+          }
+
+          function normalizeAuthUrl(rawUrl, providerHint) {
+            try {
+              var parsed = new URL(String(rawUrl || ''), window.location.href);
+              if (!isAuthNavigationUrl(rawUrl) && !providerHint) return String(rawUrl);
+              var provider = providerHint || providerFromPath(parsed.pathname);
+              return getCanonicalOAuthUrl(provider);
+            } catch (e) {
+              return getCanonicalOAuthUrl(providerHint || 'google');
+            }
+          }
 
           function isBase44PlatformHost(hostname) {
             return hostname === 'app.base44.com' || hostname === 'base44.com';
@@ -218,8 +250,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             });
           }
 
-          function openLoginInSystemBrowser(url) {
-            url = url || GOOGLE_OAUTH_URL;
+          function openLoginInSystemBrowser(url, providerHint) {
+            url = normalizeAuthUrl(url || getCanonicalOAuthUrl(providerHint || 'google'), providerHint);
             function launchSystemBrowser() {
               try {
                 var ib = getInAppBrowserPlugin();
@@ -264,18 +296,57 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                     window.location.replace(RESTOREBRAINE);
                     return;
                   }
+                  if (isAuthNavigationUrl(targetUrl)) {
+                    openLoginInSystemBrowser(targetUrl);
+                    return;
+                  }
                   if (isBase44PlatformHost(parsed.hostname)) {
                     window.location.replace(RESTOREBRAINE);
                     return;
                   }
-                } catch (e) {}
-                if (isAuthNavigationUrl(targetUrl)) {
-                  openLoginInSystemBrowser(GOOGLE_OAUTH_URL);
-                  return;
+                } catch (e) {
+                  if (isAuthNavigationUrl(targetUrl)) {
+                    openLoginInSystemBrowser(targetUrl);
+                    return;
+                  }
                 }
                 return original.call(this, targetUrl);
               };
             });
+            try {
+              var hrefDescriptor = Object.getOwnPropertyDescriptor(Location.prototype, 'href')
+                || Object.getOwnPropertyDescriptor(Object.getPrototypeOf(window.location), 'href');
+              if (hrefDescriptor && hrefDescriptor.set) {
+                Object.defineProperty(window.location, 'href', {
+                  configurable: true,
+                  enumerable: hrefDescriptor.enumerable,
+                  get: hrefDescriptor.get ? hrefDescriptor.get.bind(window.location) : undefined,
+                  set: function (value) {
+                    try {
+                      var parsed = new URL(String(value), window.location.href);
+                      if (captureAccessTokenFromUrl(parsed.href)) {
+                        window.location.replace(RESTOREBRAINE);
+                        return;
+                      }
+                      if (isAuthNavigationUrl(value)) {
+                        openLoginInSystemBrowser(value);
+                        return;
+                      }
+                      if (isBase44PlatformHost(parsed.hostname)) {
+                        window.location.replace(RESTOREBRAINE);
+                        return;
+                      }
+                    } catch (e) {
+                      if (isAuthNavigationUrl(value)) {
+                        openLoginInSystemBrowser(value);
+                        return;
+                      }
+                    }
+                    hrefDescriptor.set.call(window.location, value);
+                  }
+                });
+              }
+            } catch (e) {}
           }
 
           if (!window.__restorebraineOAuthFixInstalled) {
@@ -284,7 +355,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             window.open = function (url, target, features) {
               if (typeof url === 'string' && url.length > 0) {
                 if (isAuthNavigationUrl(url)) {
-                  openLoginInSystemBrowser(GOOGLE_OAUTH_URL);
+                  openLoginInSystemBrowser(getCanonicalOAuthUrl('google'), 'google');
                   return window;
                 }
                 window.location.assign(url);
@@ -298,6 +369,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             try {
               if (captureAccessTokenFromUrl()) return;
               if (!isBase44PlatformHost(window.location.hostname)) return;
+              if (window.location.pathname.indexOf('/api/apps/auth') === 0) return;
               window.location.replace(RESTOREBRAINE);
             } catch (e) {}
           }
@@ -307,7 +379,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
               if (window.location.hostname !== 'accounts.google.com') return;
               if (window.history.length > 1) window.history.back();
               else window.location.replace(RESTOREBRAINE);
-              openLoginInSystemBrowser(GOOGLE_OAUTH_URL);
+              openLoginInSystemBrowser(getCanonicalOAuthUrl('google'), 'google');
             } catch (e) {}
           }
 
@@ -343,13 +415,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             } catch (e) {}
           }
 
-          function providerOAuthUrl(label) {
-            if (/apple/i.test(label)) return RESTOREBRAINE + '/api/apps/auth/apple/login?app_id=' + APP_ID + '&from_url=' + encodeURIComponent(RESTOREBRAINE);
-            if (/microsoft/i.test(label)) return RESTOREBRAINE + '/api/apps/auth/microsoft/login?app_id=' + APP_ID + '&from_url=' + encodeURIComponent(RESTOREBRAINE);
-            if (/google/i.test(label)) return GOOGLE_OAUTH_URL;
-            return APP_LOGIN_URL;
-          }
-
           function interceptNativeSignInClicks() {
             if (window.__restorebraineSignInInterceptor) return;
             window.__restorebraineSignInInterceptor = true;
@@ -359,12 +424,14 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
               var label = (target.textContent || '').trim();
               var href = (target.href || (target.getAttribute && target.getAttribute('href')) || '');
               var isProvider = /continue with google|continue with apple|continue with microsoft|sign in with email|sign in with google|sign in with apple|sign in with microsoft/i.test(label);
-              var isAuthLink = /auth\\/login|auth\\/apple|auth\\/microsoft/i.test(href);
+              var isAuthLink = /auth\/login|auth\/apple|auth\/microsoft/i.test(href);
               if (!isProvider && !isAuthLink) return;
               event.preventDefault();
               event.stopPropagation();
               event.stopImmediatePropagation();
-              openLoginInSystemBrowser(providerOAuthUrl(label));
+              var provider = providerFromLabel(label);
+              var authUrl = href && isAuthNavigationUrl(href) ? href : getCanonicalOAuthUrl(provider);
+              openLoginInSystemBrowser(authUrl, provider);
             }, true);
           }
 

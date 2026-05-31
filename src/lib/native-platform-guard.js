@@ -1,11 +1,47 @@
 export const RESTOREBRAINE_FROM_URL = 'https://restorebraine.base44.app';
 export const BASE44_APP_ID = '68fdc5f42768c4d045fe1bac';
-/** Base44 only allows https:// restorebraine.base44.app as OAuth redirect — not custom schemes. */
-export const NATIVE_OAUTH_CALLBACK = 'https://restorebraine.base44.app';
+export const BASE44_PLATFORM_URL = 'https://app.base44.com';
+/** Base44 only allows https://restorebraine.base44.app as OAuth redirect — not custom schemes. */
+export const NATIVE_OAUTH_CALLBACK = RESTOREBRAINE_FROM_URL;
 
 const PLATFORM_HOSTS = new Set(['app.base44.com', 'base44.com']);
 
 export const isBase44PlatformHost = (hostname) => PLATFORM_HOSTS.has(hostname);
+
+const providerFromPath = (pathname = '') => {
+  if (/\/apple\//i.test(pathname)) return 'apple';
+  if (/\/microsoft\//i.test(pathname)) return 'microsoft';
+  return 'google';
+};
+
+const providerFromLabel = (label = '') => {
+  if (/apple/i.test(label)) return 'apple';
+  if (/microsoft/i.test(label)) return 'microsoft';
+  return 'google';
+};
+
+export const getCanonicalOAuthUrl = (provider = 'google') => {
+  const path = provider === 'google'
+    ? '/api/apps/auth/login'
+    : `/api/apps/auth/${provider}/login`;
+  const params = new URLSearchParams({
+    app_id: BASE44_APP_ID,
+    from_url: RESTOREBRAINE_FROM_URL,
+  });
+  return `${BASE44_PLATFORM_URL}${path}?${params.toString()}`;
+};
+
+/** Force a valid OAuth URL — blocks capacitor://, restorebraine://, and app.base44.com from_url values. */
+export const normalizeAuthUrl = (rawUrl, providerHint) => {
+  try {
+    const parsed = new URL(String(rawUrl || ''), typeof window !== 'undefined' ? window.location.href : RESTOREBRAINE_FROM_URL);
+    if (!isAuthNavigationUrl(rawUrl) && !providerHint) return String(rawUrl);
+    const provider = providerHint || providerFromPath(parsed.pathname);
+    return getCanonicalOAuthUrl(provider);
+  } catch {
+    return getCanonicalOAuthUrl(providerHint || 'google');
+  }
+};
 
 export const getAppScopedLoginUrl = () => {
   const params = new URLSearchParams({
@@ -16,30 +52,24 @@ export const getAppScopedLoginUrl = () => {
   return `${RESTOREBRAINE_FROM_URL}/login?${params.toString()}`;
 };
 
-export const getGoogleOAuthUrl = () => {
-  const params = new URLSearchParams({
-    app_id: BASE44_APP_ID,
-    from_url: RESTOREBRAINE_FROM_URL,
-  });
-  return `${RESTOREBRAINE_FROM_URL}/api/apps/auth/login?${params.toString()}`;
-};
+export const getGoogleOAuthUrl = () => getCanonicalOAuthUrl('google');
 
-export const getProviderOAuthUrl = (label = '') => {
-  if (/apple/i.test(label)) {
-    const params = new URLSearchParams({ app_id: BASE44_APP_ID, from_url: RESTOREBRAINE_FROM_URL });
-    return `${RESTOREBRAINE_FROM_URL}/api/apps/auth/apple/login?${params.toString()}`;
-  }
-  if (/microsoft/i.test(label)) {
-    const params = new URLSearchParams({ app_id: BASE44_APP_ID, from_url: RESTOREBRAINE_FROM_URL });
-    return `${RESTOREBRAINE_FROM_URL}/api/apps/auth/microsoft/login?${params.toString()}`;
-  }
-  if (/google/i.test(label)) return getGoogleOAuthUrl();
-  return getAppScopedLoginUrl();
+export const getProviderOAuthUrl = (label = '') => getCanonicalOAuthUrl(providerFromLabel(label));
+
+export const isAuthNavigationUrl = (url) => {
+  if (!url) return false;
+  try {
+    const parsed = new URL(String(url), typeof window !== 'undefined' ? window.location.href : RESTOREBRAINE_FROM_URL);
+    if (/accounts\.google\.com|google\.com\/o\/oauth|oauth2\.googleapis\.com/i.test(parsed.href)) return true;
+    if (isBase44PlatformHost(parsed.hostname) && parsed.pathname.startsWith('/api/apps/auth')) return true;
+    if (parsed.hostname === 'restorebraine.base44.app' && parsed.pathname.startsWith('/api/apps/auth')) return true;
+  } catch {}
+  return false;
 };
 
 export const guardPlatformNavigation = () => {
   if (typeof window === 'undefined') return;
-  const { hostname, search } = window.location;
+  const { hostname, search, pathname } = window.location;
   if (!isBase44PlatformHost(hostname)) return;
   const token = new URLSearchParams(search).get('access_token');
   if (token) {
@@ -47,6 +77,7 @@ export const guardPlatformNavigation = () => {
       persistSessionToNativeStorage(token);
     });
   }
+  if (pathname.startsWith('/api/apps/auth')) return;
   window.location.replace(RESTOREBRAINE_FROM_URL);
 };
 
@@ -104,8 +135,10 @@ export const interceptNativeSignInClicks = () => {
     event.preventDefault();
     event.stopPropagation();
     event.stopImmediatePropagation();
+    const provider = providerFromLabel(label);
+    const authUrl = href && isAuthNavigationUrl(href) ? href : getCanonicalOAuthUrl(provider);
     import('@/lib/native-google-oauth').then(({ openLoginInSystemBrowser }) => {
-      openLoginInSystemBrowser(getProviderOAuthUrl(label));
+      openLoginInSystemBrowser(authUrl, provider);
     });
   }, true);
 };
@@ -115,7 +148,7 @@ export const guardGoogleOAuthInWebView = () => {
   if (/accounts\.google\.com/i.test(window.location.hostname)) {
     import('@/lib/native-google-oauth').then(({ openLoginInSystemBrowser }) => {
       window.history.length > 1 ? window.history.back() : window.location.replace(RESTOREBRAINE_FROM_URL);
-      openLoginInSystemBrowser(getGoogleOAuthUrl());
+      openLoginInSystemBrowser(getGoogleOAuthUrl(), 'google');
     });
   }
 };

@@ -5,6 +5,8 @@ import {
   RESTOREBRAINE_FROM_URL,
   NATIVE_OAUTH_CALLBACK,
   isBase44PlatformHost,
+  isAuthNavigationUrl,
+  normalizeAuthUrl,
 } from '@/lib/native-platform-guard';
 import { persistSessionToNativeStorage } from '@/lib/session-bootstrap';
 import { isNativeShell } from '@/lib/native-hosted-redirect';
@@ -24,17 +26,6 @@ export const isGoogleOAuthUrl = (url) => {
   } catch {
     return GOOGLE_OAUTH_PATTERN.test(url);
   }
-};
-
-export const isAuthNavigationUrl = (url) => {
-  if (!url) return false;
-  try {
-    const parsed = new URL(String(url), window.location.href);
-    if (isGoogleOAuthUrl(url)) return true;
-    if (isBase44PlatformHost(parsed.hostname) && parsed.pathname.startsWith('/api/apps/auth')) return true;
-    if (parsed.hostname === 'restorebraine.base44.app' && parsed.pathname.startsWith('/api/apps/auth')) return true;
-  } catch {}
-  return false;
 };
 
 export const captureOAuthTokenFromUrl = async (url) => {
@@ -84,15 +75,20 @@ const attachOAuthCompletionListener = async () => {
 };
 
 /** Google blocks embedded WebViews — must use SFSafariViewController (openInSystemBrowser). */
-export const openLoginInSystemBrowser = async (url = getGoogleOAuthUrl()) => {
+export const openLoginInSystemBrowser = async (url = getGoogleOAuthUrl(), providerHint) => {
+  const normalizedUrl = normalizeAuthUrl(url, providerHint);
   if (!isNativeShell()) {
-    window.location.replace(url);
+    window.location.replace(normalizedUrl);
     return;
   }
 
   oauthListenerAttached = false;
   await attachOAuthCompletionListener();
-  await InAppBrowser.openInSystemBrowser({ url, options: SYSTEM_BROWSER_OPTIONS });
+  await InAppBrowser.openInSystemBrowser({ url: normalizedUrl, options: SYSTEM_BROWSER_OPTIONS });
+};
+
+const handleAuthNavigation = (url, providerHint) => {
+  openLoginInSystemBrowser(url, providerHint);
 };
 
 export const installLocationNavigationGuard = () => {
@@ -110,6 +106,10 @@ export const installLocationNavigationGuard = () => {
           });
           return;
         }
+        if (isAuthNavigationUrl(url)) {
+          handleAuthNavigation(url);
+          return;
+        }
         if (isBase44PlatformHost(parsed.hostname)) {
           window.location.replace(RESTOREBRAINE_FROM_URL);
           return;
@@ -117,12 +117,50 @@ export const installLocationNavigationGuard = () => {
       } catch {}
 
       if (isAuthNavigationUrl(url)) {
-        openLoginInSystemBrowser(getGoogleOAuthUrl());
+        handleAuthNavigation(url);
         return;
       }
       return original.call(this, url);
     };
   });
+
+  try {
+    const hrefDescriptor = Object.getOwnPropertyDescriptor(Location.prototype, 'href')
+      || Object.getOwnPropertyDescriptor(Object.getPrototypeOf(window.location), 'href');
+    if (hrefDescriptor?.set) {
+      Object.defineProperty(window.location, 'href', {
+        configurable: true,
+        enumerable: hrefDescriptor.enumerable,
+        get: hrefDescriptor.get?.bind(window.location),
+        set(value) {
+          try {
+            const parsed = new URL(String(value), window.location.href);
+            if (parsed.searchParams.get('access_token')) {
+              captureOAuthTokenFromUrl(parsed.href).then((token) => {
+                if (token) window.location.replace(RESTOREBRAINE_FROM_URL);
+              });
+              return;
+            }
+            if (isAuthNavigationUrl(value)) {
+              handleAuthNavigation(value);
+              return;
+            }
+            if (isBase44PlatformHost(parsed.hostname)) {
+              window.location.replace(RESTOREBRAINE_FROM_URL);
+              return;
+            }
+          } catch {}
+          if (isAuthNavigationUrl(value)) {
+            handleAuthNavigation(value);
+            return;
+          }
+          hrefDescriptor.set.call(window.location, value);
+        },
+      });
+    }
+  } catch (error) {
+    console.warn('Could not patch window.location.href for OAuth guard.', error);
+  }
 };
 
 export const installNativeGoogleOAuthBrowser = () => {
@@ -135,7 +173,7 @@ export const installNativeGoogleOAuthBrowser = () => {
   window.open = function openWithSystemBrowser(url, target, features) {
     if (typeof url === 'string' && url.length > 0) {
       if (isAuthNavigationUrl(url)) {
-        openLoginInSystemBrowser(getGoogleOAuthUrl());
+        handleAuthNavigation(url);
         return window;
       }
       window.location.assign(url);
