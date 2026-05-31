@@ -158,14 +158,24 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             return false;
           }
 
+          function removeNativeSignInOverlay() {
+            var existing = document.getElementById('rb-native-signin-root');
+            if (existing) existing.remove();
+            try { document.body.style.overflow = ''; } catch (e) {}
+          }
+
+          function goToRegularLoginPage() {
+            removeNativeSignInOverlay();
+            window.location.replace(RESTOREBRAINE + '/');
+          }
+
           function guardSignedOutLoginPage() {
             try {
               if (!isSignedOut()) return;
               var path = (window.location.pathname || '/').replace(/\/$/, '') || '/';
               if (path === '/login' || isPlatformLoginUrl(window.location.href)) {
-                try { history.replaceState({}, document.title, RESTOREBRAINE + '/'); } catch (e) {}
+                goToRegularLoginPage();
               }
-              renderNativeSignInPage();
             } catch (e) {}
           }
 
@@ -226,8 +236,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             }
             window.__restorebraineSigningOut = true;
             clearNativeSession();
-            renderNativeSignInPage();
-            setTimeout(function () { window.__restorebraineSigningOut = false; }, 500);
+            goToRegularLoginPage();
           }
 
           function readToken() {
@@ -443,7 +452,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                   }
                   if (isPlatformLoginUrl(targetUrl)) {
                     clearNativeSession();
-                    renderNativeSignInPage();
+                    goToRegularLoginPage();
                     return;
                   }
                   if (isAuthNavigationUrl(targetUrl)) {
@@ -485,7 +494,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                       }
                       if (isPlatformLoginUrl(value)) {
                         clearNativeSession();
-                        renderNativeSignInPage();
+                        goToRegularLoginPage();
                         return;
                       }
                       if (isAuthNavigationUrl(value)) {
@@ -730,40 +739,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
           }
 
 
-          function renderNativeSignInPage() {
-            if (!isSignedOut()) {
-              var existing = document.getElementById('rb-native-signin-root');
-              if (existing) existing.remove();
-              try { document.body.style.overflow = ''; } catch (e) {}
-              return;
-            }
-            if (document.getElementById('rb-native-signin-root')) return;
-            var root = document.createElement('div');
-            root.id = 'rb-native-signin-root';
-            root.setAttribute('style', 'min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#eff6ff,#f5f3ff,#fdf2f8);padding:24px;position:fixed;inset:0;z-index:2147483646;');
-            root.innerHTML = '<div style="background:white;border-radius:24px;padding:40px;max-width:360px;width:100%;text-align:center;box-shadow:0 10px 40px rgba(0,0,0,0.1);">'
-              + '<img src="' + APP_LOGO_URL + '" alt="Restorebraine" style="width:64px;height:64px;border-radius:16px;object-fit:cover;margin:0 auto 16px;display:block;" />'
-              + '<h1 style="font-size:24px;font-weight:700;color:#111;margin:0 0 8px;">Restorebraine</h1>'
-              + '<p style="color:#666;margin:0 0 32px;font-size:14px;">Sign in to access your memories</p>'
-              + '<button id="rb-native-signin-btn" type="button" style="width:100%;padding:14px;background:linear-gradient(135deg,#60a5fa,#a78bfa);color:white;border:none;border-radius:14px;font-size:16px;font-weight:600;cursor:pointer;">Sign In</button>'
-              + '<p style="color:#999;margin:16px 0 0;font-size:11px;">' + (window.__RESTOREBRAINE_NATIVE_BUILD__ || '') + '</p>'
-              + '</div>';
-            (document.documentElement || document.body).appendChild(root);
-            var btn = document.getElementById('rb-native-signin-btn');
-            if (btn) btn.addEventListener('click', function (e) {
-              e.preventDefault();
-              e.stopPropagation();
-              try { localStorage.removeItem(SIGNED_OUT_KEY); } catch (err) {}
-              openLoginInSystemBrowser(getCanonicalOAuthUrl('google'), 'google');
-            });
-            try { document.body.style.overflow = 'hidden'; } catch (e) {}
-          }
-
-          function ensureSignedOutUI() {
-            if (!isSignedOut()) return;
-            renderNativeSignInPage();
-            guardSignedOutLoginPage();
-          }
 
           window.__restorebraineOpenLogin = function () {
             try { localStorage.removeItem(SIGNED_OUT_KEY); } catch (e) {}
@@ -823,7 +798,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
               guardGoogleOAuthInWebView();
               hideBase44EditorWidget();
               fixRestorebraineBranding();
-              ensureSignedOutUI();
+              guardSignedOutLoginPage();
             }, 1000);
           }
 
@@ -835,7 +810,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
           installOAuthDeepLinkHandler();
           fixRestorebraineBranding();
           installPlatformGuard();
-          ensureSignedOutUI();
           document.addEventListener('visibilitychange', function () {
             if (document.visibilityState === 'hidden') persistToken();
           });

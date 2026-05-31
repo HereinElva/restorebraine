@@ -51,6 +51,9 @@ fi
 echo "==> server.url (must point at hosted Restorebraine app):"
 grep -E '"url"' ios/App/App/capacitor.config.json || true
 
+echo "==> Info.plist app icon binding:"
+grep -A1 CFBundleIconName ios/App/App/Info.plist || { echo "ERROR: CFBundleIconName missing from Info.plist"; exit 1; }
+
 echo "==> App icon files:"
 ls ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-60@3x.png ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png
 
