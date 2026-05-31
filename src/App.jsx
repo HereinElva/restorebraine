@@ -45,16 +45,11 @@ const SignInButton = ({ onSignIn }) => {
     if (isOpening) return;
     setIsOpening(true);
     try {
-      if (typeof window !== 'undefined' && window.__restorebraineOpenLogin) {
-        window.__restorebraineOpenLogin();
-      } else {
-        onSignIn();
-      }
+      onSignIn();
     } catch (error) {
       console.error('Sign-in failed to open', error);
       setIsOpening(false);
     }
-    setTimeout(() => setIsOpening(false), 3000);
   };
 
   return (

@@ -80,7 +80,7 @@ export const isAuthLogoutUrl = (url) => {
 export const guardSignedOutLoginPage = () => {
   if (typeof window === 'undefined') return;
   try {
-    if (window.location.hostname !== 'restorebraine.base44.app') return;
+    if (localStorage.getItem('b44_signed_out') !== '1') return;
     const path = window.location.pathname.replace(/\/$/, '') || '/';
     if (path === '/login') {
       window.location.replace(`${RESTOREBRAINE_FROM_URL}/`);
@@ -99,7 +99,7 @@ export const guardPlatformNavigation = () => {
     });
   }
   if (pathname.startsWith('/api/apps/auth')) return;
-  import('@/lib/native-hosted-redirect').then(({ reloadNativeAppHome }) => reloadNativeAppHome());
+  window.location.replace(RESTOREBRAINE_FROM_URL);
 };
 
 const blockBase44BadgeScript = () => {
@@ -148,19 +148,18 @@ export const interceptNativeSignInClicks = () => {
   document.addEventListener('click', (event) => {
     const target = event.target.closest('button, a, [role="button"], div[role="button"], [data-provider]');
     if (!target) return;
-    const label = (target.textContent || '').replace(/\s+/g, ' ').trim();
+    const label = (target.textContent || '').trim();
     const href = target.href || target.getAttribute?.('href') || '';
-    const isSignInButton = /^sign in$/i.test(label);
     const isProvider = /continue with google|continue with apple|continue with microsoft|sign in with email|sign in with google|sign in with apple|sign in with microsoft/i.test(label);
-    const isAuthLink = /auth\/login|auth\/apple|auth\/microsoft|app\.base44\.com\/login/i.test(href);
-    if (!isSignInButton && !isProvider && !isAuthLink) return;
+    const isAuthLink = /auth\/login|auth\/apple|auth\/microsoft/i.test(href);
+    if (!isProvider && !isAuthLink) return;
     event.preventDefault();
     event.stopPropagation();
     event.stopImmediatePropagation();
-    try { localStorage.removeItem('b44_signed_out'); } catch {}
     const provider = providerFromLabel(label);
+    const authUrl = href && isAuthNavigationUrl(href) ? href : getCanonicalOAuthUrl(provider);
     import('@/lib/native-google-oauth').then(({ openLoginInSystemBrowser }) => {
-      openLoginInSystemBrowser(getCanonicalOAuthUrl(provider), provider);
+      openLoginInSystemBrowser(authUrl, provider);
     });
   }, true);
 };

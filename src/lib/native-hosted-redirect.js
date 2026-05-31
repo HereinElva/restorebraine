@@ -2,13 +2,10 @@ export const HOSTED_APP_URL = 'https://restorebraine.base44.app';
 
 export const isNativeShell = () => {
   try {
-    if (typeof window === 'undefined') return false;
-    const protocol = window.location?.protocol || '';
-    if (protocol === 'capacitor:' || protocol === 'ionic:') return true;
-    return Boolean(
+    return typeof window !== 'undefined' && (
       window.Capacitor?.isNativePlatform?.() ||
-      window.__RESTOREBRAINE_NATIVE_BUILD__ ||
-      window.__restorebraineSessionBridgeInstalled
+      window.location?.protocol === 'capacitor:' ||
+      window.location?.protocol === 'ionic:'
     );
   } catch {
     return false;
@@ -23,14 +20,12 @@ export const isHostedAppOrigin = () => {
   }
 };
 
-/** After OAuth or blocked navigation, reload the correct app home (local bundle or hosted). */
-export const reloadNativeAppHome = () => {
-  if (typeof window === 'undefined') return;
-  const target = isHostedAppOrigin()
-    ? `${HOSTED_APP_URL}/`
-    : `${window.location.origin}/`;
-  window.location.replace(target);
-};
+/** Native installs should always use the live hosted app — same UI/login as kbrown9000@aol.com */
+export const redirectNativeToHostedApp = () => {
+  if (!isNativeShell() || isHostedAppOrigin()) return false;
 
-/** Native app loads the bundled UI — do not redirect to the hosted Base44 site. */
-export const redirectNativeToHostedApp = () => false;
+  const suffix = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+  const target = suffix && suffix !== '/' ? `${HOSTED_APP_URL}${suffix}` : HOSTED_APP_URL;
+  window.location.replace(target);
+  return true;
+};

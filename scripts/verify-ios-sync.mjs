@@ -25,18 +25,13 @@ const checks = [
   },
   {
     path: 'capacitor.config.json',
-    test: (content) => !/"url"\s*:\s*"https:\/\/restorebraine\.base44\.app"/.test(content),
-    message: 'capacitor.config.json must NOT set server.url to hosted app — native loads bundled UI',
+    test: (content) => /"url"\s*:\s*"https:\/\/restorebraine\.base44\.app"/.test(content),
+    message: 'capacitor.config.json must set server.url to hosted Restorebraine app',
   },
   {
     path: 'ios/App/App/capacitor.config.json',
-    test: (content) => !/"url"\s*:\s*"https:\/\/restorebraine\.base44\.app"/.test(content),
-    message: 'ios/App/App/capacitor.config.json must NOT set server.url — run npm run build',
-  },
-  {
-    path: 'ios/App/App/public/index.html',
-    test: (content) => content.includes('./assets/') && !content.includes('src="/assets/'),
-    message: 'index.html must use relative ./assets/ paths (Capacitor white-screen fix)',
+    test: (content) => /"url"\s*:\s*"https:\/\/restorebraine\.base44\.app"/.test(content),
+    message: 'ios/App/App/capacitor.config.json must set server.url — run npm run build',
   },
   {
     path: 'ios/App/App/public/assets',

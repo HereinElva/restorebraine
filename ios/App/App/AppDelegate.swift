@@ -15,43 +15,12 @@ private final class RestorebraineSessionMessageHandler: NSObject, WKScriptMessag
     }
 }
 
-
-private final class RestorebraineNavigationDelegate: NSObject, WKNavigationDelegate {
-    func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
-        guard let url = navigationAction.request.url else {
-            decisionHandler(.allow)
-            return
-        }
-        let host = url.host ?? ""
-        let path = url.path
-
-        if host == "app.base44.com" {
-            decisionHandler(.cancel)
-            if path.hasPrefix("/api/apps/auth") {
-                webView.evaluateJavaScript("window.__restorebraineOpenLogin && window.__restorebraineOpenLogin();")
-            } else {
-                webView.evaluateJavaScript("window.location.replace(window.location.origin + '/');")
-            }
-            return
-        }
-
-        if host == "restorebraine.base44.app" && (path == "/login" || path.hasPrefix("/login/")) {
-            decisionHandler(.cancel)
-            webView.evaluateJavaScript("window.location.replace(window.location.origin + '/');")
-            return
-        }
-
-        decisionHandler(.allow)
-    }
-}
-
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
 
     var window: UIWindow?
 
     private let sessionMessageHandler = RestorebraineSessionMessageHandler()
-    private let navigationDelegate = RestorebraineNavigationDelegate()
 
     private var nativeBuildLabel: String {
         guard let url = Bundle.main.url(forResource: "BUILD_STAMP", withExtension: "txt"),
@@ -108,17 +77,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
           var PLATFORM = 'https://app.base44.com';
           var APP_ID = '68fdc5f42768c4d045fe1bac';
           var FROM_URL = RESTOREBRAINE;
-
-          function nativeAppHome() {
-            try {
-              if (window.location.hostname === 'restorebraine.base44.app') {
-                return RESTOREBRAINE + '/';
-              }
-              return window.location.origin + '/';
-            } catch (e) {
-              return RESTOREBRAINE + '/';
-            }
-          }
           var APP_LOGIN_URL = RESTOREBRAINE + '/login?from_url=' + encodeURIComponent(FROM_URL) + '&app_id=' + APP_ID + '&prompt=select_account';
 
           function providerFromPath(pathname) {
@@ -179,17 +137,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             return false;
           }
 
-          function isPlatformLoginUrl(url) {
-            if (!url) return false;
-            try {
-              var parsed = new URL(String(url), window.location.href);
-              var path = (parsed.pathname || '/').replace(/\/$/, '') || '/';
-              if (path !== '/login') return false;
-              return isBase44PlatformHost(parsed.hostname) || parsed.hostname === 'restorebraine.base44.app';
-            } catch (e) {}
-            return false;
-          }
-
           var keys = ['base44_access_token', 'token'];
           var SIGNED_OUT_KEY = 'b44_signed_out';
 
@@ -204,10 +151,10 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
           function guardSignedOutLoginPage() {
             try {
-              if (window.location.hostname !== 'restorebraine.base44.app') return;
+              if (!isSignedOut()) return;
               var path = (window.location.pathname || '/').replace(/\/$/, '') || '/';
               if (path === '/login') {
-                window.location.replace(nativeAppHome());
+                window.location.replace(RESTOREBRAINE + '/');
               }
             } catch (e) {}
           }
@@ -352,7 +299,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
           var oauthBrowserListenerAttached = false;
           function finishOAuthLogin(ib) {
             try { if (ib) ib.close(); } catch (e) {}
-            window.location.replace(nativeAppHome());
+            window.location.replace(RESTOREBRAINE);
           }
 
           function handleOAuthBrowserUrl(url, ib) {
@@ -413,15 +360,15 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             });
             ib.addListener('browserClosed', function () {
               if (readToken()) {
-                window.location.replace(nativeAppHome());
+                window.location.replace(RESTOREBRAINE);
                 return;
               }
               captureAccessTokenFromUrl();
               if (readToken()) {
-                window.location.replace(nativeAppHome());
+                window.location.replace(RESTOREBRAINE);
                 return;
               }
-              window.location.replace(nativeAppHome());
+              window.location.replace(RESTOREBRAINE);
             });
             ib.addListener('browserPageLoaded', function () {
               if (readToken()) finishOAuthLogin(ib);
@@ -450,10 +397,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             }, 100);
           }
 
-          window.__restorebraineOpenLogin = function () {
-            openLoginInSystemBrowser(getCanonicalOAuthUrl('google'), 'google');
-          };
-
           function installOAuthDeepLinkHandler() {
             try {
               var appPlugin = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App;
@@ -475,20 +418,20 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                 try {
                   var parsed = new URL(String(targetUrl), window.location.href);
                   if (captureAccessTokenFromUrl(parsed.href)) {
-                    window.location.replace(nativeAppHome());
+                    window.location.replace(RESTOREBRAINE);
                     return;
                   }
                   if (isAuthLogoutUrl(targetUrl)) {
                     clearNativeSession();
-                    window.location.replace(nativeAppHome());
+                    window.location.replace(RESTOREBRAINE + '/');
                     return;
                   }
-                  if (isAuthNavigationUrl(targetUrl) || isPlatformLoginUrl(targetUrl)) {
-                    openLoginInSystemBrowser(getCanonicalOAuthUrl('google'), 'google');
+                  if (isAuthNavigationUrl(targetUrl)) {
+                    openLoginInSystemBrowser(targetUrl);
                     return;
                   }
                   if (isBase44PlatformHost(parsed.hostname)) {
-                    window.location.replace(nativeAppHome());
+                    window.location.replace(RESTOREBRAINE);
                     return;
                   }
                 } catch (e) {
@@ -512,20 +455,20 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                     try {
                       var parsed = new URL(String(value), window.location.href);
                       if (captureAccessTokenFromUrl(parsed.href)) {
-                        window.location.replace(nativeAppHome());
+                        window.location.replace(RESTOREBRAINE);
                         return;
                       }
                       if (isAuthLogoutUrl(value)) {
                         clearNativeSession();
-                        window.location.replace(nativeAppHome());
+                        window.location.replace(RESTOREBRAINE + '/');
                         return;
                       }
-                      if (isAuthNavigationUrl(value) || isPlatformLoginUrl(value)) {
-                        openLoginInSystemBrowser(getCanonicalOAuthUrl('google'), 'google');
+                      if (isAuthNavigationUrl(value)) {
+                        openLoginInSystemBrowser(value);
                         return;
                       }
                       if (isBase44PlatformHost(parsed.hostname)) {
-                        window.location.replace(nativeAppHome());
+                        window.location.replace(RESTOREBRAINE);
                         return;
                       }
                     } catch (e) {
@@ -562,7 +505,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
               if (captureAccessTokenFromUrl()) return;
               if (!isBase44PlatformHost(window.location.hostname)) return;
               if (window.location.pathname.indexOf('/api/apps/auth') === 0) return;
-              window.location.replace(nativeAppHome());
+              window.location.replace(RESTOREBRAINE);
             } catch (e) {}
           }
 
@@ -570,7 +513,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             try {
               if (window.location.hostname !== 'accounts.google.com') return;
               if (window.history.length > 1) window.history.back();
-              else window.location.replace(nativeAppHome());
+              else window.location.replace(RESTOREBRAINE);
               openLoginInSystemBrowser(getCanonicalOAuthUrl('google'), 'google');
             } catch (e) {}
           }
@@ -684,26 +627,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             if (titleNode) fixLoginLogoNearTitle(titleNode);
           }
 
-
-          function fixLoginLogoAboveTitle(title) {
-            if (!title) return;
-            var card = title.closest('div');
-            if (!card) return;
-            card.querySelectorAll('div, img, svg, span').forEach(function (el) {
-              if (el === title || title.contains(el) || el.contains(title)) return;
-              if (el.querySelector('img[data-rb-logo="1"]')) return;
-              if (el.querySelector('button, form, input, textarea, a[href*="auth"]')) return;
-              var rect = el.getBoundingClientRect();
-              if (rect.width < 36 || rect.width > 140 || rect.height < 36 || rect.height > 140) return;
-              if (!(title.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_PRECEDING)) return;
-              var style = window.getComputedStyle ? window.getComputedStyle(el) : null;
-              var hasGradient = style && (style.backgroundImage !== 'none' || /gradient/i.test(style.background || ''));
-              var hasSvg = el.querySelector('svg') || el.tagName === 'SVG';
-              var hasImg = el.querySelector('img') || el.tagName === 'IMG';
-              if (hasGradient || hasSvg || hasImg) replaceLoginLogoContainer(el);
-            });
-          }
-
           function fixRestorebraineBranding() {
             try {
               var stamp = document.getElementById('rb-native-stamp');
@@ -732,7 +655,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
               fixLoginPageByWelcomeTagline();
               var title = findRestorebraineTitle();
               fixLoginLogoNearTitle(title);
-              fixLoginLogoAboveTitle(title);
 
               if (/\/login/i.test(window.location.pathname)) {
                 document.querySelectorAll('div').forEach(function (div) {
@@ -755,7 +677,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
               if (!document.getElementById('rb-hide-base44')) {
                 var style = document.createElement('style');
                 style.id = 'rb-hide-base44';
-                style.textContent = '#base44-edit-badge, #base44-modal-overlay, [id*="base44-edit"], [id*="base44-modal"], [class*="base44-edit"], [data-base44], [href*="app.base44.com"], iframe[src*="base44"], script[src*="badge.js"] { display:none !important; visibility:hidden !important; opacity:0 !important; pointer-events:none !important; max-height:0 !important; overflow:hidden !important; }';
+                style.textContent = '#base44-edit-badge, #base44-modal-overlay, [id*="base44-edit"], [id*="base44-modal"], [href*="app.base44.com"], iframe[src*="base44"], script[src*="badge.js"] { display:none !important; visibility:hidden !important; opacity:0 !important; pointer-events:none !important; max-height:0 !important; overflow:hidden !important; }';
                 (document.head || document.documentElement).appendChild(style);
               }
               document.querySelectorAll('button, a, div, span, iframe, p').forEach(function (node) {
@@ -791,16 +713,16 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             document.addEventListener('click', function (event) {
               var target = event.target.closest('button, a, [role="button"], div[role="button"], [data-provider]');
               if (!target) return;
-              var label = (target.textContent || '').replace(/\s+/g, ' ').trim();
+              var label = (target.textContent || '').trim();
               var href = (target.href || (target.getAttribute && target.getAttribute('href')) || '');
               var isProvider = /continue with google|continue with apple|continue with microsoft|sign in with email|sign in with google|sign in with apple|sign in with microsoft/i.test(label);
-              var isAuthLink = /auth\/login|auth\/apple|auth\/microsoft|app\.base44\.com\/login/i.test(href);
+              var isAuthLink = /auth\/login|auth\/apple|auth\/microsoft/i.test(href);
               if (!isProvider && !isAuthLink) return;
               event.preventDefault();
               event.stopPropagation();
-              try { localStorage.removeItem(SIGNED_OUT_KEY); } catch (e) {}
+              event.stopImmediatePropagation();
               var provider = providerFromLabel(label);
-              var authUrl = href && (isAuthNavigationUrl(href) || isPlatformLoginUrl(href)) ? getCanonicalOAuthUrl(provider) : getCanonicalOAuthUrl(provider);
+              var authUrl = href && isAuthNavigationUrl(href) ? href : getCanonicalOAuthUrl(provider);
               openLoginInSystemBrowser(authUrl, provider);
             }, true);
           }
@@ -810,66 +732,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             window.__rbBadgeObserver.observe(document.documentElement, { childList: true, subtree: true });
           }
 
-
-          function isBase44HostedLoginPage() {
-            try {
-              var path = (window.location.pathname || '/').replace(/\/$/, '') || '/';
-              if (path === '/login') return true;
-              var body = document.body ? (document.body.innerText || '') : '';
-              if (!/restorebraine/i.test(body)) return false;
-              return /continue with google|sign in with email|continue with apple/i.test(body);
-            } catch (e) {}
-            return false;
-          }
-
-          function renderNativeSignInPage() {
-            if (document.getElementById('rb-native-signin-root')) return;
-            var root = document.createElement('div');
-            root.id = 'rb-native-signin-root';
-            root.setAttribute('style', 'min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#eff6ff,#f5f3ff,#fdf2f8);padding:24px;position:fixed;inset:0;z-index:2147483646;');
-            root.innerHTML = '<div style="background:white;border-radius:24px;padding:40px;max-width:360px;width:100%;text-align:center;box-shadow:0 10px 40px rgba(0,0,0,0.1);">'
-              + '<img src="' + APP_LOGO_URL + '" alt="Restorebraine" style="width:64px;height:64px;border-radius:16px;object-fit:cover;margin:0 auto 16px;display:block;" />'
-              + '<h1 style="font-size:24px;font-weight:700;color:#111;margin:0 0 8px;">Restorebraine</h1>'
-              + '<p style="color:#666;margin:0 0 32px;font-size:14px;">Sign in to access your memories</p>'
-              + '<button id="rb-native-signin-btn" type="button" style="width:100%;padding:14px;background:linear-gradient(135deg,#60a5fa,#a78bfa);color:white;border:none;border-radius:14px;font-size:16px;font-weight:600;cursor:pointer;">Sign In</button>'
-              + '<p style="color:#999;margin:16px 0 0;font-size:11px;">' + (window.__RESTOREBRAINE_NATIVE_BUILD__ || '') + '</p>'
-              + '</div>';
-            (document.documentElement || document.body).appendChild(root);
-            var btn = document.getElementById('rb-native-signin-btn');
-            if (btn) btn.addEventListener('click', function (e) {
-              e.preventDefault();
-              e.stopPropagation();
-              try { localStorage.removeItem(SIGNED_OUT_KEY); } catch (err) {}
-              window.__restorebraineOpenLogin && window.__restorebraineOpenLogin();
-            });
-            try { document.body.style.overflow = 'hidden'; } catch (e) {}
-          }
-
-          function installNativeLoginPageOverride() {
-            if (window.__restorebraineLoginOverrideInstalled) return;
-            window.__restorebraineLoginOverrideInstalled = true;
-            function guardLoginPageUI() {
-              if (!isBase44HostedLoginPage()) return;
-              try {
-                if ((window.location.pathname || '').indexOf('/login') >= 0) {
-                  history.replaceState({}, document.title, nativeAppHome());
-                }
-              } catch (e) {}
-              renderNativeSignInPage();
-              hideBase44EditorWidget();
-              fixRestorebraineBranding();
-            }
-            guardLoginPageUI();
-            document.addEventListener('DOMContentLoaded', guardLoginPageUI);
-            if (!window.__rbLoginOverrideObserver) {
-              window.__rbLoginOverrideObserver = new MutationObserver(guardLoginPageUI);
-              window.__rbLoginOverrideObserver.observe(document.documentElement, { childList: true, subtree: true });
-            }
-            setInterval(guardLoginPageUI, 400);
-          }
-
           function installPlatformGuard() {
-            installNativeLoginPageOverride();
             installLocationNavigationGuard();
             guardPlatformNavigation();
             guardSignedOutLoginPage();
@@ -935,7 +798,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         userContentController.removeScriptMessageHandler(forName: "restorebraineNativeSession")
         userContentController.add(sessionMessageHandler, name: "restorebraineNativeSession")
         userContentController.addUserScript(script)
-        bridge.webView?.navigationDelegate = navigationDelegate
     }
 
     func applicationWillResignActive(_ application: UIApplication) {

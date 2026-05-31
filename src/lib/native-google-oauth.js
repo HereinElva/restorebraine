@@ -9,7 +9,7 @@ import {
   normalizeAuthUrl,
 } from '@/lib/native-platform-guard';
 import { persistSessionToNativeStorage } from '@/lib/session-bootstrap';
-import { isNativeShell, reloadNativeAppHome } from '@/lib/native-hosted-redirect';
+import { isNativeShell } from '@/lib/native-hosted-redirect';
 
 const GOOGLE_OAUTH_PATTERN = /accounts\.google\.com|google\.com\/o\/oauth|oauth2\.googleapis\.com|\/api\/apps\/auth\/login/i;
 
@@ -45,7 +45,7 @@ let oauthListenerAttached = false;
 
 const finishOAuthLogin = async () => {
   await InAppBrowser.close().catch(() => {});
-  reloadNativeAppHome();
+  window.location.replace(RESTOREBRAINE_FROM_URL);
 };
 
 export const handleNativeOAuthCallback = async (url) => {
@@ -62,7 +62,7 @@ const attachOAuthCompletionListener = async () => {
   await InAppBrowser.addListener('browserClosed', async () => {
     const stored = localStorage.getItem('base44_access_token') || localStorage.getItem('token');
     if (stored) {
-      reloadNativeAppHome();
+      window.location.replace(RESTOREBRAINE_FROM_URL);
       return;
     }
     try {
@@ -70,37 +70,21 @@ const attachOAuthCompletionListener = async () => {
       const launch = await App.getLaunchUrl();
       if (launch?.url) await handleNativeOAuthCallback(launch.url);
     } catch {}
-    reloadNativeAppHome();
+    window.location.replace(RESTOREBRAINE_FROM_URL);
   });
 };
 
 /** Google blocks embedded WebViews — must use SFSafariViewController (openInSystemBrowser). */
 export const openLoginInSystemBrowser = async (url = getGoogleOAuthUrl(), providerHint) => {
   const normalizedUrl = normalizeAuthUrl(url, providerHint);
-
-  const launch = async () => {
-    oauthListenerAttached = false;
-    await attachOAuthCompletionListener();
-    await InAppBrowser.openInSystemBrowser({ url: normalizedUrl, options: SYSTEM_BROWSER_OPTIONS });
-  };
-
   if (!isNativeShell()) {
     window.location.replace(normalizedUrl);
     return;
   }
 
-  try {
-    await launch();
-  } catch (error) {
-    console.warn('InAppBrowser open failed, retrying…', error);
-    setTimeout(() => {
-      launch().catch(() => {
-        if (typeof window !== 'undefined' && window.__restorebraineOpenLogin) {
-          window.__restorebraineOpenLogin();
-        }
-      });
-    }, 300);
-  }
+  oauthListenerAttached = false;
+  await attachOAuthCompletionListener();
+  await InAppBrowser.openInSystemBrowser({ url: normalizedUrl, options: SYSTEM_BROWSER_OPTIONS });
 };
 
 const handleAuthNavigation = (url, providerHint) => {
@@ -118,19 +102,16 @@ export const installLocationNavigationGuard = () => {
         const parsed = new URL(String(url), window.location.href);
         if (parsed.searchParams.get('access_token')) {
           captureOAuthTokenFromUrl(parsed.href).then((token) => {
-            if (token) reloadNativeAppHome();
+            if (token) window.location.replace(RESTOREBRAINE_FROM_URL);
           });
           return;
         }
-        const loginPath = parsed.pathname.replace(/\/$/, '') || '/';
-        const isLoginPage = loginPath === '/login'
-          && (isBase44PlatformHost(parsed.hostname) || parsed.hostname === 'restorebraine.base44.app');
-        if (isAuthNavigationUrl(url) || isLoginPage) {
-          handleAuthNavigation(getGoogleOAuthUrl());
+        if (isAuthNavigationUrl(url)) {
+          handleAuthNavigation(url);
           return;
         }
         if (isBase44PlatformHost(parsed.hostname)) {
-          reloadNativeAppHome();
+          window.location.replace(RESTOREBRAINE_FROM_URL);
           return;
         }
       } catch {}
@@ -156,19 +137,16 @@ export const installLocationNavigationGuard = () => {
             const parsed = new URL(String(value), window.location.href);
             if (parsed.searchParams.get('access_token')) {
               captureOAuthTokenFromUrl(parsed.href).then((token) => {
-                if (token) reloadNativeAppHome();
+                if (token) window.location.replace(RESTOREBRAINE_FROM_URL);
               });
               return;
             }
-            const loginPath = parsed.pathname.replace(/\/$/, '') || '/';
-            const isLoginPage = loginPath === '/login'
-              && (isBase44PlatformHost(parsed.hostname) || parsed.hostname === 'restorebraine.base44.app');
-            if (isAuthNavigationUrl(value) || isLoginPage) {
-              handleAuthNavigation(getGoogleOAuthUrl());
+            if (isAuthNavigationUrl(value)) {
+              handleAuthNavigation(value);
               return;
             }
             if (isBase44PlatformHost(parsed.hostname)) {
-              reloadNativeAppHome();
+              window.location.replace(RESTOREBRAINE_FROM_URL);
               return;
             }
           } catch {}

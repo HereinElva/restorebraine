@@ -41,15 +41,15 @@ npm run ios:prepare
 STAMP="$(tr -d '\n' < ios/App/App/BUILD_STAMP.txt)"
 echo "Build stamp: $STAMP"
 
-if grep -q '"url".*restorebraine.base44.app' ios/App/App/capacitor.config.json 2>/dev/null; then
+if ! grep -q '"url".*restorebraine.base44.app' ios/App/App/capacitor.config.json 2>/dev/null; then
   echo
-  echo "ERROR: ios/App/App/capacitor.config.json still has server.url."
-  echo "       Run: npm run build"
+  echo "ERROR: ios/App/App/capacitor.config.json is missing server.url."
+  echo "       Native app must load the hosted Restorebraine site. Run: npm run build"
   exit 1
 fi
 
-echo "==> index.html asset paths (must use ./assets/ for Capacitor):"
-grep -E 'src=' ios/App/App/public/index.html || true
+echo "==> server.url (must point at hosted Restorebraine app):"
+grep -E '"url"' ios/App/App/capacitor.config.json || true
 
 echo "==> App icon files:"
 ls ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-60@3x.png ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png
