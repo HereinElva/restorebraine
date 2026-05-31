@@ -71,3 +71,8 @@ echo "  1. Open App.xcworkspace (not .xcodeproj)"
 echo "  2. In Project Navigator → App → Assets.xcassets → AppIcon — icons should appear"
 echo "  3. Delete app from iPhone → Product → Clean Build Folder → Run"
 echo "Expected build stamp: $STAMP"
+echo
+echo "If home screen icon is still blank after install:"
+echo "  1. Delete app from iPhone"
+echo "  2. Restart iPhone (iOS caches icons)"
+echo "  3. Clean Build Folder in Xcode → Run again"

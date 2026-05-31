@@ -227,16 +227,10 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             return false;
           }
 
-          function performNativeSignOut(event) {
-            if (window.__restorebraineSigningOut) return;
-            if (event) {
-              event.preventDefault();
-              event.stopPropagation();
-              event.stopImmediatePropagation();
-            }
-            window.__restorebraineSigningOut = true;
+          function performNativeSignOut() {
             clearNativeSession();
-            goToRegularLoginPage();
+            removeNativeSignInOverlay();
+            window.location.replace(RESTOREBRAINE + '/');
           }
 
           function readToken() {
@@ -447,12 +441,10 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                   }
                   if (isAuthLogoutUrl(targetUrl)) {
                     clearNativeSession();
-                    window.location.replace(RESTOREBRAINE + '/');
+                    removeNativeSignInOverlay();
                     return;
                   }
                   if (isPlatformLoginUrl(targetUrl)) {
-                    clearNativeSession();
-                    goToRegularLoginPage();
                     return;
                   }
                   if (isAuthNavigationUrl(targetUrl)) {
@@ -489,12 +481,10 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                       }
                       if (isAuthLogoutUrl(value)) {
                         clearNativeSession();
-                        window.location.replace(RESTOREBRAINE + '/');
+                        removeNativeSignInOverlay();
                         return;
                       }
                       if (isPlatformLoginUrl(value)) {
-                        clearNativeSession();
-                        goToRegularLoginPage();
                         return;
                       }
                       if (isAuthNavigationUrl(value)) {
@@ -750,7 +740,12 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             window.__restorebraineSignOutInterceptor = true;
             document.addEventListener('click', function (event) {
               if (!isSignOutControl(event.target)) return;
-              performNativeSignOut(event);
+              if (event) {
+                event.preventDefault();
+                event.stopPropagation();
+                event.stopImmediatePropagation();
+              }
+              performNativeSignOut();
             }, true);
           }
 

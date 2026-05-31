@@ -21,9 +21,8 @@ export default function Account() {
 
   const handleLogout = () => {
     queryClient.clear();
-    if (typeof window !== 'undefined' && window.__restorebrainePerformSignOut) {
-      window.__restorebrainePerformSignOut();
-      return;
+    if (typeof window !== 'undefined' && window.__restorebraineClearSession) {
+      window.__restorebraineClearSession();
     }
     localLogout();
   };
