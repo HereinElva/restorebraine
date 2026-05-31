@@ -36,7 +36,7 @@ export const installNativeOAuthDeepLinkHandler = async () => {
     const { handleNativeOAuthCallback } = await import('@/lib/native-google-oauth');
 
     await App.addListener('appUrlOpen', async ({ url }) => {
-      if (!url || !url.startsWith('restorebraine://')) return;
+      if (!url || !url.includes('access_token=')) return;
       await handleNativeOAuthCallback(url);
     });
   } catch (error) {

@@ -15,6 +15,16 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         return label.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+
+    private func persistOAuthTokenFromURL(_ url: URL) {
+        guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+              let token = components.queryItems?.first(where: { $0.name == "access_token" })?.value,
+              !token.isEmpty else { return }
+        let defaults = UserDefaults.standard
+        defaults.set(token, forKey: "CapacitorStorage.base44_access_token")
+        defaults.set(token, forKey: "CapacitorStorage.token")
+    }
+
     private func storedNativeToken() -> String? {
         let defaults = UserDefaults.standard
         return defaults.string(forKey: "CapacitorStorage.base44_access_token")
@@ -38,8 +48,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
           var RESTOREBRAINE = 'https://restorebraine.base44.app';
           var APP_ID = '68fdc5f42768c4d045fe1bac';
           var APP_LOGIN_URL = RESTOREBRAINE + '/login?from_url=' + encodeURIComponent(RESTOREBRAINE) + '&app_id=' + APP_ID + '&prompt=select_account';
-          var NATIVE_OAUTH_CALLBACK = 'restorebraine://auth/callback';
-          var GOOGLE_OAUTH_URL = RESTOREBRAINE + '/api/apps/auth/login?app_id=' + APP_ID + '&from_url=' + encodeURIComponent(NATIVE_OAUTH_CALLBACK);
+          var GOOGLE_OAUTH_URL = RESTOREBRAINE + '/api/apps/auth/login?app_id=' + APP_ID + '&from_url=' + encodeURIComponent(RESTOREBRAINE);
 
           function isBase44PlatformHost(hostname) {
             return hostname === 'app.base44.com' || hostname === 'base44.com';
@@ -193,7 +202,16 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
               handleOAuthBrowserUrl(data && data.url, ib);
             });
             ib.addListener('browserClosed', function () {
-              if (readToken()) window.location.replace(RESTOREBRAINE);
+              if (readToken()) {
+                window.location.replace(RESTOREBRAINE);
+                return;
+              }
+              captureAccessTokenFromUrl();
+              if (readToken()) {
+                window.location.replace(RESTOREBRAINE);
+                return;
+              }
+              window.location.replace(RESTOREBRAINE);
             });
             ib.addListener('browserPageLoaded', function () {
               if (readToken()) finishOAuthLogin(ib);
@@ -228,7 +246,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
               if (!appPlugin || window.__restorebraineOAuthDeepLinkInstalled) return;
               window.__restorebraineOAuthDeepLinkInstalled = true;
               appPlugin.addListener('appUrlOpen', function (data) {
-                if (!data || !data.url || data.url.indexOf('restorebraine://') !== 0) return;
+                if (!data || !data.url || data.url.indexOf('access_token=') === -1) return;
                 handleOAuthBrowserUrl(data.url, getInAppBrowserPlugin());
               });
             } catch (e) {}
@@ -326,8 +344,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
           }
 
           function providerOAuthUrl(label) {
-            if (/apple/i.test(label)) return RESTOREBRAINE + '/api/apps/auth/apple/login?app_id=' + APP_ID + '&from_url=' + encodeURIComponent(NATIVE_OAUTH_CALLBACK);
-            if (/microsoft/i.test(label)) return RESTOREBRAINE + '/api/apps/auth/microsoft/login?app_id=' + APP_ID + '&from_url=' + encodeURIComponent(NATIVE_OAUTH_CALLBACK);
+            if (/apple/i.test(label)) return RESTOREBRAINE + '/api/apps/auth/apple/login?app_id=' + APP_ID + '&from_url=' + encodeURIComponent(RESTOREBRAINE);
+            if (/microsoft/i.test(label)) return RESTOREBRAINE + '/api/apps/auth/microsoft/login?app_id=' + APP_ID + '&from_url=' + encodeURIComponent(RESTOREBRAINE);
             if (/google/i.test(label)) return GOOGLE_OAUTH_URL;
             return APP_LOGIN_URL;
           }
@@ -445,10 +463,14 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 
     func application(_ app: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey: Any] = [:]) -> Bool {
+        persistOAuthTokenFromURL(url)
         return ApplicationDelegateProxy.shared.application(app, open: url, options: options)
     }
 
     func application(_ application: UIApplication, continue userActivity: NSUserActivity, restorationHandler: @escaping ([UIUserActivityRestoring]?) -> Void) -> Bool {
+        if userActivity.activityType == NSUserActivityTypeBrowsingWeb, let url = userActivity.webpageURL {
+            persistOAuthTokenFromURL(url)
+        }
         return ApplicationDelegateProxy.shared.application(application, continue: userActivity, restorationHandler: restorationHandler)
     }
 

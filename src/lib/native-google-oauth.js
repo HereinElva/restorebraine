@@ -40,7 +40,7 @@ export const isAuthNavigationUrl = (url) => {
 export const captureOAuthTokenFromUrl = async (url) => {
   if (!url) return null;
   try {
-    const parsed = new URL(url);
+    const parsed = new URL(url, RESTOREBRAINE_FROM_URL);
     const token = parsed.searchParams.get('access_token');
     if (!token) return null;
     await persistSessionToNativeStorage(token);
@@ -70,7 +70,16 @@ const attachOAuthCompletionListener = async () => {
 
   await InAppBrowser.addListener('browserClosed', async () => {
     const stored = localStorage.getItem('base44_access_token') || localStorage.getItem('token');
-    if (stored) window.location.replace(RESTOREBRAINE_FROM_URL);
+    if (stored) {
+      window.location.replace(RESTOREBRAINE_FROM_URL);
+      return;
+    }
+    try {
+      const { App } = await import('@capacitor/app');
+      const launch = await App.getLaunchUrl();
+      if (launch?.url) await handleNativeOAuthCallback(launch.url);
+    } catch {}
+    window.location.replace(RESTOREBRAINE_FROM_URL);
   });
 };
 
