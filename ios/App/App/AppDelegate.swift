@@ -110,6 +110,57 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
           restoreToken();
           captureAccessTokenFromUrl();
+
+          var APP_LOGIN_URL = 'https://app.base44.com/login?from_url=' + encodeURIComponent('https://restorebraine.base44.app') + '&app_id=68fdc5f42768c4d045fe1bac&prompt=select_account';
+
+          function guardPlatformNavigation() {
+            try {
+              if (window.location.hostname !== 'app.base44.com') return;
+              var path = window.location.pathname || '';
+              if (path.indexOf('/login') === 0 || path.indexOf('/api/apps/auth') === 0) return;
+              if (new URLSearchParams(window.location.search).has('access_token')) return;
+              window.location.replace(APP_LOGIN_URL);
+            } catch (e) {}
+          }
+
+          function hideBase44EditorWidget() {
+            try {
+              document.querySelectorAll('button, a, div, span').forEach(function (node) {
+                var text = (node.textContent || '').trim();
+                if (/edit with base\s*44/i.test(text) && text.length < 40) {
+                  var container = node.closest('div');
+                  if (container) container.style.setProperty('display', 'none', 'important');
+                }
+              });
+            } catch (e) {}
+          }
+
+          function interceptNativeSignInClicks() {
+            if (window.__restorebraineSignInInterceptor) return;
+            window.__restorebraineSignInInterceptor = true;
+            document.addEventListener('click', function (event) {
+              var target = event.target.closest('button, a, [role="button"]');
+              if (!target) return;
+              var label = (target.textContent || '').trim();
+              if (!/continue with google|continue with apple|continue with microsoft|sign in with email|^sign in$/i.test(label)) return;
+              event.preventDefault();
+              event.stopPropagation();
+              window.location.replace(APP_LOGIN_URL);
+            }, true);
+          }
+
+          function installPlatformGuard() {
+            guardPlatformNavigation();
+            hideBase44EditorWidget();
+            interceptNativeSignInClicks();
+            window.addEventListener('popstate', guardPlatformNavigation);
+            setInterval(function () {
+              guardPlatformNavigation();
+              hideBase44EditorWidget();
+            }, 1000);
+          }
+
+          installPlatformGuard();
           document.addEventListener('visibilitychange', function () {
             if (document.visibilityState === 'hidden') persistToken();
           });

@@ -32,13 +32,22 @@
 
           var cap = window.Capacitor;
           var native = cap && cap.isNativePlatform && cap.isNativePlatform();
+
+          var APP_LOGIN_URL = 'https://app.base44.com/login?from_url=' + encodeURIComponent('https://restorebraine.base44.app') + '&app_id=68fdc5f42768c4d045fe1bac&prompt=select_account';
+          if (native && window.location.hostname === 'app.base44.com') {
+            var path = window.location.pathname || '';
+            if (path.indexOf('/login') !== 0 && path.indexOf('/api/apps/auth') !== 0 && !params.get('access_token')) {
+              window.location.replace(APP_LOGIN_URL);
+            }
+          }
+
           if (native && window.location.hostname !== 'restorebraine.base44.app') {
             window.location.replace('https://restorebraine.base44.app');
           }
         } catch (e) {}
       })();
     </script>
-    <script type="module" crossorigin src="/assets/index-BSdxB1tj.js"></script>
+    <script type="module" crossorigin src="/assets/index-BNY6MFgM.js"></script>
   </head>
   <body>
     <div id="root"></div>

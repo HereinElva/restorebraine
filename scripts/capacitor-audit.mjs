@@ -23,9 +23,9 @@ const checks = [
     name: 'Centralized Google login URL (not moderator)',
     ok: () => {
       const auth = read('src/lib/auth-urls.js');
-      const params = read('src/lib/app-params.js');
-      return auth.includes('BASE44_APP_ID') && auth.includes("prompt: 'select_account'")
-        && params.includes('68fdc5f42768c4d045fe1bac');
+      const guard = read('src/lib/native-platform-guard.js');
+      return auth.includes('getAppScopedLoginUrl') && guard.includes("prompt: 'select_account'")
+        && guard.includes('68fdc5f42768c4d045fe1bac');
     },
   },
   {
@@ -49,11 +49,16 @@ const checks = [
     ok: () => existsSync('ios/App/App/capacitor.config.json'),
   },
   {
+    layer: '1 · Web bootstrap',
+    name: 'Native platform guard blocks Base44 dashboard',
+    ok: () => read('src/lib/native-platform-guard.js').includes('guardPlatformNavigation'),
+  },
+  {
     layer: '3 · Native bridge',
     name: 'AppDelegate session bridge + OAuth popup fix',
     ok: () => {
       const delegate = read('ios/App/App/AppDelegate.swift');
-      return delegate.includes('__restorebraineOAuthFixInstalled') && delegate.includes('persistToken');
+      return delegate.includes('__restorebraineOAuthFixInstalled') && delegate.includes('persistToken') && delegate.includes('installPlatformGuard');
     },
   },
   {

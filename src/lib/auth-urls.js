@@ -1,16 +1,8 @@
-import { BASE44_APP_ID } from '@/lib/app-params';
 import { isNativeShell } from '@/lib/native-hosted-redirect';
+import { getAppScopedLoginUrl } from '@/lib/native-platform-guard';
 
-export const RESTOREBRAINE_FROM_URL = 'https://restorebraine.base44.app';
-
-export const getBase44LoginUrl = () => {
-  const params = new URLSearchParams({
-    from_url: RESTOREBRAINE_FROM_URL,
-    app_id: BASE44_APP_ID,
-    prompt: 'select_account',
-  });
-  return `https://app.base44.com/login?${params.toString()}`;
-};
+export { RESTOREBRAINE_FROM_URL } from '@/lib/native-platform-guard';
+export const getBase44LoginUrl = getAppScopedLoginUrl;
 
 export const openBase44Login = () => {
   if (typeof window === 'undefined') return;
@@ -19,7 +11,6 @@ export const openBase44Login = () => {
 
   try {
     if (isNativeShell()) {
-      // Same-window navigation keeps Google OAuth inside the Capacitor WebView.
       window.location.replace(url);
       return;
     }

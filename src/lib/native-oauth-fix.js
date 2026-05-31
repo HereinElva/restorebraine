@@ -1,4 +1,7 @@
 /** Keep OAuth in the main WebView — Capacitor iOS opens popups in Safari by default. */
+import { isNativeShell } from '@/lib/native-hosted-redirect';
+import { installNativePlatformGuard } from '@/lib/native-platform-guard';
+
 export const captureAccessTokenFromUrl = () => {
   if (typeof window === 'undefined') return null;
 
@@ -33,4 +36,8 @@ export const installNativeOAuthFix = () => {
   };
 
   captureAccessTokenFromUrl();
+
+  if (isNativeShell()) {
+    installNativePlatformGuard();
+  }
 };
