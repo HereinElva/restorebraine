@@ -41,7 +41,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             window.open = function (url, target, features) {
               if (typeof url === 'string' && url.length > 0) {
                 if (isGoogleOAuthUrl(url)) {
-                  openLoginInSystemBrowser(APP_LOGIN_URL);
+                  openLoginInSystemBrowser(GOOGLE_OAUTH_URL);
                   return window;
                 }
                 window.location.assign(url);
@@ -115,7 +115,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
           restoreToken();
           captureAccessTokenFromUrl();
 
-          var APP_LOGIN_URL = 'https://app.base44.com/login?from_url=' + encodeURIComponent('https://restorebraine.base44.app') + '&app_id=68fdc5f42768c4d045fe1bac&prompt=select_account';
+          var APP_LOGIN_URL = 'https://restorebraine.base44.app/login?from_url=' + encodeURIComponent('https://restorebraine.base44.app') + '&app_id=68fdc5f42768c4d045fe1bac&prompt=select_account';
+          var GOOGLE_OAUTH_URL = 'https://restorebraine.base44.app/api/apps/auth/login?app_id=68fdc5f42768c4d045fe1bac&from_url=' + encodeURIComponent('https://restorebraine.base44.app');
 
 
           function isGoogleOAuthUrl(url) {
@@ -180,8 +181,15 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             ['assign', 'replace'].forEach(function (method) {
               var original = Location.prototype[method];
               Location.prototype[method] = function (targetUrl) {
+                try {
+                  var parsed = new URL(String(targetUrl), window.location.href);
+                  if (isBase44PlatformHost(parsed.hostname)) {
+                    window.location.replace('https://restorebraine.base44.app');
+                    return;
+                  }
+                } catch (e) {}
                 if (isGoogleOAuthUrl(targetUrl)) {
-                  openLoginInSystemBrowser(APP_LOGIN_URL);
+                  openLoginInSystemBrowser(GOOGLE_OAUTH_URL);
                   return;
                 }
                 return original.call(this, targetUrl);
@@ -195,17 +203,18 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
               if (window.location.hostname !== 'accounts.google.com') return;
               if (window.history.length > 1) window.history.back();
               else window.location.replace('https://restorebraine.base44.app');
-              openLoginInSystemBrowser(APP_LOGIN_URL);
+              openLoginInSystemBrowser(GOOGLE_OAUTH_URL);
             } catch (e) {}
+          }
+
+          function isBase44PlatformHost(hostname) {
+            return hostname === 'app.base44.com' || hostname === 'base44.com';
           }
 
           function guardPlatformNavigation() {
             try {
-              if (window.location.hostname !== 'app.base44.com') return;
-              var path = window.location.pathname || '';
-              if (path.indexOf('/login') === 0 || path.indexOf('/api/apps/auth') === 0) return;
-              if (new URLSearchParams(window.location.search).has('access_token')) return;
-              openLoginInSystemBrowser(APP_LOGIN_URL);
+              if (!isBase44PlatformHost(window.location.hostname)) return;
+              window.location.replace('https://restorebraine.base44.app');
             } catch (e) {}
           }
 
@@ -231,7 +240,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
               if (!/continue with google|continue with apple|continue with microsoft|sign in with email|^sign in$/i.test(label)) return;
               event.preventDefault();
               event.stopPropagation();
-              openLoginInSystemBrowser(APP_LOGIN_URL);
+              var loginUrl = /google/i.test(label) ? GOOGLE_OAUTH_URL : APP_LOGIN_URL;
+              openLoginInSystemBrowser(loginUrl);
             }, true);
           }
 

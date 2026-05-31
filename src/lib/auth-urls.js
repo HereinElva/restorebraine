@@ -1,21 +1,20 @@
 import { isNativeShell } from '@/lib/native-hosted-redirect';
 import { getAppScopedLoginUrl } from '@/lib/native-platform-guard';
 
-export { RESTOREBRAINE_FROM_URL } from '@/lib/native-platform-guard';
-export const getBase44LoginUrl = getAppScopedLoginUrl;
+export { RESTOREBRAINE_FROM_URL, getGoogleOAuthUrl } from '@/lib/native-platform-guard';
+export const getRestorebraineLoginUrl = getAppScopedLoginUrl;
 
-export const openBase44Login = () => {
+/** Open Restorebraine app-scoped login — never the Base44 platform dashboard. */
+export const openRestorebraineLogin = () => {
   if (typeof window === 'undefined') return;
 
-  const url = getBase44LoginUrl();
+  const url = getAppScopedLoginUrl();
 
-  try {
-    if (isNativeShell()) {
-      window.location.replace(url);
-      return;
-    }
-  } catch (error) {
-    console.warn('Native sign-in navigation fallback', error);
+  if (isNativeShell()) {
+    import('@/lib/native-google-oauth').then(({ openLoginInSystemBrowser }) => {
+      openLoginInSystemBrowser(url);
+    });
+    return;
   }
 
   window.location.href = url;

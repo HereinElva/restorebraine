@@ -2,7 +2,8 @@ import React, { createContext, useState, useContext, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { appParams } from '@/lib/app-params';
 import { createAxiosClient } from '@base44/sdk/dist/utils/axios-client';
-import { openBase44Login } from '@/lib/auth-urls';
+import { openRestorebraineLogin } from '@/lib/auth-urls';
+import { RESTOREBRAINE_APP_URL } from '@/lib/app-params';
 import { clearNativeSession, persistSessionToNativeStorage, restoreSessionFromNativeStorage } from '@/lib/session-bootstrap';
 import { isHostedAppOrigin } from '@/lib/native-hosted-redirect';
 
@@ -119,13 +120,13 @@ export const AuthProvider = ({ children }) => {
   const logout = async () => {
     await localLogout();
     if (isHostedAppOrigin()) {
-      window.location.href = `${appParams.serverUrl}/api/apps/auth/logout?from_url=${encodeURIComponent(window.location.href)}`;
+      window.location.href = `${RESTOREBRAINE_APP_URL}/api/apps/auth/logout?from_url=${encodeURIComponent(window.location.href)}`;
     }
   };
 
   const navigateToLogin = () => {
     setManuallyLoggedOut(false);
-    openBase44Login();
+    openRestorebraineLogin();
   };
 
   return (

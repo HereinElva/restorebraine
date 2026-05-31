@@ -6,9 +6,6 @@
 		"url": "https://restorebraine.base44.app",
 		"cleartext": false,
 		"allowNavigation": [
-			"app.base44.com",
-			"base44.com",
-			"*.base44.com",
 			"restorebraine.base44.app",
 			"appleid.apple.com",
 			"*.apple.com"

@@ -1,35 +1,35 @@
 export const RESTOREBRAINE_FROM_URL = 'https://restorebraine.base44.app';
 export const BASE44_APP_ID = '68fdc5f42768c4d045fe1bac';
 
+const PLATFORM_HOSTS = new Set(['app.base44.com', 'base44.com']);
+
+export const isBase44PlatformHost = (hostname) => PLATFORM_HOSTS.has(hostname);
+
 export const getAppScopedLoginUrl = () => {
   const params = new URLSearchParams({
     from_url: RESTOREBRAINE_FROM_URL,
     app_id: BASE44_APP_ID,
     prompt: 'select_account',
   });
-  return `https://app.base44.com/login?${params.toString()}`;
+  return `${RESTOREBRAINE_FROM_URL}/login?${params.toString()}`;
 };
 
-const ALLOWED_PLATFORM_PATHS = ['/login', '/api/apps/auth'];
+export const getGoogleOAuthUrl = () => {
+  const params = new URLSearchParams({
+    app_id: BASE44_APP_ID,
+    from_url: RESTOREBRAINE_FROM_URL,
+  });
+  return `${RESTOREBRAINE_FROM_URL}/api/apps/auth/login?${params.toString()}`;
+};
 
-export const isAllowedPlatformPath = (pathname) =>
-  ALLOWED_PLATFORM_PATHS.some((prefix) => pathname.startsWith(prefix));
-
-/** Block Base44 builder dashboard — native users must use app-scoped login only. */
+/** Native must never stay on Base44 platform — redirect to hosted Restorebraine app. */
 export const guardPlatformNavigation = () => {
   if (typeof window === 'undefined') return;
 
-  const { hostname, pathname, search } = window.location;
-  if (hostname !== 'app.base44.com') return;
+  const { hostname } = window.location;
+  if (!isBase44PlatformHost(hostname)) return;
 
-  if (isAllowedPlatformPath(pathname)) return;
-
-  const params = new URLSearchParams(search);
-  if (params.has('access_token')) return;
-
-  import('@/lib/native-google-oauth').then(({ openLoginInSystemBrowser }) => {
-    openLoginInSystemBrowser();
-  });
+  window.location.replace(RESTOREBRAINE_FROM_URL);
 };
 
 export const hideBase44EditorWidget = () => {
@@ -75,8 +75,9 @@ export const interceptNativeSignInClicks = () => {
 
       event.preventDefault();
       event.stopPropagation();
+      const loginUrl = /google/i.test(label) ? getGoogleOAuthUrl() : getAppScopedLoginUrl();
       import('@/lib/native-google-oauth').then(({ openLoginInSystemBrowser }) => {
-        openLoginInSystemBrowser();
+        openLoginInSystemBrowser(loginUrl);
       });
     },
     true
@@ -88,7 +89,7 @@ export const guardGoogleOAuthInWebView = () => {
   if (/accounts\.google\.com/i.test(window.location.hostname)) {
     import('@/lib/native-google-oauth').then(({ openLoginInSystemBrowser }) => {
       window.history.length > 1 ? window.history.back() : window.location.replace(RESTOREBRAINE_FROM_URL);
-      openLoginInSystemBrowser();
+      openLoginInSystemBrowser(getGoogleOAuthUrl());
     });
   }
 };

@@ -1,5 +1,5 @@
 import { InAppBrowser } from '@capacitor/inappbrowser';
-import { getAppScopedLoginUrl, RESTOREBRAINE_FROM_URL } from '@/lib/native-platform-guard';
+import { getAppScopedLoginUrl, getGoogleOAuthUrl, RESTOREBRAINE_FROM_URL, isBase44PlatformHost } from '@/lib/native-platform-guard';
 import { persistSessionToNativeStorage } from '@/lib/session-bootstrap';
 import { isNativeShell } from '@/lib/native-hosted-redirect';
 
@@ -87,7 +87,7 @@ export const installLocationNavigationGuard = () => {
     const original = Location.prototype[method];
     Location.prototype[method] = function guardedNavigation(url) {
       if (isGoogleOAuthUrl(url)) {
-        openLoginInSystemBrowser(getAppScopedLoginUrl());
+        openLoginInSystemBrowser(getGoogleOAuthUrl());
         return;
       }
       return original.call(this, url);
@@ -105,7 +105,7 @@ export const installNativeGoogleOAuthBrowser = () => {
   window.open = function openWithSystemBrowser(url, target, features) {
     if (typeof url === 'string' && url.length > 0) {
       if (isGoogleOAuthUrl(url)) {
-        openLoginInSystemBrowser(getAppScopedLoginUrl());
+        openLoginInSystemBrowser(getGoogleOAuthUrl());
         return window;
       }
       window.location.assign(url);
