@@ -2,38 +2,42 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 const podspecPath = resolve('node_modules/@capgo/native-purchases/CapgoNativePurchases.podspec');
+const PATCH_MARKER = '# restorebraine-podspec-patch-v2';
 
 if (!existsSync(podspecPath)) {
   console.log('CapgoNativePurchases not installed — skipping podspec patch');
   process.exit(0);
 }
 
-let content = readFileSync(podspecPath, 'utf8');
+const content = readFileSync(podspecPath, 'utf8');
 
-if (content.includes('storekit_swift_flags = has_storekit_265_sdk?')) {
+if (content.includes(PATCH_MARKER)) {
   console.log('CapgoNativePurchases.podspec already patched');
   process.exit(0);
 }
 
-// Undo broken :: prefix patch if present.
-content = content.replace(
-  "'OTHER_SWIFT_FLAGS' => ::has_storekit_265_sdk? ? '$(inherited) -D STOREKIT_26_5' : '$(inherited)'",
-  "'OTHER_SWIFT_FLAGS' => has_storekit_265_sdk? ? '$(inherited) -D STOREKIT_26_5' : '$(inherited)'",
-);
+// CocoaPods evaluates podspecs in the Pod module context, so helper methods like
+// has_storekit_265_sdk? fail even when hoisted. Use the pre-8.4 podspec shape instead.
+const fixedPodspec = `require 'json'
+${PATCH_MARKER}
 
-const brokenInline = "'OTHER_SWIFT_FLAGS' => has_storekit_265_sdk? ? '$(inherited) -D STOREKIT_26_5' : '$(inherited)'";
-const fixedBlock = `'OTHER_SWIFT_FLAGS' => storekit_swift_flags`;
+package = JSON.parse(File.read(File.join(__dir__, 'package.json')))
 
-if (!content.includes(brokenInline)) {
-  console.log('CapgoNativePurchases.podspec unchanged — no StoreKit 26.5 block to patch');
-  process.exit(0);
-}
+Pod::Spec.new do |s|
+  s.name = 'CapgoNativePurchases'
+  s.version = package['version']
+  s.summary = package['description']
+  s.license = package['license']
+  s.homepage = package['repository']['url']
+  s.author = package['author']
+  s.source = { :git => package['repository']['url'], :tag => s.version.to_s }
+  s.source_files = 'ios/Sources/**/*.{swift,h,m,c,cc,mm,cpp}'
+  s.exclude_files = '**/node_modules/**/*', '**/examples/**/*'
+  s.ios.deployment_target = '15.0'
+  s.dependency 'Capacitor'
+  s.swift_version = '5.1'
+end
+`;
 
-content = content.replace(
-  'Pod::Spec.new do |s|',
-  `storekit_swift_flags = has_storekit_265_sdk? ? '$(inherited) -D STOREKIT_26_5' : '$(inherited)'\n\nPod::Spec.new do |s|`,
-);
-content = content.replace(brokenInline, fixedBlock);
-
-writeFileSync(podspecPath, content);
-console.log('Patched CapgoNativePurchases.podspec (hoist StoreKit flags before Pod::Spec.new)');
+writeFileSync(podspecPath, fixedPodspec);
+console.log('Patched CapgoNativePurchases.podspec (removed broken StoreKit 26.5 helper)');
