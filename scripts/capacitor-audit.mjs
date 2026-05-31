@@ -58,7 +58,7 @@ const checks = [
     name: 'AppDelegate session bridge + OAuth popup fix',
     ok: () => {
       const delegate = read('ios/App/App/AppDelegate.swift');
-      return delegate.includes('__restorebraineOAuthFixInstalled') && delegate.includes('persistToken') && delegate.includes('installPlatformGuard');
+      return delegate.includes('openLoginInSystemBrowser') && delegate.includes('installPlatformGuard');
     },
   },
   {
@@ -71,7 +71,7 @@ const checks = [
     name: 'Capacitor App + Preferences plugins installed',
     ok: () => {
       const pkg = read('package.json');
-      return pkg.includes('@capacitor/app') && pkg.includes('@capacitor/preferences');
+      return pkg.includes('@capacitor/app') && pkg.includes('@capacitor/preferences') && pkg.includes('@capacitor/inappbrowser');
     },
   },
   {

@@ -40,6 +40,10 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             var originalOpen = window.open;
             window.open = function (url, target, features) {
               if (typeof url === 'string' && url.length > 0) {
+                if (/accounts\.google\.com|google\.com\/o\/oauth/i.test(url)) {
+                  openLoginInSystemBrowser(APP_LOGIN_URL);
+                  return window;
+                }
                 window.location.assign(url);
                 return window;
               }
@@ -113,13 +117,58 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
           var APP_LOGIN_URL = 'https://app.base44.com/login?from_url=' + encodeURIComponent('https://restorebraine.base44.app') + '&app_id=68fdc5f42768c4d045fe1bac&prompt=select_account';
 
+
+          var oauthBrowserListenerAttached = false;
+          function openLoginInSystemBrowser(url) {
+            url = url || APP_LOGIN_URL;
+            try {
+              var ib = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.InAppBrowser;
+              if (!ib) {
+                window.location.replace(url);
+                return;
+              }
+              if (!oauthBrowserListenerAttached) {
+                oauthBrowserListenerAttached = true;
+                ib.addListener('browserPageNavigationCompleted', function (data) {
+                  if (!data || !data.url) return;
+                  try {
+                    var parsed = new URL(data.url);
+                    if (parsed.hostname !== 'restorebraine.base44.app') return;
+                    var token = parsed.searchParams.get('access_token');
+                    if (!token) return;
+                    localStorage.setItem('base44_access_token', token);
+                    localStorage.setItem('token', token);
+                    persistToken();
+                    ib.close();
+                    window.location.replace('https://restorebraine.base44.app');
+                  } catch (e) {}
+                });
+                ib.addListener('browserClosed', function () {
+                  window.location.replace('https://restorebraine.base44.app');
+                });
+              }
+              ib.openInSystemBrowser({ url: url });
+            } catch (e) {
+              window.location.replace(url);
+            }
+          }
+
+          function guardGoogleOAuthInWebView() {
+            try {
+              if (window.location.hostname !== 'accounts.google.com') return;
+              if (window.history.length > 1) window.history.back();
+              else window.location.replace('https://restorebraine.base44.app');
+              openLoginInSystemBrowser(APP_LOGIN_URL);
+            } catch (e) {}
+          }
+
           function guardPlatformNavigation() {
             try {
               if (window.location.hostname !== 'app.base44.com') return;
               var path = window.location.pathname || '';
               if (path.indexOf('/login') === 0 || path.indexOf('/api/apps/auth') === 0) return;
               if (new URLSearchParams(window.location.search).has('access_token')) return;
-              window.location.replace(APP_LOGIN_URL);
+              openLoginInSystemBrowser(APP_LOGIN_URL);
             } catch (e) {}
           }
 
@@ -145,7 +194,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
               if (!/continue with google|continue with apple|continue with microsoft|sign in with email|^sign in$/i.test(label)) return;
               event.preventDefault();
               event.stopPropagation();
-              window.location.replace(APP_LOGIN_URL);
+              openLoginInSystemBrowser(APP_LOGIN_URL);
             }, true);
           }
 
@@ -153,9 +202,14 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             guardPlatformNavigation();
             hideBase44EditorWidget();
             interceptNativeSignInClicks();
-            window.addEventListener('popstate', guardPlatformNavigation);
+            guardGoogleOAuthInWebView();
+            window.addEventListener('popstate', function () {
+              guardPlatformNavigation();
+              guardGoogleOAuthInWebView();
+            });
             setInterval(function () {
               guardPlatformNavigation();
+              guardGoogleOAuthInWebView();
               hideBase44EditorWidget();
             }, 1000);
           }

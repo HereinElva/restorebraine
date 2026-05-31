@@ -27,7 +27,9 @@ export const guardPlatformNavigation = () => {
   const params = new URLSearchParams(search);
   if (params.has('access_token')) return;
 
-  window.location.replace(getAppScopedLoginUrl());
+  import('@/lib/native-google-oauth').then(({ openLoginInSystemBrowser }) => {
+    openLoginInSystemBrowser();
+  });
 };
 
 export const hideBase44EditorWidget = () => {
@@ -60,7 +62,6 @@ export const interceptNativeSignInClicks = () => {
   if (typeof document === 'undefined' || window.__restorebraineSignInInterceptor) return;
   window.__restorebraineSignInInterceptor = true;
 
-  const loginUrl = getAppScopedLoginUrl();
   const pattern = /continue with google|continue with apple|continue with microsoft|sign in with email|^sign in$/i;
 
   document.addEventListener(
@@ -74,10 +75,22 @@ export const interceptNativeSignInClicks = () => {
 
       event.preventDefault();
       event.stopPropagation();
-      window.location.replace(loginUrl);
+      import('@/lib/native-google-oauth').then(({ openLoginInSystemBrowser }) => {
+        openLoginInSystemBrowser();
+      });
     },
     true
   );
+};
+
+export const guardGoogleOAuthInWebView = () => {
+  if (typeof window === 'undefined') return;
+  if (/accounts\.google\.com/i.test(window.location.hostname)) {
+    import('@/lib/native-google-oauth').then(({ openLoginInSystemBrowser }) => {
+      window.history.length > 1 ? window.history.back() : window.location.replace(RESTOREBRAINE_FROM_URL);
+      openLoginInSystemBrowser();
+    });
+  }
 };
 
 export const installNativePlatformGuard = () => {
@@ -87,10 +100,20 @@ export const installNativePlatformGuard = () => {
   guardPlatformNavigation();
   hideBase44EditorWidget();
   interceptNativeSignInClicks();
+  guardGoogleOAuthInWebView();
 
-  window.addEventListener('popstate', guardPlatformNavigation);
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') guardPlatformNavigation();
+  window.addEventListener('popstate', () => {
+    guardPlatformNavigation();
+    guardGoogleOAuthInWebView();
   });
-  setInterval(guardPlatformNavigation, 1000);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      guardPlatformNavigation();
+      guardGoogleOAuthInWebView();
+    }
+  });
+  setInterval(() => {
+    guardPlatformNavigation();
+    guardGoogleOAuthInWebView();
+  }, 1000);
 };
