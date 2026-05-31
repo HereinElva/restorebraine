@@ -4,6 +4,8 @@ export const isNativeShell = () => {
   try {
     return typeof window !== 'undefined' && (
       window.Capacitor?.isNativePlatform?.() ||
+      window.__RESTOREBRAINE_NATIVE_BUILD__ ||
+      window.__restorebraineSessionBridgeInstalled ||
       window.location?.protocol === 'capacitor:' ||
       window.location?.protocol === 'ionic:'
     );

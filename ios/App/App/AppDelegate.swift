@@ -162,7 +162,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
           function guardSignedOutLoginPage() {
             try {
-              if (!isSignedOut()) return;
+              if (window.location.hostname !== 'restorebraine.base44.app') return;
               var path = (window.location.pathname || '/').replace(/\/$/, '') || '/';
               if (path === '/login') {
                 window.location.replace(RESTOREBRAINE + '/');
@@ -638,6 +638,26 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             if (titleNode) fixLoginLogoNearTitle(titleNode);
           }
 
+
+          function fixLoginLogoAboveTitle(title) {
+            if (!title) return;
+            var card = title.closest('div');
+            if (!card) return;
+            card.querySelectorAll('div, img, svg, span').forEach(function (el) {
+              if (el === title || title.contains(el) || el.contains(title)) return;
+              if (el.querySelector('img[data-rb-logo="1"]')) return;
+              if (el.querySelector('button, form, input, textarea, a[href*="auth"]')) return;
+              var rect = el.getBoundingClientRect();
+              if (rect.width < 36 || rect.width > 140 || rect.height < 36 || rect.height > 140) return;
+              if (!(title.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_PRECEDING)) return;
+              var style = window.getComputedStyle ? window.getComputedStyle(el) : null;
+              var hasGradient = style && (style.backgroundImage !== 'none' || /gradient/i.test(style.background || ''));
+              var hasSvg = el.querySelector('svg') || el.tagName === 'SVG';
+              var hasImg = el.querySelector('img') || el.tagName === 'IMG';
+              if (hasGradient || hasSvg || hasImg) replaceLoginLogoContainer(el);
+            });
+          }
+
           function fixRestorebraineBranding() {
             try {
               var stamp = document.getElementById('rb-native-stamp');
@@ -666,6 +686,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
               fixLoginPageByWelcomeTagline();
               var title = findRestorebraineTitle();
               fixLoginLogoNearTitle(title);
+              fixLoginLogoAboveTitle(title);
 
               if (/\/login/i.test(window.location.pathname)) {
                 document.querySelectorAll('div').forEach(function (div) {
@@ -688,7 +709,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
               if (!document.getElementById('rb-hide-base44')) {
                 var style = document.createElement('style');
                 style.id = 'rb-hide-base44';
-                style.textContent = '#base44-edit-badge, #base44-modal-overlay, [id*="base44-edit"], [id*="base44-modal"], [href*="app.base44.com"], iframe[src*="base44"], script[src*="badge.js"] { display:none !important; visibility:hidden !important; opacity:0 !important; pointer-events:none !important; max-height:0 !important; overflow:hidden !important; }';
+                style.textContent = '#base44-edit-badge, #base44-modal-overlay, [id*="base44-edit"], [id*="base44-modal"], [class*="base44-edit"], [data-base44], [href*="app.base44.com"], iframe[src*="base44"], script[src*="badge.js"] { display:none !important; visibility:hidden !important; opacity:0 !important; pointer-events:none !important; max-height:0 !important; overflow:hidden !important; }';
                 (document.head || document.documentElement).appendChild(style);
               }
               document.querySelectorAll('button, a, div, span, iframe, p').forEach(function (node) {

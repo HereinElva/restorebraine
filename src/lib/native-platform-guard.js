@@ -80,7 +80,7 @@ export const isAuthLogoutUrl = (url) => {
 export const guardSignedOutLoginPage = () => {
   if (typeof window === 'undefined') return;
   try {
-    if (localStorage.getItem('b44_signed_out') !== '1') return;
+    if (window.location.hostname !== 'restorebraine.base44.app') return;
     const path = window.location.pathname.replace(/\/$/, '') || '/';
     if (path === '/login') {
       window.location.replace(`${RESTOREBRAINE_FROM_URL}/`);
