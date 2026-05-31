@@ -143,7 +143,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             if (!url) return false;
             try {
               var parsed = new URL(String(url), window.location.href);
-              return /\/api\/apps\/auth\/logout/i.test(parsed.pathname);
+              return /\\/api\\/apps\\/auth\\/logout/i.test(parsed.pathname);
             } catch (e) {}
             return false;
           }
@@ -151,7 +151,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
           function guardSignedOutLoginPage() {
             try {
               if (!isSignedOut()) return;
-              var path = (window.location.pathname || '/').replace(/\/$/, '') || '/';
+              var path = (window.location.pathname || '/').replace(/\\/$/, '') || '/';
               if (path === '/login') {
                 window.location.replace(RESTOREBRAINE + '/');
               }
@@ -589,7 +589,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             var subtitle = null;
             document.querySelectorAll('p, span, h1, h2, div').forEach(function (node) {
               if (subtitle) return;
-              var text = (node.textContent || '').replace(/\s+/g, ' ').trim();
+              var text = (node.textContent || '').replace(/\\s+/g, ' ').trim();
               if (/sign in to continue/i.test(text) && text.length < 80) subtitle = node;
             });
             if (!subtitle) return;
