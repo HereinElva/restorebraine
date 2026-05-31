@@ -156,10 +156,18 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             return null;
           }
 
-          function saveToken(token) {
-            if (!token || isSignedOut()) return false;
+          function clearSignedOutFlag() {
             try {
               localStorage.removeItem(SIGNED_OUT_KEY);
+              var prefs = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Preferences;
+              if (prefs) prefs.remove({ key: SIGNED_OUT_KEY });
+            } catch (e) {}
+          }
+
+          function saveToken(token) {
+            if (!token) return false;
+            try {
+              clearSignedOutFlag();
               localStorage.setItem('base44_access_token', token);
               localStorage.setItem('token', token);
               persistToken();
@@ -204,7 +212,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                   if (flag && flag.value === '1') return;
                   var syncToken = '\(escapedToken)';
                   if (syncToken) {
-                    saveToken(syncToken);
+                    if (!isSignedOut()) saveToken(syncToken);
                     return;
                   }
                   prefs.get({ key: 'base44_access_token' }).then(function (result) {
@@ -215,7 +223,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                 return;
               }
               var syncToken = '\(escapedToken)';
-              if (syncToken) saveToken(syncToken);
+              if (syncToken && !isSignedOut()) saveToken(syncToken);
             } catch (e) {}
           }
 

@@ -7,17 +7,17 @@ const TOKEN_KEYS = ['base44_access_token', 'token'];
 const SIGNED_OUT_KEY = 'b44_signed_out';
 
 export const restoreSessionFromNativeStorage = async () => {
-  try {
-    if (typeof window !== 'undefined' && localStorage.getItem(SIGNED_OUT_KEY) === '1') return null;
-  } catch {}
-  const signedOut = await persistentStorage.get(SIGNED_OUT_KEY);
-  if (signedOut === '1') return null;
-
   const urlToken = captureAccessTokenFromUrl();
   if (urlToken) {
     await persistSessionToNativeStorage(urlToken);
     return urlToken;
   }
+
+  try {
+    if (typeof window !== 'undefined' && localStorage.getItem(SIGNED_OUT_KEY) === '1') return null;
+  } catch {}
+  const signedOut = await persistentStorage.get(SIGNED_OUT_KEY);
+  if (signedOut === '1') return null;
 
   for (const key of TOKEN_KEYS) {
     const storedToken = await persistentStorage.get(key);
@@ -82,18 +82,13 @@ export const installNativeSessionPersistence = async () => {
 
 export const persistSessionToNativeStorage = async (token) => {
   if (!token) return;
-  try {
-    if (typeof window !== 'undefined' && localStorage.getItem(SIGNED_OUT_KEY) === '1') return;
-  } catch {}
-  const signedOut = await persistentStorage.get(SIGNED_OUT_KEY);
-  if (signedOut === '1') return;
+  await persistentStorage.remove(SIGNED_OUT_KEY);
+  try { localStorage.removeItem(SIGNED_OUT_KEY); } catch {}
   appParams.token = token;
   base44.auth.setToken(token, false);
   persistentStorage._mirror('base44_access_token', token);
   persistentStorage._mirror('token', token);
   await Promise.all(TOKEN_KEYS.map((key) => persistentStorage.set(key, token)));
-  await persistentStorage.remove(SIGNED_OUT_KEY);
-  try { localStorage.removeItem(SIGNED_OUT_KEY); } catch {}
 };
 
 export const clearNativeSession = async () => {
