@@ -7,6 +7,7 @@ import { ArrowLeft, Trash2, AlertTriangle, LogOut } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useNavigation } from "@/components/NavigationContext";
+import { WEB_BUILD_LABEL } from "@/lib/build-info";
 
 export default function Account() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -21,7 +22,6 @@ export default function Account() {
     queryFn: () => base44.auth.me(),
   });
 
-  // Clear any stale Gallery folder back-state when viewing Account tab
   useEffect(() => {
     popBack();
   }, [popBack]);
@@ -56,12 +56,7 @@ export default function Account() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 py-12">
       <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8">
-        <Button
-          type="button"
-          variant="ghost"
-          className="mb-6"
-          onClick={goToGallery}
-        >
+        <Button type="button" variant="ghost" className="mb-6" onClick={goToGallery}>
           <ArrowLeft className="w-4 h-4 mr-2" />
           Back to Gallery
         </Button>
@@ -98,6 +93,7 @@ export default function Account() {
             </div>
           </div>
         </div>
+        <p className="text-center text-xs text-gray-400 mt-6">{WEB_BUILD_LABEL}</p>
       </div>
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>
