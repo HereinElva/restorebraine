@@ -1,19 +1,21 @@
 import React from "react";
 import { ArrowLeft } from "lucide-react";
-import { Link } from "react-router-dom";
-import { createPageUrl } from "@/utils";
+import { useNavigate } from "react-router-dom";
 
 export default function PrivacyPolicy() {
+  const navigate = useNavigate();
+
   return (
     <div className="min-h-screen pb-20">
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 pt-12">
-        <Link 
-          to={createPageUrl("Gallery")} 
+        <button
+          type="button"
+          onClick={() => navigate('/')}
           className="inline-flex items-center gap-2 text-purple-600 hover:text-purple-700 mb-8"
         >
           <ArrowLeft className="w-4 h-4" />
           Back to Gallery
-        </Link>
+        </button>
 
         <h1 className="text-4xl font-bold text-gray-900 mb-2">Privacy Policy</h1>
         <p className="text-gray-500 mb-8">Last Updated: December 3, 2025</p>

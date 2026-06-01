@@ -58,6 +58,12 @@ function LayoutInner({ children, currentPageName }) {
     }
   };
 
+  // Clear stale Gallery folder back-state when switching to another tab
+  useEffect(() => {
+    const onGallery = location.pathname === '/' || location.pathname.toLowerCase() === '/gallery';
+    if (!onGallery) popBack();
+  }, [location.pathname, popBack]);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
       <style>{`
@@ -89,11 +95,9 @@ function LayoutInner({ children, currentPageName }) {
             {/* Centered brand logo — hide when back button is shown to avoid overlap */}
             <div className={`flex-1 flex justify-center ${backState ? 'invisible' : ''}`}>
               <Link to={createPageUrl("Gallery")} className="flex items-center gap-2 select-none group">
-                <img
-                  src={RESTOREBRAINE_APP_LOGO}
-                  alt="Restorebraine"
-                  className="w-8 h-8 rounded-xl object-cover transform group-hover:scale-105 transition-transform duration-200 shadow-md"
-                />
+                <div className="w-8 h-8 bg-gradient-to-br from-blue-300 to-purple-400 rounded-xl flex items-center justify-center transform group-hover:scale-105 transition-transform duration-200 shadow-md">
+                  <Search className="w-4 h-4 text-white" />
+                </div>
                 <span className="text-lg font-semibold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent select-none">
                   Restorebraine
                 </span>

@@ -1,17 +1,19 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { useAuth } from "@/lib/AuthContext";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Trash2, AlertTriangle, LogOut } from "lucide-react";
-import { Link } from "react-router-dom";
-import { createPageUrl } from "@/utils";
+import { useNavigate } from "react-router-dom";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { useNavigation } from "@/components/NavigationContext";
 
 export default function Account() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const { popBack } = useNavigation();
   const { localLogout } = useAuth();
 
   const { data: user } = useQuery({
@@ -19,12 +21,22 @@ export default function Account() {
     queryFn: () => base44.auth.me(),
   });
 
+  // Clear any stale Gallery folder back-state when viewing Account tab
+  useEffect(() => {
+    popBack();
+  }, [popBack]);
+
   const handleLogout = () => {
     queryClient.clear();
     if (typeof window !== 'undefined' && window.__restorebraineClearSession) {
       window.__restorebraineClearSession();
     }
     localLogout();
+  };
+
+  const goToGallery = () => {
+    popBack();
+    navigate('/');
   };
 
   const handleDeleteAccount = async () => {
@@ -44,12 +56,15 @@ export default function Account() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 py-12">
       <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8">
-        <Link to={createPageUrl("Gallery")}>
-          <Button variant="ghost" className="mb-6">
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Gallery
-          </Button>
-        </Link>
+        <Button
+          type="button"
+          variant="ghost"
+          className="mb-6"
+          onClick={goToGallery}
+        >
+          <ArrowLeft className="w-4 h-4 mr-2" />
+          Back to Gallery
+        </Button>
         <div className="bg-white rounded-2xl shadow-lg p-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-6">Account Settings</h1>
           {user && (
@@ -58,12 +73,12 @@ export default function Account() {
               <p className="font-medium text-gray-900">{user.email}</p>
             </div>
           )}
-          <div className="mb-6 p-4 bg-gray-50 border border-gray-200 rounded-lg flex items-center justify-between" data-rb-sign-out-row>
+          <div className="mb-6 p-4 bg-gray-50 border border-gray-200 rounded-lg flex items-center justify-between">
             <div>
               <h3 className="font-semibold text-gray-900">Sign Out</h3>
               <p className="text-sm text-gray-600 mt-0.5">Sign out of your Restorebraine account</p>
             </div>
-            <Button onClick={handleLogout} variant="outline" className="gap-2 border-gray-300" data-rb-sign-out>
+            <Button onClick={handleLogout} variant="outline" className="gap-2 border-gray-300">
               <LogOut className="w-4 h-4" />
               Sign Out
             </Button>

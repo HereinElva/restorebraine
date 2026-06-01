@@ -18,8 +18,55 @@ import { DragDropContext } from "@hello-pangea/dnd";
 import { useNavigation } from "../components/NavigationContext";
 import { useTabState } from "../components/TabStateContext";
 import MobileGallery from "../components/gallery/MobileGallery";
-import { filterAndRankPhotos } from "@/lib/media-search";
-
+ 
+// ---------------------------------------------------------------------------
+// Search helpers
+// ---------------------------------------------------------------------------
+ 
+const VIDEO_KEYWORDS = new Set(['video', 'videos']);
+const IMAGE_KEYWORDS = new Set(['picture', 'pictures', 'image', 'images', 'photo', 'photos']);
+ 
+function tokenise(str = '') {
+  return str
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter(Boolean);
+}
+ 
+function scorePhoto(photo, rawQuery) {
+  const queryTokens = tokenise(rawQuery);
+  if (queryTokens.length === 0) return 1;
+ 
+  const typeTokens = queryTokens.filter(t => VIDEO_KEYWORDS.has(t) || IMAGE_KEYWORDS.has(t));
+  const contentTokens = queryTokens.filter(t => !VIDEO_KEYWORDS.has(t) && !IMAGE_KEYWORDS.has(t));
+ 
+  if (typeTokens.some(t => VIDEO_KEYWORDS.has(t)) && photo.file_type !== 'video') return 0;
+  if (typeTokens.some(t => IMAGE_KEYWORDS.has(t)) && photo.file_type !== 'image') return 0;
+  if (contentTokens.length === 0) return 1;
+ 
+  const desc = (photo.ai_description || '').toLowerCase();
+  const tags = (photo.ai_tags || []).map(t => t.toLowerCase());
+  const tagText = tags.join(' ');
+ 
+  let score = 0;
+  for (const term of contentTokens) {
+    const inDesc = desc.includes(term);
+    const inTags = tagText.includes(term);
+    if (!inDesc && !inTags) return 0;
+    if (inTags) score += 3;
+    if (inDesc) score += 1;
+  }
+ 
+  const phrase = contentTokens.join(' ');
+  if (desc.includes(phrase)) score += 10;
+  const allInTags = contentTokens.every(t => tags.some(tag => tag.includes(t)));
+  if (allInTags) score += 5;
+ 
+  return score;
+}
+ 
+// ---------------------------------------------------------------------------
 // Cache durations
 // staleTime: show cached data immediately, re-fetch in background after this
 // gcTime:    keep data in memory for this long after component unmounts
@@ -63,6 +110,7 @@ export default function Gallery() {
     } else {
       popBack();
     }
+    return () => popBack();
   }, [selectedFolder?.id]);
  
   // ── Queries with stale-while-revalidate caching ──────────────────────────
