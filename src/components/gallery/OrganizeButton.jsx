@@ -14,9 +14,12 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { reanalyzeWeakPhotos } from "@/lib/media-analysis";
+import { isWeakMetadata } from "@/lib/media-tags";
 import {
-  ORGANIZE_LABEL_RULES,
   buildFolderOptions,
+  buildLabelPrompt,
+  buildMergePrompt,
   photoDataForOrganize,
 } from "@/lib/media-organize";
 
@@ -37,32 +40,12 @@ async function runConcurrent(tasks, concurrency) {
   return results;
 }
 
-// PHASE 1 — label each photo with a canonical folder name OR an existing folder name
 async function labelChunk(chunk, existingFolderNames, customInstructions) {
   const photoData = chunk.map(photoDataForOrganize);
-  const allFolderOptions = buildFolderOptions(existingFolderNames);
+  const folderOptions = buildFolderOptions(existingFolderNames);
 
   const result = await base44.integrations.Core.InvokeLLM({
-    prompt: `You organize a searchable photo/video library by PHYSICAL VISUAL CONTENT.
-
-Label each item with the best folder based on what it looks like — descriptions and tags describe visible objects, settings, colors, and activities.
-
-AVAILABLE FOLDERS (prefer existing ones when content matches):
-${allFolderOptions.map(n => `- "${n}"`).join('\n')}
-
-${ORGANIZE_LABEL_RULES}
-
-RULES:
-- Prefer an EXISTING folder name if the photo clearly fits it.
-- Only use a canonical fallback if no existing folder fits.
-- Use EXACTLY the names listed above. Do not invent new names.
-- Every item MUST get a label. Return exactly ${photoData.length} labels.
-- Group by similar visible subjects (e.g. grass fields, meadows, pastures → Nature & Landscapes).
-${customInstructions ? `\nUSER INSTRUCTIONS: ${customInstructions}` : ''}
-
-Items: ${JSON.stringify(photoData)}
-
-Return JSON with a "labels" array of exactly ${photoData.length} objects, each with "id" and "folder".`,
+    prompt: buildLabelPrompt({ photoData, folderOptions, customInstructions }),
     response_json_schema: {
       type: "object",
       properties: {
@@ -83,35 +66,9 @@ Return JSON with a "labels" array of exactly ${photoData.length} objects, each w
   return result.labels || [];
 }
 
-// PHASE 2 — merge a batch of groups, collapsing near-duplicates
 async function mergeGroupBatch(groups, existingFolderNames, customInstructions) {
   const result = await base44.integrations.Core.InvokeLLM({
-    prompt: `Consolidate these photo folder groups. Merge duplicates and near-duplicates aggressively.
-
-EXISTING FOLDER NAMES (prefer keeping these names when merging):
-${existingFolderNames.map(n => `- "${n}"`).join('\n')}
-
-MERGE RULES:
-- "quote", "quotes", "saying", "inspiration", "text screenshot", "motivational" → "Quotes & Text Screenshots"
-- "food", "dining", "restaurant", "meal", "eating", "cuisine", "drink" → "Food & Dining"
-- "people", "portrait", "person", "selfie", "face", "family", "friends" → "People & Portraits"
-- "nature", "landscape", "scenery", "sky", "forest", "beach", "mountain" → "Nature & Landscapes"
-- "artwork", "art", "illustration", "painting", "drawing", "cartoon", "anime" → "Artwork & Illustrations"
-- "travel", "landmark", "vacation", "trip", "city", "tourist" → "Travel & Landmarks"
-- "celebration", "party", "birthday", "wedding", "event", "holiday" → "Celebrations & Events"
-- "home", "indoor", "room", "house", "interior", "living", "bedroom", "kitchen" → "Home & Indoor"
-- "animal", "pet", "dog", "cat", "bird", "wildlife" → "Animals & Pets"
-- "sport", "sports", "gym", "fitness", "exercise", "workout" → "Outdoor Activities"
-- anything else → "Miscellaneous"
-- When an existing folder name matches the merge target, use the existing folder name exactly.
-- Merge aggressively — aim for 5–12 folders total.
-
-CRITICAL: Every photo ID in the input MUST appear in the output exactly once.
-${customInstructions ? `\nUSER INSTRUCTIONS: ${customInstructions}` : ''}
-
-Groups: ${JSON.stringify(groups)}
-
-Return JSON with a "folders" array, each having "name" and "ids".`,
+    prompt: buildMergePrompt({ groups, existingFolderNames, customInstructions }),
     response_json_schema: {
       type: "object",
       properties: {
@@ -129,7 +86,7 @@ Return JSON with a "folders" array, each having "name" and "ids".`,
     },
   });
 
-  return (result.folders || []).map(f => ({ name: f.name, ids: f.ids || [] }));
+  return (result.folders || []).map((f) => ({ name: f.name, ids: f.ids || [] }));
 }
 
 async function consolidateGroups(initialGroups, existingFolderNames, customInstructions, onProgress) {
@@ -143,7 +100,7 @@ async function consolidateGroups(initialGroups, existingFolderNames, customInstr
       batches.push(groups.slice(i, i + MERGE_CHUNK));
     }
     const batchResults = await runConcurrent(
-      batches.map(batch => () => mergeGroupBatch(batch, existingFolderNames, customInstructions)),
+      batches.map((batch) => () => mergeGroupBatch(batch, existingFolderNames, customInstructions)),
       CONCURRENCY
     );
     const merged = new Map();
@@ -151,10 +108,10 @@ async function consolidateGroups(initialGroups, existingFolderNames, customInstr
       for (const { name, ids } of batch) {
         const key = name.toLowerCase().trim();
         if (!merged.has(key)) merged.set(key, { name, ids: new Set(ids) });
-        else ids.forEach(id => merged.get(key).ids.add(id));
+        else ids.forEach((id) => merged.get(key).ids.add(id));
       }
     }
-    groups = Array.from(merged.values()).map(g => ({ name: g.name, ids: [...g.ids] }));
+    groups = Array.from(merged.values()).map((g) => ({ name: g.name, ids: [...g.ids] }));
     pass++;
   }
 
@@ -165,10 +122,10 @@ async function consolidateGroups(initialGroups, existingFolderNames, customInstr
   for (const { name, ids } of finalGroups) {
     const key = name.toLowerCase().trim();
     if (!finalMap.has(key)) finalMap.set(key, { name, ids: new Set(ids) });
-    else ids.forEach(id => finalMap.get(key).ids.add(id));
+    else ids.forEach((id) => finalMap.get(key).ids.add(id));
   }
 
-  return Array.from(finalMap.values()).map(g => ({
+  return Array.from(finalMap.values()).map((g) => ({
     name: g.name,
     photo_ids: [...g.ids],
   }));
@@ -180,7 +137,10 @@ export default function OrganizeButton({ photos, squareStyle = false }) {
   const [showDialog, setShowDialog] = useState(false);
   const [customInstructions, setCustomInstructions] = useState("");
   const [includeOrganized, setIncludeOrganized] = useState(false);
+  const [sharpenTags, setSharpenTags] = useState(true);
   const queryClient = useQueryClient();
+
+  const weakCount = photos.filter(isWeakMetadata).length;
 
   const handleOrganize = async () => {
     if (photos.length < 2) {
@@ -193,33 +153,39 @@ export default function OrganizeButton({ photos, squareStyle = false }) {
 
     try {
       const existingFolders = await base44.entities.Folder.list();
-      const organizedPhotoIds = new Set(existingFolders.flatMap(f => f.photo_ids || []));
-      const existingFolderNames = existingFolders.map(f => f.name);
+      const organizedPhotoIds = new Set(existingFolders.flatMap((f) => f.photo_ids || []));
+      const existingFolderNames = existingFolders.map((f) => f.name);
 
-      // Determine which photos to process
-      const photosToOrganize = includeOrganized
+      let photosToOrganize = includeOrganized
         ? photos
-        : photos.filter(p => !organizedPhotoIds.has(p.id));
+        : photos.filter((p) => !organizedPhotoIds.has(p.id));
 
       if (photosToOrganize.length < 2) {
-        alert(photosToOrganize.length === 0
-          ? "All photos are already in folders. Check 'Include existing' to re-organize."
-          : "Only 1 loose photo found — need at least 2 to organize.");
+        alert(
+          photosToOrganize.length === 0
+            ? "All photos are already in folders. Check 'Re-organize everything' to re-sort."
+            : "Only 1 loose photo found — need at least 2 to organize."
+        );
         setOrganizing(false);
         return;
       }
 
-      // When re-organizing everything, delete existing folders first so we
-      // start clean and consolidate properly
       if (includeOrganized && existingFolders.length > 0) {
         setProgress(`Clearing ${existingFolders.length} existing folders for re-organization…`);
         await runConcurrent(
-          existingFolders.map(f => () => base44.entities.Folder.delete(f.id)),
+          existingFolders.map((f) => () => base44.entities.Folder.delete(f.id)),
           5
         );
       }
 
-      // ── PHASE 1: label every photo ─────────────────────────────────────────
+      if (sharpenTags) {
+        const weakInBatch = photosToOrganize.filter(isWeakMetadata).length;
+        if (weakInBatch > 0) {
+          setProgress(`Sharpening visual tags for ${weakInBatch} item${weakInBatch !== 1 ? "s" : ""}…`);
+          photosToOrganize = await reanalyzeWeakPhotos(photosToOrganize, { onProgress: setProgress });
+        }
+      }
+
       const chunks = [];
       for (let i = 0; i < photosToOrganize.length; i += CHUNK_SIZE) {
         chunks.push(photosToOrganize.slice(i, i + CHUNK_SIZE));
@@ -227,11 +193,16 @@ export default function OrganizeButton({ photos, squareStyle = false }) {
 
       const totalChunks = chunks.length;
       let completedChunks = 0;
-      setProgress(`Phase 1: labelling ${photosToOrganize.length} item${photosToOrganize.length !== 1 ? 's' : ''} (${totalChunks} batch${totalChunks !== 1 ? 'es' : ''})…`);
+      setProgress(
+        `Phase 1: labelling ${photosToOrganize.length} item${photosToOrganize.length !== 1 ? "s" : ""} (${totalChunks} batch${totalChunks !== 1 ? "es" : ""})…`
+      );
 
-      const labelTasks = chunks.map(chunk => async () => {
-        // Pass existing folder names so AI can sort into them directly
-        const labels = await labelChunk(chunk, includeOrganized ? [] : existingFolderNames, customInstructions);
+      const labelTasks = chunks.map((chunk) => async () => {
+        const labels = await labelChunk(
+          chunk,
+          includeOrganized ? [] : existingFolderNames,
+          customInstructions
+        );
         completedChunks++;
         setProgress(`Phase 1: ${completedChunks}/${totalChunks} batches done…`);
         return labels;
@@ -240,28 +211,25 @@ export default function OrganizeButton({ photos, squareStyle = false }) {
       const labelResults = await runConcurrent(labelTasks, CONCURRENCY);
       const allLabels = labelResults.flat();
 
-      // Safety net — unlabelled photos → Miscellaneous
-      const labelledIds = new Set(allLabels.map(l => l.id));
+      const labelledIds = new Set(allLabels.map((l) => l.id));
       for (const photo of photosToOrganize) {
         if (!labelledIds.has(photo.id)) {
-          allLabels.push({ id: photo.id, folder: 'Miscellaneous' });
+          allLabels.push({ id: photo.id, folder: "Miscellaneous" });
         }
       }
 
-      // Build initial groups
       const groupMap = new Map();
       for (const { id, folder } of allLabels) {
-        const display = (folder || 'Miscellaneous').trim();
+        const display = (folder || "Miscellaneous").trim();
         const key = display.toLowerCase();
         if (!groupMap.has(key)) groupMap.set(key, { name: display, ids: new Set() });
         groupMap.get(key).ids.add(id);
       }
-      const initialGroups = Array.from(groupMap.values()).map(g => ({
+      const initialGroups = Array.from(groupMap.values()).map((g) => ({
         name: g.name,
         ids: [...g.ids],
       }));
 
-      // ── PHASE 2: consolidate groups ────────────────────────────────────────
       const finalFolders = await consolidateGroups(
         initialGroups,
         includeOrganized ? [] : existingFolderNames,
@@ -269,16 +237,14 @@ export default function OrganizeButton({ photos, squareStyle = false }) {
         setProgress
       );
 
-      // ── Save: merge into existing folders or create new ones ───────────────
       setProgress(`Saving ${finalFolders.length} folders…`);
 
-      // Re-fetch folders in case we deleted them above
       const currentFolders = includeOrganized ? [] : existingFolders;
 
       const seenThisRun = new Set();
       const foldersToSave = [];
       for (const folder of finalFolders) {
-        const uniqueIds = (folder.photo_ids || []).filter(id => {
+        const uniqueIds = (folder.photo_ids || []).filter((id) => {
           if (seenThisRun.has(id)) return false;
           seenThisRun.add(id);
           return true;
@@ -288,24 +254,23 @@ export default function OrganizeButton({ photos, squareStyle = false }) {
         }
       }
 
-      const folderTasks = foldersToSave.map(folder => async () => {
-        // Try to match an existing folder by name
+      const folderTasks = foldersToSave.map((folder) => async () => {
         const matchingFolder = currentFolders.find(
-          f => f.name.toLowerCase() === folder.name.toLowerCase()
+          (f) => f.name.toLowerCase() === folder.name.toLowerCase()
         );
 
         if (matchingFolder) {
-          // Merge new photos into the existing folder
           const mergedIds = [...new Set([...(matchingFolder.photo_ids || []), ...folder.photo_ids])];
-          const coverPhoto = !matchingFolder.cover_photo_url && mergedIds.length > 0
-            ? photos.find(p => p.id === mergedIds[0]) : null;
+          const coverPhoto =
+            !matchingFolder.cover_photo_url && mergedIds.length > 0
+              ? photos.find((p) => p.id === mergedIds[0])
+              : null;
           await base44.entities.Folder.update(matchingFolder.id, {
             photo_ids: mergedIds,
             ...(coverPhoto && { cover_photo_url: coverPhoto.file_url }),
           });
         } else {
-          // Create a new folder
-          const coverPhoto = photos.find(p => p.id === folder.photo_ids[0]);
+          const coverPhoto = photos.find((p) => p.id === folder.photo_ids[0]);
           await base44.entities.Folder.create({
             name: folder.name,
             description: "",
@@ -321,15 +286,16 @@ export default function OrganizeButton({ photos, squareStyle = false }) {
       const missed = photosToOrganize.length - totalSaved;
 
       setProgress("");
-      queryClient.invalidateQueries({ queryKey: ['folders'] });
-      queryClient.invalidateQueries({ queryKey: ['photos'] });
+      queryClient.invalidateQueries({ queryKey: ["folders"] });
+      queryClient.invalidateQueries({ queryKey: ["photos"] });
 
       if (foldersToSave.length === 0) {
         alert("No groups found to organize.");
       } else if (missed > 0) {
-        alert(`Done! ${totalSaved} of ${photosToOrganize.length} items organized into ${foldersToSave.length} folders. ${missed} items had no clear group — press Organize again to retry.`);
+        alert(
+          `Done! ${totalSaved} of ${photosToOrganize.length} items organized into ${foldersToSave.length} folders. ${missed} items had no clear group — press Organize again to retry.`
+        );
       }
-
     } catch (error) {
       console.error("Error organizing:", error);
       alert(error?.message || "Failed to organize photos. Please try again.");
@@ -346,7 +312,7 @@ export default function OrganizeButton({ photos, squareStyle = false }) {
           <DialogHeader>
             <DialogTitle>Organize Media</DialogTitle>
             <DialogDescription>
-              AI groups your photos and videos by what they look like — similar physical content goes into the same folder
+              AI groups photos and videos by what they look like — grass fields, beaches, pets, food, and more
             </DialogDescription>
           </DialogHeader>
 
@@ -360,16 +326,32 @@ export default function OrganizeButton({ photos, squareStyle = false }) {
               </Label>
               <Textarea
                 id="instructions"
-                placeholder="e.g., 'Group by month and year' or 'Keep vacation photos separate' or 'Focus on organizing by people' or 'Consolidate similar folders'"
+                placeholder="e.g., 'Group by month and year' or 'Keep vacation photos separate' or 'Put all grass and field photos together'"
                 value={customInstructions}
                 onChange={(e) => {
                   const value = e.target.value;
                   setCustomInstructions(value);
-                  const needsOrganized = value.toLowerCase().match(/\b(consolidate|merge|combine|take all folders|move folders|reorganize folders)\b/);
+                  const needsOrganized = value
+                    .toLowerCase()
+                    .match(/\b(consolidate|merge|combine|take all folders|move folders|reorganize folders)\b/);
                   if (needsOrganized && !includeOrganized) setIncludeOrganized(true);
                 }}
                 className="min-h-[100px]"
               />
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="sharpen-tags"
+                checked={sharpenTags}
+                onCheckedChange={setSharpenTags}
+              />
+              <Label htmlFor="sharpen-tags" className="text-sm font-normal cursor-pointer">
+                Sharpen visual tags before organizing
+                {weakCount > 0 && (
+                  <span className="text-gray-500 ml-1">({weakCount} item{weakCount !== 1 ? "s" : ""} need better tags)</span>
+                )}
+              </Label>
             </div>
 
             <div className="flex items-center space-x-2">
@@ -385,13 +367,15 @@ export default function OrganizeButton({ photos, squareStyle = false }) {
 
             {includeOrganized && (
               <p className="text-xs text-orange-600 font-medium ml-6">
-                ⚠️ This will delete all existing folders and rebuild them. Your photos won't be deleted.
+                ⚠️ This will delete all existing folders and rebuild them. Your photos won&apos;t be deleted.
               </p>
             )}
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowDialog(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setShowDialog(false)}>
+              Cancel
+            </Button>
             <Button
               onClick={handleOrganize}
               className="bg-gradient-to-r from-blue-400 to-purple-500 hover:from-blue-500 hover:to-purple-600"
@@ -410,10 +394,12 @@ export default function OrganizeButton({ photos, squareStyle = false }) {
             disabled={organizing || photos.length < 2}
             className="w-full flex flex-col items-center justify-center gap-1.5 py-4 rounded-2xl bg-white text-gray-700 border border-gray-100 shadow-sm text-sm font-semibold disabled:opacity-50"
           >
-            {organizing
-              ? <Loader2 className="w-5 h-5 animate-spin text-purple-500" />
-              : <Sparkles className="w-5 h-5 text-purple-500" />}
-            <span>{organizing ? 'Organizing...' : 'Organize Media'}</span>
+            {organizing ? (
+              <Loader2 className="w-5 h-5 animate-spin text-purple-500" />
+            ) : (
+              <Sparkles className="w-5 h-5 text-purple-500" />
+            )}
+            <span>{organizing ? "Organizing..." : "Organize Media"}</span>
           </button>
         ) : (
           <Button
@@ -422,9 +408,15 @@ export default function OrganizeButton({ photos, squareStyle = false }) {
             className="bg-gradient-to-r from-blue-400 to-purple-500 hover:from-blue-500 hover:to-purple-600 text-white gap-2"
           >
             {organizing ? (
-              <><Loader2 className="w-4 h-4 animate-spin" />Organizing...</>
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Organizing...
+              </>
             ) : (
-              <><FolderPlus className="w-4 h-4" />Organize</>
+              <>
+                <FolderPlus className="w-4 h-4" />
+                Organize
+              </>
             )}
           </Button>
         )}

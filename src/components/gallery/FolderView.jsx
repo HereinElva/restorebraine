@@ -7,6 +7,7 @@ import { base44 } from "@/api/base44Client";
 import { useQueryClient } from "@tanstack/react-query";
 import SelectablePhotoGrid from "./SelectablePhotoGrid";
 import { DragDropContext, Droppable } from "@hello-pangea/dnd";
+import { filterAndRankPhotos } from "@/lib/media-search";
 
 export default function FolderView({ 
   folder, 
@@ -28,7 +29,10 @@ export default function FolderView({
   const photoIds = Array.isArray(folder.photo_ids) ? folder.photo_ids : [];
   const allFolderPhotos = photos.filter(p => photoIds.includes(p.id));
   const folderPhotos = folderSearch
-    ? filterAndRankPhotos(allFolderPhotos, folderSearch)
+    ? allFolderPhotos.filter(p =>
+        p.ai_description?.toLowerCase().includes(folderSearch.toLowerCase()) ||
+        p.ai_tags?.some(t => t.toLowerCase().includes(folderSearch.toLowerCase()))
+      )
     : allFolderPhotos;
 
   const handleDeleteFolder = async () => {

@@ -1,40 +1,17 @@
+import { expandQueryTerms, tokenize } from '@/lib/media-tags';
+
 const VIDEO_KEYWORDS = new Set(['video', 'videos']);
 const IMAGE_KEYWORDS = new Set(['picture', 'pictures', 'image', 'images', 'photo', 'photos']);
 
-const SUFFIXES = ['ing', 'ed', 'es', 's'];
-
-function tokenise(str = '') {
-  return str
-    .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, ' ')
-    .split(/\s+/)
-    .filter(Boolean);
-}
-
-function termVariants(term) {
-  const variants = new Set([term]);
-  if (term.length > 4 && term.endsWith('ing')) variants.add(term.slice(0, -3));
-  if (term.length > 3 && term.endsWith('es')) variants.add(term.slice(0, -2));
-  if (term.length > 3 && term.endsWith('s')) variants.add(term.slice(0, -1));
-  if (term.length > 3 && term.endsWith('ed')) variants.add(term.slice(0, -2));
-  if (term.length >= 3) variants.add(`${term}s`);
-  return [...variants];
-}
-
-function textTokens(text) {
-  return new Set(tokenise(text));
-}
-
 function termMatchesText(term, text) {
   const lower = text.toLowerCase();
-  const variants = termVariants(term);
+  const variants = expandQueryTerms(term).expanded;
 
   for (const variant of variants) {
     if (variant.length < 2) continue;
     if (lower.includes(variant)) return true;
 
-    const words = tokenise(lower);
-    for (const word of words) {
+    for (const word of tokenize(lower)) {
       if (word === variant) return true;
       if (variant.length >= 3 && word.startsWith(variant)) return true;
       if (word.length >= 3 && variant.startsWith(word)) return true;
@@ -48,22 +25,22 @@ function scoreTerm(term, photo, tags) {
   let score = 0;
   const desc = photo.ai_description || '';
   const filename = photo.original_filename || '';
-  const tagList = tags;
+  const variants = expandQueryTerms(term).expanded;
 
-  for (const tag of tagList) {
-    if (termMatchesText(term, tag)) {
-      score += tag === term || tag.includes(term) ? 6 : 4;
+  for (const variant of variants) {
+    for (const tag of tags) {
+      if (tag === variant) score += 8;
+      else if (tag.includes(variant) || variant.includes(tag)) score += 5;
     }
+    if (termMatchesText(variant, desc)) score += 3;
+    if (termMatchesText(variant, filename)) score += 1;
   }
-
-  if (termMatchesText(term, desc)) score += 3;
-  if (termMatchesText(term, filename)) score += 1;
 
   return score;
 }
 
 export function scorePhoto(photo, rawQuery) {
-  const queryTokens = tokenise(rawQuery);
+  const queryTokens = tokenize(rawQuery);
   if (queryTokens.length === 0) return 1;
 
   const typeTokens = queryTokens.filter((t) => VIDEO_KEYWORDS.has(t) || IMAGE_KEYWORDS.has(t));
@@ -88,16 +65,15 @@ export function scorePhoto(photo, rawQuery) {
   if (matchedTerms === 0) return 0;
 
   const phrase = contentTokens.join(' ');
-  const desc = (photo.ai_description || '').toLowerCase();
-  if (desc.includes(phrase)) totalScore += 12;
+  if (termMatchesText(phrase, photo.ai_description || '')) totalScore += 15;
 
   const allTagsText = tags.join(' ');
-  if (termMatchesText(phrase, allTagsText) || contentTokens.every((t) => termMatchesText(t, allTagsText))) {
-    totalScore += 8;
-  }
+  if (contentTokens.every((t) => termMatchesText(t, allTagsText))) totalScore += 10;
 
-  // Require at least half of search terms to match (or all if only 1-2 terms)
-  const minMatches = contentTokens.length <= 2 ? contentTokens.length : Math.ceil(contentTokens.length / 2);
+  const minMatches = contentTokens.length <= 2
+    ? contentTokens.length
+    : Math.ceil(contentTokens.length * 0.5);
+
   if (matchedTerms < minMatches) return 0;
 
   return totalScore;

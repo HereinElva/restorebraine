@@ -1,22 +1,26 @@
 import { base44 } from '@/api/base44Client';
+import { enrichTags, tokenize } from '@/lib/media-tags';
 
-const ANALYSIS_PROMPT = (isVideo, filename) => `You are analyzing media for Restorebraine, a searchable photo and video library.
+const ANALYSIS_PROMPT = (isVideo, filename) => `You are a visual analyst for Restorebraine — users search their library by typing words that describe what they SEE.
 
-The user finds items by typing words that describe what they SEE — physical appearance, not dates or filenames.
+Analyze this ${isVideo ? 'VIDEO. Describe 3-5 key visual scenes/moments in order, plus overall content' : 'PHOTO'} (${filename}).
 
-Analyze this ${isVideo ? 'video (describe the main visible scenes across the clip)' : 'photo'} (${filename}).
+Look carefully and list EVERY visible element:
+• People (count, age, activity, clothing colors)
+• Animals and pets
+• Objects (vehicles, furniture, food, tools, toys)
+• Plants and nature (grass, trees, flowers, water, sky, mountains)
+• Setting/environment (indoor/outdoor, room type, landscape type, weather, time of day)
+• Dominant colors
+• Actions and activities happening
 
-Describe concrete visual content:
-- Objects, people, animals, food, vehicles, buildings, plants
-- Environments and settings (grass field, beach, kitchen, office, forest, city street, bedroom)
-- Colors, lighting, weather, time of day
-- Visible activities and actions
-- Materials and textures (wood, metal, water, snow, fabric)
+Return JSON:
+{
+  "ai_description": "2-4 sentences. Lead with the main subject and setting. Include specific searchable nouns: colors, objects, materials, environment. Example: A wide green grass field with wildflowers under a blue sky. Distant oak trees on the horizon on a sunny afternoon.",
+  "ai_tags": ["25-35 lowercase keywords and 2-word phrases users would type when searching. Include: main subjects, setting, colors, materials, activities, AND synonyms (grass, field, meadow, lawn; ocean, beach, sea). No dates or filenames."]
+}
 
-Return JSON with:
-1. "ai_description": 2-3 sentences packed with searchable nouns/adjectives someone would type when looking for this item. Example: "A wide green grass field with tall wild grass under a bright blue sky. Distant trees line the horizon on a sunny day."
-
-2. "ai_tags": 15-25 lowercase searchable keywords — single words AND 2-word phrases users might search. Include synonyms and related terms (grass, field, meadow, lawn, pasture; ocean, beach, sea, sand). Tags must describe visible physical content only.`;
+Be specific and literal — describe what is actually visible, not assumptions.`;
 
 export async function analyzeMedia(fileUrl, fileType, filename) {
   const isVideo = fileType === 'video';
@@ -34,21 +38,58 @@ export async function analyzeMedia(fileUrl, fileType, filename) {
     },
   });
 
-  const tags = (Array.isArray(result.ai_tags) ? result.ai_tags : [])
+  const description = (result.ai_description || filename).trim();
+  const rawTags = (Array.isArray(result.ai_tags) ? result.ai_tags : [])
     .map((tag) => String(tag).toLowerCase().trim())
     .filter(Boolean);
 
-  return {
-    ai_description: result.ai_description || filename,
-    ai_tags: [...new Set(tags)],
-  };
+  const ai_tags = enrichTags(description, rawTags);
+
+  return { ai_description: description, ai_tags };
 }
 
-/** Normalize tags/description on existing records (e.g. after manual edits). */
+/** Re-run vision analysis for an existing library item (e.g. before organize). */
+export async function reanalyzePhoto(photo) {
+  if (!photo?.file_url) {
+    throw new Error('Missing file URL for re-analysis');
+  }
+  return analyzeMedia(
+    photo.file_url,
+    photo.file_type || 'image',
+    photo.original_filename || 'media',
+  );
+}
+
+export async function reanalyzeWeakPhotos(photos, { onProgress } = {}) {
+  const weak = photos.filter((p) => {
+    const tagCount = (p.ai_tags || []).length;
+    const descLen = (p.ai_description || '').trim().length;
+    return tagCount < 10 || descLen < 40;
+  });
+
+  if (!weak.length) return photos;
+
+  const updated = new Map(photos.map((p) => [p.id, p]));
+
+  for (let i = 0; i < weak.length; i++) {
+    const photo = weak[i];
+    onProgress?.(`Sharpening visual tags ${i + 1}/${weak.length}…`);
+
+    try {
+      const analysis = await reanalyzePhoto(photo);
+      await base44.entities.Photo.update(photo.id, {
+        ai_description: analysis.ai_description,
+        ai_tags: analysis.ai_tags,
+      });
+      updated.set(photo.id, { ...photo, ...analysis });
+    } catch (error) {
+      console.warn('Re-analysis failed for', photo.id, error);
+    }
+  }
+
+  return photos.map((p) => updated.get(p.id) || p);
+}
+
 export function normalizePhotoTags(tags = []) {
-  return [...new Set(
-    tags
-      .map((tag) => String(tag).toLowerCase().trim())
-      .filter(Boolean),
-  )];
+  return enrichTags('', tags);
 }

@@ -150,7 +150,11 @@ export default function Gallery() {
     : photos.filter(p => !photosInFolders.has(p.id));
  
   const filteredPhotos = debouncedQuery
-    ? filterAndRankPhotos(availablePhotos, debouncedQuery)
+    ? availablePhotos
+        .map(photo => ({ photo, score: scorePhoto(photo, debouncedQuery) }))
+        .filter(({ score }) => score > 0)
+        .sort((a, b) => b.score - a.score)
+        .map(({ photo }) => photo)
     : availablePhotos;
  
   const filteredFolders = debouncedQuery
@@ -337,7 +341,7 @@ export default function Gallery() {
                 <Search className="w-5 h-5 text-gray-400" />
                 <Input
                   type="text"
-                  placeholder='Try "grass", "beach sunset", "birthday cake", or "golden retriever"...'
+                  placeholder='Try "sunset on the beach" or "people laughing" or "red car"...'
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="border-0 text-lg focus-visible:ring-0 focus-visible:ring-offset-0 placeholder:text-gray-400"
