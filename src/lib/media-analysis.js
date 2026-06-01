@@ -1,5 +1,7 @@
 import { base44 } from '@/api/base44Client';
-import { enrichTags, tokenize } from '@/lib/media-tags';
+import { enrichTags } from '@/lib/media-tags';
+import { runConcurrent } from '@/lib/concurrency';
+import { ANALYSIS_CONCURRENCY } from '@/lib/media-constants';
 
 const ANALYSIS_PROMPT = (isVideo, filename) => `You are a visual analyst for Restorebraine — users search their library by typing words that describe what they SEE.
 
@@ -70,11 +72,9 @@ export async function reanalyzeWeakPhotos(photos, { onProgress } = {}) {
   if (!weak.length) return photos;
 
   const updated = new Map(photos.map((p) => [p.id, p]));
+  let completed = 0;
 
-  for (let i = 0; i < weak.length; i++) {
-    const photo = weak[i];
-    onProgress?.(`Sharpening visual tags ${i + 1}/${weak.length}…`);
-
+  const tasks = weak.map((photo) => async () => {
     try {
       const analysis = await reanalyzePhoto(photo);
       await base44.entities.Photo.update(photo.id, {
@@ -84,8 +84,13 @@ export async function reanalyzeWeakPhotos(photos, { onProgress } = {}) {
       updated.set(photo.id, { ...photo, ...analysis });
     } catch (error) {
       console.warn('Re-analysis failed for', photo.id, error);
+    } finally {
+      completed += 1;
+      onProgress?.(`Sharpening visual tags ${completed}/${weak.length}…`);
     }
-  }
+  });
+
+  await runConcurrent(tasks, ANALYSIS_CONCURRENCY);
 
   return photos.map((p) => updated.get(p.id) || p);
 }

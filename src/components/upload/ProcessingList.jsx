@@ -91,7 +91,10 @@ export default function ProcessingList({ files, onRemove, processing, onRetry })
                   {fileItem.error}
                 </p>
               )}
-              
+
+              {fileItem.status === 'processing' && fileItem.phase && (
+                <p className="text-xs text-purple-600 capitalize mt-0.5">{fileItem.phase}…</p>
+              )}
               {fileItem.status === 'pending' && (
                 <p className="text-sm text-gray-500 mt-1">
                   {(fileItem.file.size / 1024 / 1024).toFixed(2)} MB

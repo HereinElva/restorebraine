@@ -1,9 +1,10 @@
 import React, { useRef } from "react";
 import { motion } from "framer-motion";
-import { Camera, Image, Video, CheckCircle2, Sparkles, Loader2, ChevronRight } from "lucide-react";
+import { Camera, Image, Video, CheckCircle2, Sparkles, ChevronRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import ProcessingList from "./ProcessingList";
+import { MAX_BATCH_SIZE } from "@/lib/media-upload";
 
 export default function MobileUpload({
   files,
