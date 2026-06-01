@@ -45,6 +45,7 @@ for (const { filename, size } of icons) {
     continue;
   }
   await sharp(source)
+    .flatten({ background: { r: 255, g: 255, b: 255 } })
     .resize(size, size, { fit: 'cover' })
     .png()
     .toFile(destination);

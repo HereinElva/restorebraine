@@ -57,6 +57,11 @@ for (const { file, pixels } of requiredIphone) {
     failed = true;
     continue;
   }
+  if (file === 'AppIcon-1024.png' && bytes < 200000) {
+    console.error(`FAIL: ${file} looks like a placeholder (${bytes} bytes) — run fetch-official-app-icon.mjs`);
+    failed = true;
+    continue;
+  }
   console.log(`OK: ${file} (${bytes} bytes, ${pixels}x${pixels})`);
 }
 

@@ -31,7 +31,8 @@ sync_to_origin
 echo "==> Installing npm dependencies (required after every pull)"
 npm install
 
-echo "==> Regenerating iOS app icons"
+echo "==> Fetching official app icon + regenerating iOS sizes"
+node scripts/fetch-official-app-icon.mjs
 node scripts/generate-ios-app-icons.mjs
 node scripts/verify-ios-icons.mjs
 

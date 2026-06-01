@@ -1,35 +1,42 @@
-# Omega baseline (v55)
+# Omega archive
 
-**Tag:** `omega` (commit `3988888`)  
-**Build stamp:** `kbrown native v55 · 2026-05-31 08:26`
+Known-good Restorebraine native iOS builds. Use these to revert if a later change breaks login, logout, or icons.
 
-Use this as the known-good reference when login worked and only sign-out UI needed polish.
+| Tag | Build stamp | Notes |
+|-----|-------------|-------|
+| `omega-v55` | `kbrown native v55` | Login worked; sign-out showed native overlay |
+| `omega-v57` | `kbrown native v57` | Login + logout perfect; home screen icon still missing |
+| **`omega`** | **`kbrown native v58`** | **Current Omega — login, logout, official app icon** |
 
-## What worked in Omega
-
-- Login via OAuth persisted correctly
-- Hosted app model (`server.url` → `https://restorebraine.base44.app`)
-- Base44 platform login redirect blocked
-- One-tap sign-out cleared session (but showed native overlay instead of regular login page)
-
-## Revert to Omega
+## Revert to current Omega (recommended)
 
 ```bash
 cd /Users/ari/Desktop/restorebraine
 git fetch origin --tags
-git checkout omega
-bash scripts/mac-ios-setup.sh
-```
-
-Or without detaching:
-
-```bash
-git fetch origin cursor/fix-native-xcode-coding-bacf
 git reset --hard omega
 bash scripts/mac-ios-setup.sh
 ```
 
-## After Omega (v56+)
+## Revert to a specific archive entry
 
-- Sign-out returns to the regular in-app login page (not the native overlay)
-- Home screen app icon fixes (`CFBundleIconName`, icon regen verification)
+```bash
+git reset --hard omega-v57   # logout fixed, icon issue
+git reset --hard omega-v55   # earliest Omega baseline
+```
+
+Then run `bash scripts/mac-ios-setup.sh` and rebuild in Xcode.
+
+## What Omega v58 includes
+
+- Hosted app model (`server.url` → `https://restorebraine.base44.app`)
+- OAuth login persists across restarts
+- One-tap sign-out → original in-app login page
+- Official Restorebraine brain icon fetched from CDN at build time
+- `CFBundleIconName` + `CFBundleIcons` in Info.plist
+
+## Home screen icon after install
+
+1. Delete app from iPhone
+2. **Restart iPhone** (iOS caches icons aggressively)
+3. Xcode → Clean Build Folder → Run
+4. In Xcode: App → Assets.xcassets → AppIcon — all slots should show the brain icon
