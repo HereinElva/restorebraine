@@ -18,55 +18,8 @@ import { DragDropContext } from "@hello-pangea/dnd";
 import { useNavigation } from "../components/NavigationContext";
 import { useTabState } from "../components/TabStateContext";
 import MobileGallery from "../components/gallery/MobileGallery";
- 
-// ---------------------------------------------------------------------------
-// Search helpers
-// ---------------------------------------------------------------------------
- 
-const VIDEO_KEYWORDS = new Set(['video', 'videos']);
-const IMAGE_KEYWORDS = new Set(['picture', 'pictures', 'image', 'images', 'photo', 'photos']);
- 
-function tokenise(str = '') {
-  return str
-    .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, ' ')
-    .split(/\s+/)
-    .filter(Boolean);
-}
- 
-function scorePhoto(photo, rawQuery) {
-  const queryTokens = tokenise(rawQuery);
-  if (queryTokens.length === 0) return 1;
- 
-  const typeTokens = queryTokens.filter(t => VIDEO_KEYWORDS.has(t) || IMAGE_KEYWORDS.has(t));
-  const contentTokens = queryTokens.filter(t => !VIDEO_KEYWORDS.has(t) && !IMAGE_KEYWORDS.has(t));
- 
-  if (typeTokens.some(t => VIDEO_KEYWORDS.has(t)) && photo.file_type !== 'video') return 0;
-  if (typeTokens.some(t => IMAGE_KEYWORDS.has(t)) && photo.file_type !== 'image') return 0;
-  if (contentTokens.length === 0) return 1;
- 
-  const desc = (photo.ai_description || '').toLowerCase();
-  const tags = (photo.ai_tags || []).map(t => t.toLowerCase());
-  const tagText = tags.join(' ');
- 
-  let score = 0;
-  for (const term of contentTokens) {
-    const inDesc = desc.includes(term);
-    const inTags = tagText.includes(term);
-    if (!inDesc && !inTags) return 0;
-    if (inTags) score += 3;
-    if (inDesc) score += 1;
-  }
- 
-  const phrase = contentTokens.join(' ');
-  if (desc.includes(phrase)) score += 10;
-  const allInTags = contentTokens.every(t => tags.some(tag => tag.includes(t)));
-  if (allInTags) score += 5;
- 
-  return score;
-}
- 
-// ---------------------------------------------------------------------------
+import { filterAndRankPhotos } from "@/lib/media-search";
+
 // Cache durations
 // staleTime: show cached data immediately, re-fetch in background after this
 // gcTime:    keep data in memory for this long after component unmounts
@@ -197,11 +150,7 @@ export default function Gallery() {
     : photos.filter(p => !photosInFolders.has(p.id));
  
   const filteredPhotos = debouncedQuery
-    ? availablePhotos
-        .map(photo => ({ photo, score: scorePhoto(photo, debouncedQuery) }))
-        .filter(({ score }) => score > 0)
-        .sort((a, b) => b.score - a.score)
-        .map(({ photo }) => photo)
+    ? filterAndRankPhotos(availablePhotos, debouncedQuery)
     : availablePhotos;
  
   const filteredFolders = debouncedQuery
@@ -383,12 +332,12 @@ export default function Gallery() {
         <div className="max-w-3xl mx-auto mb-12">
           <div className="relative group">
             <div className="absolute inset-0 bg-gradient-to-r from-blue-300 to-purple-400 rounded-2xl blur-xl opacity-20 group-hover:opacity-30 transition-opacity duration-300" />
-            <div className="relative bg-blue-50 rounded-2xl shadow-lg border border-blue-100 p-2">
+            <div className="relative bg-white rounded-2xl shadow-lg border border-purple-100 p-2">
               <div className="flex items-center gap-3 px-4 py-3">
-                <Search className="w-5 h-5 text-blue-300" />
+                <Search className="w-5 h-5 text-gray-400" />
                 <Input
                   type="text"
-                  placeholder='Try "sunset on the beach" or "people laughing" or "red car"...'
+                  placeholder='Try "grass", "beach sunset", "birthday cake", or "golden retriever"...'
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="border-0 text-lg focus-visible:ring-0 focus-visible:ring-offset-0 placeholder:text-gray-400"

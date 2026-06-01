@@ -11,31 +11,9 @@ import {
   wouldExceedStorageLimit,
 } from "@/lib/storage-billing";
 import { installStripeReturnRefresh } from "@/lib/stripe-checkout";
+import { analyzeMedia } from "@/lib/media-analysis";
 
 const MAX_VIDEO_BYTES = 500 * 1024 * 1024; // ~5 min cap for large videos
-
-async function analyzeMedia(fileUrl, fileType, filename) {
-  const isVideo = fileType === "video";
-  const result = await base44.integrations.Core.InvokeLLM({
-    prompt: `Analyze this ${isVideo ? "video" : "photo"} named "${filename}".
-Return a concise searchable description (1-2 sentences) and 5-10 relevant tags.
-Focus on people, places, activities, objects, and mood.`,
-    file_urls: [fileUrl],
-    response_json_schema: {
-      type: "object",
-      properties: {
-        ai_description: { type: "string" },
-        ai_tags: { type: "array", items: { type: "string" } },
-      },
-      required: ["ai_description", "ai_tags"],
-    },
-  });
-
-  return {
-    ai_description: result.ai_description || filename,
-    ai_tags: Array.isArray(result.ai_tags) ? result.ai_tags : [],
-  };
-}
 
 export default function Upload() {
   const queryClient = useQueryClient();

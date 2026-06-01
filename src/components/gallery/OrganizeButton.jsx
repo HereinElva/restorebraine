@@ -14,25 +14,15 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import {
+  ORGANIZE_LABEL_RULES,
+  buildFolderOptions,
+  photoDataForOrganize,
+} from "@/lib/media-organize";
 
 const CHUNK_SIZE = 40;
 const CONCURRENCY = 4;
 const MERGE_CHUNK = 25;
-
-// Canonical folder names the AI must use
-const CANONICAL_FOLDERS = [
-  "People & Portraits",
-  "Outdoor Activities",
-  "Food & Dining",
-  "Travel & Landmarks",
-  "Celebrations & Events",
-  "Home & Indoor",
-  "Nature & Landscapes",
-  "Animals & Pets",
-  "Quotes & Text Screenshots",
-  "Artwork & Illustrations",
-  "Miscellaneous",
-];
 
 async function runConcurrent(tasks, concurrency) {
   const results = new Array(tasks.length);
@@ -49,31 +39,25 @@ async function runConcurrent(tasks, concurrency) {
 
 // PHASE 1 — label each photo with a canonical folder name OR an existing folder name
 async function labelChunk(chunk, existingFolderNames, customInstructions) {
-  const photoData = chunk.map(p => ({
-    id: p.id,
-    desc: (p.ai_description || '').substring(0, 120),
-    tags: (p.ai_tags || []).slice(0, 3).join(', '),
-  }));
-
-  // Combine existing folder names with canonical fallbacks so AI can assign to existing folders
-  const allFolderOptions = [
-    ...existingFolderNames,
-    ...CANONICAL_FOLDERS.filter(c => !existingFolderNames.map(n => n.toLowerCase()).includes(c.toLowerCase())),
-  ];
+  const photoData = chunk.map(photoDataForOrganize);
+  const allFolderOptions = buildFolderOptions(existingFolderNames);
 
   const result = await base44.integrations.Core.InvokeLLM({
-    prompt: `Label each photo/video with the most appropriate folder name.
+    prompt: `You organize a searchable photo/video library by PHYSICAL VISUAL CONTENT.
+
+Label each item with the best folder based on what it looks like — descriptions and tags describe visible objects, settings, colors, and activities.
 
 AVAILABLE FOLDERS (prefer existing ones when content matches):
 ${allFolderOptions.map(n => `- "${n}"`).join('\n')}
+
+${ORGANIZE_LABEL_RULES}
 
 RULES:
 - Prefer an EXISTING folder name if the photo clearly fits it.
 - Only use a canonical fallback if no existing folder fits.
 - Use EXACTLY the names listed above. Do not invent new names.
 - Every item MUST get a label. Return exactly ${photoData.length} labels.
-- Screenshots of quotes, text, sayings → "Quotes & Text Screenshots"
-- Food, meals, restaurants → "Food & Dining"
+- Group by similar visible subjects (e.g. grass fields, meadows, pastures → Nature & Landscapes).
 ${customInstructions ? `\nUSER INSTRUCTIONS: ${customInstructions}` : ''}
 
 Items: ${JSON.stringify(photoData)}
@@ -362,7 +346,7 @@ export default function OrganizeButton({ photos, squareStyle = false }) {
           <DialogHeader>
             <DialogTitle>Organize Media</DialogTitle>
             <DialogDescription>
-              Customize how your photos and videos should be organized into folders
+              AI groups your photos and videos by what they look like — similar physical content goes into the same folder
             </DialogDescription>
           </DialogHeader>
 

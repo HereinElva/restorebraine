@@ -28,10 +28,7 @@ export default function FolderView({
   const photoIds = Array.isArray(folder.photo_ids) ? folder.photo_ids : [];
   const allFolderPhotos = photos.filter(p => photoIds.includes(p.id));
   const folderPhotos = folderSearch
-    ? allFolderPhotos.filter(p =>
-        p.ai_description?.toLowerCase().includes(folderSearch.toLowerCase()) ||
-        p.ai_tags?.some(t => t.toLowerCase().includes(folderSearch.toLowerCase()))
-      )
+    ? filterAndRankPhotos(allFolderPhotos, folderSearch)
     : allFolderPhotos;
 
   const handleDeleteFolder = async () => {

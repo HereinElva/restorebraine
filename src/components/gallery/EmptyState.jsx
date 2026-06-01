@@ -21,7 +21,7 @@ export default function EmptyState() {
           No Media Yet
         </h3>
         <p className="text-gray-600 mb-8">
-          Upload your photos and videos and let AI analyze them. You'll be able to search through them instantly using natural language.
+          Upload photos and videos — Restorebraine analyzes what they look like so you can search by appearance (try &quot;grass&quot;, &quot;beach&quot;, or &quot;birthday cake&quot;) and auto-organize into smart folders.
         </p>
 
         <Link to={createPageUrl("Upload")}>
@@ -36,7 +36,7 @@ export default function EmptyState() {
           <ul className="space-y-2 text-sm text-gray-700">
             <li className="flex items-start gap-2">
               <span className="text-purple-500 mt-0.5">•</span>
-              <span>"Beach sunset with palm trees"</span>
+              <span>"Grass field on a sunny day"</span>
             </li>
             <li className="flex items-start gap-2">
               <span className="text-purple-500 mt-0.5">•</span>
