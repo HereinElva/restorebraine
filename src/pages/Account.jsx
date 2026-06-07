@@ -8,6 +8,7 @@ import { useNavigate } from "react-router-dom";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useNavigation } from "@/components/NavigationContext";
 import { WEB_BUILD_LABEL } from "@/lib/build-info";
+import { navigateToGallery } from "@/lib/gallery-nav";
 
 export default function Account() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -34,9 +35,10 @@ export default function Account() {
     localLogout();
   };
 
-  const goToGallery = () => {
-    popBack();
-    navigate('/');
+  const goToGallery = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    navigateToGallery(navigate, { popBack });
   };
 
   const handleDeleteAccount = async () => {
@@ -56,7 +58,13 @@ export default function Account() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 py-12">
       <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8">
-        <Button type="button" variant="ghost" className="mb-6" onClick={goToGallery}>
+        <Button
+          type="button"
+          variant="ghost"
+          className="mb-6"
+          onClick={goToGallery}
+          onTouchEnd={(e) => e.stopPropagation()}
+        >
           <ArrowLeft className="w-4 h-4 mr-2" />
           Back to Gallery
         </Button>
@@ -68,12 +76,17 @@ export default function Account() {
               <p className="font-medium text-gray-900">{user.email}</p>
             </div>
           )}
-          <div className="mb-6 p-4 bg-gray-50 border border-gray-200 rounded-lg flex items-center justify-between">
-            <div>
+          <div className="mb-6 p-4 bg-gray-50 border border-gray-200 rounded-lg flex items-center justify-between gap-4">
+            <div className="min-w-0">
               <h3 className="font-semibold text-gray-900">Sign Out</h3>
               <p className="text-sm text-gray-600 mt-0.5">Sign out of your Restorebraine account</p>
             </div>
-            <Button onClick={handleLogout} variant="outline" className="gap-2 border-gray-300">
+            <Button
+              type="button"
+              onClick={handleLogout}
+              variant="outline"
+              className="gap-2 border-gray-300 flex-shrink-0"
+            >
               <LogOut className="w-4 h-4" />
               Sign Out
             </Button>

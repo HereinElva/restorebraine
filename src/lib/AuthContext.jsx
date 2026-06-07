@@ -95,11 +95,27 @@ export const AuthProvider = ({ children }) => {
       }
     } catch (error) {
       console.error('User auth check failed:', error);
+
+      if (error.status === 401) {
+        const restoredToken = await restoreSessionFromNativeStorage();
+        if (restoredToken) {
+          try {
+            const currentUser = await base44.auth.me();
+            setUser(currentUser);
+            setIsAuthenticated(true);
+            setIsLoadingAuth(false);
+            await persistSessionToNativeStorage(restoredToken);
+            return;
+          } catch (retryError) {
+            console.warn('Auth retry after session restore failed:', retryError);
+          }
+        }
+      }
+
       setIsLoadingAuth(false);
       setIsAuthenticated(false);
 
       if (error.status === 401) {
-        await clearNativeSession();
         setAuthError({ type: 'auth_required', message: 'Authentication required' });
       } else if (error.status === 403) {
         setAuthError({ type: 'user_not_registered', message: 'User not registered for this app' });

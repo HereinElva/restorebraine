@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
+import { isGalleryPath, navigateToGallery } from "@/lib/gallery-nav";
 import { Search, Upload, User, ChevronLeft, ChevronDown, ChevronUp } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { NavigationProvider, useNavigation } from "./components/NavigationContext";
@@ -10,13 +11,17 @@ const TAB_ORDER = ["Gallery", "Upload", "Account"];
 
 function LayoutInner({ children, currentPageName }) {
   const location = useLocation();
+  const navigate = useNavigate();
   const prevIndexRef = useRef(0);
   const { backState, popBack } = useNavigation();
   const [navHidden, setNavHidden] = useState(false);
 
-  const currentIndex = TAB_ORDER.findIndex(
-    (name) => location.pathname === createPageUrl(name)
-  );
+  const isTabActive = (name) => {
+    if (name === 'Gallery') return isGalleryPath(location.pathname);
+    return location.pathname === createPageUrl(name);
+  };
+
+  const currentIndex = TAB_ORDER.findIndex((name) => isTabActive(name));
   const activeIndex = currentIndex === -1 ? 0 : currentIndex;
   const direction = activeIndex >= prevIndexRef.current ? 1 : -1;
 
@@ -52,16 +57,20 @@ function LayoutInner({ children, currentPageName }) {
   };
 
   const handleBack = () => {
-    if (backState) {
+    if (!backState) return;
+
+    if (isGalleryPath(location.pathname)) {
       backState.onBack();
       popBack();
+      return;
     }
+
+    popBack();
+    navigateToGallery(navigate);
   };
 
-  // Clear stale Gallery folder back-state when switching to another tab
   useEffect(() => {
-    const onGallery = location.pathname === '/' || location.pathname.toLowerCase() === '/gallery';
-    if (!onGallery) popBack();
+    if (!isGalleryPath(location.pathname)) popBack();
   }, [location.pathname, popBack]);
 
   return (
@@ -145,11 +154,12 @@ function LayoutInner({ children, currentPageName }) {
         >
           <div className="flex items-stretch max-w-lg mx-auto">
             {tabs.map(({ name, icon: Icon, label }) => {
-              const isActive = location.pathname === createPageUrl(name);
+              const isActive = isTabActive(name);
               return (
                 <Link
                   key={name}
-                  to={createPageUrl(name)}
+                  to={name === 'Gallery' ? createPageUrl('Gallery') : createPageUrl(name)}
+                  replace={isActive}
                   className="flex-1 flex flex-col items-center justify-center py-3 gap-0.5 select-none relative"
                 >
                   <Icon
