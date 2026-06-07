@@ -6,7 +6,7 @@ import { Search, Upload, User, ChevronLeft } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { NavigationProvider, useNavigation } from "./components/NavigationContext";
 import { TabStateProvider } from "./components/TabStateContext";
-import { BUILD_NUMBER, WEB_BUILD_LABEL } from "@/lib/build-info";
+import { DEPLOY_BUILD } from "@/deploy-marker";
 
 const TAB_ORDER = ["Gallery", "Upload", "Account"];
 
@@ -111,7 +111,7 @@ function LayoutInner({ children, currentPageName }) {
                   Restorebraine
                 </span>
                 <span className="ml-1 rounded-md bg-purple-100 px-2 py-0.5 text-xs font-bold text-purple-700 select-none">
-                  v{BUILD_NUMBER || 65}
+                  v{DEPLOY_BUILD}
                 </span>
               </Link>
             </div>
@@ -146,7 +146,7 @@ function LayoutInner({ children, currentPageName }) {
             className="text-center text-xs font-semibold text-purple-600 pt-1 select-none tracking-wide"
             aria-label="App version"
           >
-            Build {BUILD_NUMBER || 65}
+            Build {DEPLOY_BUILD}
           </p>
           <div className="flex items-stretch max-w-lg mx-auto">
             {tabs.map(({ name, icon: Icon, label }) => {

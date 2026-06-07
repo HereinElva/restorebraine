@@ -1,7 +1,7 @@
 import { writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-const BUILD_NUMBER = 65;
+const BUILD_NUMBER = 66;
 const stamp = new Date().toISOString().slice(0, 16).replace('T', ' ');
 const nativeLabel = `kbrown native v${BUILD_NUMBER} · ${stamp}`;
 const webLabel = `restorebraine web v${BUILD_NUMBER}`;
@@ -12,6 +12,14 @@ writeFileSync(
 export const BUILD_NUMBER = ${BUILD_NUMBER};
 export const NATIVE_BUILD_LABEL = '${nativeLabel}';
 export const WEB_BUILD_LABEL = '${webLabel}';
+`
+);
+
+writeFileSync(
+  resolve('src/deploy-marker.js'),
+  `// Single source for the live build label shown in the app UI.
+// Base44 deploy: paste this file + Layout.jsx, then Publish.
+export const DEPLOY_BUILD = ${BUILD_NUMBER};
 `
 );
 
