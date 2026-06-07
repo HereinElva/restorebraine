@@ -7,7 +7,6 @@ import { ArrowLeft, Trash2, AlertTriangle, LogOut } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useNavigation } from "@/components/NavigationContext";
-import { DEPLOY_BUILD } from "@/deploy-marker";
 import { navigateToGallery } from "@/lib/gallery-nav";
 
 export default function Account() {
@@ -110,9 +109,6 @@ export default function Account() {
             </div>
           </div>
         </div>
-        <p className="text-center text-sm text-purple-700 mt-6 font-bold tracking-wide">
-          Build {DEPLOY_BUILD}
-        </p>
       </div>
       <AlertDialog open={showLogoutDialog} onOpenChange={setShowLogoutDialog}>
         <AlertDialogContent>
