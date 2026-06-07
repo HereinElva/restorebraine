@@ -56,7 +56,7 @@ export default function Account() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 py-12">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 py-12 pb-28">
       <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8">
         <Button
           type="button"
@@ -107,7 +107,7 @@ export default function Account() {
           </div>
         </div>
         <p className="text-center text-xs text-gray-500 mt-6 font-medium">
-          {WEB_BUILD_LABEL || "restorebraine web v61"}
+          {WEB_BUILD_LABEL || "restorebraine web v62"}
         </p>
       </div>
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>

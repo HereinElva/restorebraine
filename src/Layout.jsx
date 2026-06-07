@@ -134,59 +134,67 @@ function LayoutInner({ children, currentPageName }) {
         </AnimatePresence>
       </main>
 
-      {/* Bottom Tab Bar */}
-      <nav className="fixed bottom-0 left-0 right-0 z-50 select-none">
-        {/* Pull handle — always visible */}
-        <button
-          onClick={() => setNavHidden(v => !v)}
-          className="absolute -top-5 left-1/2 -translate-x-1/2 w-10 h-5 bg-white/80 backdrop-blur-xl border border-purple-100 rounded-t-full flex items-center justify-center shadow-md"
-          style={{ WebkitTapHighlightColor: 'transparent' }}
-        >
-          {navHidden
-            ? <ChevronUp className="w-3.5 h-3.5 text-gray-400" />
-            : <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
-          }
-        </button>
-
+      {/* Bottom Tab Bar — handle and tabs move together; handle peeks when collapsed */}
+      <nav className="fixed bottom-0 left-0 right-0 z-50 select-none pointer-events-none">
         <motion.div
-          animate={{ y: navHidden ? "100%" : "0%" }}
+          animate={{ y: navHidden ? "calc(100% - 1.25rem)" : "0%" }}
           transition={{ type: "spring", damping: 28, stiffness: 300 }}
-          className="bg-white/80 backdrop-blur-xl border-t border-purple-100 shadow-lg safe-bottom"
+          className="flex flex-col items-center pointer-events-auto"
         >
-          <p
-            className="text-center text-[10px] text-gray-400 pt-1 border-t border-purple-50/80 select-none"
-            aria-label="App version"
+          <button
+            type="button"
+            aria-label={navHidden ? "Show navigation" : "Hide navigation"}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setNavHidden((v) => !v);
+            }}
+            onPointerDown={(e) => e.stopPropagation()}
+            className="w-12 h-5 bg-white/90 backdrop-blur-xl border border-purple-100 rounded-t-full flex items-center justify-center shadow-md touch-manipulation"
+            style={{ WebkitTapHighlightColor: "transparent" }}
           >
-            {WEB_BUILD_LABEL || "restorebraine web v61"}
-          </p>
-          <div className="flex items-stretch max-w-lg mx-auto">
-            {tabs.map(({ name, icon: Icon, label }) => {
-              const isActive = isTabActive(name);
-              return (
-                <Link
-                  key={name}
-                  to={name === 'Gallery' ? createPageUrl('Gallery') : createPageUrl(name)}
-                  replace={isActive}
-                  className="flex-1 flex flex-col items-center justify-center py-3 gap-0.5 select-none relative"
-                >
-                  <Icon
-                    className={`w-5 h-5 transition-colors select-none ${
-                      isActive ? "text-purple-600" : "text-gray-400"
-                    }`}
-                  />
-                  <span
-                    className={`text-xs font-medium transition-colors select-none ${
-                      isActive ? "text-purple-600" : "text-gray-400"
-                    }`}
+            {navHidden
+              ? <ChevronUp className="w-3.5 h-3.5 text-gray-500" />
+              : <ChevronDown className="w-3.5 h-3.5 text-gray-500" />
+            }
+          </button>
+
+          <div className="w-full bg-white/80 backdrop-blur-xl border-t border-purple-100 shadow-lg safe-bottom">
+            <p
+              className="text-center text-[10px] text-gray-400 pt-1 border-t border-purple-50/80 select-none"
+              aria-label="App version"
+            >
+              {WEB_BUILD_LABEL || "restorebraine web v62"}
+            </p>
+            <div className="flex items-stretch max-w-lg mx-auto">
+              {tabs.map(({ name, icon: Icon, label }) => {
+                const isActive = isTabActive(name);
+                return (
+                  <Link
+                    key={name}
+                    to={name === 'Gallery' ? createPageUrl('Gallery') : createPageUrl(name)}
+                    replace={isActive}
+                    className="flex-1 flex flex-col items-center justify-center py-3 gap-0.5 select-none relative"
                   >
-                    {label}
-                  </span>
-                  {isActive && (
-                    <span className="absolute bottom-0 w-8 h-0.5 bg-purple-500 rounded-full" />
-                  )}
-                </Link>
-              );
-            })}
+                    <Icon
+                      className={`w-5 h-5 transition-colors select-none ${
+                        isActive ? "text-purple-600" : "text-gray-400"
+                      }`}
+                    />
+                    <span
+                      className={`text-xs font-medium transition-colors select-none ${
+                        isActive ? "text-purple-600" : "text-gray-400"
+                      }`}
+                    >
+                      {label}
+                    </span>
+                    {isActive && (
+                      <span className="absolute bottom-0 w-8 h-0.5 bg-purple-500 rounded-full" />
+                    )}
+                  </Link>
+                );
+              })}
+            </div>
           </div>
         </motion.div>
       </nav>
