@@ -7,7 +7,7 @@ import { ArrowLeft, Trash2, AlertTriangle, LogOut } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useNavigation } from "@/components/NavigationContext";
-import { WEB_BUILD_LABEL } from "@/lib/build-info";
+import { BUILD_NUMBER, WEB_BUILD_LABEL } from "@/lib/build-info";
 import { navigateToGallery } from "@/lib/gallery-nav";
 
 export default function Account() {
@@ -110,8 +110,8 @@ export default function Account() {
             </div>
           </div>
         </div>
-        <p className="text-center text-xs text-gray-500 mt-6 font-medium">
-          {WEB_BUILD_LABEL || "restorebraine web v63"}
+        <p className="text-center text-sm text-purple-700 mt-6 font-bold tracking-wide">
+          Build {BUILD_NUMBER || 64}
         </p>
       </div>
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
