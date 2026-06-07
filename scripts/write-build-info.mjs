@@ -1,17 +1,21 @@
 import { writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
+const BUILD_NUMBER = 61;
 const stamp = new Date().toISOString().slice(0, 16).replace('T', ' ');
-const label = `kbrown native v60 · ${stamp}`;
+const nativeLabel = `kbrown native v${BUILD_NUMBER} · ${stamp}`;
+const webLabel = `restorebraine web v${BUILD_NUMBER}`;
 
 writeFileSync(
   resolve('src/lib/build-info.js'),
   `export const BASE44_APP_ID = '68fdc5f42768c4d045fe1bac';
-export const NATIVE_BUILD_LABEL = '${label}';
-export const WEB_BUILD_LABEL = 'restorebraine web v60';
+export const BUILD_NUMBER = ${BUILD_NUMBER};
+export const NATIVE_BUILD_LABEL = '${nativeLabel}';
+export const WEB_BUILD_LABEL = '${webLabel}';
 `
 );
 
-writeFileSync(resolve('ios/App/App/BUILD_STAMP.txt'), `${label}\n`);
+writeFileSync(resolve('ios/App/App/BUILD_STAMP.txt'), `${nativeLabel}\n`);
 
-console.log(`Wrote build stamp: ${label}`);
+console.log(`Wrote build stamp: ${nativeLabel}`);
+console.log(`Web build label: ${webLabel}`);

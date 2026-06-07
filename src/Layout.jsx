@@ -6,6 +6,7 @@ import { Search, Upload, User, ChevronLeft, ChevronDown, ChevronUp } from "lucid
 import { AnimatePresence, motion } from "framer-motion";
 import { NavigationProvider, useNavigation } from "./components/NavigationContext";
 import { TabStateProvider } from "./components/TabStateContext";
+import { WEB_BUILD_LABEL } from "@/lib/build-info";
 
 const TAB_ORDER = ["Gallery", "Upload", "Account"];
 
@@ -152,6 +153,12 @@ function LayoutInner({ children, currentPageName }) {
           transition={{ type: "spring", damping: 28, stiffness: 300 }}
           className="bg-white/80 backdrop-blur-xl border-t border-purple-100 shadow-lg safe-bottom"
         >
+          <p
+            className="text-center text-[10px] text-gray-400 pt-1 border-t border-purple-50/80 select-none"
+            aria-label="App version"
+          >
+            {WEB_BUILD_LABEL || "restorebraine web v61"}
+          </p>
           <div className="flex items-stretch max-w-lg mx-auto">
             {tabs.map(({ name, icon: Icon, label }) => {
               const isActive = isTabActive(name);

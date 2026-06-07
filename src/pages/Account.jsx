@@ -106,7 +106,9 @@ export default function Account() {
             </div>
           </div>
         </div>
-        <p className="text-center text-xs text-gray-400 mt-6">{WEB_BUILD_LABEL}</p>
+        <p className="text-center text-xs text-gray-500 mt-6 font-medium">
+          {WEB_BUILD_LABEL || "restorebraine web v61"}
+        </p>
       </div>
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>
