@@ -56,7 +56,7 @@ export default function Account() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 py-12 pb-28">
+    <div className="relative z-0 min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 py-12 pb-36">
       <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8">
         <Button
           type="button"
@@ -83,7 +83,11 @@ export default function Account() {
             </div>
             <Button
               type="button"
-              onClick={handleLogout}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleLogout();
+              }}
+              onTouchEnd={(e) => e.stopPropagation()}
               variant="outline"
               className="gap-2 border-gray-300 flex-shrink-0"
             >
@@ -107,7 +111,7 @@ export default function Account() {
           </div>
         </div>
         <p className="text-center text-xs text-gray-500 mt-6 font-medium">
-          {WEB_BUILD_LABEL || "restorebraine web v62"}
+          {WEB_BUILD_LABEL || "restorebraine web v63"}
         </p>
       </div>
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>

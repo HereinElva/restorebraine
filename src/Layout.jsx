@@ -14,8 +14,16 @@ function LayoutInner({ children, currentPageName }) {
   const location = useLocation();
   const navigate = useNavigate();
   const prevIndexRef = useRef(0);
+  const navPanelRef = useRef(null);
   const { backState, popBack } = useNavigation();
   const [navHidden, setNavHidden] = useState(false);
+  const [navPanelHeight, setNavPanelHeight] = useState(0);
+
+  const toggleNav = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setNavHidden((v) => !v);
+  };
 
   const isTabActive = (name) => {
     if (name === 'Gallery') return isGalleryPath(location.pathname);
@@ -73,6 +81,18 @@ function LayoutInner({ children, currentPageName }) {
   useEffect(() => {
     if (!isGalleryPath(location.pathname)) popBack();
   }, [location.pathname, popBack]);
+
+  useEffect(() => {
+    const panel = navPanelRef.current;
+    if (!panel) return undefined;
+
+    const updateHeight = () => setNavPanelHeight(panel.scrollHeight);
+    updateHeight();
+
+    const observer = new ResizeObserver(updateHeight);
+    observer.observe(panel);
+    return () => observer.disconnect();
+  }, [location.pathname]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
@@ -134,69 +154,76 @@ function LayoutInner({ children, currentPageName }) {
         </AnimatePresence>
       </main>
 
-      {/* Bottom Tab Bar — handle and tabs move together; handle peeks when collapsed */}
-      <nav className="fixed bottom-0 left-0 right-0 z-50 select-none pointer-events-none">
-        <motion.div
-          animate={{ y: navHidden ? "calc(100% - 1.25rem)" : "0%" }}
-          transition={{ type: "spring", damping: 28, stiffness: 300 }}
-          className="flex flex-col items-center pointer-events-auto"
-        >
+      {/* Bottom Tab Bar — toggle strip stays pinned; tabs collapse above it */}
+      <nav
+        className="fixed bottom-0 left-0 right-0 z-[100] select-none isolate"
+        aria-label="App navigation"
+      >
+        <div className="bg-white/90 backdrop-blur-xl border-t border-purple-100 shadow-lg safe-bottom">
+          <motion.div
+            initial={false}
+            animate={{
+              height: navHidden ? 0 : navPanelHeight,
+              opacity: navHidden ? 0 : 1,
+            }}
+            transition={{ type: "spring", damping: 30, stiffness: 320 }}
+            className="overflow-hidden pointer-events-auto"
+            style={{ pointerEvents: navHidden ? "none" : "auto" }}
+          >
+            <div ref={navPanelRef}>
+              <p
+                className="text-center text-[10px] text-gray-400 pt-1 select-none"
+                aria-label="App version"
+              >
+                {WEB_BUILD_LABEL || "restorebraine web v63"}
+              </p>
+              <div className="flex items-stretch max-w-lg mx-auto">
+                {tabs.map(({ name, icon: Icon, label }) => {
+                  const isActive = isTabActive(name);
+                  return (
+                    <Link
+                      key={name}
+                      to={name === 'Gallery' ? createPageUrl('Gallery') : createPageUrl(name)}
+                      replace={isActive}
+                      className="flex-1 flex flex-col items-center justify-center py-3 gap-0.5 select-none relative"
+                    >
+                      <Icon
+                        className={`w-5 h-5 transition-colors select-none ${
+                          isActive ? "text-purple-600" : "text-gray-400"
+                        }`}
+                      />
+                      <span
+                        className={`text-xs font-medium transition-colors select-none ${
+                          isActive ? "text-purple-600" : "text-gray-400"
+                        }`}
+                      >
+                        {label}
+                      </span>
+                      {isActive && (
+                        <span className="absolute bottom-0 w-8 h-0.5 bg-purple-500 rounded-full" />
+                      )}
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          </motion.div>
+
           <button
             type="button"
+            data-nav-toggle="true"
             aria-label={navHidden ? "Show navigation" : "Hide navigation"}
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              setNavHidden((v) => !v);
-            }}
+            onClick={toggleNav}
             onPointerDown={(e) => e.stopPropagation()}
-            className="w-12 h-5 bg-white/90 backdrop-blur-xl border border-purple-100 rounded-t-full flex items-center justify-center shadow-md touch-manipulation"
+            className="w-full h-9 flex items-center justify-center border-t border-purple-100 bg-white/95 touch-manipulation"
             style={{ WebkitTapHighlightColor: "transparent" }}
           >
             {navHidden
-              ? <ChevronUp className="w-3.5 h-3.5 text-gray-500" />
-              : <ChevronDown className="w-3.5 h-3.5 text-gray-500" />
+              ? <ChevronUp className="w-4 h-4 text-gray-500" />
+              : <ChevronDown className="w-4 h-4 text-gray-500" />
             }
           </button>
-
-          <div className="w-full bg-white/80 backdrop-blur-xl border-t border-purple-100 shadow-lg safe-bottom">
-            <p
-              className="text-center text-[10px] text-gray-400 pt-1 border-t border-purple-50/80 select-none"
-              aria-label="App version"
-            >
-              {WEB_BUILD_LABEL || "restorebraine web v62"}
-            </p>
-            <div className="flex items-stretch max-w-lg mx-auto">
-              {tabs.map(({ name, icon: Icon, label }) => {
-                const isActive = isTabActive(name);
-                return (
-                  <Link
-                    key={name}
-                    to={name === 'Gallery' ? createPageUrl('Gallery') : createPageUrl(name)}
-                    replace={isActive}
-                    className="flex-1 flex flex-col items-center justify-center py-3 gap-0.5 select-none relative"
-                  >
-                    <Icon
-                      className={`w-5 h-5 transition-colors select-none ${
-                        isActive ? "text-purple-600" : "text-gray-400"
-                      }`}
-                    />
-                    <span
-                      className={`text-xs font-medium transition-colors select-none ${
-                        isActive ? "text-purple-600" : "text-gray-400"
-                      }`}
-                    >
-                      {label}
-                    </span>
-                    {isActive && (
-                      <span className="absolute bottom-0 w-8 h-0.5 bg-purple-500 rounded-full" />
-                    )}
-                  </Link>
-                );
-              })}
-            </div>
-          </div>
-        </motion.div>
+        </div>
       </nav>
     </div>
   );
