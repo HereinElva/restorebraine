@@ -1,8 +1,8 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { isGalleryPath, navigateToGallery } from "@/lib/gallery-nav";
-import { Search, Upload, User, ChevronLeft, ChevronDown, ChevronUp } from "lucide-react";
+import { Search, Upload, User, ChevronLeft } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { NavigationProvider, useNavigation } from "./components/NavigationContext";
 import { TabStateProvider } from "./components/TabStateContext";
@@ -14,16 +14,7 @@ function LayoutInner({ children, currentPageName }) {
   const location = useLocation();
   const navigate = useNavigate();
   const prevIndexRef = useRef(0);
-  const navPanelRef = useRef(null);
   const { backState, popBack } = useNavigation();
-  const [navHidden, setNavHidden] = useState(false);
-  const [navPanelHeight, setNavPanelHeight] = useState(0);
-
-  const toggleNav = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setNavHidden((v) => !v);
-  };
 
   const isTabActive = (name) => {
     if (name === 'Gallery') return isGalleryPath(location.pathname);
@@ -82,18 +73,6 @@ function LayoutInner({ children, currentPageName }) {
     if (!isGalleryPath(location.pathname)) popBack();
   }, [location.pathname, popBack]);
 
-  useEffect(() => {
-    const panel = navPanelRef.current;
-    if (!panel) return undefined;
-
-    const updateHeight = () => setNavPanelHeight(panel.scrollHeight);
-    updateHeight();
-
-    const observer = new ResizeObserver(updateHeight);
-    observer.observe(panel);
-    return () => observer.disconnect();
-  }, [location.pathname]);
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
       <style>{`
@@ -132,7 +111,7 @@ function LayoutInner({ children, currentPageName }) {
                   Restorebraine
                 </span>
                 <span className="ml-1 rounded-md bg-purple-100 px-2 py-0.5 text-xs font-bold text-purple-700 select-none">
-                  v{BUILD_NUMBER || 64}
+                  v{BUILD_NUMBER || 65}
                 </span>
               </Link>
             </div>
@@ -157,75 +136,47 @@ function LayoutInner({ children, currentPageName }) {
         </AnimatePresence>
       </main>
 
-      {/* Bottom Tab Bar — toggle strip stays pinned; tabs collapse above it */}
+      {/* Bottom Tab Bar — always visible (hide toggle removed; broken on iOS) */}
       <nav
-        className="fixed bottom-0 left-0 right-0 z-[100] select-none isolate"
+        className="fixed bottom-0 left-0 right-0 z-[100] select-none"
         aria-label="App navigation"
       >
         <div className="bg-white/90 backdrop-blur-xl border-t border-purple-100 shadow-lg safe-bottom">
-          <motion.div
-            initial={false}
-            animate={{
-              height: navHidden ? 0 : navPanelHeight,
-              opacity: navHidden ? 0 : 1,
-            }}
-            transition={{ type: "spring", damping: 30, stiffness: 320 }}
-            className="overflow-hidden pointer-events-auto"
-            style={{ pointerEvents: navHidden ? "none" : "auto" }}
+          <p
+            className="text-center text-xs font-semibold text-purple-600 pt-1 select-none tracking-wide"
+            aria-label="App version"
           >
-            <div ref={navPanelRef}>
-              <p
-                className="text-center text-xs font-semibold text-purple-600 pt-1 select-none tracking-wide"
-                aria-label="App version"
-              >
-                Build {BUILD_NUMBER || 64}
-              </p>
-              <div className="flex items-stretch max-w-lg mx-auto">
-                {tabs.map(({ name, icon: Icon, label }) => {
-                  const isActive = isTabActive(name);
-                  return (
-                    <Link
-                      key={name}
-                      to={name === 'Gallery' ? createPageUrl('Gallery') : createPageUrl(name)}
-                      replace={isActive}
-                      className="flex-1 flex flex-col items-center justify-center py-3 gap-0.5 select-none relative"
-                    >
-                      <Icon
-                        className={`w-5 h-5 transition-colors select-none ${
-                          isActive ? "text-purple-600" : "text-gray-400"
-                        }`}
-                      />
-                      <span
-                        className={`text-xs font-medium transition-colors select-none ${
-                          isActive ? "text-purple-600" : "text-gray-400"
-                        }`}
-                      >
-                        {label}
-                      </span>
-                      {isActive && (
-                        <span className="absolute bottom-0 w-8 h-0.5 bg-purple-500 rounded-full" />
-                      )}
-                    </Link>
-                  );
-                })}
-              </div>
-            </div>
-          </motion.div>
-
-          <button
-            type="button"
-            data-nav-toggle="true"
-            aria-label={navHidden ? "Show navigation" : "Hide navigation"}
-            onClick={toggleNav}
-            onPointerDown={(e) => e.stopPropagation()}
-            className="w-full h-9 flex items-center justify-center border-t border-purple-100 bg-white/95 touch-manipulation"
-            style={{ WebkitTapHighlightColor: "transparent" }}
-          >
-            {navHidden
-              ? <ChevronUp className="w-4 h-4 text-gray-500" />
-              : <ChevronDown className="w-4 h-4 text-gray-500" />
-            }
-          </button>
+            Build {BUILD_NUMBER || 65}
+          </p>
+          <div className="flex items-stretch max-w-lg mx-auto">
+            {tabs.map(({ name, icon: Icon, label }) => {
+              const isActive = isTabActive(name);
+              return (
+                <Link
+                  key={name}
+                  to={name === 'Gallery' ? createPageUrl('Gallery') : createPageUrl(name)}
+                  replace={isActive}
+                  className="flex-1 flex flex-col items-center justify-center py-3 gap-0.5 select-none relative"
+                >
+                  <Icon
+                    className={`w-5 h-5 transition-colors select-none ${
+                      isActive ? "text-purple-600" : "text-gray-400"
+                    }`}
+                  />
+                  <span
+                    className={`text-xs font-medium transition-colors select-none ${
+                      isActive ? "text-purple-600" : "text-gray-400"
+                    }`}
+                  >
+                    {label}
+                  </span>
+                  {isActive && (
+                    <span className="absolute bottom-0 w-8 h-0.5 bg-purple-500 rounded-full" />
+                  )}
+                </Link>
+              );
+            })}
+          </div>
         </div>
       </nav>
     </div>

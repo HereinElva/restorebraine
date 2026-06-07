@@ -12,6 +12,7 @@ import { navigateToGallery } from "@/lib/gallery-nav";
 
 export default function Account() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showLogoutDialog, setShowLogoutDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -85,9 +86,8 @@ export default function Account() {
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                handleLogout();
+                setShowLogoutDialog(true);
               }}
-              onTouchEnd={(e) => e.stopPropagation()}
               variant="outline"
               className="gap-2 border-gray-300 flex-shrink-0"
             >
@@ -111,9 +111,25 @@ export default function Account() {
           </div>
         </div>
         <p className="text-center text-sm text-purple-700 mt-6 font-bold tracking-wide">
-          Build {BUILD_NUMBER || 64}
+          Build {BUILD_NUMBER || 65}
         </p>
       </div>
+      <AlertDialog open={showLogoutDialog} onOpenChange={setShowLogoutDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Sign out?</AlertDialogTitle>
+            <AlertDialogDescription>
+              You will need to sign in again to access your photos and folders.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleLogout} className="bg-gray-900 hover:bg-gray-800">
+              Sign Out
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
