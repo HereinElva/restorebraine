@@ -5,21 +5,23 @@ import sharp from 'sharp';
 const iconDir = resolve('ios/App/App/Assets.xcassets/AppIcon.appiconset');
 const contentsPath = resolve(iconDir, 'Contents.json');
 const infoPlistPath = resolve('ios/App/App/Info.plist');
-const masterIcon = resolve(iconDir, 'AppIcon-1024.png');
+const requiredIphone = [
+  { file: 'AppIcon-20@2x.png', pixels: 40 },
+  { file: 'AppIcon-20@3x.png', pixels: 60 },
+  { file: 'AppIcon-29@2x.png', pixels: 58 },
+  { file: 'AppIcon-29@3x.png', pixels: 87 },
+  { file: 'AppIcon-40@2x.png', pixels: 80 },
+  { file: 'AppIcon-40@3x.png', pixels: 120 },
+  { file: 'AppIcon-60@2x.png', pixels: 120 },
+  { file: 'AppIcon-60@3x.png', pixels: 180 },
+  { file: 'AppIcon-1024.png', pixels: 1024 },
+];
 
 let failed = false;
 
 if (!existsSync(contentsPath)) {
   console.error('FAIL: AppIcon.appiconset/Contents.json missing');
   process.exit(1);
-}
-
-const contents = readFileSync(contentsPath, 'utf8');
-if (!contents.includes('"idiom": "universal"') || !contents.includes('AppIcon-1024.png')) {
-  console.error('FAIL: AppIcon.appiconset should use single-size universal 1024 entry');
-  failed = true;
-} else {
-  console.log('OK: single-size AppIcon catalog (1024 universal)');
 }
 
 const infoPlist = readFileSync(infoPlistPath, 'utf8');
@@ -30,31 +32,42 @@ if (!infoPlist.includes('<key>CFBundleIconName</key>') || !infoPlist.includes('<
   console.log('OK: Info.plist CFBundleIconName = AppIcon');
 }
 
-if (!existsSync(masterIcon)) {
-  console.error('FAIL: missing AppIcon-1024.png');
-  failed = true;
-} else {
-  const bytes = readFileSync(masterIcon).length;
+for (const { file, pixels } of requiredIphone) {
+  const path = resolve(iconDir, file);
+  if (!existsSync(path)) {
+    console.error(`FAIL: missing iOS app icon ${file}`);
+    failed = true;
+    continue;
+  }
+  const bytes = readFileSync(path).length;
+  if (bytes < 200) {
+    console.error(`FAIL: iOS app icon ${file} is too small (${bytes} bytes)`);
+    failed = true;
+    continue;
+  }
   try {
-    const meta = await sharp(masterIcon).metadata();
-    if (meta.width !== 1024 || meta.height !== 1024) {
-      console.error(`FAIL: AppIcon-1024.png is ${meta.width}x${meta.height}, expected 1024x1024`);
+    const meta = await sharp(path).metadata();
+    if (meta.width !== pixels || meta.height !== pixels) {
+      console.error(`FAIL: ${file} is ${meta.width}x${meta.height}, expected ${pixels}x${pixels}`);
       failed = true;
-    } else if (bytes < 15000) {
-      console.error(`FAIL: AppIcon-1024.png is too small (${bytes} bytes) — run node scripts/ensure-app-icon.mjs`);
-      failed = true;
-    } else {
-      console.log(`OK: AppIcon-1024.png (${bytes} bytes, 1024x1024)`);
+      continue;
     }
   } catch (error) {
-    console.error(`FAIL: could not read AppIcon-1024.png: ${error.message}`);
+    console.error(`FAIL: could not read ${file}: ${error.message}`);
     failed = true;
+    continue;
   }
+  if (file === 'AppIcon-1024.png' && bytes < 15000) {
+    console.error(`FAIL: ${file} is too small (${bytes} bytes) — run npm run ios:icons`);
+    failed = true;
+    continue;
+  }
+  console.log(`OK: ${file} (${bytes} bytes, ${pixels}x${pixels})`);
 }
 
 if (failed) {
-  console.error('\nRun: node scripts/ensure-app-icon.mjs');
+  console.error('\nRun: npm run ios:icons');
   process.exit(1);
 }
 
-console.log('\nSingle-size iOS app icon ready — Xcode generates all device sizes from 1024');
+console.log('\nAll required iPhone app icons present');
