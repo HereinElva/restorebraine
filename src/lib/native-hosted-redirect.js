@@ -1,4 +1,6 @@
-export const HOSTED_APP_URL = 'https://restorebraine.base44.app';
+import { DEFAULT_APP_ORIGIN, isAppHost } from './app-domains';
+
+export const HOSTED_APP_URL = DEFAULT_APP_ORIGIN;
 
 export const isNativeShell = () => {
   try {
@@ -14,7 +16,7 @@ export const isNativeShell = () => {
 
 export const isHostedAppOrigin = () => {
   try {
-    return typeof window !== 'undefined' && window.location.hostname === 'restorebraine.base44.app';
+    return typeof window !== 'undefined' && isAppHost(window.location.hostname);
   } catch {
     return false;
   }

@@ -1,7 +1,9 @@
-export const RESTOREBRAINE_FROM_URL = 'https://restorebraine.base44.app';
+import { DEFAULT_APP_ORIGIN, getAppOrigin, getAuthReturnOrigin, isAppHost } from './app-domains';
+
+export const RESTOREBRAINE_FROM_URL = DEFAULT_APP_ORIGIN;
 export const BASE44_APP_ID = '68fdc5f42768c4d045fe1bac';
 export const BASE44_PLATFORM_URL = 'https://app.base44.com';
-/** Base44 only allows https://restorebraine.base44.app as OAuth redirect — not custom schemes. */
+/** Native OAuth callback stays on the default hosted URL — not custom schemes. */
 export const NATIVE_OAUTH_CALLBACK = RESTOREBRAINE_FROM_URL;
 
 const PLATFORM_HOSTS = new Set(['app.base44.com', 'base44.com']);
@@ -26,7 +28,7 @@ export const getCanonicalOAuthUrl = (provider = 'google') => {
     : `/api/apps/auth/${provider}/login`;
   const params = new URLSearchParams({
     app_id: BASE44_APP_ID,
-    from_url: RESTOREBRAINE_FROM_URL,
+    from_url: getAuthReturnOrigin(),
   });
   return `${BASE44_PLATFORM_URL}${path}?${params.toString()}`;
 };
@@ -34,7 +36,7 @@ export const getCanonicalOAuthUrl = (provider = 'google') => {
 /** Force a valid OAuth URL — blocks capacitor://, restorebraine://, and app.base44.com from_url values. */
 export const normalizeAuthUrl = (rawUrl, providerHint) => {
   try {
-    const parsed = new URL(String(rawUrl || ''), typeof window !== 'undefined' ? window.location.href : RESTOREBRAINE_FROM_URL);
+    const parsed = new URL(String(rawUrl || ''), typeof window !== 'undefined' ? window.location.href : DEFAULT_APP_ORIGIN);
     if (!isAuthNavigationUrl(rawUrl) && !providerHint) return String(rawUrl);
     const provider = providerHint || providerFromPath(parsed.pathname);
     return getCanonicalOAuthUrl(provider);
@@ -44,12 +46,13 @@ export const normalizeAuthUrl = (rawUrl, providerHint) => {
 };
 
 export const getAppScopedLoginUrl = () => {
+  const origin = getAuthReturnOrigin();
   const params = new URLSearchParams({
-    from_url: RESTOREBRAINE_FROM_URL,
+    from_url: origin,
     app_id: BASE44_APP_ID,
     prompt: 'select_account',
   });
-  return `${RESTOREBRAINE_FROM_URL}/login?${params.toString()}`;
+  return `${origin}/login?${params.toString()}`;
 };
 
 export const getGoogleOAuthUrl = () => getCanonicalOAuthUrl('google');
@@ -59,10 +62,10 @@ export const getProviderOAuthUrl = (label = '') => getCanonicalOAuthUrl(provider
 export const isAuthNavigationUrl = (url) => {
   if (!url) return false;
   try {
-    const parsed = new URL(String(url), typeof window !== 'undefined' ? window.location.href : RESTOREBRAINE_FROM_URL);
+    const parsed = new URL(String(url), typeof window !== 'undefined' ? window.location.href : DEFAULT_APP_ORIGIN);
     if (/accounts\.google\.com|google\.com\/o\/oauth|oauth2\.googleapis\.com/i.test(parsed.href)) return true;
     if (isBase44PlatformHost(parsed.hostname) && parsed.pathname.startsWith('/api/apps/auth')) return true;
-    if (parsed.hostname === 'restorebraine.base44.app' && parsed.pathname.startsWith('/api/apps/auth')) return true;
+    if (isAppHost(parsed.hostname) && parsed.pathname.startsWith('/api/apps/auth')) return true;
   } catch {}
   return false;
 };
@@ -71,7 +74,7 @@ export const isAuthNavigationUrl = (url) => {
 export const isAuthLogoutUrl = (url) => {
   if (!url) return false;
   try {
-    const parsed = new URL(String(url), typeof window !== 'undefined' ? window.location.href : RESTOREBRAINE_FROM_URL);
+    const parsed = new URL(String(url), typeof window !== 'undefined' ? window.location.href : DEFAULT_APP_ORIGIN);
     return /\/api\/apps\/auth\/logout/i.test(parsed.pathname);
   } catch {}
   return false;
@@ -83,7 +86,7 @@ export const guardSignedOutLoginPage = () => {
     if (localStorage.getItem('b44_signed_out') !== '1') return;
     const path = window.location.pathname.replace(/\/$/, '') || '/';
     if (path === '/login') {
-      window.location.replace(`${RESTOREBRAINE_FROM_URL}/`);
+      window.location.replace(`${getAppOrigin()}/`);
     }
   } catch {}
 };
@@ -99,7 +102,7 @@ export const guardPlatformNavigation = () => {
     });
   }
   if (pathname.startsWith('/api/apps/auth')) return;
-  window.location.replace(RESTOREBRAINE_FROM_URL);
+  window.location.replace(getAppOrigin());
 };
 
 const blockBase44BadgeScript = () => {
@@ -168,7 +171,7 @@ export const guardGoogleOAuthInWebView = () => {
   if (typeof window === 'undefined') return;
   if (/accounts\.google\.com/i.test(window.location.hostname)) {
     import('@/lib/native-google-oauth').then(({ openLoginInSystemBrowser }) => {
-      window.history.length > 1 ? window.history.back() : window.location.replace(RESTOREBRAINE_FROM_URL);
+      window.history.length > 1 ? window.history.back() : window.location.replace(getAppOrigin());
       openLoginInSystemBrowser(getGoogleOAuthUrl(), 'google');
     });
   }

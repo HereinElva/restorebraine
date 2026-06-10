@@ -5,6 +5,7 @@
 	<key>com.apple.developer.associated-domains</key>
 	<array>
 		<string>applinks:restorebraine.base44.app</string>
+		<string>applinks:restorebraine.com</string>
 	</array>
 </dict>
 </plist>

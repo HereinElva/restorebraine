@@ -7,6 +7,7 @@
  */
 
 import { persistentStorage } from './persistentStorage';
+import { DEFAULT_APP_ORIGIN, getAppOrigin } from './app-domains';
 
 const isNode = typeof window === 'undefined';
 
@@ -16,7 +17,9 @@ const STORAGE_PREFIX = 'base44_';
 
 export const BASE44_APP_ID = '68fdc5f42768c4d045fe1bac';
 export const BASE44_API_URL = 'https://base44.app';
-export const RESTOREBRAINE_APP_URL = 'https://restorebraine.base44.app';
+export { getAppOrigin, getAppOrigin as getRestorebraineAppUrl, getAuthReturnOrigin, DEFAULT_APP_ORIGIN, isAppHost } from './app-domains';
+/** Resolved once at module load in the browser — prefer getAppOrigin() for dynamic reads. */
+export const RESTOREBRAINE_APP_URL = isNode ? DEFAULT_APP_ORIGIN : getAppOrigin();
 
 const getAppParamValueSync = (paramName, { defaultValue = undefined, removeFromUrl = false } = {}) => {
   if (isNode) return defaultValue;
