@@ -36,15 +36,19 @@ export async function normalizeIcon() {
   try { unlinkSync(tempPath); } catch {}
 }
 
-try {
-  await downloadOfficialIcon();
-  await normalizeIcon();
-  console.log(`Fetched official Restorebraine app icon -> ${destination1024}`);
-} catch (error) {
-  if (existsSync(destination1024)) {
-    console.warn(`Using existing AppIcon-1024.png (${error.message})`);
-    process.exit(0);
+const isDirectRun = process.argv[1]?.endsWith('fetch-official-app-icon.mjs');
+
+if (isDirectRun) {
+  try {
+    await downloadOfficialIcon();
+    await normalizeIcon();
+    console.log(`Fetched official Restorebraine app icon -> ${destination1024}`);
+  } catch (error) {
+    if (existsSync(destination1024)) {
+      console.warn(`Using existing AppIcon-1024.png (${error.message})`);
+      process.exit(0);
+    }
+    console.error(error.message);
+    process.exit(1);
   }
-  console.error(error.message);
-  process.exit(1);
 }
