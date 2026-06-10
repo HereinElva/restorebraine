@@ -10,11 +10,7 @@ import { setupIframeMessaging } from './lib/iframe-messaging';
 import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
-import { BASE44_APP_ID } from '@/lib/build-info';
-import { getAppOrigin } from '@/lib/app-params';
-
-const getSignInUrl = () =>
-  `https://app.base44.com/login?from_url=${encodeURIComponent(getAppOrigin())}&app_id=${BASE44_APP_ID}&prompt=select_account`;
+import { getPlatformLoginUrl } from '@/lib/auth-urls';
 
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
@@ -39,7 +35,7 @@ const AuthenticatedApp = () => {
           </div>
           <h1 style={{fontSize:'24px',fontWeight:'700',color:'#111',marginBottom:'8px'}}>Restorebraine</h1>
           <p style={{color:'#666',marginBottom:'32px',fontSize:'14px'}}>Sign in to access your memories</p>
-          <button onClick={() => { window.location.href = getSignInUrl(); }} style={{width:'100%',padding:'14px',background:'linear-gradient(135deg,#60a5fa,#a78bfa)',color:'white',border:'none',borderRadius:'14px',fontSize:'16px',fontWeight:'600',cursor:'pointer'}}>
+          <button onClick={() => { window.location.href = getPlatformLoginUrl(); }} style={{width:'100%',padding:'14px',background:'linear-gradient(135deg,#60a5fa,#a78bfa)',color:'white',border:'none',borderRadius:'14px',fontSize:'16px',fontWeight:'600',cursor:'pointer'}}>
             Sign In
           </button>
         </div>
@@ -69,7 +65,7 @@ const AuthenticatedApp = () => {
             </div>
             <h1 style={{fontSize:'24px',fontWeight:'700',color:'#111',marginBottom:'8px'}}>Restorebraine</h1>
             <p style={{color:'#666',marginBottom:'32px',fontSize:'14px'}}>Sign in to access your memories</p>
-            <button onClick={() => { localStorage.removeItem('b44_signed_out'); window.location.href = getSignInUrl(); }} style={{width:'100%',padding:'14px',background:'linear-gradient(135deg,#60a5fa,#a78bfa)',color:'white',border:'none',borderRadius:'14px',fontSize:'16px',fontWeight:'600',cursor:'pointer'}}>
+            <button onClick={() => { localStorage.removeItem('b44_signed_out'); window.location.href = getPlatformLoginUrl(); }} style={{width:'100%',padding:'14px',background:'linear-gradient(135deg,#60a5fa,#a78bfa)',color:'white',border:'none',borderRadius:'14px',fontSize:'16px',fontWeight:'600',cursor:'pointer'}}>
               Sign In
             </button>
           </div>

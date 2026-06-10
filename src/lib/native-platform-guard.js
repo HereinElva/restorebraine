@@ -46,13 +46,12 @@ export const normalizeAuthUrl = (rawUrl, providerHint) => {
 };
 
 export const getAppScopedLoginUrl = () => {
-  const origin = getAuthReturnOrigin();
   const params = new URLSearchParams({
-    from_url: origin,
+    from_url: getAuthReturnOrigin(),
     app_id: BASE44_APP_ID,
     prompt: 'select_account',
   });
-  return `${origin}/login?${params.toString()}`;
+  return `${BASE44_PLATFORM_URL}/login?${params.toString()}`;
 };
 
 export const getGoogleOAuthUrl = () => getCanonicalOAuthUrl('google');
@@ -83,11 +82,14 @@ export const isAuthLogoutUrl = (url) => {
 export const guardSignedOutLoginPage = () => {
   if (typeof window === 'undefined') return;
   try {
-    if (localStorage.getItem('b44_signed_out') !== '1') return;
     const path = window.location.pathname.replace(/\/$/, '') || '/';
-    if (path === '/login') {
-      window.location.replace(`${getAppOrigin()}/`);
-    }
+    if (path !== '/login') return;
+    const params = new URLSearchParams({
+      from_url: getAuthReturnOrigin(),
+      app_id: BASE44_APP_ID,
+      prompt: 'select_account',
+    });
+    window.location.replace(`${BASE44_PLATFORM_URL}/login?${params.toString()}`);
   } catch {}
 };
 

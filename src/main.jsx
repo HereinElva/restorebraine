@@ -1,7 +1,12 @@
 import { redirectNativeToHostedApp } from '@/lib/native-hosted-redirect';
 import { installNativeOAuthFix } from '@/lib/native-oauth-fix';
+import { redirectBrokenCustomDomainLogin } from '@/lib/auth-urls';
 
 async function bootstrapApp() {
+  if (redirectBrokenCustomDomainLogin()) {
+    return;
+  }
+
   installNativeOAuthFix();
 
   if (redirectNativeToHostedApp()) {
