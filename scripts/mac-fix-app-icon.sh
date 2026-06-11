@@ -6,7 +6,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 ICON_DIR="ios/App/App/Assets.xcassets/AppIcon.appiconset"
-UNIVERSAL_ICON="$ICON_DIR/AppIcon-512@2x.png"
+UNIVERSAL_ICON="$ICON_DIR/Icon-Any-1024.png"
 
 echo "=== Restorebraine App Icon Fix ==="
 echo "Repo: $ROOT"
@@ -61,8 +61,11 @@ cat <<'EOF'
 1. Project Navigator → App → Assets.xcassets → AppIcon
 2. You should see THREE 1024 slots: Any Appearance, Dark, Tinted
 3. All three should show the purple magnifying-glass icon
-4. If Any Appearance is empty: drag AppIcon-512@2x.png from Finder into it
-5. Product → Clean Build Folder → Archive → Upload
+4. If Any Appearance is empty: drag Icon-Any-1024.png from Finder into it
+5. Product → Clean Build Folder → Archive
+6. Verify icon is in archive:
+     bash scripts/mac-verify-archive-icon.sh ~/Library/Developer/Xcode/Archives/.../App.xcarchive
+7. Upload build 12 to App Store Connect
 
 Do NOT use the old multi-size grid — Xcode 16 uses universal icons only.
 

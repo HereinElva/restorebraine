@@ -220,7 +220,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "BUILD_STAMP=\"${SRCROOT}/App/BUILD_STAMP.txt\"\nCONFIG=\"${SRCROOT}/App/capacitor.config.json\"\nPUBLIC=\"${SRCROOT}/App/public/index.html\"\nAPPSTORE_ICON=\"${SRCROOT}/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png\"\necho \"=========================================\"\necho \"Restorebraine iOS bundle check\"\nif [ -f \"$BUILD_STAMP\" ]; then\n  echo \"BUILD_STAMP: $(cat \"$BUILD_STAMP\")\"\nelse\n  echo \"warning: BUILD_STAMP.txt missing. Run npm run build from repo root.\"\nfi\nif [ -f \"$APPSTORE_ICON\" ]; then\n  echo \"AppIcon: AppIcon-512@2x.png OK ($(wc -c < \"$APPSTORE_ICON\") bytes)\"\nelse\n  echo \"error: Missing 1024pt App Store icon at AppIcon.appiconset/AppIcon-512@2x.png\"\n  echo \"       Run from repo root: bash scripts/mac-fix-app-icon.sh\"\n  exit 1\nfi\nif [ -f \"$CONFIG\" ] && grep -q \"\\*.google.com\" \"$CONFIG\"; then\n  echo \"capacitor.config.json: OAuth allowlist OK\"\nelse\n  echo \"warning: Old capacitor.config.json. Run npm run build from repo root.\"\nfi\nif [ -f \"$PUBLIC\" ] && grep -q \"__restorebraineOAuthFixInstalled\" \"$PUBLIC\"; then\n  echo \"public/index.html: OAuth fix OK\"\nelse\n  echo \"warning: Stale ios/App/App/public bundle. Run npm run build from repo root.\"\nfi\necho \"=========================================\"\n";
+			shellScript = "BUILD_STAMP=\"${SRCROOT}/App/BUILD_STAMP.txt\"\nCONFIG=\"${SRCROOT}/App/capacitor.config.json\"\nPUBLIC=\"${SRCROOT}/App/public/index.html\"\nAPPSTORE_ICON=\"${SRCROOT}/App/Assets.xcassets/AppIcon.appiconset/Icon-Any-1024.png\"\necho \"=========================================\"\necho \"Restorebraine iOS bundle check\"\nif [ -f \"$BUILD_STAMP\" ]; then\n  echo \"BUILD_STAMP: $(cat \"$BUILD_STAMP\")\"\nelse\n  echo \"warning: BUILD_STAMP.txt missing. Run npm run build from repo root.\"\nfi\nif [ -f \"$APPSTORE_ICON\" ]; then\n  echo \"AppIcon: Icon-Any-1024.png OK ($(wc -c < \"$APPSTORE_ICON\") bytes)\"\nelse\n  echo \"error: Missing 1024pt App Store icon at AppIcon.appiconset/Icon-Any-1024.png\"\n  echo \"       Run from repo root: bash scripts/mac-fix-app-icon.sh\"\n  exit 1\nfi\nif [ -f \"$CONFIG\" ] && grep -q \"\\*.google.com\" \"$CONFIG\"; then\n  echo \"capacitor.config.json: OAuth allowlist OK\"\nelse\n  echo \"warning: Old capacitor.config.json. Run npm run build from repo root.\"\nfi\nif [ -f \"$PUBLIC\" ] && grep -q \"__restorebraineOAuthFixInstalled\" \"$PUBLIC\"; then\n  echo \"public/index.html: OAuth fix OK\"\nelse\n  echo \"warning: Stale ios/App/App/public bundle. Run npm run build from repo root.\"\nfi\necho \"=========================================\"\n";
 			showEnvVarsInLog = 0;
 		};
 
@@ -371,7 +371,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 11;
+				CURRENT_PROJECT_VERSION = 12;
 				INFOPLIST_FILE = App/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
@@ -392,7 +392,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 11;
+				CURRENT_PROJECT_VERSION = 12;
 				INFOPLIST_FILE = App/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
