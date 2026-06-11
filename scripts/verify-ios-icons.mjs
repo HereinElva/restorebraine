@@ -4,14 +4,8 @@ import sharp from 'sharp';
 
 const iconDir = resolve('ios/App/App/Assets.xcassets/AppIcon.appiconset');
 const contentsPath = resolve(iconDir, 'Contents.json');
+const marketingIcon = resolve(iconDir, 'AppIcon-1024.png');
 const infoPlistPath = resolve('ios/App/App/Info.plist');
-
-const requiredFiles = [
-  'Icon-Any-1024.png',
-  'Icon-Dark-1024.png',
-  'Icon-Tinted-1024.png',
-  'AppIcon-512@2x.png',
-];
 
 let failed = false;
 
@@ -21,25 +15,19 @@ if (!existsSync(contentsPath)) {
 }
 
 const contents = JSON.parse(readFileSync(contentsPath, 'utf8'));
-const universalEntries = contents.images?.filter(
-  (image) => image.idiom === 'universal' && image.size === '1024x1024'
-) ?? [];
+const marketing = contents.images?.find(
+  (image) => image.idiom === 'ios-marketing' && image.size === '1024x1024' && image.filename
+);
 
-if (universalEntries.length < 3) {
-  console.error(`FAIL: Contents.json needs 3 universal entries, found ${universalEntries.length}`);
+if (!marketing) {
+  console.error('FAIL: Contents.json missing ios-marketing 1024x1024 entry');
   failed = true;
 } else {
-  console.log(`OK: Contents.json has ${universalEntries.length} universal 1024x1024 entries`);
+  console.log(`OK: App Store 1024pt slot -> ${marketing.filename}`);
 }
 
-for (const entry of universalEntries) {
-  if (!entry.filename) {
-    console.error('FAIL: universal entry missing filename');
-    failed = true;
-    continue;
-  }
-  console.log(`OK: ${entry.appearances?.[0]?.value ?? 'any'} -> ${entry.filename}`);
-}
+const deviceIcons = contents.images?.filter((image) => image.idiom !== 'ios-marketing') ?? [];
+console.log(`OK: ${deviceIcons.length} iPhone/iPad icon slots defined`);
 
 const infoPlist = readFileSync(infoPlistPath, 'utf8');
 if (!infoPlist.includes('<key>CFBundleIconName</key>') || !infoPlist.includes('<string>AppIcon</string>')) {
@@ -50,38 +38,30 @@ if (!infoPlist.includes('<key>CFBundleIconName</key>') || !infoPlist.includes('<
 }
 
 if (infoPlist.includes('<key>CFBundleIcons</key>')) {
-  console.error('FAIL: Info.plist must not contain CFBundleIcons (conflicts with asset catalog)');
+  console.error('FAIL: Info.plist must not contain CFBundleIcons');
   failed = true;
-} else {
-  console.log('OK: Info.plist has no CFBundleIcons override');
 }
 
-for (const filename of requiredFiles) {
-  const iconPath = resolve(iconDir, filename);
+for (const image of contents.images ?? []) {
+  if (!image.filename) continue;
+  const iconPath = resolve(iconDir, image.filename);
   if (!existsSync(iconPath)) {
-    console.error(`FAIL: missing ${filename}`);
+    console.error(`FAIL: missing ${image.filename}`);
     failed = true;
-    continue;
   }
+}
 
-  const bytes = readFileSync(iconPath).length;
-  try {
-    const meta = await sharp(iconPath).metadata();
-    if (meta.width !== 1024 || meta.height !== 1024) {
-      console.error(`FAIL: ${filename} is ${meta.width}x${meta.height}, expected 1024x1024`);
-      failed = true;
-    } else if (bytes < 15000) {
-      console.error(`FAIL: ${filename} is too small (${bytes} bytes)`);
-      failed = true;
-    } else if (meta.hasAlpha) {
-      console.error(`FAIL: ${filename} must not have transparency`);
-      failed = true;
-    } else {
-      console.log(`OK: ${filename} (${bytes} bytes)`);
-    }
-  } catch (error) {
-    console.error(`FAIL: could not read ${filename}: ${error.message}`);
+if (!existsSync(marketingIcon)) {
+  console.error('FAIL: missing AppIcon-1024.png');
+  failed = true;
+} else {
+  const bytes = readFileSync(marketingIcon).length;
+  const meta = await sharp(marketingIcon).metadata();
+  if (meta.width !== 1024 || meta.height !== 1024 || meta.hasAlpha || bytes < 15000) {
+    console.error('FAIL: AppIcon-1024.png invalid for App Store');
     failed = true;
+  } else {
+    console.log(`OK: AppIcon-1024.png (${bytes} bytes, 1024x1024)`);
   }
 }
 
@@ -90,4 +70,4 @@ if (failed) {
   process.exit(1);
 }
 
-console.log('\nAppIcon ready for App Store archive');
+console.log('\nClassic AppIcon grid ready for Xcode (look for App Store iOS 1024pt at bottom)');
