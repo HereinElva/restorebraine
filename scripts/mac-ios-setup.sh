@@ -13,7 +13,7 @@ if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   exit 1
 fi
 
-BRANCH="${1:-cursor/fix-native-xcode-coding-bacf}"
+BRANCH="${1:-main}"
 
 sync_to_origin() {
   echo "==> Fetching origin/$BRANCH"
@@ -55,8 +55,10 @@ grep -E '"url"' ios/App/App/capacitor.config.json || true
 echo "==> Info.plist app icon binding:"
 grep -A1 CFBundleIconName ios/App/App/Info.plist || { echo "ERROR: CFBundleIconName missing from Info.plist"; exit 1; }
 
-echo "==> App icon files:"
-ls ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-60@3x.png ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png
+echo "==> App icon files (1024pt App Store slot uses appstore.png):"
+ls ios/App/App/Assets.xcassets/AppIcon.appiconset/appstore.png \
+  ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png \
+  ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-60@3x.png
 
 echo "==> Installing CocoaPods"
 cd ios/App

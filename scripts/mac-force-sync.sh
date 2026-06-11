@@ -8,5 +8,6 @@ BRANCH="${1:-cursor/fix-native-xcode-coding-bacf}"
 echo "Fetching and hard-resetting to origin/$BRANCH ..."
 git fetch origin "$BRANCH"
 git reset --hard "origin/$BRANCH"
-git clean -fd
-echo "Done. Now run: bash scripts/mac-ios-setup.sh"
+# Never delete committed AppIcon PNGs under Assets.xcassets
+git clean -fd --exclude=ios/App/App/Assets.xcassets/AppIcon.appiconset/
+echo "Done. Now run: bash scripts/mac-fix-app-icon.sh"

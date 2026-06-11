@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "node scripts/write-build-info.mjs && npm run ios:icons && node scripts/sync-app-icon.mjs && vite build && node scripts/patch-native-purchases-podspec.mjs && npx cap sync ios && node scripts/verify-ios-sync.mjs && node scripts/verify-ios-icons.mjs && node scripts/capacitor-audit.mjs",
     "ios:icons": "node scripts/generate-branded-app-icon.mjs && node scripts/generate-ios-app-icons.mjs",
+    "mac:fix-icon": "bash scripts/mac-fix-app-icon.sh",
     "build:web": "node scripts/write-build-info.mjs && node scripts/ensure-app-icon.mjs && node scripts/sync-app-icon.mjs && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
