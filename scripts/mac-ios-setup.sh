@@ -55,10 +55,9 @@ grep -E '"url"' ios/App/App/capacitor.config.json || true
 echo "==> Info.plist app icon binding:"
 grep -A1 CFBundleIconName ios/App/App/Info.plist || { echo "ERROR: CFBundleIconName missing from Info.plist"; exit 1; }
 
-echo "==> App icon files (1024pt App Store slot uses appstore.png):"
-ls ios/App/App/Assets.xcassets/AppIcon.appiconset/appstore.png \
-  ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png \
-  ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-60@3x.png
+echo "==> App icon files (Xcode 16 universal -> AppIcon-512@2x.png):"
+ls ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png \
+  ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png
 
 echo "==> Installing CocoaPods"
 cd ios/App

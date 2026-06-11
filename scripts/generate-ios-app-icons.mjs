@@ -1,13 +1,14 @@
-import { copyFileSync, existsSync, mkdirSync, unlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, unlinkSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import sharp from 'sharp';
 
 const iconSetDir = resolve('ios/App/App/Assets.xcassets/AppIcon.appiconset');
-const masterIcon = resolve(iconSetDir, 'AppIcon-1024.png');
-const appStoreIcon = resolve(iconSetDir, 'appstore.png');
+const universalIcon = resolve(iconSetDir, 'AppIcon-512@2x.png');
 
 const sourceCandidates = [
-  masterIcon,
+  universalIcon,
+  resolve(iconSetDir, 'AppIcon-1024.png'),
+  resolve(iconSetDir, 'appstore.png'),
   resolve('public/AppIcon.png'),
 ];
 
@@ -18,83 +19,52 @@ if (!source) {
   process.exit(1);
 }
 
-const icons = [
-  { filename: 'AppIcon-20@2x.png', size: 40 },
-  { filename: 'AppIcon-20@3x.png', size: 60 },
-  { filename: 'AppIcon-29@2x.png', size: 58 },
-  { filename: 'AppIcon-29@3x.png', size: 87 },
-  { filename: 'AppIcon-40@2x.png', size: 80 },
-  { filename: 'AppIcon-40@3x.png', size: 120 },
-  { filename: 'AppIcon-60@2x.png', size: 120 },
-  { filename: 'AppIcon-60@3x.png', size: 180 },
-  { filename: 'AppIcon-20~ipad.png', size: 20 },
-  { filename: 'AppIcon-20@2x~ipad.png', size: 40 },
-  { filename: 'AppIcon-29~ipad.png', size: 29 },
-  { filename: 'AppIcon-29@2x~ipad.png', size: 58 },
-  { filename: 'AppIcon-40~ipad.png', size: 40 },
-  { filename: 'AppIcon-40@2x~ipad.png', size: 80 },
-  { filename: 'AppIcon-76~ipad.png', size: 76 },
-  { filename: 'AppIcon-76@2x~ipad.png', size: 152 },
-  { filename: 'AppIcon-83.5@2x~ipad.png', size: 167 },
-  { filename: 'AppIcon-1024.png', size: 1024 },
-];
-
 mkdirSync(iconSetDir, { recursive: true });
 
-for (const { filename, size } of icons) {
-  const destination = resolve(iconSetDir, filename);
-  if (resolve(destination) === resolve(source)) {
-    continue;
-  }
-  await sharp(source)
-    .flatten({ background: { r: 147, g: 197, b: 253 } })
-    .resize(size, size, { fit: 'cover' })
-    .png({ compressionLevel: 9 })
-    .toFile(destination);
+const iconBuffer = await sharp(source)
+  .flatten({ background: { r: 147, g: 197, b: 253 } })
+  .resize(1024, 1024, { fit: 'cover' })
+  .png({ compressionLevel: 9 })
+  .toBuffer();
+
+await sharp(iconBuffer).toFile(universalIcon);
+
+for (const alias of ['AppIcon-1024.png', 'appstore.png']) {
+  await sharp(iconBuffer).toFile(resolve(iconSetDir, alias));
 }
 
-if (resolve(source) !== resolve(masterIcon)) {
-  await sharp(source)
-    .flatten({ background: { r: 147, g: 197, b: 253 } })
-    .resize(1024, 1024, { fit: 'cover' })
-    .png({ compressionLevel: 9 })
-    .toFile(masterIcon);
-}
-
-copyFileSync(masterIcon, appStoreIcon);
-
-for (const stray of ['AppIcon-512@2x.png', 'playstore.png']) {
-  const strayPath = resolve(iconSetDir, stray);
-  if (existsSync(strayPath)) {
-    unlinkSync(strayPath);
-  }
+for (const filename of readdirSync(iconSetDir)) {
+  if (!filename.endsWith('.png')) continue;
+  if (['AppIcon-512@2x.png', 'AppIcon-1024.png', 'appstore.png'].includes(filename)) continue;
+  unlinkSync(resolve(iconSetDir, filename));
 }
 
 const contents = {
   images: [
-    { filename: 'AppIcon-20@2x.png', idiom: 'iphone', scale: '2x', size: '20x20' },
-    { filename: 'AppIcon-20@3x.png', idiom: 'iphone', scale: '3x', size: '20x20' },
-    { filename: 'AppIcon-29@2x.png', idiom: 'iphone', scale: '2x', size: '29x29' },
-    { filename: 'AppIcon-29@3x.png', idiom: 'iphone', scale: '3x', size: '29x29' },
-    { filename: 'AppIcon-40@2x.png', idiom: 'iphone', scale: '2x', size: '40x40' },
-    { filename: 'AppIcon-40@3x.png', idiom: 'iphone', scale: '3x', size: '40x40' },
-    { filename: 'AppIcon-60@2x.png', idiom: 'iphone', scale: '2x', size: '60x60' },
-    { filename: 'AppIcon-60@3x.png', idiom: 'iphone', scale: '3x', size: '60x60' },
-    { filename: 'AppIcon-20~ipad.png', idiom: 'ipad', scale: '1x', size: '20x20' },
-    { filename: 'AppIcon-20@2x~ipad.png', idiom: 'ipad', scale: '2x', size: '20x20' },
-    { filename: 'AppIcon-29~ipad.png', idiom: 'ipad', scale: '1x', size: '29x29' },
-    { filename: 'AppIcon-29@2x~ipad.png', idiom: 'ipad', scale: '2x', size: '29x29' },
-    { filename: 'AppIcon-40~ipad.png', idiom: 'ipad', scale: '1x', size: '40x40' },
-    { filename: 'AppIcon-40@2x~ipad.png', idiom: 'ipad', scale: '2x', size: '40x40' },
-    { filename: 'AppIcon-76~ipad.png', idiom: 'ipad', scale: '1x', size: '76x76' },
-    { filename: 'AppIcon-76@2x~ipad.png', idiom: 'ipad', scale: '2x', size: '76x76' },
-    { filename: 'AppIcon-83.5@2x~ipad.png', idiom: 'ipad', scale: '2x', size: '83.5x83.5' },
-    { filename: 'appstore.png', idiom: 'ios-marketing', scale: '1x', size: '1024x1024' },
+    {
+      filename: 'AppIcon-512@2x.png',
+      idiom: 'universal',
+      platform: 'ios',
+      size: '1024x1024',
+    },
+    {
+      appearances: [{ appearance: 'luminosity', value: 'dark' }],
+      filename: 'AppIcon-512@2x.png',
+      idiom: 'universal',
+      platform: 'ios',
+      size: '1024x1024',
+    },
+    {
+      appearances: [{ appearance: 'luminosity', value: 'tinted' }],
+      filename: 'AppIcon-512@2x.png',
+      idiom: 'universal',
+      platform: 'ios',
+      size: '1024x1024',
+    },
   ],
   info: { author: 'xcode', version: 1 },
 };
 
 writeFileSync(resolve(iconSetDir, 'Contents.json'), `${JSON.stringify(contents, null, 2)}\n`);
 
-console.log(`Generated ${icons.length} iOS app icons + appstore.png from ${source}`);
-console.log('Contents.json ios-marketing -> appstore.png (1024x1024)');
+console.log('Wrote Xcode 16 universal AppIcon (Any + Dark + Tinted -> AppIcon-512@2x.png)');
