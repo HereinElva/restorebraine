@@ -4,6 +4,7 @@ import sharp from 'sharp';
 
 const iconDir = resolve('ios/App/App/Assets.xcassets/AppIcon.appiconset');
 const contentsPath = resolve(iconDir, 'Contents.json');
+const appStoreIcon = resolve(iconDir, 'appstore.png');
 const masterIcon = resolve(iconDir, 'AppIcon-1024.png');
 const infoPlistPath = resolve('ios/App/App/Info.plist');
 
@@ -15,15 +16,15 @@ if (!existsSync(contentsPath)) {
 }
 
 const contents = JSON.parse(readFileSync(contentsPath, 'utf8'));
-const universal = contents.images?.find(
-  (image) => image.idiom === 'universal' && image.size === '1024x1024' && image.filename
+const marketing = contents.images?.find(
+  (image) => image.idiom === 'ios-marketing' && image.size === '1024x1024' && image.filename
 );
 
-if (!universal) {
-  console.error('FAIL: Contents.json must define one universal 1024x1024 AppIcon entry');
+if (!marketing) {
+  console.error('FAIL: Contents.json missing ios-marketing 1024x1024 entry');
   failed = true;
 } else {
-  console.log(`OK: Contents.json references ${universal.filename}`);
+  console.log(`OK: Contents.json ios-marketing -> ${marketing.filename}`);
 }
 
 const infoPlist = readFileSync(infoPlistPath, 'utf8');
@@ -34,29 +35,37 @@ if (!infoPlist.includes('<key>CFBundleIconName</key>') || !infoPlist.includes('<
   console.log('OK: Info.plist CFBundleIconName = AppIcon');
 }
 
-if (!existsSync(masterIcon)) {
-  console.error('FAIL: missing AppIcon-1024.png');
-  failed = true;
-} else {
-  const bytes = readFileSync(masterIcon).length;
+for (const [label, iconPath] of [['appstore.png', appStoreIcon], ['AppIcon-1024.png', masterIcon]]) {
+  if (!existsSync(iconPath)) {
+    console.error(`FAIL: missing ${label}`);
+    failed = true;
+    continue;
+  }
+
+  const bytes = readFileSync(iconPath).length;
   try {
-    const meta = await sharp(masterIcon).metadata();
+    const meta = await sharp(iconPath).metadata();
     if (meta.width !== 1024 || meta.height !== 1024) {
-      console.error(`FAIL: AppIcon-1024.png is ${meta.width}x${meta.height}, expected 1024x1024`);
+      console.error(`FAIL: ${label} is ${meta.width}x${meta.height}, expected 1024x1024`);
       failed = true;
     } else if (bytes < 15000) {
-      console.error(`FAIL: AppIcon-1024.png is too small (${bytes} bytes) — run npm run ios:icons`);
+      console.error(`FAIL: ${label} is too small (${bytes} bytes) — run npm run ios:icons`);
       failed = true;
     } else if (meta.hasAlpha) {
-      console.error('FAIL: AppIcon-1024.png must not have transparency for App Store');
+      console.error(`FAIL: ${label} must not have transparency for App Store`);
       failed = true;
     } else {
-      console.log(`OK: AppIcon-1024.png (${bytes} bytes, 1024x1024, no alpha)`);
+      console.log(`OK: ${label} (${bytes} bytes, 1024x1024, no alpha)`);
     }
   } catch (error) {
-    console.error(`FAIL: could not read AppIcon-1024.png: ${error.message}`);
+    console.error(`FAIL: could not read ${label}: ${error.message}`);
     failed = true;
   }
+}
+
+if (marketing && !existsSync(resolve(iconDir, marketing.filename))) {
+  console.error(`FAIL: Contents.json references ${marketing.filename} but file is missing`);
+  failed = true;
 }
 
 if (failed) {
@@ -64,4 +73,4 @@ if (failed) {
   process.exit(1);
 }
 
-console.log('\nSingle-size iOS AppIcon ready for Xcode');
+console.log('\niOS AppIcon ready for Xcode (1024pt App Store slot -> appstore.png)');
