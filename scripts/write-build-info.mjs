@@ -1,7 +1,7 @@
-import { writeFileSync } from 'node:fs';
+import { writeFileSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-const BUILD_NUMBER = 73;
+const BUILD_NUMBER = 74;
 const stamp = new Date().toISOString().slice(0, 16).replace('T', ' ');
 const nativeLabel = `kbrown native v${BUILD_NUMBER} · ${stamp}`;
 const webLabel = `restorebraine web v${BUILD_NUMBER}`;
@@ -17,13 +17,20 @@ export const WEB_BUILD_LABEL = '${webLabel}';
 
 writeFileSync(
   resolve('src/deploy-marker.js'),
-  `// Single source for the live build label shown in the app UI.
-// Base44 deploy: paste this file + Layout.jsx, then Publish.
+  `// Base44: update these files in the Code editor, then click Publish (GitHub alone is not enough).
 export const DEPLOY_BUILD = ${BUILD_NUMBER};
 `
 );
 
 writeFileSync(resolve('ios/App/App/BUILD_STAMP.txt'), `${nativeLabel}\n`);
 
+const indexHtmlPath = resolve('index.html');
+const indexHtml = readFileSync(indexHtmlPath, 'utf8');
+writeFileSync(
+  indexHtmlPath,
+  indexHtml.replace(/content="v\d+"/, `content="v${BUILD_NUMBER}"`)
+);
+
 console.log(`Wrote build stamp: ${nativeLabel}`);
 console.log(`Web build label: ${webLabel}`);
+console.log('Run: node scripts/print-base44-publish-hint.mjs');

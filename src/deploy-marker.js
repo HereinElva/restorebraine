@@ -1,3 +1,2 @@
-// Single source for the live build label shown in the app UI.
-// Base44 deploy: paste this file + Layout.jsx, then Publish.
-export const DEPLOY_BUILD = 73;
+// Base44: update these files in the Code editor, then click Publish (GitHub alone is not enough).
+export const DEPLOY_BUILD = 74;
