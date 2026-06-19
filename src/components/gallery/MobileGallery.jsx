@@ -5,6 +5,7 @@ import SelectablePhotoGrid from "./SelectablePhotoGrid";
 import MobilePhotoModal from "./MobilePhotoModal";
 import EmptyState from "./EmptyState";
 import OrganizeButton from "./OrganizeButton";
+import { SQUARE_FOLDER_ACTION_ACTIVE_CLASS, SQUARE_FOLDER_ACTION_CLASS } from "./folderActionStyles";
 import CustomFolderButton from "./CustomFolderButton";
 import DuplicateDetector from "./DuplicateDetector";
 import MobileFolderCard from "./MobileFolderCard";
@@ -349,20 +350,28 @@ export default function MobileGallery({
           </>
         ) : activeTab === "folders" ? (
           <div>
-            {/* Action buttons */}
+            {/* Action buttons — each cell wraps one full-width control */}
             <div className="grid grid-cols-2 gap-2 mb-5">
-              <OrganizeButton photos={photos} squareStyle />
-              <CustomFolderButton photos={photos} squareStyle />
-              <DuplicateDetector photos={photos} folders={folders} squareStyle />
-              <button
-                onClick={() => { setSelectionMode(!selectionMode); setSelectedIds([]); setSelectedFolderIds([]); }}
-                className={`w-full flex flex-col items-center justify-center gap-1.5 py-4 rounded-2xl text-sm font-semibold shadow-sm border transition-colors ${
-                  selectionMode ? 'bg-purple-600 text-white border-purple-600' : 'bg-white text-gray-700 border-gray-100'
-                }`}
-              >
-                <MousePointer2 className="w-5 h-5" />
-                <span>{selectionMode ? 'Exit Select' : 'Select'}</span>
-              </button>
+              <div className="min-w-0 w-full">
+                <OrganizeButton photos={photos} squareStyle />
+              </div>
+              <div className="min-w-0 w-full">
+                <CustomFolderButton photos={photos} squareStyle />
+              </div>
+              <div className="min-w-0 w-full">
+                <DuplicateDetector photos={photos} folders={folders} squareStyle />
+              </div>
+              <div className="min-w-0 w-full">
+                <button
+                  type="button"
+                  data-rb-folder-action="select"
+                  onClick={() => { setSelectionMode(!selectionMode); setSelectedIds([]); setSelectedFolderIds([]); }}
+                  className={selectionMode ? SQUARE_FOLDER_ACTION_ACTIVE_CLASS : SQUARE_FOLDER_ACTION_CLASS}
+                >
+                  <MousePointer2 className="w-5 h-5" />
+                  <span>{selectionMode ? 'Exit Select' : 'Select'}</span>
+                </button>
+              </div>
             </div>
 
             {folders.length === 0 ? (

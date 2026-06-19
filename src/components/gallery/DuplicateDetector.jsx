@@ -10,6 +10,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
+import { SQUARE_FOLDER_ACTION_CLASS } from "./folderActionStyles";
 
 export default function DuplicateDetector({ photos, folders, squareStyle = false }) {
   const [checking, setChecking] = useState(false);
@@ -85,9 +86,11 @@ export default function DuplicateDetector({ photos, folders, squareStyle = false
     <>
       {squareStyle ? (
         <button
+          type="button"
+          data-rb-folder-action="duplicates"
           onClick={findDuplicates}
           disabled={checking}
-          className="w-full flex flex-col items-center justify-center gap-1.5 py-4 rounded-2xl bg-white text-gray-700 border border-gray-100 shadow-sm text-sm font-semibold disabled:opacity-50"
+          className={SQUARE_FOLDER_ACTION_CLASS}
         >
           {checking ? <Loader2 className="w-5 h-5 animate-spin text-blue-500" /> : <Copy className="w-5 h-5 text-blue-500" />}
           <span>Duplicates</span>

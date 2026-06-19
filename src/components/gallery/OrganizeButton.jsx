@@ -22,6 +22,7 @@ import {
   buildMergePrompt,
   photoDataForOrganize,
 } from "@/lib/media-organize";
+import { SQUARE_FOLDER_ACTION_CLASS } from "./folderActionStyles";
 
 const CHUNK_SIZE = 40;
 const CONCURRENCY = 4;
@@ -307,6 +308,59 @@ export default function OrganizeButton({ photos, squareStyle = false }) {
 
   return (
     <>
+      {squareStyle ? (
+        <button
+          type="button"
+          data-rb-folder-action="organize"
+          onClick={() => setShowDialog(true)}
+          disabled={organizing || photos.length < 2}
+          className={`relative ${SQUARE_FOLDER_ACTION_CLASS}`}
+        >
+          {organizing ? (
+            <Loader2 className="w-5 h-5 animate-spin text-purple-500" />
+          ) : (
+            <Sparkles className="w-5 h-5 text-purple-500" />
+          )}
+          <span>{organizing ? "Organizing..." : "Organize"}</span>
+          {progress && (
+            <div className="absolute top-full left-0 right-0 mt-2 p-2 bg-white rounded-lg shadow-lg border border-orange-200 whitespace-nowrap z-10">
+              <div className="flex items-center gap-2 text-sm text-orange-600">
+                <Sparkles className="w-3 h-3 animate-pulse" />
+                {progress}
+              </div>
+            </div>
+          )}
+        </button>
+      ) : (
+        <div className="relative">
+          <Button
+            onClick={() => setShowDialog(true)}
+            disabled={organizing || photos.length < 2}
+            className="bg-gradient-to-r from-blue-400 to-purple-500 hover:from-blue-500 hover:to-purple-600 text-white gap-2"
+          >
+            {organizing ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Organizing...
+              </>
+            ) : (
+              <>
+                <FolderPlus className="w-4 h-4" />
+                Organize
+              </>
+            )}
+          </Button>
+          {progress && (
+            <div className="absolute top-full left-0 right-0 mt-2 p-2 bg-white rounded-lg shadow-lg border border-orange-200 whitespace-nowrap z-10">
+              <div className="flex items-center gap-2 text-sm text-orange-600">
+                <Sparkles className="w-3 h-3 animate-pulse" />
+                {progress}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
         <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -386,50 +440,6 @@ export default function OrganizeButton({ photos, squareStyle = false }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      <div className={squareStyle ? "relative w-full min-w-0" : "relative"}>
-        {squareStyle ? (
-          <button
-            onClick={() => setShowDialog(true)}
-            disabled={organizing || photos.length < 2}
-            className="w-full flex flex-col items-center justify-center gap-1.5 py-4 rounded-2xl bg-white text-gray-700 border border-gray-100 shadow-sm text-sm font-semibold disabled:opacity-50"
-          >
-            {organizing ? (
-              <Loader2 className="w-5 h-5 animate-spin text-purple-500" />
-            ) : (
-              <Sparkles className="w-5 h-5 text-purple-500" />
-            )}
-            <span>{organizing ? "Organizing..." : "Organize"}</span>
-          </button>
-        ) : (
-          <Button
-            onClick={() => setShowDialog(true)}
-            disabled={organizing || photos.length < 2}
-            className="bg-gradient-to-r from-blue-400 to-purple-500 hover:from-blue-500 hover:to-purple-600 text-white gap-2"
-          >
-            {organizing ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Organizing...
-              </>
-            ) : (
-              <>
-                <FolderPlus className="w-4 h-4" />
-                Organize
-              </>
-            )}
-          </Button>
-        )}
-
-        {progress && (
-          <div className="absolute top-full left-0 right-0 mt-2 p-2 bg-white rounded-lg shadow-lg border border-orange-200 whitespace-nowrap z-10">
-            <div className="flex items-center gap-2 text-sm text-orange-600">
-              <Sparkles className="w-3 h-3 animate-pulse" />
-              {progress}
-            </div>
-          </div>
-        )}
-      </div>
     </>
   );
 }
