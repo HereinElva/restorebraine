@@ -26,8 +26,11 @@ export async function persistActiveSession() {
   return token;
 }
 
-export async function navigateToGallery(navigate, { popBack } = {}) {
+export async function navigateToGallery(navigate, { popBack, resumeActiveSession } = {}) {
   popBack?.();
   await persistActiveSession();
+  if (resumeActiveSession) {
+    await resumeActiveSession();
+  }
   navigate(GALLERY_PATH, { replace: true });
 }

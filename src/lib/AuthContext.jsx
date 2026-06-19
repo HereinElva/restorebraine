@@ -79,8 +79,8 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const checkUserAuth = async () => {
-    if (manuallyLoggedOut) return;
+  const checkUserAuth = async ({ ignoreManualLogout = false } = {}) => {
+    if (manuallyLoggedOut && !ignoreManualLogout) return;
 
     try {
       setIsLoadingAuth(true);
@@ -133,6 +133,31 @@ export const AuthProvider = ({ children }) => {
     setAuthError({ type: 'auth_required', message: 'Authentication required' });
   };
 
+  const resumeActiveSession = async () => {
+    setManuallyLoggedOut(false);
+    setAuthError(null);
+
+    const restoredToken = await restoreSessionFromNativeStorage();
+    if (restoredToken) {
+      appParams.token = restoredToken;
+    }
+
+    const token =
+      appParams.token ||
+      localStorage.getItem('base44_access_token') ||
+      localStorage.getItem('token');
+
+    if (!token) return false;
+
+    try {
+      localStorage.removeItem('b44_signed_out');
+    } catch {}
+
+    await persistSessionToNativeStorage(token);
+    await checkUserAuth({ ignoreManualLogout: true });
+    return true;
+  };
+
   const logout = async () => {
     await localLogout();
     if (isHostedAppOrigin()) {
@@ -155,6 +180,7 @@ export const AuthProvider = ({ children }) => {
       appPublicSettings,
       logout,
       localLogout,
+      resumeActiveSession,
       manuallyLoggedOut,
       navigateToLogin,
       checkAppState,

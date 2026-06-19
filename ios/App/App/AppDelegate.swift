@@ -210,20 +210,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             } catch (e) {}
           }
 
-          function isSignOutControl(target) {
-            if (!target) return false;
-            if (target.closest('[data-rb-gallery-nav]')) return false;
-            var btn = target.closest('button, a, [role="button"]');
-            if (!btn) return false;
-            var label = (btn.textContent || '').replace(/\s+/g, ' ').trim();
-            var aria = ((btn.getAttribute && btn.getAttribute('aria-label')) || '').trim();
-            if (/back to gallery/i.test(label) || /back to gallery/i.test(aria)) return false;
-            if (btn.closest('[data-rb-sign-out-row]') && /sign out/i.test(label)) return true;
-            if (/^sign out$/i.test(label) || /^sign out$/i.test(aria)) return true;
-            if (/sign out/i.test(label) && label.length < 40) return true;
-            return false;
-          }
-
           function performNativeSignOut() {
             clearNativeSession();
             removeNativeSignInOverlay();
@@ -732,20 +718,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             openLoginInSystemBrowser(getCanonicalOAuthUrl('google'), 'google');
           };
 
-          function interceptNativeSignOut() {
-            if (window.__restorebraineSignOutInterceptor) return;
-            window.__restorebraineSignOutInterceptor = true;
-            document.addEventListener('click', function (event) {
-              if (!isSignOutControl(event.target)) return;
-              if (event) {
-                event.preventDefault();
-                event.stopPropagation();
-                event.stopImmediatePropagation();
-              }
-              performNativeSignOut();
-            }, true);
-          }
-
           function interceptNativeSignInClicks() {
             if (window.__restorebraineSignInInterceptor) return;
             window.__restorebraineSignInInterceptor = true;
@@ -779,7 +751,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             guardGoogleOAuthInWebView();
             hideBase44EditorWidget();
             fixRestorebraineBranding();
-            interceptNativeSignOut();
             interceptNativeSignInClicks();
             window.addEventListener('popstate', function () {
               guardPlatformNavigation();

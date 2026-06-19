@@ -16,7 +16,7 @@ export default function Account() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const { popBack } = useNavigation();
-  const { localLogout } = useAuth();
+  const { localLogout, resumeActiveSession } = useAuth();
 
   const { data: user } = useQuery({
     queryKey: ['user'],
@@ -27,18 +27,22 @@ export default function Account() {
     popBack();
   }, [popBack]);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     queryClient.clear();
-    if (typeof window !== 'undefined' && window.__restorebraineClearSession) {
-      window.__restorebraineClearSession();
+    if (typeof window !== 'undefined' && window.__restorebrainePerformSignOut) {
+      window.__restorebrainePerformSignOut();
+      return;
     }
-    localLogout();
+    await localLogout();
   };
 
   const goToGallery = (e) => {
     e.preventDefault();
     e.stopPropagation();
-    navigateToGallery(navigate, { popBack });
+    if (e.nativeEvent?.stopImmediatePropagation) {
+      e.nativeEvent.stopImmediatePropagation();
+    }
+    navigateToGallery(navigate, { popBack, resumeActiveSession });
   };
 
   const handleDeleteAccount = async () => {

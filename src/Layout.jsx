@@ -1,7 +1,8 @@
 import React, { useEffect, useRef } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
-import { isGalleryPath, navigateToGallery } from "@/lib/gallery-nav";
+import { isGalleryPath, navigateToGallery, persistActiveSession } from "@/lib/gallery-nav";
+import { useAuth } from "@/lib/AuthContext";
 import { Search, Upload, User, ChevronLeft } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { NavigationProvider, useNavigation } from "./components/NavigationContext";
@@ -13,6 +14,7 @@ function LayoutInner({ children, currentPageName }) {
   const navigate = useNavigate();
   const prevIndexRef = useRef(0);
   const { backState, popBack } = useNavigation();
+  const { resumeActiveSession } = useAuth();
 
   const isTabActive = (name) => {
     if (name === 'Gallery') return isGalleryPath(location.pathname);
@@ -64,7 +66,7 @@ function LayoutInner({ children, currentPageName }) {
     }
 
     popBack();
-    navigateToGallery(navigate);
+    navigateToGallery(navigate, { resumeActiveSession });
   };
 
   useEffect(() => {
@@ -91,6 +93,8 @@ function LayoutInner({ children, currentPageName }) {
             {/* Back button — shown on child routes */}
             {backState ? (
               <button
+                type="button"
+                data-rb-gallery-nav
                 onClick={handleBack}
                 className="flex items-center gap-1 text-purple-600 font-medium select-none absolute left-0"
               >
@@ -145,6 +149,10 @@ function LayoutInner({ children, currentPageName }) {
                   key={name}
                   to={name === 'Gallery' ? createPageUrl('Gallery') : createPageUrl(name)}
                   replace={isActive}
+                  data-rb-gallery-nav={name === 'Gallery' ? 'tab' : undefined}
+                  onClick={name === 'Gallery' ? () => {
+                    persistActiveSession().then(() => resumeActiveSession?.());
+                  } : undefined}
                   className="flex-1 flex flex-col items-center justify-center py-3 gap-0.5 select-none relative"
                 >
                   <Icon
