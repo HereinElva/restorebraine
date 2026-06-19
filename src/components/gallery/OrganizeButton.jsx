@@ -22,7 +22,7 @@ import {
   buildMergePrompt,
   photoDataForOrganize,
 } from "@/lib/media-organize";
-import { SQUARE_FOLDER_ACTION_CLASS } from "./folderActionStyles";
+import { SQUARE_FOLDER_ACTION_CLASS, SQUARE_FOLDER_ACTION_STYLE } from "./folderActionStyles";
 
 const CHUNK_SIZE = 40;
 const CONCURRENCY = 4;
@@ -315,6 +315,7 @@ export default function OrganizeButton({ photos, squareStyle = false }) {
           onClick={() => setShowDialog(true)}
           disabled={organizing || photos.length < 2}
           className={`relative ${SQUARE_FOLDER_ACTION_CLASS}`}
+          style={SQUARE_FOLDER_ACTION_STYLE}
         >
           {organizing ? (
             <Loader2 className="w-5 h-5 animate-spin text-purple-500" />

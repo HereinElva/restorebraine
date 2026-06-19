@@ -17,22 +17,28 @@ const hasBadLoginUrlInBundle = () => {
   });
 };
 
+const isLocalBundleMode = process.env.CAPACITOR_LOCAL === '1';
+
 const checks = [
   {
     path: 'ios/App/App/BUILD_STAMP.txt',
     test: (content) => content.includes('kbrown native v'),
     message: 'BUILD_STAMP.txt is missing or outdated',
   },
-  {
-    path: 'capacitor.config.json',
-    test: (content) => /"url"\s*:\s*"https:\/\/restorebraine\.base44\.app"/.test(content),
-    message: 'capacitor.config.json must set server.url to hosted Restorebraine app',
-  },
-  {
-    path: 'ios/App/App/capacitor.config.json',
-    test: (content) => /"url"\s*:\s*"https:\/\/restorebraine\.base44\.app"/.test(content),
-    message: 'ios/App/App/capacitor.config.json must set server.url — run npm run build',
-  },
+  ...(isLocalBundleMode
+    ? []
+    : [
+        {
+          path: 'capacitor.config.json',
+          test: (content) => /"url"\s*:\s*"https:\/\/restorebraine\.base44\.app"/.test(content),
+          message: 'capacitor.config.json must set server.url to hosted Restorebraine app',
+        },
+        {
+          path: 'ios/App/App/capacitor.config.json',
+          test: (content) => /"url"\s*:\s*"https:\/\/restorebraine\.base44\.app"/.test(content),
+          message: 'ios/App/App/capacitor.config.json must set server.url — run npm run build',
+        },
+      ]),
   {
     path: 'ios/App/App/public/assets',
     test: () => hasOAuthFixInBundle(),
@@ -45,8 +51,13 @@ const checks = [
   },
   {
     path: 'ios/App/App/capacitor.config.json',
-    test: (content) => content.includes('restorebraine.base44.app') && content.includes('accounts.google.com'),
-    message: 'ios/App/App/capacitor.config.json missing required OAuth allowNavigation hosts',
+    test: (content) =>
+      isLocalBundleMode
+        ? !/"url"\s*:/.test(content)
+        : content.includes('restorebraine.base44.app') && content.includes('accounts.google.com'),
+    message: isLocalBundleMode
+      ? 'local bundle mode should not set server.url'
+      : 'ios/App/App/capacitor.config.json missing required OAuth allowNavigation hosts',
   },
   {
     path: 'ios/App/App/public/assets',

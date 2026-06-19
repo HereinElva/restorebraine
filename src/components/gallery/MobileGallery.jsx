@@ -5,7 +5,7 @@ import SelectablePhotoGrid from "./SelectablePhotoGrid";
 import MobilePhotoModal from "./MobilePhotoModal";
 import EmptyState from "./EmptyState";
 import OrganizeButton from "./OrganizeButton";
-import { SQUARE_FOLDER_ACTION_ACTIVE_CLASS, SQUARE_FOLDER_ACTION_CLASS } from "./folderActionStyles";
+import { SQUARE_FOLDER_ACTION_ACTIVE_CLASS, SQUARE_FOLDER_ACTION_ACTIVE_STYLE, SQUARE_FOLDER_ACTION_CLASS, SQUARE_FOLDER_ACTION_STYLE } from "./folderActionStyles";
 import CustomFolderButton from "./CustomFolderButton";
 import DuplicateDetector from "./DuplicateDetector";
 import MobileFolderCard from "./MobileFolderCard";
@@ -367,6 +367,7 @@ export default function MobileGallery({
                   data-rb-folder-action="select"
                   onClick={() => { setSelectionMode(!selectionMode); setSelectedIds([]); setSelectedFolderIds([]); }}
                   className={selectionMode ? SQUARE_FOLDER_ACTION_ACTIVE_CLASS : SQUARE_FOLDER_ACTION_CLASS}
+                  style={selectionMode ? SQUARE_FOLDER_ACTION_ACTIVE_STYLE : SQUARE_FOLDER_ACTION_STYLE}
                 >
                   <MousePointer2 className="w-5 h-5" />
                   <span>{selectionMode ? 'Exit Select' : 'Select'}</span>

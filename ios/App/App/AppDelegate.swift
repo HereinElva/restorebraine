@@ -685,6 +685,52 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             } catch (e) {}
           }
 
+          function fixFolderActionButtons() {
+            try {
+              if (!document.getElementById('rb-folder-actions-fix')) {
+                var style = document.createElement('style');
+                style.id = 'rb-folder-actions-fix';
+                style.textContent = [
+                  'div.grid.grid-cols-2.gap-2.mb-5 > button,',
+                  'div.grid.grid-cols-2.gap-2.mb-5 > div,',
+                  'div.grid.grid-cols-2.gap-2.mb-5 > div > button,',
+                  'div.grid.grid-cols-2.gap-2.mb-5 [data-rb-folder-action] {',
+                  '  box-sizing: border-box !important;',
+                  '  width: 100% !important;',
+                  '  min-height: 5.5rem !important;',
+                  '}',
+                  'div.grid.grid-cols-2.gap-2.mb-5 > button,',
+                  'div.grid.grid-cols-2.gap-2.mb-5 > div > button,',
+                  'div.grid.grid-cols-2.gap-2.mb-5 [data-rb-folder-action] {',
+                  '  display: flex !important;',
+                  '  flex-direction: column !important;',
+                  '  align-items: center !important;',
+                  '  justify-content: center !important;',
+                  '  gap: 0.375rem !important;',
+                  '  padding: 1rem !important;',
+                  '  border-radius: 1rem !important;',
+                  '  background: #ffffff !important;',
+                  '  border: 1px solid rgb(243 244 246) !important;',
+                  '  box-shadow: 0 1px 2px 0 rgba(0,0,0,0.05) !important;',
+                  '  font-size: 0.875rem !important;',
+                  '  font-weight: 600 !important;',
+                  '  color: rgb(55 65 81) !important;',
+                  '}',
+                  'div.grid.grid-cols-2.gap-2.mb-5 > div {',
+                  '  min-width: 0 !important;',
+                  '}',
+                  'div.grid.grid-cols-2.gap-2.mb-5 button.border-purple-200,',
+                  'div.grid.grid-cols-2.gap-2.mb-5 button.border-purple-100 {',
+                  '  background: #ffffff !important;',
+                  '  border-color: rgb(243 244 246) !important;',
+                  '  color: rgb(55 65 81) !important;',
+                  '}'
+                ].join('');
+                (document.head || document.documentElement).appendChild(style);
+              }
+            } catch (e) {}
+          }
+
           function hideBase44EditorWidget() {
             try {
               blockBase44BadgeScript();
@@ -740,7 +786,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
           }
 
           if (!window.__rbBadgeObserver) {
-            window.__rbBadgeObserver = new MutationObserver(function () { blockBase44BadgeScript(); hideBase44EditorWidget(); fixRestorebraineBranding(); });
+            window.__rbBadgeObserver = new MutationObserver(function () { blockBase44BadgeScript(); hideBase44EditorWidget(); fixRestorebraineBranding(); fixFolderActionButtons(); });
             window.__rbBadgeObserver.observe(document.documentElement, { childList: true, subtree: true });
           }
 
@@ -751,6 +797,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             guardGoogleOAuthInWebView();
             hideBase44EditorWidget();
             fixRestorebraineBranding();
+            fixFolderActionButtons();
             interceptNativeSignInClicks();
             window.addEventListener('popstate', function () {
               guardPlatformNavigation();
@@ -761,6 +808,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
               guardGoogleOAuthInWebView();
               hideBase44EditorWidget();
               fixRestorebraineBranding();
+              fixFolderActionButtons();
               guardSignedOutLoginPage();
             }, 1000);
           }
@@ -772,6 +820,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
           captureAccessTokenFromUrl();
           installOAuthDeepLinkHandler();
           fixRestorebraineBranding();
+          fixFolderActionButtons();
           installPlatformGuard();
           document.addEventListener('visibilitychange', function () {
             if (document.visibilityState === 'hidden') persistToken();

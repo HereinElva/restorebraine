@@ -10,7 +10,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { SQUARE_FOLDER_ACTION_CLASS } from "./folderActionStyles";
+import { SQUARE_FOLDER_ACTION_CLASS, SQUARE_FOLDER_ACTION_STYLE } from "./folderActionStyles";
 
 export default function DuplicateDetector({ photos, folders, squareStyle = false }) {
   const [checking, setChecking] = useState(false);
@@ -91,6 +91,7 @@ export default function DuplicateDetector({ photos, folders, squareStyle = false
           onClick={findDuplicates}
           disabled={checking}
           className={SQUARE_FOLDER_ACTION_CLASS}
+          style={SQUARE_FOLDER_ACTION_STYLE}
         >
           {checking ? <Loader2 className="w-5 h-5 animate-spin text-blue-500" /> : <Copy className="w-5 h-5 text-blue-500" />}
           <span>Duplicates</span>
