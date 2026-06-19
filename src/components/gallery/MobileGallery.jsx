@@ -356,7 +356,7 @@ export default function MobileGallery({
               <DuplicateDetector photos={photos} folders={folders} squareStyle />
               <button
                 onClick={() => { setSelectionMode(!selectionMode); setSelectedIds([]); setSelectedFolderIds([]); }}
-                className={`flex flex-col items-center justify-center gap-1.5 py-4 rounded-2xl text-sm font-semibold shadow-sm border transition-colors ${
+                className={`w-full flex flex-col items-center justify-center gap-1.5 py-4 rounded-2xl text-sm font-semibold shadow-sm border transition-colors ${
                   selectionMode ? 'bg-purple-600 text-white border-purple-600' : 'bg-white text-gray-700 border-gray-100'
                 }`}
               >

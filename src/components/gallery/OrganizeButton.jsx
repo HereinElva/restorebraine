@@ -387,7 +387,7 @@ export default function OrganizeButton({ photos, squareStyle = false }) {
         </DialogContent>
       </Dialog>
 
-      <div className="relative">
+      <div className={squareStyle ? "relative w-full min-w-0" : "relative"}>
         {squareStyle ? (
           <button
             onClick={() => setShowDialog(true)}
@@ -399,7 +399,7 @@ export default function OrganizeButton({ photos, squareStyle = false }) {
             ) : (
               <Sparkles className="w-5 h-5 text-purple-500" />
             )}
-            <span>{organizing ? "Organizing..." : "Organize Media"}</span>
+            <span>{organizing ? "Organizing..." : "Organize"}</span>
           </button>
         ) : (
           <Button
