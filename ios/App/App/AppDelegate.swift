@@ -212,18 +212,15 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
           function isSignOutControl(target) {
             if (!target) return false;
-            if (target.closest('[data-rb-sign-out-row]')) return true;
+            if (target.closest('[data-rb-gallery-nav]')) return false;
             var btn = target.closest('button, a, [role="button"]');
-            if (btn) {
-              var label = (btn.textContent || '').replace(/\s+/g, ' ').trim();
-              var aria = ((btn.getAttribute && btn.getAttribute('aria-label')) || '').trim();
-              if (/^sign out$/i.test(label) || /^sign out$/i.test(aria)) return true;
-              if (/sign out/i.test(label) && label.length < 40) return true;
-            }
-            var row = target.closest('div');
-            if (row && /sign out of your restorebraine account/i.test(row.textContent || '')) {
-              return true;
-            }
+            if (!btn) return false;
+            var label = (btn.textContent || '').replace(/\s+/g, ' ').trim();
+            var aria = ((btn.getAttribute && btn.getAttribute('aria-label')) || '').trim();
+            if (/back to gallery/i.test(label) || /back to gallery/i.test(aria)) return false;
+            if (btn.closest('[data-rb-sign-out-row]') && /sign out/i.test(label)) return true;
+            if (/^sign out$/i.test(label) || /^sign out$/i.test(aria)) return true;
+            if (/sign out/i.test(label) && label.length < 40) return true;
             return false;
           }
 

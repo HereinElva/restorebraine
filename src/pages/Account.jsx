@@ -62,6 +62,7 @@ export default function Account() {
           type="button"
           variant="ghost"
           className="mb-6"
+          data-rb-gallery-nav
           onClick={goToGallery}
           onTouchEnd={(e) => e.stopPropagation()}
         >
@@ -76,7 +77,7 @@ export default function Account() {
               <p className="font-medium text-gray-900">{user.email}</p>
             </div>
           )}
-          <div className="mb-6 p-4 bg-gray-50 border border-gray-200 rounded-lg flex items-center justify-between gap-4">
+          <div data-rb-sign-out-row className="mb-6 p-4 bg-gray-50 border border-gray-200 rounded-lg flex items-center justify-between gap-4">
             <div className="min-w-0">
               <h3 className="font-semibold text-gray-900">Sign Out</h3>
               <p className="text-sm text-gray-600 mt-0.5">Sign out of your Restorebraine account</p>
