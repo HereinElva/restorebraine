@@ -25,7 +25,8 @@ export async function normalizeIcon() {
   await sharp(tempPath)
     .flatten({ background: { r: 255, g: 255, b: 255 } })
     .resize(1024, 1024, { fit: 'cover' })
-    .png({ compressionLevel: 9 })
+    .toColourspace('srgb')
+    .png({ compressionLevel: 9, force: true })
     .toFile(destination1024);
 
   const meta = await sharp(destination1024).metadata();

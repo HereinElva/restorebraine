@@ -56,9 +56,22 @@ The grid placeholder on the Apps page is normal until a build finishes processin
 7. App Store Connect → Upload → wait for success
 8. Wait 15–60 minutes for Apple to process build $BUILD
 9. App Store Connect → TestFlight → build $BUILD should show brain icon
-10. Apps list icon updates after that build processes
+10. Apps list icon updates after build is linked on Distribution tab (see below)
 
-Verify archive before upload:
-  bash scripts/mac-verify-archive-icon.sh ~/Library/Developer/Xcode/Archives/<date>/App.xcarchive
+=== App Store Connect (after TestFlight shows Complete) ===
+
+Uploads ARE working if you see builds 15/16/17 Complete in TestFlight.
+The Apps page grid icon updates separately:
+
+1. App Store Connect → Restorebraine
+2. Click **Distribution** tab (not TestFlight)
+3. iOS App → **1.0.1 Prepare for Submission**
+4. Under **Build**, click **+** and select your newest build (17 or 18)
+5. Click **Save**
+6. Wait up to 24 hours — Apps list + store listing icon pull from linked build
+
+Check TestFlight build icon: open build 17 — does it show brain or grid?
+- Brain icon on build → linking on Distribution tab fixes Apps page
+- Grid on build → re-archive build 18 and upload again
 
 EOF

@@ -66,4 +66,6 @@ if [ -f "$PLIST" ]; then
 fi
 
 echo
-echo "If this passes, upload this archive to App Store Connect as build 12."
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+BUILD=$(grep -m1 'CURRENT_PROJECT_VERSION' "$ROOT/ios/App/App.xcodeproj/project.pbxproj" 2>/dev/null | sed 's/[^0-9]*//g')
+echo "If this passes, upload this archive to App Store Connect as build ${BUILD:-?}."
