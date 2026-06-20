@@ -11,7 +11,7 @@ const getModeLabel = () => {
 };
 
 export default function NativeDebugBadge() {
-  const [expanded, setExpanded] = useState(true);
+  const [expanded, setExpanded] = useState(false);
 
   const info = useMemo(() => {
     const origin = typeof window !== 'undefined' ? window.location.origin : '';

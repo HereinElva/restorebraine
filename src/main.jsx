@@ -64,10 +64,13 @@ async function bootstrapNativeLocal() {
     markAppMounted();
     clearTimeout(mountTimer);
 
-    // Bridge + OAuth fix after UI is visible (prevents white screen from sync bridge / Location guards).
+    // Bridge + OAuth listeners after UI is visible.
     requestAnimationFrame(() => {
       loadV4BridgeScript();
       installNativeOAuthFix();
+      import('@/lib/native-google-oauth')
+        .then(({ installNativeOAuthListeners }) => installNativeOAuthListeners())
+        .catch((error) => console.warn('OAuth listeners unavailable:', error));
     });
 
     import('@/lib/session-bootstrap')

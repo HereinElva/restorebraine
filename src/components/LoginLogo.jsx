@@ -10,10 +10,10 @@ export default function LoginLogo() {
     return (
       <div
         style={{
-          width: '64px',
-          height: '64px',
-          borderRadius: '20px',
-          margin: '0 auto 20px',
+          width: '56px',
+          height: '56px',
+          borderRadius: '16px',
+          margin: '0 auto 12px',
           background: 'linear-gradient(135deg,#60a5fa,#a78bfa)',
           display: 'flex',
           alignItems: 'center',
@@ -35,12 +35,12 @@ export default function LoginLogo() {
       data-rb-logo="1"
       onError={() => setFailed(true)}
       style={{
-        width: '64px',
-        height: '64px',
-        borderRadius: '20px',
+        width: '56px',
+        height: '56px',
+        borderRadius: '16px',
         objectFit: 'cover',
         display: 'block',
-        margin: '0 auto 20px',
+        margin: '0 auto 12px',
         boxShadow: '0 8px 24px rgba(96,165,250,0.25)',
       }}
     />

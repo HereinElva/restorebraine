@@ -1,4 +1,5 @@
 import { InAppBrowser, DefaultWebViewOptions } from '@capacitor/inappbrowser';
+import { Capacitor } from '@capacitor/core';
 import {
   getGoogleOAuthUrl,
   getProviderOAuthUrl,
@@ -61,6 +62,55 @@ export const captureOAuthTokenFromUrl = async (url) => {
 };
 
 let oauthListenerAttached = false;
+
+const withTimeout = (promise, ms, label = 'Operation') =>
+  Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
+    }),
+  ]);
+
+const waitForCapacitor = async (maxMs = 6000) => {
+  const start = Date.now();
+  while (Date.now() - start < maxMs) {
+    if (window.Capacitor?.Plugins?.InAppBrowser?.openInWebView) return true;
+    if (Capacitor.isNativePlatform?.() && window.Capacitor?.Plugins?.InAppBrowser) return true;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  return !!window.Capacitor?.Plugins?.InAppBrowser;
+};
+
+const openInAppBrowserOAuth = async (oauthUrl, provider) => {
+  oauthListenerAttached = false;
+  await attachOAuthCompletionListener();
+  window.__restorebraineLastOAuthUrl = oauthUrl;
+  window.__restorebraineOAuthInProgress = true;
+
+  window.__restorebraineOAuthMode = provider === 'google' ? 'webview-google' : 'webview';
+  try {
+    await InAppBrowser.openInWebView({ url: oauthUrl, options: DefaultWebViewOptions });
+    return;
+  } catch (webviewError) {
+    console.warn('InAppBrowser WebView failed, trying system browser:', webviewError);
+  }
+
+  window.__restorebraineOAuthMode = 'system-browser';
+  for (let attempt = 0; attempt < 60; attempt += 1) {
+    try {
+      const plugin = window.Capacitor?.Plugins?.InAppBrowser;
+      if (plugin?.openInSystemBrowser) {
+        await plugin.openInSystemBrowser({ url: oauthUrl, options: SYSTEM_BROWSER_OPTIONS });
+      } else {
+        await InAppBrowser.openInSystemBrowser({ url: oauthUrl, options: SYSTEM_BROWSER_OPTIONS });
+      }
+      return;
+    } catch (error) {
+      if (attempt === 59) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+  }
+};
 
 const finishOAuthLogin = async () => {
   window.__restorebraineOAuthInProgress = false;
@@ -212,7 +262,7 @@ const startGoogleOAuthNative = async () => {
 };
 
 /**
- * v4-core OAuth: native plugin for Google; bridge or WebView for other providers.
+ * v4-core OAuth: native plugin for Google when available, always fall back to InAppBrowser (visible UI).
  */
 export const openLoginInSystemBrowser = async (url = getGoogleOAuthUrl(), providerHint) => {
   const provider = providerHint || 'google';
@@ -224,37 +274,41 @@ export const openLoginInSystemBrowser = async (url = getGoogleOAuthUrl(), provid
     return;
   }
 
+  const ready = await waitForCapacitor(6000);
+  if (!ready) {
+    window.__restorebraineOAuthInProgress = false;
+    throw new Error('Capacitor InAppBrowser not ready — rebuild in Xcode and try again.');
+  }
+
+  const oauthUrl = normalizeAuthUrl(url || getCanonicalOAuthUrl(provider), provider);
+
   if (LOCAL_NATIVE_BUNDLE && provider === 'google') {
     try {
-      await startGoogleOAuthNative();
+      await withTimeout(startGoogleOAuthNative(), 15000, 'Google OAuth');
       return;
     } catch (error) {
-      if (error?.code === 'CANCELED' || /cancel/i.test(error?.message || '')) {
-        window.__restorebraineOAuthInProgress = false;
-        return;
-      }
-      console.warn('RestorebraineOAuth plugin failed — trying bridge/WebView:', error);
+      window.__restorebraineOAuthInProgress = false;
+      if (error?.code === 'CANCELED' || /cancel/i.test(error?.message || '')) return;
+      console.warn('RestorebraineOAuth plugin unavailable — opening InAppBrowser:', error);
     }
   }
 
-  if (LOCAL_NATIVE_BUNDLE && window.__restorebraineSessionBridgeInstalled) {
-    window.__restorebraineOAuthMode = 'v4-bridge';
-    window.__restorebraineOpenProviderLogin?.(provider);
-    return;
+  await openInAppBrowserOAuth(oauthUrl, provider);
+};
+
+/** Install OAuth listeners once at app startup (deep links + InAppBrowser navigation). */
+export const installNativeOAuthListeners = async () => {
+  if (typeof window === 'undefined' || window.__restorebraineOAuthListenersInstalled) return;
+  window.__restorebraineOAuthListenersInstalled = true;
+  installNativeOAuthBridgeListener();
+  try {
+    const { installNativeOAuthDeepLinkHandler } = await import('@/lib/session-bootstrap');
+    await installNativeOAuthDeepLinkHandler();
+    oauthListenerAttached = false;
+    await attachOAuthCompletionListener();
+  } catch (error) {
+    console.warn('Native OAuth listener setup failed:', error);
   }
-
-  oauthListenerAttached = false;
-  await attachOAuthCompletionListener();
-
-  if (LOCAL_NATIVE_BUNDLE) {
-    const webViewUrl = normalizeAuthUrl(getWebViewOAuthUrl(provider), provider, { forWebView: true });
-    window.__restorebraineLastOAuthUrl = webViewUrl;
-    window.__restorebraineOAuthMode = 'v4-webview';
-    await InAppBrowser.openInWebView({ url: webViewUrl, options: DefaultWebViewOptions });
-    return;
-  }
-
-  await openOAuthInSystemBrowser(url, providerHint);
 };
 
 const handleAuthNavigation = (url, providerHint) => {
