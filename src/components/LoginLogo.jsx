@@ -1,12 +1,14 @@
-import { useState } from 'react';
-import { getRestorebraineAppLogo } from '@/lib/app-branding';
+import { useMemo, useState } from 'react';
+import { getRestorebraineAppLogo, getRestorebraineAppLogoFallbacks } from '@/lib/app-branding';
 
-/** Build v4: bundled AppIcon.png — brain emoji only if image missing. */
+/** Build v4: bundled login-logo.png — brain emoji only if all bundled paths fail. */
 export default function LoginLogo({ compact = false }) {
-  const [failed, setFailed] = useState(false);
-  const src = getRestorebraineAppLogo();
+  const sources = useMemo(() => getRestorebraineAppLogoFallbacks(), []);
+  const [sourceIndex, setSourceIndex] = useState(0);
+  const src = sources[sourceIndex] ?? getRestorebraineAppLogo();
   const size = compact ? 44 : 56;
   const radius = compact ? 12 : 16;
+  const failed = sourceIndex >= sources.length;
 
   if (failed) {
     return (
@@ -35,7 +37,7 @@ export default function LoginLogo({ compact = false }) {
       src={src}
       alt="Restorebraine"
       data-rb-logo="1"
-      onError={() => setFailed(true)}
+      onError={() => setSourceIndex((index) => index + 1)}
       style={{
         width: `${size}px`,
         height: `${size}px`,

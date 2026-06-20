@@ -48,8 +48,12 @@ if [ ! -f "${DEST_PUBLIC}/assets/${ENTRY}" ]; then
   exit 1
 fi
 
+if [ ! -f "${SRC_PUBLIC}/login-logo.png" ]; then
+  echo "warning: ${SRC_PUBLIC}/login-logo.png missing — login card may show brain emoji"
+  echo "         Run: bash scripts/mac-ios-v4-rebuild.sh"
+fi
 if [ ! -f "${SRC_PUBLIC}/AppIcon.png" ]; then
-  echo "warning: ${SRC_PUBLIC}/AppIcon.png missing — login logo may show placeholder"
+  echo "warning: ${SRC_PUBLIC}/AppIcon.png missing"
   echo "         Run: bash scripts/mac-ios-v4-rebuild.sh"
 fi
 

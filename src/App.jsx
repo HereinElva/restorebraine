@@ -41,6 +41,26 @@ const signInButtonStyle = {
   touchAction: 'manipulation',
 };
 
+const waitForBridgeLogin = (maxMs = 2500) =>
+  new Promise((resolve) => {
+    if (typeof window.__restorebraineOpenLogin === 'function') {
+      resolve(window.__restorebraineOpenLogin);
+      return;
+    }
+    const started = Date.now();
+    const timer = setInterval(() => {
+      if (typeof window.__restorebraineOpenLogin === 'function') {
+        clearInterval(timer);
+        resolve(window.__restorebraineOpenLogin);
+        return;
+      }
+      if (Date.now() - started >= maxMs) {
+        clearInterval(timer);
+        resolve(null);
+      }
+    }, 50);
+  });
+
 const SignInButton = ({ onSignIn, clearSignedOut = false }) => {
   const [isOpening, setIsOpening] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
@@ -53,7 +73,12 @@ const SignInButton = ({ onSignIn, clearSignedOut = false }) => {
       try { localStorage.removeItem('b44_signed_out'); } catch {}
     }
     try {
-      await Promise.resolve(onSignIn());
+      const bridgeOpen = await waitForBridgeLogin();
+      if (bridgeOpen) {
+        await Promise.resolve(bridgeOpen());
+      } else {
+        await Promise.resolve(onSignIn());
+      }
       setIsOpening(false);
     } catch (error) {
       console.error('Sign-in failed to open', error);
@@ -132,6 +157,15 @@ const LoginGate = ({ onSignIn, clearSignedOut = false }) => {
   );
 };
 
+const hasStoredSessionToken = () => {
+  try {
+    if (localStorage.getItem('b44_signed_out') === '1') return false;
+    return Boolean(localStorage.getItem('base44_access_token') || localStorage.getItem('token'));
+  } catch {
+    return false;
+  }
+};
+
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, isAuthenticated, navigateToLogin, manuallyLoggedOut } = useAuth();
 
@@ -139,7 +173,10 @@ const AuthenticatedApp = () => {
     return <LoginGate onSignIn={navigateToLogin} />;
   }
 
-  if (isLoadingPublicSettings || isLoadingAuth) {
+  const skipV4LoadingSpinner =
+    LOCAL_NATIVE_BUNDLE && isNativeShell() && !hasStoredSessionToken();
+
+  if ((isLoadingPublicSettings || isLoadingAuth) && !skipV4LoadingSpinner) {
     return (
       <>
         <div className="fixed inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 gap-4">
