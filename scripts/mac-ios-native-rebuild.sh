@@ -29,25 +29,19 @@ fi
 force_clean_ios_public
 bash scripts/mac-discard-build-files.sh
 
-echo "Pulling $BRANCH ..."
-if ! git pull origin "$BRANCH"; then
-  echo ""
-  echo "Pull blocked — Xcode often modifies ios/App/App.xcodeproj/project.pbxproj."
-  echo "Restoring tracked files and retrying..."
-  force_clean_ios_public
-  bash scripts/mac-discard-build-files.sh
-  git checkout -f HEAD -- ios/App/App.xcodeproj/project.pbxproj 2>/dev/null \
-    || git restore --staged --worktree ios/App/App.xcodeproj/project.pbxproj 2>/dev/null \
-    || true
-  if ! git pull origin "$BRANCH"; then
-    echo ""
-    echo "Pull still blocked — force-syncing to origin/$BRANCH (discards local build artifacts)..."
-    git fetch origin "$BRANCH"
-    rm -rf ios/App/App/public
-    bash scripts/mac-discard-build-files.sh 2>/dev/null || true
-    git reset --hard "origin/$BRANCH"
-    echo "Force-synced to: $(git log --oneline -1)"
+echo "Syncing to origin/$BRANCH ..."
+git fetch origin "$BRANCH"
+if git diff --quiet HEAD 2>/dev/null \
+  && git diff --cached --quiet HEAD 2>/dev/null \
+  && [ "$(git rev-parse HEAD)" = "$(git rev-parse "origin/$BRANCH")" ]; then
+  echo "Already up to date at $(git rev-parse --short HEAD)."
+else
+  if ! git diff --quiet HEAD 2>/dev/null || ! git diff --cached --quiet HEAD 2>/dev/null; then
+    echo "Discarding local build-artifact changes (build-info, deploy-marker, pbxproj) ..."
+    bash scripts/mac-discard-build-files.sh
   fi
+  git reset --hard "origin/$BRANCH"
+  echo "Synced to: $(git log --oneline -1)"
 fi
 
 echo "Building native-local bundle..."
