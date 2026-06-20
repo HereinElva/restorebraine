@@ -1,10 +1,11 @@
 /**
- * Bakes BUILD_STAMP into dist/index.html so on-device badge can prove loaded bundle.
+ * Bakes BUILD_STAMP into dist/index.html and dist/restorebraine-v4-bridge.js.
  */
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 const distIndex = resolve('dist/index.html');
+const distBridge = resolve('dist/restorebraine-v4-bridge.js');
 const stampPath = resolve('ios/App/App/BUILD_STAMP.txt');
 const buildInfoPath = resolve('src/lib/build-info.js');
 
@@ -26,3 +27,10 @@ html = html.replace(
 );
 writeFileSync(distIndex, html);
 console.log(`OK: stamped dist/index.html (v${buildNum})`);
+
+if (existsSync(distBridge)) {
+  let bridge = readFileSync(distBridge, 'utf8');
+  bridge = bridge.replace(/BUILD_LABEL_PLACEHOLDER/g, stamp.replace(/'/g, "\\'"));
+  writeFileSync(distBridge, bridge);
+  console.log(`OK: stamped dist/restorebraine-v4-bridge.js (v${buildNum})`);
+}

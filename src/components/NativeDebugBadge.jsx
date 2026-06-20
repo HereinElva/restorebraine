@@ -79,7 +79,7 @@ export default function NativeDebugBadge() {
             </div>
           ) : null}
           <div style={{ opacity: 0.65, marginTop: 2, fontSize: '9px', color: info.bridgeInstalled ? '#86efac' : '#fca5a5' }}>
-            bridge: {info.bridgeInstalled ? (info.bridgeSource || 'ok') : 'NOT LOADED'}
+            bridge: {info.bridgeInstalled ? (info.bridgeSource || 'index-html') : 'NOT LOADED — rebuild'}
           </div>
           {typeof window !== 'undefined' && window.__restorebraineLastOAuthUrl ? (
             <div style={{ opacity: 0.65, marginTop: 2, fontSize: '9px', wordBreak: 'break-all' }}>

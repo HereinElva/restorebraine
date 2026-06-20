@@ -3,7 +3,6 @@ import { isHostedAppOrigin, isNativeShell } from '@/lib/native-hosted-redirect';
 import { LOCAL_NATIVE_BUNDLE } from '@/lib/native-bundle-mode';
 import { installNativePlatformGuard } from '@/lib/native-platform-guard';
 import { installNativeGoogleOAuthBrowser } from '@/lib/native-google-oauth';
-import { installNativeBundleShellGuard } from '@/lib/native-bundle-shell-guard';
 
 export const captureAccessTokenFromUrl = () => {
   if (typeof window === 'undefined') return null;
@@ -31,19 +30,15 @@ export const installNativeOAuthFix = () => {
 
   captureAccessTokenFromUrl();
 
-  // Build v4: AppDelegate injects restorebraine-v4-bridge.js at document start.
-  // Do not install duplicate Location/OAuth guards — they conflict with the bridge.
-  if (window.__restorebraineSessionBridgeInstalled) return;
+  // v4-core: bridge loads from index.html at parse time — never install Location guards here
+  // (double-wrapping Location.prototype causes a blank white screen on iOS).
+  if (LOCAL_NATIVE_BUNDLE || window.__restorebraineSessionBridgeInstalled) return;
 
   // Capacitor + hosted Base44 URL: AppDelegate.swift already patches navigation at
   // document start. Installing web guards here double-wraps Location and causes a
   // blank white screen on iOS.
   if (isNativeShell() && !isHostedAppOrigin()) {
     installNativeGoogleOAuthBrowser();
-    if (LOCAL_NATIVE_BUNDLE) {
-      installNativeBundleShellGuard();
-    } else {
-      installNativePlatformGuard();
-    }
+    installNativePlatformGuard();
   }
 };

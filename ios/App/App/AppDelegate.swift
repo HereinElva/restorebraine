@@ -203,11 +203,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 
     @objc private func onBridgeDidLoad() {
-        guard pendingCacheReload,
-              let bridge = window?.rootViewController as? CAPBridgeViewController,
-              let webView = bridge.webView else { return }
+        // Cache already wiped in clearWebViewCacheIfBuildChanged — do not reload here;
+        // reload interrupts React bootstrap and causes first-launch white screen.
         pendingCacheReload = false
-        webView.reload()
     }
 
     func application(_ app: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey: Any] = [:]) -> Bool {

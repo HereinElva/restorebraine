@@ -252,14 +252,23 @@
             } catch (e) {}
           }
 
+          function resolveSyncToken() {
+            var token = 'SYNC_TOKEN_PLACEHOLDER';
+            if (token === 'SYNC_TOKEN_PLACEHOLDER') {
+              token = window.__RESTOREBRAINE_NATIVE_SYNC_TOKEN__ || '';
+            }
+            if (token === 'SYNC_TOKEN_PLACEHOLDER') return '';
+            return token;
+          }
+
           function restoreToken() {
             try {
               if (window.__restorebraineSigningOut || isSignedOut()) return;
+              var syncToken = resolveSyncToken();
               var prefs = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Preferences;
               if (prefs) {
                 prefs.get({ key: SIGNED_OUT_KEY }).then(function (flag) {
                   if (flag && flag.value === '1') return;
-                  var syncToken = 'SYNC_TOKEN_PLACEHOLDER';
                   if (syncToken) {
                     if (!isSignedOut()) saveToken(syncToken);
                     return;
@@ -271,7 +280,6 @@
                 });
                 return;
               }
-              var syncToken = 'SYNC_TOKEN_PLACEHOLDER';
               if (syncToken && !isSignedOut()) saveToken(syncToken);
             } catch (e) {}
           }
@@ -898,6 +906,15 @@
           window.__restorebraineClearSession = clearNativeSession;
           window.__restorebrainePerformSignOut = performNativeSignOut;
           window.__RESTOREBRAINE_NATIVE_BUILD__ = 'BUILD_LABEL_PLACEHOLDER';
+          if (window.__RESTOREBRAINE_NATIVE_BUILD__ === 'BUILD_LABEL_PLACEHOLDER') {
+            var stampMeta = document.querySelector('meta[name="restorebraine-build-stamp"]');
+            if (stampMeta && stampMeta.getAttribute('content')) {
+              window.__RESTOREBRAINE_NATIVE_BUILD__ = stampMeta.getAttribute('content');
+            }
+          }
+          if (!window.__RESTOREBRAINE_V4_BRIDGE_SOURCE__) {
+            window.__RESTOREBRAINE_V4_BRIDGE_SOURCE__ = 'index-html';
+          }
           restoreToken();
           captureAccessTokenFromUrl();
           injectNativeViewportMeta();

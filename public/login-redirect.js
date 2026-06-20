@@ -1,9 +1,13 @@
 /** Runs before the React app — fixes broken Base44 login redirects on custom domains. */
 (function () {
+  var proto = location.protocol;
+  var host = location.hostname;
+  // v4-core bundled shell: never patch Location — breaks React Router (white screen).
+  if (proto === 'capacitor:' || proto === 'ionic:' || host === 'localhost' || host === '127.0.0.1') return;
+
   var APP_ID = '68fdc5f42768c4d045fe1bac';
   var PLATFORM = 'https://app.base44.com';
   var APP_ORIGIN = location.protocol + '//' + location.host;
-  var host = location.hostname;
   var path = location.pathname.replace(/\/$/, '') || '/';
 
   function platformLogin(fromUrl) {
