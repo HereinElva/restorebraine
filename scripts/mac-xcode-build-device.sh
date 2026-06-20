@@ -36,7 +36,19 @@ xcodebuild \
   | tee /tmp/restorebraine-xcodebuild.log
 
 echo ""
-if grep -q 'Restorebraine DEPLOY OK' /tmp/restorebraine-xcodebuild.log; then
+if grep -q 'requires a development team' /tmp/restorebraine-xcodebuild.log; then
+  echo "ERROR: No development team set — device build cannot proceed."
+  echo ""
+  echo "Fix in Xcode:"
+  echo "  1. open ios/App/App.xcworkspace"
+  echo "  2. Click App (blue icon) -> App target -> Signing & Capabilities"
+  echo "  3. Check 'Automatically manage signing'"
+  echo "  4. Team -> your Apple ID (add in Xcode Settings -> Accounts if missing)"
+  echo "  5. Product -> Run to your iPhone"
+  echo ""
+  echo "To test bundle deploy WITHOUT signing (Simulator only):"
+  echo "  bash scripts/mac-xcode-build-simulator.sh"
+elif grep -q 'Restorebraine DEPLOY OK' /tmp/restorebraine-xcodebuild.log; then
   echo "OK: Restorebraine DEPLOY OK found in build log"
 else
   echo "WARNING: Restorebraine DEPLOY OK not found — check /tmp/restorebraine-xcodebuild.log"
