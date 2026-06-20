@@ -30,8 +30,10 @@ export const getCanonicalOAuthUrl = (provider = 'google') => {
   const params = new URLSearchParams({
     app_id: BASE44_APP_ID,
     from_url: getAuthReturnOrigin(),
+    prompt: 'select_account',
   });
-  return `${BASE44_PLATFORM_URL}${path}?${params.toString()}`;
+  // OAuth API is on the app host — app.base44.com/api/apps/auth/login 404s in browser.
+  return `${getAuthReturnOrigin()}${path}?${params.toString()}`;
 };
 
 /** Force a valid OAuth URL — blocks capacitor://, restorebraine://, and app.base44.com from_url values. */

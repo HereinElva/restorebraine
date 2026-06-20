@@ -5,6 +5,7 @@ import {
   NATIVE_OAUTH_CALLBACK,
   isBase44PlatformHost,
   isAuthNavigationUrl,
+  isPlatformLoginUrl,
   normalizeAuthUrl,
 } from '@/lib/native-platform-guard';
 import { getAuthReturnOrigin } from '@/lib/app-domains';
@@ -55,9 +56,35 @@ export const handleNativeOAuthCallback = async (url) => {
   return true;
 };
 
+const handleOAuthBrowserNavigation = async (url) => {
+  if (!url) return false;
+  if (await handleNativeOAuthCallback(url)) return true;
+
+  try {
+    const parsed = new URL(url, getAuthReturnOrigin());
+    const token = parsed.searchParams.get('access_token');
+    if (token) {
+      await persistSessionToNativeStorage(token);
+      await finishOAuthLogin();
+      return true;
+    }
+    if (isPlatformLoginUrl(url)) {
+      await InAppBrowser.close().catch(() => {});
+      await openLoginInSystemBrowser(getGoogleOAuthUrl(), 'google');
+      return true;
+    }
+  } catch {}
+
+  return false;
+};
+
 const attachOAuthCompletionListener = async () => {
   if (oauthListenerAttached) return;
   oauthListenerAttached = true;
+
+  await InAppBrowser.addListener('browserPageNavigationCompleted', async (data) => {
+    await handleOAuthBrowserNavigation(data?.url);
+  });
 
   await InAppBrowser.addListener('browserClosed', async () => {
     const stored = localStorage.getItem('base44_access_token') || localStorage.getItem('token');
@@ -77,6 +104,9 @@ const attachOAuthCompletionListener = async () => {
 /** Google blocks embedded WebViews — must use SFSafariViewController (openInSystemBrowser). */
 export const openLoginInSystemBrowser = async (url = getGoogleOAuthUrl(), providerHint) => {
   const normalizedUrl = normalizeAuthUrl(url, providerHint);
+  if (typeof window !== 'undefined') {
+    window.__restorebraineLastOAuthUrl = normalizedUrl;
+  }
   if (!isNativeShell()) {
     window.location.replace(normalizedUrl);
     return;
@@ -106,6 +136,10 @@ export const installLocationNavigationGuard = () => {
           });
           return;
         }
+        if (isPlatformLoginUrl(url)) {
+          handleAuthNavigation(getGoogleOAuthUrl(), 'google');
+          return;
+        }
         if (isAuthNavigationUrl(url)) {
           handleAuthNavigation(url);
           return;
@@ -116,6 +150,10 @@ export const installLocationNavigationGuard = () => {
         }
       } catch {}
 
+      if (isPlatformLoginUrl(url)) {
+        handleAuthNavigation(getGoogleOAuthUrl(), 'google');
+        return;
+      }
       if (isAuthNavigationUrl(url)) {
         handleAuthNavigation(url);
         return;
@@ -141,6 +179,10 @@ export const installLocationNavigationGuard = () => {
               });
               return;
             }
+            if (isPlatformLoginUrl(value)) {
+              handleAuthNavigation(getGoogleOAuthUrl(), 'google');
+              return;
+            }
             if (isAuthNavigationUrl(value)) {
               handleAuthNavigation(value);
               return;
@@ -150,6 +192,10 @@ export const installLocationNavigationGuard = () => {
               return;
             }
           } catch {}
+          if (isPlatformLoginUrl(value)) {
+            handleAuthNavigation(getGoogleOAuthUrl(), 'google');
+            return;
+          }
           if (isAuthNavigationUrl(value)) {
             handleAuthNavigation(value);
             return;
@@ -172,8 +218,8 @@ export const installNativeGoogleOAuthBrowser = () => {
   const originalOpen = window.open;
   window.open = function openWithSystemBrowser(url, target, features) {
     if (typeof url === 'string' && url.length > 0) {
-      if (isAuthNavigationUrl(url)) {
-        handleAuthNavigation(url);
+      if (isPlatformLoginUrl(url) || isAuthNavigationUrl(url)) {
+        handleAuthNavigation(isPlatformLoginUrl(url) ? getGoogleOAuthUrl() : url);
         return window;
       }
       window.location.assign(url);
