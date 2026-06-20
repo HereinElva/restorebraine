@@ -1,5 +1,6 @@
 /** Keep OAuth in the main WebView — Capacitor iOS opens popups in Safari by default. */
 import { isHostedAppOrigin, isNativeShell } from '@/lib/native-hosted-redirect';
+import { LOCAL_NATIVE_BUNDLE } from '@/lib/native-bundle-mode';
 import { installNativePlatformGuard } from '@/lib/native-platform-guard';
 import { installNativeGoogleOAuthBrowser } from '@/lib/native-google-oauth';
 
@@ -34,6 +35,9 @@ export const installNativeOAuthFix = () => {
   // blank white screen on iOS.
   if (isNativeShell() && !isHostedAppOrigin()) {
     installNativeGoogleOAuthBrowser();
-    installNativePlatformGuard();
+    // Build v4-core: LoginGate + SignInButton handle sign-in; skip polling guards.
+    if (!LOCAL_NATIVE_BUNDLE) {
+      installNativePlatformGuard();
+    }
   }
 };

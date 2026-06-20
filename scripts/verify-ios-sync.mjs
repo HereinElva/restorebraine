@@ -22,7 +22,7 @@ const isLocalBundleMode = process.env.CAPACITOR_LOCAL === '1';
 const checks = [
   {
     path: 'ios/App/App/BUILD_STAMP.txt',
-    test: (content) => content.includes('kbrown native v'),
+    test: (content) => /kbrown (v4-core|native) v/.test(content),
     message: 'BUILD_STAMP.txt is missing or outdated',
   },
   ...(isLocalBundleMode

@@ -8,7 +8,7 @@ const prev = existsSync(buildInfoPath)
 const BUILD_NUMBER = prev + 1;
 
 const stamp = new Date().toISOString().slice(0, 16).replace('T', ' ');
-const nativeLabel = `kbrown native v${BUILD_NUMBER} · ${stamp}`;
+const nativeLabel = `kbrown v4-core v${BUILD_NUMBER} · ${stamp}`;
 const webLabel = `restorebraine web v${BUILD_NUMBER}`;
 
 writeFileSync(

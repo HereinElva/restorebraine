@@ -6,7 +6,7 @@ import { isHostedAppOrigin, isNativeShell } from '@/lib/native-hosted-redirect';
 const getModeLabel = () => {
   if (!isNativeShell()) return 'web';
   if (isHostedAppOrigin()) return 'native-hosted';
-  if (LOCAL_NATIVE_BUNDLE) return 'native-local';
+  if (LOCAL_NATIVE_BUNDLE) return 'v4-core';
   return 'native';
 };
 

@@ -70,8 +70,8 @@ XCODE_BUILD=$(grep -m1 'CURRENT_PROJECT_VERSION' ios/App/App.xcodeproj/project.p
 
 echo ""
 echo "=== VERIFY on device ==="
-echo "Look for purple badge bottom-left: v${BUILD_NUM} · native-local"
-echo "Badge shows BUILD_STAMP + js: index-*.js (proves which bundle loaded on device)"
+echo "Look for purple badge bottom-left: v${BUILD_NUM} · v4-core"
+echo "Origin: capacitor://localhost | js: index-*.js matches Terminal"
 echo "Login: Continue with Google -> Google picker (not app.base44.com welcome page)"
 echo ""
 echo "Next in Xcode (required — otherwise device keeps stale WKWebView cache):"

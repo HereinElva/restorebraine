@@ -153,7 +153,7 @@ try {
 console.log('\n--- Xcode deploy checklist ---');
 console.log('1. bash scripts/mac-ios-native-rebuild.sh');
 console.log('2. Xcode: delete app -> Clean Build Folder -> Run');
-console.log('3. On device badge: v{N} · native-local, origin capacitor://localhost');
+console.log('3. On device badge: v{N} · v4-core, origin capacitor://localhost');
 console.log('4. Expanded badge shows entry chunk name (proves loaded JS)');
 console.log('5. After Run, verify installed .app:');
 console.log('   APP=$(find ~/Library/Developer/Xcode/DerivedData -name App.app -path "*-iphoneos/*" | head -1)');

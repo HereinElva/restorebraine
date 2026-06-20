@@ -196,6 +196,7 @@ export const guardGoogleOAuthInWebView = () => {
 
 export const installNativePlatformGuard = () => {
   if (typeof window === 'undefined' || window.__restorebrainePlatformGuardInstalled) return;
+  if (LOCAL_NATIVE_BUNDLE) return;
   window.__restorebrainePlatformGuardInstalled = true;
   guardPlatformNavigation();
   guardSignedOutLoginPage();
