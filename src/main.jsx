@@ -24,7 +24,6 @@ function markAppMounted() {
   window.__restorebraineAppMounted = true;
 }
 
-/** Load v4 bridge after React paints — never block first paint with 42KB sync script. */
 function loadV4BridgeScript() {
   if (typeof window === 'undefined') return;
   if (window.__restorebraineSessionBridgeInstalled || window.__restorebraineV4BridgeLoading) return;

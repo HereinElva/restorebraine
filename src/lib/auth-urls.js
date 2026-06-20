@@ -32,6 +32,11 @@ export const openRestorebraineLogin = () => {
 
   if (isNativeShell()) {
     if (LOCAL_NATIVE_BUNDLE) {
+      // Prefer v4-bridge OAuth when loaded (ASWebAuthenticationSession).
+      if (typeof window.__restorebraineOpenLogin === 'function' && window.__restorebraineSessionBridgeInstalled) {
+        window.__restorebraineOpenLogin();
+        return;
+      }
       return openLoginInSystemBrowser(getGoogleOAuthUrl(), 'google');
     }
     return openLoginInSystemBrowser(getPlatformLoginUrl(getAuthReturnOrigin()));

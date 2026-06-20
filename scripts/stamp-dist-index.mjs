@@ -28,6 +28,20 @@ html = html.replace(
 writeFileSync(distIndex, html);
 console.log(`OK: stamped dist/index.html (v${buildNum})`);
 
+// Build v4: load OAuth bridge before React so __restorebraineOpenLogin is ready on first tap.
+if (existsSync(distBridge) && !html.includes('restorebraine-v4-bridge.js')) {
+  html = readFileSync(distIndex, 'utf8');
+  const bridgeTag = '<script src="./restorebraine-v4-bridge.js"></script>';
+  if (html.includes('<script type="module"')) {
+    html = html.replace(
+      /(<script type="module"[^>]*>)/,
+      `${bridgeTag}\n    $1`,
+    );
+    writeFileSync(distIndex, html);
+    console.log('OK: injected restorebraine-v4-bridge.js before app bundle');
+  }
+}
+
 if (existsSync(distBridge)) {
   let bridge = readFileSync(distBridge, 'utf8');
   bridge = bridge.replace(/BUILD_LABEL_PLACEHOLDER/g, stamp.replace(/'/g, "\\'"));

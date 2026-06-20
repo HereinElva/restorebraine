@@ -1,5 +1,4 @@
 import { InAppBrowser, DefaultWebViewOptions } from '@capacitor/inappbrowser';
-import { Browser } from '@capacitor/browser';
 import { Capacitor } from '@capacitor/core';
 import { isAppHost, NATIVE_OAUTH_RETURN_URL, getAuthReturnOrigin } from '@/lib/app-domains';
 import {
@@ -65,7 +64,6 @@ export const captureOAuthTokenFromUrl = async (url) => {
 };
 
 let oauthListenerAttached = false;
-let browserListenerAttached = false;
 
 const withTimeout = (promise, ms, label = 'Operation') =>
   Promise.race([
@@ -93,38 +91,22 @@ const hasRegisteredNativeOAuthPlugin = () => {
   return typeof plugin?.startGoogleOAuth === 'function';
 };
 
-const attachBrowserOAuthListener = async () => {
-  if (browserListenerAttached) return;
-  browserListenerAttached = true;
-  await Browser.addListener('browserFinished', async () => {
-    window.__restorebraineOAuthInProgress = false;
-    await tryRestoreSessionAfterOAuth();
-  });
-};
-
 const openInAppBrowserOAuth = async (oauthUrl, provider) => {
   oauthListenerAttached = false;
   await attachOAuthCompletionListener();
   window.__restorebraineLastOAuthUrl = oauthUrl;
   window.__restorebraineOAuthInProgress = true;
+  window.__restorebraineOAuthMode = LOCAL_NATIVE_BUNDLE ? 'v4-system-browser' : 'system-browser';
 
-  if (LOCAL_NATIVE_BUNDLE) {
-    window.__restorebraineOAuthMode = 'cap-browser';
-    await attachBrowserOAuthListener();
-    try {
-      await Browser.open({ url: oauthUrl });
-      return;
-    } catch (browserError) {
-      console.warn('Capacitor Browser failed, trying InAppBrowser:', browserError);
-    }
-  }
-
-  window.__restorebraineOAuthMode = 'system-browser';
   try {
     await InAppBrowser.openInSystemBrowser({ url: oauthUrl, options: SYSTEM_BROWSER_OPTIONS });
     return;
   } catch (systemError) {
     console.warn('InAppBrowser system browser failed, trying WebView:', systemError);
+  }
+
+  if (LOCAL_NATIVE_BUNDLE) {
+    throw new Error('Could not open sign in. Try again.');
   }
 
   window.__restorebraineOAuthMode = provider === 'google' ? 'webview-google' : 'webview';
@@ -311,9 +293,22 @@ export const openLoginInSystemBrowser = async (url = getGoogleOAuthUrl(), provid
     : normalizeAuthUrl(url || getCanonicalOAuthUrl(provider), provider);
   window.__restorebraineLastOAuthUrl = oauthUrl;
 
-  // v4-core: Browser.open first — native plugin wait caused dead "Opening sign in…" on device.
+  // Build v4: native ASWebAuthenticationSession first (same as v4-bridge), then system browser.
   if (LOCAL_NATIVE_BUNDLE) {
-    await openInAppBrowserOAuth(oauthUrl, provider);
+    if (hasRegisteredNativeOAuthPlugin()) {
+      try {
+        await startGoogleOAuthNative();
+        return;
+      } catch (error) {
+        window.__restorebraineOAuthInProgress = false;
+        if (error?.code === 'CANCELED' || /cancel/i.test(error?.message || '')) return;
+        console.warn('Native Google OAuth failed — opening system browser:', error);
+      }
+    }
+    oauthListenerAttached = false;
+    await attachOAuthCompletionListener();
+    window.__restorebraineOAuthMode = 'v4-system-browser';
+    await InAppBrowser.openInSystemBrowser({ url: oauthUrl, options: SYSTEM_BROWSER_OPTIONS });
     return;
   }
 
@@ -337,12 +332,15 @@ export const installNativeOAuthListeners = async () => {
   window.__restorebraineOAuthListenersInstalled = true;
   installNativeOAuthBridgeListener();
 
-  window.__restorebraineOpenLogin = () => openLoginInSystemBrowser(getGoogleOAuthUrl(), 'google');
-  window.__restorebraineOpenProviderLogin = (provider) => {
-    const p = provider || 'google';
-    const url = p === 'google' ? getGoogleOAuthUrl() : getProviderOAuthUrl(p);
-    return openLoginInSystemBrowser(url, p);
-  };
+  // Do not overwrite v4-bridge handlers — bridge ASWebAuthenticationSession path works on device.
+  if (!window.__restorebraineSessionBridgeInstalled) {
+    window.__restorebraineOpenLogin = () => openLoginInSystemBrowser(getGoogleOAuthUrl(), 'google');
+    window.__restorebraineOpenProviderLogin = (provider) => {
+      const p = provider || 'google';
+      const url = p === 'google' ? getGoogleOAuthUrl() : getProviderOAuthUrl(p);
+      return openLoginInSystemBrowser(url, p);
+    };
+  }
 
   try {
     const { installNativeOAuthDeepLinkHandler } = await import('@/lib/session-bootstrap');
