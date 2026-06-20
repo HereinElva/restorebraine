@@ -13,8 +13,12 @@ import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import NativeDebugBadge from '@/components/NativeDebugBadge';
 import LoginLogo from '@/components/LoginLogo';
+import V4CoreWrongOrigin from '@/components/V4CoreWrongOrigin';
 import { isNativeShell } from '@/lib/native-hosted-redirect';
 import { LOCAL_NATIVE_BUNDLE } from '@/lib/native-bundle-mode';
+import { isV4CoreWrongOrigin } from '@/lib/v4-core-guard';
+import { openLoginInSystemBrowser } from '@/lib/native-google-oauth';
+import { getGoogleOAuthUrl } from '@/lib/auth-urls';
 
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
@@ -41,26 +45,6 @@ const signInButtonStyle = {
   touchAction: 'manipulation',
 };
 
-const waitForBridgeLogin = (maxMs = 2500) =>
-  new Promise((resolve) => {
-    if (typeof window.__restorebraineOpenLogin === 'function') {
-      resolve(window.__restorebraineOpenLogin);
-      return;
-    }
-    const started = Date.now();
-    const timer = setInterval(() => {
-      if (typeof window.__restorebraineOpenLogin === 'function') {
-        clearInterval(timer);
-        resolve(window.__restorebraineOpenLogin);
-        return;
-      }
-      if (Date.now() - started >= maxMs) {
-        clearInterval(timer);
-        resolve(null);
-      }
-    }, 50);
-  });
-
 const SignInButton = ({ onSignIn, clearSignedOut = false }) => {
   const [isOpening, setIsOpening] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
@@ -73,9 +57,8 @@ const SignInButton = ({ onSignIn, clearSignedOut = false }) => {
       try { localStorage.removeItem('b44_signed_out'); } catch {}
     }
     try {
-      const bridgeOpen = await waitForBridgeLogin();
-      if (bridgeOpen) {
-        await Promise.resolve(bridgeOpen());
+      if (LOCAL_NATIVE_BUNDLE && isNativeShell()) {
+        await openLoginInSystemBrowser(getGoogleOAuthUrl(), 'google');
       } else {
         await Promise.resolve(onSignIn());
       }
@@ -223,6 +206,9 @@ const AuthenticatedApp = () => {
 
 
 function App() {
+  if (isV4CoreWrongOrigin()) {
+    return <V4CoreWrongOrigin />;
+  }
 
   return (
     <AuthProvider>

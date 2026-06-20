@@ -31,7 +31,9 @@ echo "  server.url count: ${URL_COUNT} (must be 0 for v4-core)"
 echo "════════════════════════════════════════════════════════════════"
 echo ""
 if [[ "$URL_COUNT" != "0" ]]; then
-  echo "WARNING: server.url is set — device will load hosted Base44, not this bundle."
+  echo "ERROR: server.url is set — device will load hosted Base44 login, NOT v4 card."
+  echo "       Run: node scripts/use-local-native-bundle.mjs --local && npm run build:native-local"
+  exit 1
 fi
 echo "Next: bash scripts/mac-ios-v4-install.sh"
 echo "  or: bash scripts/mac-ios-v4-deploy.sh (build + install)"

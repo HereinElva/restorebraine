@@ -133,6 +133,12 @@ if (existsSync(distAssets)) {
     } else if (/LOCAL_NATIVE_BUNDLE=!0|LOCAL_NATIVE_BUNDLE=true|ar=!0/.test(content)) {
       ok(`${label} ${file} has LOCAL_NATIVE_BUNDLE=true`);
     }
+    if (isLocal && label === 'App chunk' && !/data:image\/png;base64,/.test(content)) {
+      fail(`${label} ${file} missing embedded login logo data URL`);
+      bump();
+    } else if (isLocal && label === 'App chunk' && /data:image\/png;base64,/.test(content)) {
+      ok(`${label} ${file} has embedded login logo`);
+    }
   }
 }
 

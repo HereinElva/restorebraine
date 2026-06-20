@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { BUILD_NUMBER, NATIVE_BUILD_LABEL } from '@/lib/build-info';
 import { LOCAL_NATIVE_BUNDLE } from '@/lib/native-bundle-mode';
 import { isHostedAppOrigin, isNativeShell } from '@/lib/native-hosted-redirect';
+import { isV4CoreWrongOrigin } from '@/lib/v4-core-guard';
 
 const getModeLabel = () => {
   if (!isNativeShell()) return 'web';
@@ -27,9 +28,11 @@ export default function NativeDebugBadge() {
     const bridgeSource = typeof window !== 'undefined' ? window.__RESTOREBRAINE_V4_BRIDGE_SOURCE__ : '';
     const bridgeInstalled = typeof window !== 'undefined' && window.__restorebraineSessionBridgeInstalled;
     const stampMismatch = htmlStamp && !htmlStamp.includes(`v${BUILD_NUMBER}`);
+    const wrongOrigin = isV4CoreWrongOrigin();
     return {
       mode: getModeLabel(),
       origin,
+      wrongOrigin,
       nativeStamp: nativeStamp || NATIVE_BUILD_LABEL,
       entryScript,
       htmlStamp,
@@ -69,8 +72,10 @@ export default function NativeDebugBadge() {
     >
       {expanded ? (
         <>
-          <div style={{ fontWeight: 700, marginBottom: 4 }}>v{BUILD_NUMBER} · {info.mode}</div>
-          <div style={{ opacity: 0.9 }}>{info.origin}</div>
+          <div style={{ fontWeight: 700, marginBottom: 4, color: info.wrongOrigin ? '#fca5a5' : undefined }}>
+            v{BUILD_NUMBER} · {info.mode}{info.wrongOrigin ? ' · WRONG ORIGIN' : ''}
+          </div>
+          <div style={{ opacity: 0.9, color: info.wrongOrigin ? '#fca5a5' : undefined }}>{info.origin}</div>
           <div style={{ opacity: 0.75, marginTop: 4, fontSize: '10px' }}>{info.nativeStamp}</div>
           <div style={{ opacity: 0.7, marginTop: 2, fontSize: '9px' }}>js: {info.entryScript}</div>
           {typeof window !== 'undefined' && window.__restorebraineOAuthMode ? (

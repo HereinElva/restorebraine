@@ -30,13 +30,24 @@ const readSyncToken = () => {
 
 const isNativeLocalShell = () => LOCAL_NATIVE_BUNDLE || (isNativeShell() && !isHostedAppOrigin());
 
+const shouldSkipInitialAuthLoading = () => {
+  if (!LOCAL_NATIVE_BUNDLE) return false;
+  try {
+    if (localStorage.getItem('b44_signed_out') === '1') return true;
+    return !(localStorage.getItem('base44_access_token') || localStorage.getItem('token'));
+  } catch {
+    return true;
+  }
+};
+
 const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
+  const skipInitialLoad = shouldSkipInitialAuthLoading();
   const [user, setUser] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [isLoadingAuth, setIsLoadingAuth] = useState(true);
-  const [isLoadingPublicSettings, setIsLoadingPublicSettings] = useState(true);
+  const [isLoadingAuth, setIsLoadingAuth] = useState(!skipInitialLoad);
+  const [isLoadingPublicSettings, setIsLoadingPublicSettings] = useState(!skipInitialLoad);
   const [authError, setAuthError] = useState(null);
   const [appPublicSettings, setAppPublicSettings] = useState(null);
   const [manuallyLoggedOut, setManuallyLoggedOut] = useState(false);

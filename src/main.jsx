@@ -52,6 +52,29 @@ function loadV4BridgeScript() {
 async function bootstrapNativeLocal() {
   window.__RESTOREBRAINE_NATIVE_BUILD__ = NATIVE_BUILD_LABEL;
 
+  const { protocol, hostname } = window.location;
+  const bundledOrigin =
+    protocol === 'capacitor:' ||
+    protocol === 'ionic:' ||
+    hostname === 'localhost' ||
+    hostname === '127.0.0.1';
+  if (!bundledOrigin) {
+    showBootstrapError(
+      `Wrong WebView origin: ${window.location.origin}. Run bash scripts/mac-ios-v4-deploy.sh — server.url must be unset.`,
+    );
+    return;
+  }
+
+  const [{ installNativeBundleShellGuard }] = await Promise.all([
+    import('@/lib/native-bundle-shell-guard'),
+  ]);
+  installNativeBundleShellGuard();
+
+  // OAuth listeners before React — do not wait for async v4-bridge.
+  import('@/lib/native-google-oauth')
+    .then(({ installNativeOAuthListeners }) => installNativeOAuthListeners())
+    .catch((error) => console.warn('Early OAuth listeners:', error));
+
   const mountTimer = setTimeout(() => {
     if (!window.__restorebraineAppMounted) {
       showBootstrapError('Startup timed out. Run bash scripts/mac-ios-native-rebuild.sh then Clean Build Folder in Xcode.');

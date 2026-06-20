@@ -722,6 +722,9 @@
 
           function fixRestorebraineBranding() {
             try {
+              // v4-core React login card owns the UI on capacitor://localhost — never mutate DOM here.
+              if (isBundledNativeOrigin()) return;
+
               var stamp = document.getElementById('rb-native-stamp');
               if (stamp) stamp.remove();
               document.querySelectorAll('[id*="native-stamp"], [class*="native-stamp"]').forEach(function (n) { n.remove(); });
