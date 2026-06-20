@@ -15,4 +15,15 @@ git clean -fdx --exclude=ios/App/App/Assets.xcassets/AppIcon.appiconset/ 2>/dev/
 echo ""
 git log --oneline -1
 echo ""
-echo "Synced. Next: bash scripts/mac-ios-v4-rebuild.sh"
+if grep -q 'find_deployed_app' scripts/verify-xcode-app-bundle.sh 2>/dev/null; then
+  echo "verify-xcode-app-bundle.sh: updated (ignores Index.noindex)"
+else
+  echo "WARNING: verify script still looks outdated — check git log"
+fi
+echo ""
+echo "Synced. Next:"
+echo "  bash scripts/mac-ios-v4-rebuild.sh"
+echo "  Xcode Run (Cmd+R) to iPhone"
+echo "  bash scripts/verify-xcode-app-bundle.sh"
+echo ""
+echo "Diagnose anytime: bash scripts/mac-doctor.sh"

@@ -1,6 +1,15 @@
 #!/usr/bin/env bash
 # After Xcode Run: verify the built App.app contains the same bundle as repo (proves deploy worked).
+# v2 — ignores Index.noindex hollow App.app (requires mac-force-sync if you see line-25 BUILD_STAMP errors).
 set -uo pipefail
+
+if ! grep -q 'find_deployed_app' "$0" 2>/dev/null; then
+  echo "ERROR: Outdated verify-xcode-app-bundle.sh (matches Index.noindex hollow build)."
+  echo "  Run: bash scripts/mac-force-sync.sh"
+  echo "  Then: bash scripts/mac-ios-v4-rebuild.sh"
+  exit 1
+fi
+
 cd "$(git rev-parse --show-toplevel)"
 
 REPO_STAMP=$(tr -d '\n' < ios/App/App/BUILD_STAMP.txt 2>/dev/null || echo missing)

@@ -41,9 +41,12 @@ if ! git pull origin "$BRANCH"; then
     || true
   if ! git pull origin "$BRANCH"; then
     echo ""
-    echo "Pull still blocked. Run this, then rebuild:"
-    echo "  bash scripts/mac-unblock-pull.sh"
-    exit 1
+    echo "Pull still blocked — force-syncing to origin/$BRANCH (discards local build artifacts)..."
+    git fetch origin "$BRANCH"
+    rm -rf ios/App/App/public
+    bash scripts/mac-discard-build-files.sh 2>/dev/null || true
+    git reset --hard "origin/$BRANCH"
+    echo "Force-synced to: $(git log --oneline -1)"
   fi
 fi
 
