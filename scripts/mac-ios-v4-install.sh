@@ -16,7 +16,12 @@ echo "=== Restorebraine v4 INSTALL to iPhone ==="
 TEAM=$(bash scripts/mac-resolve-development-team.sh)
 echo "Development team: $TEAM"
 bash scripts/mac-ensure-development-team.sh
-bash scripts/mac-check-signing.sh || true
+if ! bash scripts/mac-check-signing.sh; then
+  echo ""
+  echo "Fix signing in Xcode, then re-run:"
+  echo "  bash scripts/mac-ios-v4-install.sh"
+  exit 1
+fi
 echo ""
 UDID=$(bash scripts/mac-detect-ios-device.sh)
 echo "Device UDID: $UDID"
