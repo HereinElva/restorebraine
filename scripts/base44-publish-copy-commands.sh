@@ -21,6 +21,7 @@ echo ""
 FILES=(
   "index.html"
   "public/login-redirect.js"
+  "public/web-login-boot.js"
   "src/main.jsx"
   "src/deploy-marker.js"
   "src/lib/app-params.js"
