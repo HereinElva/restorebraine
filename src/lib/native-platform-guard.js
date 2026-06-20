@@ -39,13 +39,14 @@ export const getCanonicalOAuthUrl = (provider = 'google', { forWebView = false }
 export const getWebViewOAuthUrl = (provider = 'google') => getCanonicalOAuthUrl(provider, { forWebView: true });
 
 /** Force a valid OAuth URL — blocks capacitor:// and app.base44.com from_url values. */
-export const normalizeAuthUrl = (rawUrl, providerHint, { forWebView = false } = {}) => {
+export const normalizeAuthUrl = (rawUrl, providerHint, { forWebView = false, preservePlatformLogin = false } = {}) => {
   try {
-    if (LOCAL_NATIVE_BUNDLE && isPlatformLoginUrl(rawUrl)) {
-      return getCanonicalOAuthUrl('google', { forWebView });
+    if (preservePlatformLogin && isPlatformLoginUrl(rawUrl)) {
+      return String(rawUrl);
     }
     const parsed = new URL(String(rawUrl || ''), typeof window !== 'undefined' ? window.location.href : DEFAULT_APP_ORIGIN);
     if (!isAuthNavigationUrl(rawUrl) && !providerHint && !isPlatformLoginUrl(rawUrl)) return String(rawUrl);
+    if (isPlatformLoginUrl(rawUrl)) return String(rawUrl);
     const provider = providerHint || providerFromPath(parsed.pathname);
     return getCanonicalOAuthUrl(provider, { forWebView });
   } catch {

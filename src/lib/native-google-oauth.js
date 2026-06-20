@@ -1,18 +1,20 @@
 import { InAppBrowser, DefaultWebViewOptions } from '@capacitor/inappbrowser';
 import { Browser } from '@capacitor/browser';
 import { Capacitor } from '@capacitor/core';
+import { isAppHost, NATIVE_OAUTH_RETURN_URL, getAuthReturnOrigin } from '@/lib/app-domains';
 import {
   getGoogleOAuthUrl,
   getProviderOAuthUrl,
   getWebViewOAuthUrl,
   getCanonicalOAuthUrl,
+  BASE44_APP_ID,
+  BASE44_PLATFORM_URL,
   NATIVE_OAUTH_CALLBACK,
   isBase44PlatformHost,
   isAuthNavigationUrl,
   isPlatformLoginUrl,
   normalizeAuthUrl,
 } from '@/lib/native-platform-guard';
-import { isAppHost, NATIVE_OAUTH_RETURN_URL } from '@/lib/app-domains';
 import { LOCAL_NATIVE_BUNDLE } from '@/lib/native-bundle-mode';
 import { persistSessionToNativeStorage } from '@/lib/session-bootstrap';
 import { isNativeShell, getNativeWebViewHome } from '@/lib/native-hosted-redirect';
@@ -97,6 +99,18 @@ const openInAppBrowserOAuth = async (oauthUrl, provider) => {
   window.__restorebraineLastOAuthUrl = oauthUrl;
   window.__restorebraineOAuthInProgress = true;
 
+  const tryWebViewFirst = provider === 'platform';
+
+  if (tryWebViewFirst) {
+    window.__restorebraineOAuthMode = 'platform-login-webview';
+    try {
+      await InAppBrowser.openInWebView({ url: oauthUrl, options: DefaultWebViewOptions });
+      return;
+    } catch (webviewError) {
+      console.warn('InAppBrowser WebView failed for platform login:', webviewError);
+    }
+  }
+
   window.__restorebraineOAuthMode = 'system-browser';
   try {
     await InAppBrowser.openInSystemBrowser({ url: oauthUrl, options: SYSTEM_BROWSER_OPTIONS });
@@ -105,12 +119,14 @@ const openInAppBrowserOAuth = async (oauthUrl, provider) => {
     console.warn('InAppBrowser system browser failed, trying WebView:', systemError);
   }
 
-  window.__restorebraineOAuthMode = provider === 'google' ? 'webview-google' : 'webview';
-  try {
-    await InAppBrowser.openInWebView({ url: oauthUrl, options: DefaultWebViewOptions });
-    return;
-  } catch (webviewError) {
-    console.warn('InAppBrowser WebView failed, trying Capacitor Browser:', webviewError);
+  if (!tryWebViewFirst) {
+    window.__restorebraineOAuthMode = provider === 'google' ? 'webview-google' : 'webview';
+    try {
+      await InAppBrowser.openInWebView({ url: oauthUrl, options: DefaultWebViewOptions });
+      return;
+    } catch (webviewError) {
+      console.warn('InAppBrowser WebView failed, trying Capacitor Browser:', webviewError);
+    }
   }
 
   window.__restorebraineOAuthMode = 'browser-fallback';
@@ -216,10 +232,8 @@ const handleOAuthBrowserNavigation = async (url) => {
       await redirectToNativeBundleHome(url);
       return true;
     }
-    if (isPlatformLoginUrl(url)) {
-      await InAppBrowser.close().catch(() => {});
-      await openLoginInSystemBrowser(getGoogleOAuthUrl(), 'google');
-      return true;
+    if (isAuthNavigationUrl(url)) {
+      return false;
     }
   } catch {}
 
@@ -284,11 +298,31 @@ export const openLoginInSystemBrowser = async (url = getGoogleOAuthUrl(), provid
     throw new Error('Not running in the native app shell.');
   }
 
-  const oauthUrl = normalizeAuthUrl(url || getCanonicalOAuthUrl(provider), provider);
+  const oauthUrl = isPlatformLoginUrl(url)
+    ? String(url)
+    : normalizeAuthUrl(url || getCanonicalOAuthUrl(provider), provider);
   window.__restorebraineLastOAuthUrl = oauthUrl;
 
   // v4-core: open InAppBrowser immediately — registerPlugin stub hangs without rejecting.
   await openInAppBrowserOAuth(oauthUrl, provider);
+};
+
+/** v4-core: real Base44 login page (all providers + email) — not a native recreation. */
+export const openPlatformLoginInBrowser = async () => {
+  const params = new URLSearchParams({
+    from_url: getAuthReturnOrigin(),
+    app_id: BASE44_APP_ID,
+    prompt: 'select_account',
+  });
+  const loginUrl = `${BASE44_PLATFORM_URL}/login?${params.toString()}`;
+  window.__restorebraineOAuthInProgress = true;
+  window.__restorebraineOAuthMode = 'platform-login';
+  window.__restorebraineLastOAuthUrl = loginUrl;
+  if (!(await waitForCapacitor())) {
+    window.__restorebraineOAuthInProgress = false;
+    throw new Error('Not running in the native app shell.');
+  }
+  await openInAppBrowserOAuth(loginUrl, 'platform');
 };
 
 /** Install OAuth listeners once at app startup (deep links + InAppBrowser navigation). */
@@ -297,7 +331,10 @@ export const installNativeOAuthListeners = async () => {
   window.__restorebraineOAuthListenersInstalled = true;
   installNativeOAuthBridgeListener();
 
-  window.__restorebraineOpenLogin = () => openLoginInSystemBrowser(getGoogleOAuthUrl(), 'google');
+  window.__restorebraineOpenLogin = () => {
+    if (LOCAL_NATIVE_BUNDLE) return openPlatformLoginInBrowser();
+    return openLoginInSystemBrowser(getGoogleOAuthUrl(), 'google');
+  };
   window.__restorebraineOpenProviderLogin = (provider) => {
     const p = provider || 'google';
     const url = p === 'google' ? getGoogleOAuthUrl() : getProviderOAuthUrl(p);

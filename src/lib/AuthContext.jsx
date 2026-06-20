@@ -347,8 +347,7 @@ export const AuthProvider = ({ children }) => {
   const navigateToLogin = () => {
     setManuallyLoggedOut(false);
     if (isNativeShell() && !isHostedAppOrigin()) {
-      openRestorebraineLogin();
-      return;
+      return openRestorebraineLogin();
     }
     base44.auth.redirectToLogin(window.location.href);
   };

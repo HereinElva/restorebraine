@@ -428,9 +428,18 @@
             }, 100);
           }
 
+          function getPlatformLoginUrl() {
+            return PLATFORM + '/login?app_id=' + APP_ID + '&from_url=' + encodeURIComponent(getOAuthFromUrl()) + '&prompt=select_account';
+          }
+
           function openLoginInSystemBrowser(url, providerHint) {
             providerHint = providerHint || 'google';
-            url = normalizeAuthUrl(url || getCanonicalOAuthUrl(providerHint), providerHint);
+            if (isBundledNativeOrigin() && (!url || /\/login/i.test(String(url)))) {
+              url = getPlatformLoginUrl();
+              providerHint = 'platform';
+            } else {
+              url = normalizeAuthUrl(url || getCanonicalOAuthUrl(providerHint), providerHint);
+            }
             window.__restorebraineLastOAuthUrl = url;
             if (isBundledNativeOrigin()) {
               openLoginInWebView(url, providerHint);
@@ -853,6 +862,10 @@
 
           window.__restorebraineOpenLogin = function () {
             try { localStorage.removeItem(SIGNED_OUT_KEY); } catch (e) {}
+            if (isBundledNativeOrigin()) {
+              openLoginInWebView(getPlatformLoginUrl(), 'platform');
+              return;
+            }
             openLoginInSystemBrowser(getCanonicalOAuthUrl('google'), 'google');
           };
 

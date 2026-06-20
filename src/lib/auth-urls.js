@@ -1,7 +1,8 @@
 import { isNativeShell } from '@/lib/native-hosted-redirect';
+import { LOCAL_NATIVE_BUNDLE } from '@/lib/native-bundle-mode';
 import { getAuthReturnOrigin } from '@/lib/app-domains';
 import { BASE44_APP_ID, BASE44_PLATFORM_URL, getGoogleOAuthUrl, getProviderOAuthUrl } from '@/lib/native-platform-guard';
-import { openLoginInSystemBrowser } from '@/lib/native-google-oauth';
+import { openLoginInSystemBrowser, openPlatformLoginInBrowser } from '@/lib/native-google-oauth';
 
 export { RESTOREBRAINE_FROM_URL, getGoogleOAuthUrl, getCanonicalOAuthUrl } from '@/lib/native-platform-guard';
 export { getAuthReturnOrigin } from '@/lib/app-domains';
@@ -33,13 +34,16 @@ export const openNativeProviderLogin = (provider = 'google') => {
 };
 
 /**
- * Build v4 native: tap Continue with Google → direct OAuth in InAppBrowser.
- * Web / hosted: platform login page.
+ * Build v4 native: open real Base44 platform login in InAppBrowser (Google/Apple/email).
+ * Other native: direct Google OAuth. Web: redirect to platform login.
  */
 export const openRestorebraineLogin = () => {
   if (typeof window === 'undefined') return;
 
   if (isNativeShell()) {
+    if (LOCAL_NATIVE_BUNDLE) {
+      return openPlatformLoginInBrowser();
+    }
     openNativeProviderLogin('google');
     return;
   }
