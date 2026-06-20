@@ -88,7 +88,7 @@ lines.push(
   '  • App shows Sign In screen or gallery — NOT blank white page',
 );
 
-const outPath = resolve('base44-publish-v84.txt');
+const outPath = resolve(`base44-publish-v${deployBuild}.txt`);
 writeFileSync(outPath, lines.join('\n'));
 console.log(`Wrote ${outPath} (${lines.join('\n').length} chars, ${FILES.length} files)`);
 
@@ -115,7 +115,7 @@ for (let i = 0; i < PARTS.length; i += 1) {
   } else {
     partLines.push('', `>>> Continue with Part ${i + 2} before clicking Publish <<<`);
   }
-  const partPath = resolve(`base44-publish-v84-part${i + 1}.txt`);
+  const partPath = resolve(`base44-publish-v${deployBuild}-part${i + 1}.txt`);
   writeFileSync(partPath, partLines.join('\n'));
   console.log(`Wrote ${partPath}`);
 }
