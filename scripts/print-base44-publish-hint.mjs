@@ -24,7 +24,7 @@ Run "node scripts/list-base44-publish-files.mjs" for the full paste list.
 Critical auth files (Base44 support said these were never published):
   - src/lib/AuthContext.jsx   (uses base44.auth.redirectToLogin on web)
   - src/lib/app-params.js     (no iPhone deep-link block)
-  - src/lib/auth-urls.js      (app.base44.com/login, not base44.app/login)
+  - src/lib/auth-urls.js      (native → Google OAuth, not app.base44.com/login page)
   - src/api/base44Client.js
 
 White screen fix:

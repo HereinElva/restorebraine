@@ -2,7 +2,7 @@ import { isNativeShell } from '@/lib/native-hosted-redirect';
 import { getAuthReturnOrigin } from '@/lib/app-domains';
 import { BASE44_APP_ID, BASE44_PLATFORM_URL } from '@/lib/native-platform-guard';
 
-export { RESTOREBRAINE_FROM_URL, getGoogleOAuthUrl } from '@/lib/native-platform-guard';
+export { RESTOREBRAINE_FROM_URL, getGoogleOAuthUrl, getCanonicalOAuthUrl } from '@/lib/native-platform-guard';
 export { getAuthReturnOrigin } from '@/lib/app-domains';
 
 /**
@@ -25,16 +25,15 @@ export const getRestorebraineLoginUrl = getPlatformLoginUrl;
 export const openRestorebraineLogin = () => {
   if (typeof window === 'undefined') return;
 
-  const url = getPlatformLoginUrl();
-
   if (isNativeShell()) {
+    // Native: go straight to Google OAuth — app.base44.com/login is the wrong page in SFSafariViewController.
     import('@/lib/native-google-oauth').then(({ openLoginInSystemBrowser }) => {
-      openLoginInSystemBrowser(url);
+      openLoginInSystemBrowser(getGoogleOAuthUrl(), 'google');
     });
     return;
   }
 
-  window.location.href = url;
+  window.location.href = getPlatformLoginUrl();
 };
 
 /** If the user lands on /login on a custom domain, escape the broken platform page. */

@@ -10,6 +10,7 @@ import { setupIframeMessaging } from './lib/iframe-messaging';
 import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
+import { isNativeShell } from '@/lib/native-hosted-redirect';
 
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
@@ -24,7 +25,9 @@ const LayoutWrapper = ({ children, currentPageName }) => Layout ?
   <Layout currentPageName={currentPageName}>{children}</Layout>
   : <>{children}</>;
 
-const SignInScreen = ({ onSignIn, clearSignedOut = false }) => (
+const SignInScreen = ({ onSignIn, clearSignedOut = false }) => {
+  const native = isNativeShell();
+  return (
   <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg,#eff6ff,#f5f3ff,#fdf2f8)', padding: '24px' }}>
     <div style={{ background: 'white', borderRadius: '24px', padding: '40px', boxShadow: '0 10px 40px rgba(0,0,0,0.1)', maxWidth: '360px', width: '100%', textAlign: 'center' }}>
       <img
@@ -34,7 +37,9 @@ const SignInScreen = ({ onSignIn, clearSignedOut = false }) => (
         style={{ width: '64px', height: '64px', borderRadius: '20px', objectFit: 'cover', display: 'block', margin: '0 auto 20px' }}
       />
       <h1 style={{ fontSize: '24px', fontWeight: '700', color: '#111', marginBottom: '8px' }}>Restorebraine</h1>
-      <p style={{ color: '#666', marginBottom: '32px', fontSize: '14px' }}>Sign in to access your memories</p>
+      <p style={{ color: '#666', marginBottom: '32px', fontSize: '14px' }}>
+        {native ? 'Sign in with Google to access your memories' : 'Sign in to access your memories'}
+      </p>
       <button
         type="button"
         onClick={() => {
@@ -45,11 +50,12 @@ const SignInScreen = ({ onSignIn, clearSignedOut = false }) => (
         }}
         style={{ width: '100%', padding: '14px', background: 'linear-gradient(135deg,#60a5fa,#a78bfa)', color: 'white', border: 'none', borderRadius: '14px', fontSize: '16px', fontWeight: '600', cursor: 'pointer' }}
       >
-        Sign In
+        {native ? 'Continue with Google' : 'Sign In'}
       </button>
     </div>
   </div>
-);
+  );
+};
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, isAuthenticated, navigateToLogin, manuallyLoggedOut } = useAuth();
