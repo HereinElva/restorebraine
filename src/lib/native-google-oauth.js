@@ -1,4 +1,4 @@
-import { InAppBrowser } from '@capacitor/inappbrowser';
+import { InAppBrowser, DefaultWebViewOptions } from '@capacitor/inappbrowser';
 import {
   getGoogleOAuthUrl,
   getProviderOAuthUrl,
@@ -16,12 +16,6 @@ import { isNativeShell, getNativeWebViewHome } from '@/lib/native-hosted-redirec
 import { shouldBlockExternalNavigation, redirectToNativeBundleHome } from '@/lib/native-bundle-shell-guard';
 
 const GOOGLE_OAUTH_PATTERN = /accounts\.google\.com|google\.com\/o\/oauth|oauth2\.googleapis\.com|\/api\/apps\/auth\/login/i;
-const GOOGLE_WEBVIEW_BLOCKED = /disallowed_useragent|doesn't comply with Google|403/i;
-
-const WEB_VIEW_OPTIONS = {
-  iOS: { closeButtonText: 2, viewStyle: 2, animationEffect: 2, enableBarsCollapsing: true, enableReadersMode: false },
-  android: { showTitle: false, hideToolbarOnScroll: false, viewStyle: 0, startAnimation: 0, exitAnimation: 1 },
-};
 
 const SYSTEM_BROWSER_OPTIONS = {
   iOS: { closeButtonText: 2, viewStyle: 2, animationEffect: 2, enableBarsCollapsing: true, enableReadersMode: false },
@@ -42,6 +36,18 @@ export const isOAuthCallbackUrl = (url) => {
   if (!url || typeof url !== 'string') return false;
   if (url.includes('access_token=')) return true;
   if (LOCAL_NATIVE_BUNDLE && url.startsWith(NATIVE_OAUTH_RETURN_URL.split('?')[0])) return true;
+  return false;
+};
+
+/** iOS native ASWebAuthenticationSession bridge — never opens full Safari. */
+const startNativeGoogleOAuthSession = (url) => {
+  try {
+    const handlers = window.webkit?.messageHandlers;
+    if (handlers?.restorebraineOAuth) {
+      handlers.restorebraineOAuth.postMessage({ url });
+      return true;
+    }
+  } catch {}
   return false;
 };
 
@@ -81,7 +87,7 @@ const finishOAuthLogin = async () => {
   window.location.replace(getNativeWebViewHome());
 };
 
-/** After system-browser OAuth, AppDelegate may have saved the token before JS listeners attach. */
+/** After OAuth, AppDelegate may have saved the token before JS listeners attach. */
 export const tryRestoreSessionAfterOAuth = async () => {
   const existing = localStorage.getItem('base44_access_token') || localStorage.getItem('token');
   if (existing && localStorage.getItem('b44_signed_out') !== '1') {
@@ -115,16 +121,6 @@ const isHostedOAuthReturn = (url) => {
   }
 };
 
-const shouldFallbackOAuthToSystemBrowser = (url) => {
-  if (!url || !window.__restorebraineOAuthWebViewMode) return false;
-  if (GOOGLE_WEBVIEW_BLOCKED.test(String(url))) return true;
-  try {
-    const parsed = new URL(String(url), window.location.href);
-    if (/accounts\.google\.com/i.test(parsed.hostname) && parsed.pathname.includes('disallowed')) return true;
-  } catch {}
-  return false;
-};
-
 const openOAuthInSystemBrowser = async (url, providerHint) => {
   window.__restorebraineOAuthWebViewMode = false;
   const normalizedUrl = normalizeAuthUrl(url, providerHint, { forWebView: false });
@@ -139,17 +135,6 @@ const openOAuthInSystemBrowser = async (url, providerHint) => {
 
 const handleOAuthBrowserNavigation = async (url) => {
   if (!url) return false;
-
-  if (shouldFallbackOAuthToSystemBrowser(url)) {
-    const provider = oauthWebViewFallbackProvider || 'google';
-    await InAppBrowser.close().catch(() => {});
-    await openOAuthInSystemBrowser(
-      provider === 'google' ? getGoogleOAuthUrl() : getProviderOAuthUrl(provider),
-      provider,
-    );
-    return true;
-  }
-
   if (await handleNativeOAuthCallback(url)) return true;
 
   try {
@@ -201,19 +186,30 @@ const attachOAuthCompletionListener = async () => {
   });
 };
 
+const isGoogleProvider = (providerHint, url) =>
+  providerHint === 'google' || !providerHint || isGoogleOAuthUrl(url);
+
 /**
- * v4-core: OAuth in Capacitor InAppBrowser WebView (stays in app shell).
- * Captures access_token via browserPageNavigationCompleted on hosted redirect.
- * Google WebView block → fallback to system browser + restorebraine:// callback.
+ * v4-core OAuth:
+ * - Google → native ASWebAuthenticationSession (restorebraine:// callback, stays in app)
+ * - Apple/Microsoft → InAppBrowser WebView (never delegates Google to full Safari)
  */
 export const openLoginInSystemBrowser = async (url = getGoogleOAuthUrl(), providerHint) => {
+  const provider = providerHint || 'google';
   if (typeof window !== 'undefined') {
-    window.__restorebraineLastOAuthUrl = url;
     window.__restorebraineOAuthInProgress = true;
-    oauthWebViewFallbackProvider = providerHint || 'google';
+    oauthWebViewFallbackProvider = provider;
   }
   if (!isNativeShell()) {
     window.location.replace(normalizeAuthUrl(url, providerHint));
+    return;
+  }
+
+  if (LOCAL_NATIVE_BUNDLE && isGoogleProvider(providerHint, url)) {
+    const oauthUrl = normalizeAuthUrl(getGoogleOAuthUrl(), 'google', { forWebView: false });
+    window.__restorebraineLastOAuthUrl = oauthUrl;
+    if (startNativeGoogleOAuthSession(oauthUrl)) return;
+    await openOAuthInSystemBrowser(oauthUrl, 'google');
     return;
   }
 
@@ -221,14 +217,10 @@ export const openLoginInSystemBrowser = async (url = getGoogleOAuthUrl(), provid
   await attachOAuthCompletionListener();
 
   if (LOCAL_NATIVE_BUNDLE) {
-    const webViewUrl = normalizeAuthUrl(
-      providerHint ? getWebViewOAuthUrl(providerHint) : url,
-      providerHint,
-      { forWebView: true },
-    );
+    const webViewUrl = normalizeAuthUrl(getWebViewOAuthUrl(provider), provider, { forWebView: true });
     window.__restorebraineOAuthWebViewMode = true;
     window.__restorebraineLastOAuthUrl = webViewUrl;
-    await InAppBrowser.openInWebView({ url: webViewUrl, options: WEB_VIEW_OPTIONS });
+    await InAppBrowser.openInWebView({ url: webViewUrl, options: DefaultWebViewOptions });
     return;
   }
 
@@ -237,6 +229,14 @@ export const openLoginInSystemBrowser = async (url = getGoogleOAuthUrl(), provid
 
 const handleAuthNavigation = (url, providerHint) => {
   openLoginInSystemBrowser(url, providerHint);
+};
+
+const installNativeOAuthBridgeListener = () => {
+  if (typeof window === 'undefined' || window.__restorebraineNativeOAuthBridgeInstalled) return;
+  window.__restorebraineNativeOAuthBridgeInstalled = true;
+  window.addEventListener('restorebraine-native-oauth-complete', () => {
+    tryRestoreSessionAfterOAuth();
+  });
 };
 
 export const installLocationNavigationGuard = () => {
@@ -343,6 +343,7 @@ export const installNativeGoogleOAuthBrowser = () => {
   if (typeof window === 'undefined' || window.__restorebraineGoogleOAuthBrowserInstalled) return;
   window.__restorebraineGoogleOAuthBrowserInstalled = true;
 
+  installNativeOAuthBridgeListener();
   installLocationNavigationGuard();
 
   const originalOpen = window.open;
