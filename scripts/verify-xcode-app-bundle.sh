@@ -65,6 +65,9 @@ if [ -z "$APP" ]; then
   echo "Index shells (ignore):"
   find ~/Library/Developer/Xcode/DerivedData -name 'App.app' -path '*Index.noindex*' -print 2>/dev/null | head -2 | sed 's/^/  /'
   echo ""
+  echo "All App.app in DerivedData:"
+  bash scripts/mac-list-app-bundles.sh 2>/dev/null || find ~/Library/Developer/Xcode/DerivedData -name 'App.app' -path '*/Build/Products/*' 2>/dev/null | head -5 | sed 's/^/  /'
+  echo ""
   echo "Fix — Xcode only (skip Terminal rebuild):"
   echo "  1. open ios/App/App.xcworkspace"
   echo "  2. Device menu: select your iPhone by name"
