@@ -10,6 +10,13 @@ echo ""
 CURRENT=$(git branch --show-current 2>/dev/null || echo unknown)
 echo "Branch: $CURRENT (target: $BRANCH)"
 
+if [ "$CURRENT" = "cursor/fix-native-xcode-coding-bacf" ]; then
+  echo ""
+  echo "WRONG BRANCH — you are on old v60 work (fix-native-xcode-coding-bacf)."
+  echo "  Fix NOW: bash scripts/mac-recover-v4.sh"
+  echo "  Or:     git fetch origin $BRANCH && git checkout -B $BRANCH origin/$BRANCH"
+fi
+
 git fetch origin "$BRANCH" 2>/dev/null || true
 LOCAL=$(git rev-parse HEAD 2>/dev/null || echo none)
 REMOTE=$(git rev-parse "origin/$BRANCH" 2>/dev/null || echo none)
