@@ -94,6 +94,10 @@ export const installNativeSessionPersistence = async () => {
             window.dispatchEvent(new CustomEvent('restorebraine-session-updated', { detail: { token } }));
           }
         }
+        try {
+          const { enforceNativeBundleOrigin } = await import('@/lib/native-bundle-shell-guard');
+          enforceNativeBundleOrigin();
+        } catch {}
         return;
       }
 

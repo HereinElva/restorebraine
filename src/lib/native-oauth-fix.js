@@ -3,6 +3,7 @@ import { isHostedAppOrigin, isNativeShell } from '@/lib/native-hosted-redirect';
 import { LOCAL_NATIVE_BUNDLE } from '@/lib/native-bundle-mode';
 import { installNativePlatformGuard } from '@/lib/native-platform-guard';
 import { installNativeGoogleOAuthBrowser } from '@/lib/native-google-oauth';
+import { installNativeBundleShellGuard } from '@/lib/native-bundle-shell-guard';
 
 export const captureAccessTokenFromUrl = () => {
   if (typeof window === 'undefined') return null;
@@ -35,8 +36,9 @@ export const installNativeOAuthFix = () => {
   // blank white screen on iOS.
   if (isNativeShell() && !isHostedAppOrigin()) {
     installNativeGoogleOAuthBrowser();
-    // Build v4-core: LoginGate + SignInButton handle sign-in; skip polling guards.
-    if (!LOCAL_NATIVE_BUNDLE) {
+    if (LOCAL_NATIVE_BUNDLE) {
+      installNativeBundleShellGuard();
+    } else {
       installNativePlatformGuard();
     }
   }

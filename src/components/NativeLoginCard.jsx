@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '@/lib/AuthContext';
 import { NATIVE_BUILD_LABEL } from '@/lib/build-info';
-import { getRestorebraineAppLogo } from '@/lib/app-branding';
+import LoginLogo from '@/components/LoginLogo';
 import { openLoginInSystemBrowser } from '@/lib/native-google-oauth';
 import { getGoogleOAuthUrl, getProviderOAuthUrl } from '@/lib/native-platform-guard';
 import NativeDebugBadge from '@/components/NativeDebugBadge';
@@ -120,17 +120,10 @@ export default function NativeLoginCard({ clearSignedOut = false }) {
     }
   };
 
-  const logo = getRestorebraineAppLogo();
-
   return (
     <div style={cardStyle}>
       <form onSubmit={handleSubmit} noValidate style={formStyle}>
-        <img
-          src={logo}
-          alt="Restorebraine"
-          data-rb-logo="1"
-          style={{ width: '64px', height: '64px', borderRadius: '20px', objectFit: 'cover', display: 'block', margin: '0 auto 20px' }}
-        />
+        <LoginLogo />
         <h1 style={{ fontSize: '24px', fontWeight: '700', color: '#111', marginBottom: '8px' }}>Restorebraine</h1>
         <p style={{ color: '#666', marginBottom: '24px', fontSize: '14px' }}>Sign in to access your memories</p>
 

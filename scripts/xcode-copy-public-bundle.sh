@@ -48,6 +48,11 @@ if [ ! -f "${DEST_PUBLIC}/assets/${ENTRY}" ]; then
   exit 1
 fi
 
+if [ ! -f "${SRC_PUBLIC}/AppIcon.png" ]; then
+  echo "warning: ${SRC_PUBLIC}/AppIcon.png missing — login logo may show placeholder"
+  echo "         Run: bash scripts/mac-ios-v4-rebuild.sh"
+fi
+
 STAMP_LINE=$(tr -d '\n' < "$STAMP" 2>/dev/null || echo 'unknown')
 echo "Restorebraine DEPLOY OK: public/ -> App.app"
 echo "  dest: ${DEST_APP}"

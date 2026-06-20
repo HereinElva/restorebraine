@@ -11,6 +11,7 @@ import {
 import { getAuthReturnOrigin } from '@/lib/app-domains';
 import { persistSessionToNativeStorage } from '@/lib/session-bootstrap';
 import { isNativeShell, getNativeWebViewHome } from '@/lib/native-hosted-redirect';
+import { shouldBlockExternalNavigation, redirectToNativeBundleHome } from '@/lib/native-bundle-shell-guard';
 
 const GOOGLE_OAUTH_PATTERN = /accounts\.google\.com|google\.com\/o\/oauth|oauth2\.googleapis\.com|\/api\/apps\/auth\/login/i;
 
@@ -46,6 +47,10 @@ let oauthListenerAttached = false;
 
 const finishOAuthLogin = async () => {
   await InAppBrowser.close().catch(() => {});
+  const token = localStorage.getItem('base44_access_token') || localStorage.getItem('token');
+  if (token) {
+    window.dispatchEvent(new CustomEvent('restorebraine-session-updated', { detail: { token } }));
+  }
   window.location.replace(getNativeWebViewHome());
 };
 
@@ -131,9 +136,7 @@ export const installLocationNavigationGuard = () => {
       try {
         const parsed = new URL(String(url), window.location.href);
         if (parsed.searchParams.get('access_token')) {
-          captureOAuthTokenFromUrl(parsed.href).then((token) => {
-            if (token) window.location.replace(getNativeWebViewHome());
-          });
+          redirectToNativeBundleHome(parsed.href);
           return;
         }
         if (isPlatformLoginUrl(url)) {
@@ -142,6 +145,10 @@ export const installLocationNavigationGuard = () => {
         }
         if (isAuthNavigationUrl(url)) {
           handleAuthNavigation(url);
+          return;
+        }
+        if (shouldBlockExternalNavigation(url)) {
+          redirectToNativeBundleHome(String(url));
           return;
         }
         if (isBase44PlatformHost(parsed.hostname)) {
@@ -156,6 +163,10 @@ export const installLocationNavigationGuard = () => {
       }
       if (isAuthNavigationUrl(url)) {
         handleAuthNavigation(url);
+        return;
+      }
+      if (shouldBlockExternalNavigation(url)) {
+        redirectToNativeBundleHome(String(url));
         return;
       }
       return original.call(this, url);
@@ -174,9 +185,7 @@ export const installLocationNavigationGuard = () => {
           try {
             const parsed = new URL(String(value), window.location.href);
             if (parsed.searchParams.get('access_token')) {
-              captureOAuthTokenFromUrl(parsed.href).then((token) => {
-                if (token) window.location.replace(getNativeWebViewHome());
-              });
+              redirectToNativeBundleHome(parsed.href);
               return;
             }
             if (isPlatformLoginUrl(value)) {
@@ -185,6 +194,10 @@ export const installLocationNavigationGuard = () => {
             }
             if (isAuthNavigationUrl(value)) {
               handleAuthNavigation(value);
+              return;
+            }
+            if (shouldBlockExternalNavigation(value)) {
+              redirectToNativeBundleHome(String(value));
               return;
             }
             if (isBase44PlatformHost(parsed.hostname)) {
@@ -198,6 +211,10 @@ export const installLocationNavigationGuard = () => {
           }
           if (isAuthNavigationUrl(value)) {
             handleAuthNavigation(value);
+            return;
+          }
+          if (shouldBlockExternalNavigation(value)) {
+            redirectToNativeBundleHome(String(value));
             return;
           }
           hrefDescriptor.set.call(window.location, value);
