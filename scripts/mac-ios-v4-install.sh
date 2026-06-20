@@ -48,17 +48,30 @@ XCODE_EXIT=${PIPESTATUS[0]}
 set -e
 
 if [ "$XCODE_EXIT" -ne 0 ]; then
-  if grep -q 'requires a development team' "$LOG"; then
+  if grep -qE 'requires a development team|No Account for Team|No profiles for' "$LOG"; then
     echo ""
-    echo "ERROR: Signing failed — development team not accepted."
-    echo "  Tried DEVELOPMENT_TEAM=$TEAM"
+    echo "ERROR: Signing failed — Xcode cannot use team $TEAM on this Mac."
     echo ""
-    echo "Fix in Xcode (one time):"
-    echo "  open ios/App/App.xcworkspace"
-    echo "  App target → Signing & Capabilities → Team → Ariel Layugan"
-    echo "  Product → Run (Cmd+R)"
+    if grep -q 'No Account for Team' "$LOG"; then
+      echo "  Xcode is not signed into the Apple ID for that team."
+      echo ""
+      echo "Fix (pick one):"
+      echo "  A) Xcode → Settings → Accounts → + → sign in Apple ID (Ariel Layugan)"
+      echo "  B) Use YOUR team instead:"
+      echo "     open ios/App/App.xcworkspace"
+      echo "     App target → Signing & Capabilities → Team → your Apple ID"
+      echo "     Product → Run (Cmd+R)"
+      echo ""
+      echo "  Or after setting Team in Xcode:"
+      echo "    bash scripts/mac-ios-v4-install.sh"
+    else
+      echo "Fix in Xcode (one time):"
+      echo "  open ios/App/App.xcworkspace"
+      echo "  App target → Signing & Capabilities → Team → your Apple ID"
+      echo "  Product → Run (Cmd+R)"
+    fi
     echo ""
-    echo "Or set your team ID:"
+    echo "Override team ID:"
     echo "  RESTOREBRAINE_DEVELOPMENT_TEAM=YOUR_TEAM_ID bash scripts/mac-ios-v4-install.sh"
     exit 1
   fi
