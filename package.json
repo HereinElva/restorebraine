@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "node scripts/write-build-info.mjs && node scripts/use-local-native-bundle.mjs --hosted && npm run ios:icons && node scripts/sync-app-icon.mjs && node scripts/embed-login-logo.mjs && vite build && node scripts/patch-native-purchases-podspec.mjs && node scripts/cap-sync-ios-clean.mjs && node scripts/verify-ios-sync.mjs && node scripts/verify-capacitor-ios-bundle.mjs && node scripts/verify-ios-icons.mjs && node scripts/print-base44-publish-hint.mjs",
-    "ios:icons": "node scripts/ensure-app-icon.mjs && node scripts/generate-ios-app-icons.mjs",
+    "ios:icons": "node scripts/ensure-app-icon.mjs && node scripts/generate-ios-app-icons.mjs && node scripts/generate-ios-launch-screen.mjs",
     "mac:fix-icon": "bash scripts/mac-fix-app-icon.sh",
     "mac:pre-upload": "bash scripts/mac-pre-upload-checklist.sh",
     "mac:verify-icon": "bash scripts/mac-verify-archive-icon.sh",
