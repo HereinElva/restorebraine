@@ -159,6 +159,16 @@ if (iosIndex && /restorebraine-v4-bridge\.js/.test(iosIndex)) {
   ok('index.html has no sync v4-bridge (async load OK)');
 }
 
+for (const required of ['restorebraine-v4-bridge.js', 'v4-native-boot.js', 'login-logo.png']) {
+  const iosPath = resolve(`ios/App/App/public/${required}`);
+  if (existsSync(iosPath)) {
+    ok(`${required} in ios/public (${readFileSync(iosPath).length} bytes)`);
+  } else {
+    fail(`${required} missing from ios/public — run npm run cap:merge-web-into-ios`);
+    bump();
+  }
+}
+
 const loginLogoPath = resolve('ios/App/App/public/login-logo.png');
 const appIconPath = resolve('ios/App/App/public/AppIcon.png');
 if (existsSync(loginLogoPath)) {

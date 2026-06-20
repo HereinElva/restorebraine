@@ -7,14 +7,15 @@
 # Terminal npm build alone NEVER updates the iPhone. This script runs install too.
 set -euo pipefail
 BRANCH="${RESTOREBRAINE_BRANCH:-cursor/fix-native-localhost-oauth-bacf}"
-SYNC=0
+SYNC=1
 for arg in "$@"; do
   case "$arg" in
     --sync) SYNC=1 ;;
+    --no-sync) SYNC=0 ;;
     --help|-h)
-      echo "Usage: bash scripts/mac-ios-v4-deploy.sh [--sync]"
-      echo "  default   build current tree + install to connected iPhone"
-      echo "  --sync    git fetch + reset --hard origin/$BRANCH, then build + install"
+      echo "Usage: bash scripts/mac-ios-v4-deploy.sh [--no-sync]"
+      echo "  default   pull origin/$BRANCH, merge web app into iOS, install to iPhone"
+      echo "  --no-sync build current checkout only (skip git pull)"
       exit 0
       ;;
   esac
@@ -27,12 +28,14 @@ echo "║  Restorebraine v4 DEPLOY — build + install (not npm-only)    ║"
 echo "╚══════════════════════════════════════════════════════════════╝"
 echo ""
 
+bash scripts/explain-deploy-targets.sh || true
+echo ""
+
 if [ "$SYNC" = "1" ]; then
-  echo "=== --sync: pull origin/$BRANCH then build ==="
+  echo "=== Pull origin/$BRANCH + merge web app into iOS + install ==="
   bash scripts/mac-pull-and-rebuild.sh "$BRANCH"
 else
-  echo "=== Build from current checkout (no git reset) ==="
-  echo "  Tip: pass --sync to pull latest from origin/$BRANCH first"
+  echo "=== Build current checkout (no git pull) + merge web → iOS ==="
   bash scripts/mac-ios-v4-build.sh
 fi
 

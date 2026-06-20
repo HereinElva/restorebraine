@@ -1,10 +1,9 @@
 /**
- * Ensures dist/ and ios/App/App/public/ contain the same web bundle so
- * Xcode's folder reference cannot ship a mismatched index.html + JS pair.
+ * Verifies dist/ and ios/App/App/public/ are identical (full tree, not just assets/).
  */
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { join, relative, resolve } from 'node:path';
 
 const distDir = resolve('dist');
 const iosPublicDir = resolve('ios/App/App/public');
@@ -17,69 +16,53 @@ const fail = (message) => {
 const hashFile = (filePath) =>
   createHash('sha256').update(readFileSync(filePath)).digest('hex').slice(0, 16);
 
-const getIndexScript = (indexPath) => {
-  const html = readFileSync(indexPath, 'utf8');
-  const match = html.match(/src="\.\/assets\/([^"]+\.js)"/);
-  return match?.[1] ?? null;
-};
-
-const getDeployVersion = (indexPath) => {
-  const html = readFileSync(indexPath, 'utf8');
-  const match = html.match(/name="restorebraine-deploy"\s+content="(v\d+)"/);
-  return match?.[1] ?? null;
+const listFilesRecursive = (dir, base = dir) => {
+  const results = [];
+  if (!existsSync(dir)) return results;
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const full = join(dir, entry.name);
+    if (entry.isDirectory()) {
+      results.push(...listFilesRecursive(full, base));
+    } else if (entry.isFile()) {
+      results.push(relative(base, full));
+    }
+  }
+  return results.sort();
 };
 
 if (!existsSync(distDir)) fail('dist/ missing — run vite build first');
-if (!existsSync(iosPublicDir)) fail('ios/App/App/public missing — run cap sync ios');
+if (!existsSync(iosPublicDir)) fail('ios/App/App/public missing — run cap:merge-web-into-ios');
 
 const distIndex = resolve(distDir, 'index.html');
 const iosIndex = resolve(iosPublicDir, 'index.html');
-if (!existsSync(distIndex) || !existsSync(iosIndex)) {
-  fail('index.html missing in dist or ios/App/App/public');
-}
+const distScript = readFileSync(distIndex, 'utf8').match(/src="\.\/assets\/([^"]+\.js)"/)?.[1];
+const iosScript = readFileSync(iosIndex, 'utf8').match(/src="\.\/assets\/([^"]+\.js)"/)?.[1];
 
-const distScript = getIndexScript(distIndex);
-const iosScript = getIndexScript(iosIndex);
-if (!distScript || !iosScript) {
-  fail('Could not find ./assets/*.js script tag in dist or ios index.html');
-}
+if (!distScript || !iosScript) fail('Could not find entry JS in dist or ios index.html');
 if (distScript !== iosScript) {
-  fail(`index.html script mismatch: dist=${distScript} ios=${iosScript} — re-run cap sync`);
+  fail(`entry JS mismatch: dist=${distScript} ios=${iosScript} — run npm run cap:merge-web-into-ios`);
 }
 
-const distAssets = resolve(distDir, 'assets', distScript);
-const iosAssets = resolve(iosPublicDir, 'assets', iosScript);
-if (!existsSync(distAssets) || !existsSync(iosAssets)) {
-  fail(`Referenced bundle missing: ${distScript}`);
+const distFiles = listFilesRecursive(distDir);
+const iosOnlySkip = new Set(['cordova.js', 'cordova_plugins.js']);
+
+for (const rel of distFiles) {
+  const distPath = resolve(distDir, rel);
+  const iosPath = resolve(iosPublicDir, rel);
+  if (!existsSync(iosPath)) fail(`ios/public missing ${rel} — run cap:merge-web-into-ios`);
+  if (hashFile(distPath) !== hashFile(iosPath)) {
+    fail(`hash mismatch for ${rel} — run cap:merge-web-into-ios`);
+  }
 }
 
-const distHash = hashFile(distAssets);
-const iosHash = hashFile(iosAssets);
-if (distHash !== iosHash) {
-  fail(`Bundle hash mismatch for ${distScript}: dist=${distHash} ios=${iosHash}`);
-}
-
-const distFiles = new Set(readdirSync(resolve(distDir, 'assets')));
-const iosFiles = new Set(readdirSync(resolve(iosPublicDir, 'assets')));
-const missingOnIos = [...distFiles].filter((file) => !iosFiles.has(file));
-const orphansOnIos = [...iosFiles].filter((file) => !distFiles.has(file));
-if (missingOnIos.length) {
-  fail(`ios/public/assets missing ${missingOnIos.length} file(s) from dist — re-run cap sync`);
-}
-if (orphansOnIos.length) {
-  fail(
-    `ios/public/assets has ${orphansOnIos.length} stale orphan(s): ${orphansOnIos.slice(0, 5).join(', ')} — re-run cap sync`,
-  );
-}
-
-const deployDist = getDeployVersion(distIndex);
-const deployIos = getDeployVersion(iosIndex);
-if (deployDist && deployIos && deployDist !== deployIos) {
-  fail(`Deploy meta mismatch: dist=${deployDist} ios=${deployIos}`);
+const iosFiles = listFilesRecursive(iosPublicDir).filter((f) => !iosOnlySkip.has(f));
+const orphans = iosFiles.filter((f) => !distFiles.includes(f));
+if (orphans.length) {
+  fail(`ios/public stale orphan(s): ${orphans.slice(0, 5).join(', ')} — run cap:merge-web-into-ios`);
 }
 
 const stampPath = resolve('ios/App/App/BUILD_STAMP.txt');
 const stamp = existsSync(stampPath) ? readFileSync(stampPath, 'utf8').trim() : 'unknown';
 
-console.log(`OK: dist and ios/public match (${distScript}, hash ${distHash})`);
-console.log(`OK: deploy tag ${deployIos ?? deployDist ?? 'n/a'}, BUILD_STAMP: ${stamp}`);
+console.log(`OK: dist ↔ ios/public identical (${distFiles.length} files, entry ${distScript})`);
+console.log(`OK: BUILD_STAMP: ${stamp}`);

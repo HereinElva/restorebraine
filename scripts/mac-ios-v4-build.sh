@@ -17,8 +17,12 @@ mkdir -p ios/App/App/public/assets
 
 bash scripts/mac-discard-build-files.sh 2>/dev/null || true
 
-echo "Running npm run build:native-local ..."
+echo "Running npm run build:native-local (src → dist → ios/public merge) ..."
 npm run build:native-local
+
+echo ""
+echo "=== Capacitor web merge check ==="
+bash scripts/explain-deploy-targets.sh
 
 BUILD_NUM=$(grep -E '^export const BUILD_NUMBER = ' src/lib/build-info.js | sed 's/.*= //;s/;//')
 ENTRY=$(grep -o 'src="\./assets/[^"]*\.js"' ios/App/App/public/index.html | head -1 | sed 's/.*assets\///;s/"//')
