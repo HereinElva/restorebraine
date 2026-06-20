@@ -5,6 +5,24 @@ import { persistentStorage } from '@/lib/persistentStorage';
 
 const TOKEN_KEYS = ['base44_access_token', 'token'];
 const SIGNED_OUT_KEY = 'b44_signed_out';
+const PREFERENCES_TIMEOUT_MS = 2000;
+
+const readSyncToken = () => {
+  try {
+    if (localStorage.getItem(SIGNED_OUT_KEY) === '1') return null;
+    return localStorage.getItem('base44_access_token') || localStorage.getItem('token');
+  } catch {
+    return null;
+  }
+};
+
+const withTimeout = (promise, ms) =>
+  Promise.race([
+    promise,
+    new Promise((resolve) => {
+      setTimeout(() => resolve(null), ms);
+    }),
+  ]);
 
 export const restoreSessionFromNativeStorage = async () => {
   const urlToken = captureAccessTokenFromUrl();
@@ -13,14 +31,22 @@ export const restoreSessionFromNativeStorage = async () => {
     return urlToken;
   }
 
+  const syncToken = readSyncToken();
+  if (syncToken) {
+    appParams.token = syncToken;
+    base44.auth.setToken(syncToken, false);
+    return syncToken;
+  }
+
   try {
     if (typeof window !== 'undefined' && localStorage.getItem(SIGNED_OUT_KEY) === '1') return null;
   } catch {}
-  const signedOut = await persistentStorage.get(SIGNED_OUT_KEY);
+
+  const signedOut = await withTimeout(persistentStorage.get(SIGNED_OUT_KEY), PREFERENCES_TIMEOUT_MS);
   if (signedOut === '1') return null;
 
   for (const key of TOKEN_KEYS) {
-    const storedToken = await persistentStorage.get(key);
+    const storedToken = await withTimeout(persistentStorage.get(key), PREFERENCES_TIMEOUT_MS);
     if (!storedToken) continue;
 
     appParams.token = storedToken;

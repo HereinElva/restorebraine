@@ -6,6 +6,7 @@ import { openRestorebraineLogin } from '@/lib/auth-urls';
 import { getAppOrigin } from '@/lib/app-params';
 import { clearNativeSession, persistSessionToNativeStorage, restoreSessionFromNativeStorage } from '@/lib/session-bootstrap';
 import { isHostedAppOrigin, isNativeShell } from '@/lib/native-hosted-redirect';
+import { LOCAL_NATIVE_BUNDLE } from '@/lib/native-bundle-mode';
 
 const AUTH_TIMEOUT_MS = 8000;
 const NATIVE_AUTH_TIMEOUT_MS = 4000;
@@ -27,7 +28,7 @@ const readSyncToken = () => {
   }
 };
 
-const isNativeLocalShell = () => isNativeShell() && !isHostedAppOrigin();
+const isNativeLocalShell = () => LOCAL_NATIVE_BUNDLE || (isNativeShell() && !isHostedAppOrigin());
 
 const AuthContext = createContext();
 
@@ -81,6 +82,24 @@ export const AuthProvider = ({ children }) => {
 
   const checkAppState = async () => {
     try {
+      const syncToken = readSyncToken();
+
+      if (LOCAL_NATIVE_BUNDLE && !syncToken) {
+        setIsLoadingAuth(false);
+        setIsLoadingPublicSettings(false);
+        setIsAuthenticated(false);
+        setAuthError({ type: 'auth_required', message: 'Authentication required' });
+        restoreSessionFromNativeStorage()
+          .then((token) => {
+            if (token) {
+              appParams.token = token;
+              window.dispatchEvent(new CustomEvent('restorebraine-session-updated', { detail: { token } }));
+            }
+          })
+          .catch(() => {});
+        return;
+      }
+
       setIsLoadingPublicSettings(true);
       setAuthError(null);
 
@@ -89,8 +108,8 @@ export const AuthProvider = ({ children }) => {
         appParams.token = restoredToken;
       }
 
-      const syncToken = readSyncToken();
-      if (isNativeLocalShell() && !syncToken && !appParams.token) {
+      const tokenAfterRestore = readSyncToken() || appParams.token;
+      if (LOCAL_NATIVE_BUNDLE && !tokenAfterRestore) {
         setIsLoadingAuth(false);
         setIsLoadingPublicSettings(false);
         setIsAuthenticated(false);

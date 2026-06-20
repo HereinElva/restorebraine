@@ -40,6 +40,15 @@ const checks = [
         },
       ]),
   {
+    path: 'ios/App/App/public/index.html',
+    test: (content) => {
+      const match = content.match(/src="\.\/assets\/([^"]+\.js)"/);
+      if (!match) return false;
+      return existsSync(resolve('ios/App/App/public/assets', match[1]));
+    },
+    message: 'index.html references a missing JS bundle — run npm run build:native-local',
+  },
+  {
     path: 'ios/App/App/public/assets',
     test: () => hasOAuthFixInBundle(),
     message: 'Bundled assets are missing the OAuth fix',

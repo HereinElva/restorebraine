@@ -3,18 +3,6 @@ import { redirectNativeToHostedApp } from '@/lib/native-hosted-redirect';
 import { installNativeOAuthFix } from '@/lib/native-oauth-fix';
 import { redirectBrokenCustomDomainLogin } from '@/lib/auth-urls';
 
-function showBootstrapLoading() {
-  const root = document.getElementById('root');
-  if (!root) return;
-  root.innerHTML = `
-    <div style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;font-family:system-ui,sans-serif;background:linear-gradient(135deg,#eff6ff,#f5f3ff,#fdf2f8);padding:24px;">
-      <div style="width:48px;height:48px;border:4px solid #e9d5ff;border-top-color:#9333ea;border-radius:50%;animation:rb-spin 0.8s linear infinite;"></div>
-      <p style="font-size:15px;color:#666;margin:0;">Loading Restorebraine…</p>
-    </div>
-    <style>@keyframes rb-spin{to{transform:rotate(360deg)}}</style>
-  `;
-}
-
 function showBootstrapError(message) {
   const root = document.getElementById('root');
   if (!root) return;
@@ -31,30 +19,51 @@ function showBootstrapError(message) {
   `;
 }
 
-/** Build v4 used a direct React mount with no hosted redirect — keep that for native-local. */
+function markAppMounted() {
+  window.__restorebraineAppMounted = true;
+}
+
+/** Build v4: mount React immediately — never block on Capacitor Preferences before first paint. */
 async function bootstrapNativeLocal() {
   installNativeOAuthFix();
 
-  const { restoreSessionFromNativeStorage, installNativeSessionPersistence } =
-    await import('@/lib/session-bootstrap');
+  const mountTimer = setTimeout(() => {
+    if (!window.__restorebraineAppMounted) {
+      showBootstrapError('Startup timed out. Run bash scripts/mac-ios-native-rebuild.sh then Clean Build Folder in Xcode.');
+    }
+  }, 10000);
+
   try {
-    await restoreSessionFromNativeStorage();
+    const [{ default: React }, { default: ReactDOM }, { default: App }] = await Promise.all([
+      import('react'),
+      import('react-dom/client'),
+      import('@/App.jsx'),
+    ]);
+    await import('@/index.css');
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+    markAppMounted();
+    clearTimeout(mountTimer);
+
+    import('@/lib/session-bootstrap')
+      .then(async ({ restoreSessionFromNativeStorage, installNativeSessionPersistence }) => {
+        try {
+          const token = await restoreSessionFromNativeStorage();
+          if (token) {
+            window.dispatchEvent(new CustomEvent('restorebraine-session-updated', { detail: { token } }));
+          }
+          await installNativeSessionPersistence();
+        } catch (error) {
+          console.warn('Background session bootstrap failed:', error);
+        }
+      })
+      .catch((error) => {
+        console.warn('Session bootstrap module unavailable:', error);
+      });
   } catch (error) {
-    console.warn('Session restore before mount failed:', error);
+    clearTimeout(mountTimer);
+    throw error;
   }
-
-  const [{ default: React }, { default: ReactDOM }, { default: App }] = await Promise.all([
-    import('react'),
-    import('react-dom/client'),
-    import('@/App.jsx'),
-  ]);
-  await import('@/index.css');
-
-  ReactDOM.createRoot(document.getElementById('root')).render(<App />);
-
-  installNativeSessionPersistence().catch((error) => {
-    console.warn('Native session persistence unavailable:', error);
-  });
 }
 
 async function bootstrapApp() {
@@ -67,7 +76,6 @@ async function bootstrapApp() {
     return;
   }
 
-  showBootstrapLoading();
   installNativeOAuthFix();
 
   if (redirectNativeToHostedApp()) {
@@ -87,6 +95,7 @@ async function bootstrapApp() {
     await import('@/index.css');
 
     ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+    markAppMounted();
     clearTimeout(bootstrapTimeout);
 
     import('@/lib/session-bootstrap')
