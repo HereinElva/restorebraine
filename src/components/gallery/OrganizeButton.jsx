@@ -22,7 +22,8 @@ import {
   buildMergePrompt,
   photoDataForOrganize,
 } from "@/lib/media-organize";
-import { SQUARE_FOLDER_ACTION_CLASS, SQUARE_FOLDER_ACTION_STYLE } from "./folderActionStyles";
+import { ORGANIZE_FOLDER_ACTION_CLASS, SQUARE_FOLDER_ACTION_STYLE } from "./folderActionStyles";
+import { BRAND_GRADIENT_TEXT_CLASS, BrandGradientIcon } from "@/components/ui/BrandGradientIcon";
 
 const CHUNK_SIZE = 40;
 const CONCURRENCY = 4;
@@ -314,15 +315,17 @@ export default function OrganizeButton({ photos, squareStyle = false }) {
           data-rb-folder-action="organize"
           onClick={() => setShowDialog(true)}
           disabled={organizing || photos.length < 2}
-          className={`relative ${SQUARE_FOLDER_ACTION_CLASS}`}
+          className={`relative ${ORGANIZE_FOLDER_ACTION_CLASS}`}
           style={SQUARE_FOLDER_ACTION_STYLE}
         >
           {organizing ? (
-            <Loader2 className="w-5 h-5 animate-spin text-purple-500" />
+            <BrandGradientIcon Icon={Loader2} className="w-5 h-5 animate-spin" />
           ) : (
-            <Sparkles className="w-5 h-5 text-purple-500" />
+            <BrandGradientIcon Icon={Sparkles} className="w-5 h-5" />
           )}
-          <span>{organizing ? "Organizing..." : "Organize"}</span>
+          <span className={BRAND_GRADIENT_TEXT_CLASS}>
+            {organizing ? "Organizing..." : "Organize"}
+          </span>
           {progress && (
             <div className="absolute top-full left-0 right-0 mt-2 p-2 bg-white rounded-lg shadow-lg border border-orange-200 whitespace-nowrap z-10">
               <div className="flex items-center gap-2 text-sm text-orange-600">

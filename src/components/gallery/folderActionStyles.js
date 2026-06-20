@@ -1,6 +1,10 @@
 export const SQUARE_FOLDER_ACTION_CLASS =
   'w-full min-h-[5.5rem] flex flex-col items-center justify-center gap-1.5 py-4 rounded-2xl bg-white text-gray-700 border border-gray-100 shadow-sm text-sm font-semibold disabled:opacity-50';
 
+/** Organize tile — soft blue/purple wash like the search bar */
+export const ORGANIZE_FOLDER_ACTION_CLASS =
+  'w-full min-h-[5.5rem] flex flex-col items-center justify-center gap-1.5 py-4 rounded-2xl bg-gradient-to-br from-blue-50 to-purple-50 border border-blue-100 shadow-sm text-sm font-semibold disabled:opacity-50';
+
 export const SQUARE_FOLDER_ACTION_STYLE = {
   width: '100%',
   minHeight: '5.5rem',

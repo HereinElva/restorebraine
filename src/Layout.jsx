@@ -7,6 +7,7 @@ import { Search, Upload, User, ChevronLeft } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { NavigationProvider, useNavigation } from "./components/NavigationContext";
 import { TabStateProvider } from "./components/TabStateContext";
+import { BrandGradientDefs } from "@/components/ui/BrandGradientIcon";
 const TAB_ORDER = ["Gallery", "Upload", "Account"];
 
 function LayoutInner({ children, currentPageName }) {
@@ -75,6 +76,7 @@ function LayoutInner({ children, currentPageName }) {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
+      <BrandGradientDefs />
       <style>{`
         :root {
           --primary: 250 70% 75%;

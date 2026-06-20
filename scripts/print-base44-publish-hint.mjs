@@ -14,6 +14,8 @@ Base44 does NOT auto-update from GitHub. After git pull + npm run build, you mus
    - src/components/gallery/CustomFolderButton.jsx
    - src/components/gallery/DuplicateDetector.jsx
    - src/components/gallery/folderActionStyles.js
+   - src/components/ui/BrandGradientIcon.jsx
+   - src/Layout.jsx
    - src/deploy-marker.js
 3. Click Publish (top right)
 4. Verify live site HTML references a NEW asset hash (not index-BmFZls3B.js)
