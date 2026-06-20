@@ -5,7 +5,7 @@ import { createAxiosClient } from '@base44/sdk/dist/utils/axios-client';
 import { openRestorebraineLogin } from '@/lib/auth-urls';
 import { getAppOrigin } from '@/lib/app-params';
 import { clearNativeSession, persistSessionToNativeStorage, restoreSessionFromNativeStorage } from '@/lib/session-bootstrap';
-import { isHostedAppOrigin } from '@/lib/native-hosted-redirect';
+import { isHostedAppOrigin, isNativeShell } from '@/lib/native-hosted-redirect';
 
 const AuthContext = createContext();
 
@@ -167,7 +167,13 @@ export const AuthProvider = ({ children }) => {
 
   const navigateToLogin = () => {
     setManuallyLoggedOut(false);
-    openRestorebraineLogin();
+    // Base44 support: use SDK redirect on web (base44Client overrides broken custom-domain /login).
+    // Native Capacitor still needs the system browser for Google OAuth.
+    if (isNativeShell()) {
+      openRestorebraineLogin();
+      return;
+    }
+    base44.auth.redirectToLogin(window.location.href);
   };
 
   return (

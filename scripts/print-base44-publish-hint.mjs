@@ -1,28 +1,38 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { execSync } from 'node:child_process';
 
-const build = readFileSync(resolve('src/lib/build-info.js'), 'utf8').match(/BUILD_NUMBER = (\d+)/)?.[1] ?? '?';
+const deployBuild =
+  readFileSync(resolve('src/deploy-marker.js'), 'utf8').match(/DEPLOY_BUILD = (\d+)/)?.[1] ?? '?';
+
+let liveBundle = 'unknown';
+try {
+  const html = execSync('curl -sL https://restorebraine.base44.app', { encoding: 'utf8', timeout: 15000 });
+  liveBundle = html.match(/assets\/(index-[^"]+\.js)/)?.[1] ?? 'not found';
+} catch {
+  liveBundle = 'could not fetch';
+}
 
 console.log(`
-Base44 does NOT auto-update from GitHub. After git pull + npm run build, you must Publish in Base44.
+Base44 does NOT auto-update from GitHub. You must paste files in the Code editor and click Publish.
 
-1. Open https://app.base44.com → Restorebraine → Code editor
-2. Sync or paste updated files from your Mac repo (minimum set):
-   - index.html
-   - src/index.css
-   - src/components/gallery/MobileGallery.jsx
-   - src/components/gallery/OrganizeButton.jsx
-   - src/components/gallery/CustomFolderButton.jsx
-   - src/components/gallery/DuplicateDetector.jsx
-   - src/components/gallery/folderActionStyles.js
-   - src/components/ui/BrandGradientIcon.jsx
-   - src/Layout.jsx
-   - src/deploy-marker.js
-3. Click Publish (top right)
-4. Verify live site HTML references a NEW asset hash (not index-BmFZls3B.js)
-5. Expected deploy stamp: v${build}
+Live bundle right now: ${liveBundle}
+Target after publish: a NEW hash (not index-DVkubWP5.js) + deploy v${deployBuild}
 
-iOS native app loads restorebraine.base44.app — until Publish, the app keeps the old UI.
+Run "node scripts/list-base44-publish-files.mjs" for the full paste list.
 
-Quick test without Base44: npm run build:native-local → Xcode Run
+Critical auth files (Base44 support said these were never published):
+  - src/lib/AuthContext.jsx   (uses base44.auth.redirectToLogin on web)
+  - src/lib/app-params.js     (no iPhone deep-link block)
+  - src/lib/auth-urls.js      (app.base44.com/login, not base44.app/login)
+  - src/api/base44Client.js
+
+White screen fix:
+  - src/components/gallery/MobileGallery.jsx  (no build-info import)
+  - src/deploy-marker.js
+  - src/main.jsx
+
+After Publish: hard refresh Safari or use Private tab, then check Sign In URL.
+
+iOS without Base44: npm run build:native-local → Xcode Run (do NOT run cap:hosted)
 `);
