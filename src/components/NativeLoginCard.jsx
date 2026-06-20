@@ -8,19 +8,15 @@ import NativeDebugBadge from '@/components/NativeDebugBadge';
 const shellStyle = {
   position: 'fixed',
   inset: 0,
-  width: '100%',
-  height: '100dvh',
-  maxHeight: '100dvh',
   display: 'flex',
   flexDirection: 'column',
   background: 'linear-gradient(135deg,#eff6ff,#f5f3ff,#fdf2f8)',
-  paddingTop: 'max(6px, env(safe-area-inset-top))',
-  paddingBottom: 'max(6px, env(safe-area-inset-bottom))',
-  paddingLeft: 'max(10px, env(safe-area-inset-left))',
-  paddingRight: 'max(10px, env(safe-area-inset-right))',
+  paddingTop: 'max(12px, env(safe-area-inset-top))',
+  paddingBottom: 'max(12px, env(safe-area-inset-bottom))',
+  paddingLeft: 'max(16px, env(safe-area-inset-left))',
+  paddingRight: 'max(16px, env(safe-area-inset-right))',
   boxSizing: 'border-box',
   overflow: 'hidden',
-  zIndex: 1,
 };
 
 const scrollStyle = {
@@ -28,22 +24,19 @@ const scrollStyle = {
   minHeight: 0,
   overflowY: 'auto',
   WebkitOverflowScrolling: 'touch',
-  overscrollBehavior: 'contain',
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
-  padding: '2px 0 8px',
 };
 
 const formStyle = {
   background: 'white',
-  borderRadius: '18px',
-  padding: '14px 14px 12px',
-  boxShadow: '0 6px 28px rgba(0,0,0,0.08)',
-  maxWidth: 'min(340px, 100%)',
+  borderRadius: '24px',
+  padding: '24px 22px',
+  boxShadow: '0 10px 40px rgba(0,0,0,0.1)',
+  maxWidth: '390px',
   width: '100%',
   textAlign: 'center',
-  margin: 'auto',
   boxSizing: 'border-box',
 };
 
@@ -54,36 +47,26 @@ const ProviderButton = ({ children, onClick, dark = false, disabled = false }) =
     disabled={disabled}
     style={{
       width: '100%',
-      padding: '10px 12px',
+      padding: '13px 14px',
       background: dark ? '#000' : '#fff',
       color: dark ? '#fff' : '#374151',
       border: dark ? '1px solid #000' : '1px solid #d1d5db',
       borderRadius: '10px',
-      fontSize: '13px',
+      fontSize: '15px',
       fontWeight: '600',
       cursor: disabled ? 'wait' : 'pointer',
-      marginBottom: '6px',
-      boxShadow: dark ? 'none' : '0 1px 3px rgba(0,0,0,0.04)',
+      marginBottom: '10px',
+      boxShadow: dark ? 'none' : '0 2px 8px rgba(0,0,0,0.04)',
       opacity: disabled ? 0.7 : 1,
       touchAction: 'manipulation',
-      WebkitTapHighlightColor: 'transparent',
+      WebkitTapHighlightColor: 'rgba(0,0,0,0.1)',
     }}
   >
     {children}
   </button>
 );
 
-const fieldStyle = {
-  width: '100%',
-  boxSizing: 'border-box',
-  padding: '10px 12px',
-  border: '1px solid #d1d5db',
-  borderRadius: '10px',
-  fontSize: '16px',
-  marginBottom: '8px',
-};
-
-/** Build v4-style login — compact layout for iPhone; OAuth opens in-app browser when tapped. */
+/** Build v4 login — centered card, fits iPhone with safe areas + scroll. */
 export default function NativeLoginCard({ clearSignedOut = false }) {
   const { loginWithEmailPassword, registerWithEmailPassword } = useAuth();
   const [mode, setMode] = useState('signin');
@@ -104,15 +87,21 @@ export default function NativeLoginCard({ clearSignedOut = false }) {
     if (openingProvider || isSubmitting) return;
     clearSignedOutFlag();
     setErrorMessage('');
-    setNoticeMessage('Opening sign in…');
+    setNoticeMessage('');
     setOpeningProvider(provider);
     try {
       const url = provider === 'google' ? getGoogleOAuthUrl() : getProviderOAuthUrl(provider);
       await openLoginInSystemBrowser(url, provider);
-      setNoticeMessage('');
     } catch (error) {
       console.error(`${provider} sign-in failed to open`, error);
-      setNoticeMessage('');
+      if (typeof window.__restorebraineOpenProviderLogin === 'function') {
+        try {
+          window.__restorebraineOpenProviderLogin(provider);
+          return;
+        } catch (bridgeError) {
+          console.error('Bridge OAuth fallback failed', bridgeError);
+        }
+      }
       setErrorMessage(error?.message || 'Could not open sign in. Try again or use email.');
     } finally {
       setOpeningProvider(null);
@@ -160,29 +149,22 @@ export default function NativeLoginCard({ clearSignedOut = false }) {
     <div style={shellStyle}>
       <div style={scrollStyle}>
         <form onSubmit={handleSubmit} noValidate style={formStyle}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px', textAlign: 'left' }}>
-            <div style={{ flexShrink: 0 }}>
-              <LoginLogo compact />
-            </div>
-            <div style={{ minWidth: 0 }}>
-              <h1 style={{ fontSize: '18px', fontWeight: '700', color: '#111', margin: 0, lineHeight: 1.2 }}>Restorebraine</h1>
-              <p style={{ color: '#666', margin: '2px 0 0', fontSize: '12px', lineHeight: 1.3 }}>Sign in to your memories</p>
-            </div>
-          </div>
+          <LoginLogo />
+          <h1 style={{ fontSize: '24px', fontWeight: '700', color: '#111', margin: '0 0 20px' }}>Restorebraine</h1>
 
           <ProviderButton onClick={() => handleProviderClick('google')} disabled={!!openingProvider || isSubmitting}>
-            <span style={{ color: '#4285F4', fontWeight: '800', marginRight: '6px' }}>G</span>
+            <span style={{ color: '#4285F4', fontWeight: '800', marginRight: '10px' }}>G</span>
             {openingProvider === 'google' ? 'Opening Google…' : 'Continue With Google'}
           </ProviderButton>
           <ProviderButton dark onClick={() => handleProviderClick('apple')} disabled={!!openingProvider || isSubmitting}>
             {openingProvider === 'apple' ? 'Opening Apple…' : 'Continue With Apple'}
           </ProviderButton>
           <ProviderButton onClick={() => handleProviderClick('microsoft')} disabled={!!openingProvider || isSubmitting}>
-            <span style={{ color: '#0078d4', fontWeight: '800', marginRight: '6px' }}>M</span>
+            <span style={{ color: '#0078d4', fontWeight: '800', marginRight: '10px' }}>M</span>
             {openingProvider === 'microsoft' ? 'Opening Microsoft…' : 'Continue With Microsoft'}
           </ProviderButton>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '8px 0', color: '#9ca3af', fontSize: '11px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px', margin: '16px 0', color: '#9ca3af', fontSize: '13px' }}>
             <div style={{ height: '1px', background: '#e5e7eb', flex: 1 }} />
             <span>OR</span>
             <div style={{ height: '1px', background: '#e5e7eb', flex: 1 }} />
@@ -190,18 +172,18 @@ export default function NativeLoginCard({ clearSignedOut = false }) {
 
           {mode === 'signup' ? (
             <>
-              <label style={{ display: 'block', textAlign: 'left', fontSize: '11px', fontWeight: '600', color: '#374151', marginBottom: '3px' }}>Name</label>
+              <label style={{ display: 'block', textAlign: 'left', fontSize: '13px', fontWeight: '600', color: '#374151', marginBottom: '6px' }}>Name</label>
               <input
                 type="text"
                 autoComplete="name"
                 value={fullName}
                 onChange={(event) => setFullName(event.target.value)}
                 required
-                style={fieldStyle}
+                style={{ width: '100%', boxSizing: 'border-box', padding: '13px 14px', border: '1px solid #d1d5db', borderRadius: '12px', fontSize: '16px', marginBottom: '12px' }}
               />
             </>
           ) : null}
-          <label style={{ display: 'block', textAlign: 'left', fontSize: '11px', fontWeight: '600', color: '#374151', marginBottom: '3px' }}>Email</label>
+          <label style={{ display: 'block', textAlign: 'left', fontSize: '13px', fontWeight: '600', color: '#374151', marginBottom: '6px' }}>Email</label>
           <input
             type="email"
             autoCapitalize="none"
@@ -209,35 +191,34 @@ export default function NativeLoginCard({ clearSignedOut = false }) {
             value={email}
             onChange={(event) => setEmail(event.target.value)}
             required
-            style={fieldStyle}
+            style={{ width: '100%', boxSizing: 'border-box', padding: '13px 14px', border: '1px solid #d1d5db', borderRadius: '12px', fontSize: '16px', marginBottom: '12px' }}
           />
-          <label style={{ display: 'block', textAlign: 'left', fontSize: '11px', fontWeight: '600', color: '#374151', marginBottom: '3px' }}>Password</label>
+          <label style={{ display: 'block', textAlign: 'left', fontSize: '13px', fontWeight: '600', color: '#374151', marginBottom: '6px' }}>Password</label>
           <input
             type="password"
             autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
             value={password}
             onChange={(event) => setPassword(event.target.value)}
             required
-            style={{ ...fieldStyle, marginBottom: '10px' }}
+            style={{ width: '100%', boxSizing: 'border-box', padding: '13px 14px', border: '1px solid #d1d5db', borderRadius: '12px', fontSize: '16px', marginBottom: '16px' }}
           />
-          {errorMessage ? <p style={{ color: '#dc2626', fontSize: '12px', margin: '0 0 8px', lineHeight: 1.35 }}>{errorMessage}</p> : null}
-          {noticeMessage ? <p style={{ color: '#6b7280', fontSize: '12px', margin: '0 0 8px', lineHeight: 1.35 }}>{noticeMessage}</p> : null}
+          {errorMessage ? <p style={{ color: '#dc2626', fontSize: '13px', margin: '0 0 12px' }}>{errorMessage}</p> : null}
+          {noticeMessage ? <p style={{ color: '#6b7280', fontSize: '13px', margin: '0 0 12px' }}>{noticeMessage}</p> : null}
           <button
             disabled={isSubmitting || !!openingProvider}
             type="submit"
             style={{
               width: '100%',
-              padding: '11px',
+              padding: '14px',
               background: 'linear-gradient(135deg,#60a5fa,#a78bfa)',
               color: 'white',
               border: 'none',
-              borderRadius: '11px',
-              fontSize: '14px',
+              borderRadius: '14px',
+              fontSize: '16px',
               fontWeight: '600',
               cursor: isSubmitting ? 'default' : 'pointer',
               opacity: isSubmitting ? 0.7 : 1,
               touchAction: 'manipulation',
-              WebkitTapHighlightColor: 'transparent',
             }}
           >
             {isSubmitting ? (mode === 'signup' ? 'Creating Account…' : 'Signing In…') : (mode === 'signup' ? 'Create Account' : 'Sign In With Email')}
@@ -245,7 +226,7 @@ export default function NativeLoginCard({ clearSignedOut = false }) {
           <button
             type="button"
             onClick={() => { setMode(mode === 'signup' ? 'signin' : 'signup'); setErrorMessage(''); setNoticeMessage(''); }}
-            style={{ marginTop: '10px', background: 'transparent', border: 'none', color: '#7c3aed', fontSize: '12px', fontWeight: '600', cursor: 'pointer', touchAction: 'manipulation' }}
+            style={{ marginTop: '14px', background: 'transparent', border: 'none', color: '#7c3aed', fontSize: '13px', fontWeight: '600', cursor: 'pointer', touchAction: 'manipulation' }}
           >
             {mode === 'signup' ? 'Already have an account? Sign in' : "Don't have an account? Sign up"}
           </button>

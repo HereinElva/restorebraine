@@ -96,21 +96,21 @@ const openInAppBrowserOAuth = async (oauthUrl, provider) => {
   await attachOAuthCompletionListener();
   window.__restorebraineLastOAuthUrl = oauthUrl;
   window.__restorebraineOAuthInProgress = true;
-  window.__restorebraineOAuthMode = provider === 'google' ? 'webview-google' : 'webview';
-
-  try {
-    await InAppBrowser.openInWebView({ url: oauthUrl, options: DefaultWebViewOptions });
-    return;
-  } catch (webviewError) {
-    console.warn('InAppBrowser WebView failed, trying system browser:', webviewError);
-  }
 
   window.__restorebraineOAuthMode = 'system-browser';
   try {
     await InAppBrowser.openInSystemBrowser({ url: oauthUrl, options: SYSTEM_BROWSER_OPTIONS });
     return;
   } catch (systemError) {
-    console.warn('InAppBrowser system browser failed, trying Capacitor Browser:', systemError);
+    console.warn('InAppBrowser system browser failed, trying WebView:', systemError);
+  }
+
+  window.__restorebraineOAuthMode = provider === 'google' ? 'webview-google' : 'webview';
+  try {
+    await InAppBrowser.openInWebView({ url: oauthUrl, options: DefaultWebViewOptions });
+    return;
+  } catch (webviewError) {
+    console.warn('InAppBrowser WebView failed, trying Capacitor Browser:', webviewError);
   }
 
   window.__restorebraineOAuthMode = 'browser-fallback';
@@ -287,17 +287,7 @@ export const openLoginInSystemBrowser = async (url = getGoogleOAuthUrl(), provid
   const oauthUrl = normalizeAuthUrl(url || getCanonicalOAuthUrl(provider), provider);
   window.__restorebraineLastOAuthUrl = oauthUrl;
 
-  if (LOCAL_NATIVE_BUNDLE && provider === 'google' && hasNativeOAuthPlugin()) {
-    try {
-      await withTimeout(startGoogleOAuthNative(), 4000, 'Google OAuth');
-      return;
-    } catch (error) {
-      window.__restorebraineOAuthInProgress = false;
-      if (error?.code === 'CANCELED' || /cancel/i.test(error?.message || '')) return;
-      console.warn('Native Google OAuth unavailable — opening InAppBrowser:', error);
-    }
-  }
-
+  // v4-core: open InAppBrowser immediately — registerPlugin stub hangs without rejecting.
   await openInAppBrowserOAuth(oauthUrl, provider);
 };
 
@@ -306,6 +296,14 @@ export const installNativeOAuthListeners = async () => {
   if (typeof window === 'undefined' || window.__restorebraineOAuthListenersInstalled) return;
   window.__restorebraineOAuthListenersInstalled = true;
   installNativeOAuthBridgeListener();
+
+  window.__restorebraineOpenLogin = () => openLoginInSystemBrowser(getGoogleOAuthUrl(), 'google');
+  window.__restorebraineOpenProviderLogin = (provider) => {
+    const p = provider || 'google';
+    const url = p === 'google' ? getGoogleOAuthUrl() : getProviderOAuthUrl(p);
+    return openLoginInSystemBrowser(url, p);
+  };
+
   try {
     const { installNativeOAuthDeepLinkHandler } = await import('@/lib/session-bootstrap');
     await installNativeOAuthDeepLinkHandler();

@@ -432,10 +432,6 @@
             providerHint = providerHint || 'google';
             url = normalizeAuthUrl(url || getCanonicalOAuthUrl(providerHint), providerHint);
             window.__restorebraineLastOAuthUrl = url;
-            if (isBundledNativeOrigin() && providerHint === 'google') {
-              openGoogleOAuthWithNativeSession(url);
-              return;
-            }
             if (isBundledNativeOrigin()) {
               openLoginInWebView(url, providerHint);
               return;
@@ -867,6 +863,7 @@
 
           function interceptNativeSignInClicks() {
             if (window.__restorebraineSignInInterceptor) return;
+            if (isBundledNativeOrigin()) return;
             window.__restorebraineSignInInterceptor = true;
             document.addEventListener('click', function (event) {
               var target = event.target.closest('button, a, [role="button"], div[role="button"], [data-provider]');
