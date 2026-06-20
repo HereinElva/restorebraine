@@ -36,14 +36,24 @@ echo ""
 if [ -z "$APP" ]; then
   echo "FAIL: No deployed App.app with public/index.html in DerivedData"
   echo ""
-  echo "This usually means either:"
-  echo "  1. You have not Run (Cmd+R) to device/simulator yet — only an Index build exists"
-  echo "  2. The 'Restorebraine Copy Public Bundle' script failed — check Xcode build log"
+  echo "You only have an Index.noindex build (empty shell — NOT installed on device)."
+  echo "You must Run (Cmd+R) to your iPhone in Xcode — Build alone is not enough."
   echo ""
-  echo "Index builds (ignore these — they are empty shells):"
-  find ~/Library/Developer/Xcode/DerivedData -name 'App.app' -path '*Index.noindex*' -print 2>/dev/null | head -3 | sed 's/^/  /'
+  NON_INDEX=$(find ~/Library/Developer/Xcode/DerivedData -name 'App.app' -path '*/Build/Products/*' ! -path '*Index.noindex*' -print 2>/dev/null | head -3)
+  if [ -n "$NON_INDEX" ]; then
+    echo "Non-index App.app exists but has no public/ — copy script did not run:"
+    echo "$NON_INDEX" | sed 's/^/  /'
+    echo "  Search Xcode build log for 'Restorebraine DEPLOY OK' or errors from xcode-copy-public-bundle.sh"
+  fi
   echo ""
-  echo "Fix: Xcode -> Run to your iPhone -> search build log for 'Restorebraine DEPLOY OK'"
+  echo "Index shells (ignore):"
+  find ~/Library/Developer/Xcode/DerivedData -name 'App.app' -path '*Index.noindex*' -print 2>/dev/null | head -2 | sed 's/^/  /'
+  echo ""
+  echo "Fix:"
+  echo "  1. bash scripts/mac-force-sync.sh   (get latest verify script)"
+  echo "  2. bash scripts/mac-ios-v4-rebuild.sh"
+  echo "  3. Xcode -> Run (Cmd+R) to iPhone"
+  echo "  4. bash scripts/verify-xcode-app-bundle.sh"
   exit 1
 fi
 

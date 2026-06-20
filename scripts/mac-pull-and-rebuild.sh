@@ -16,9 +16,7 @@ if [ "$CURRENT" != "$BRANCH" ]; then
 fi
 
 bash scripts/mac-discard-build-files.sh 2>/dev/null || true
-git checkout -f HEAD -- ios/App/App.xcodeproj/project.pbxproj 2>/dev/null || true
-
-git checkout -B "$BRANCH" "origin/$BRANCH"
+git reset --hard "origin/$BRANCH"
 
 echo ""
 echo "Latest commit:"

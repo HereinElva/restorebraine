@@ -1,13 +1,18 @@
 #!/usr/bin/env bash
-# One-time fix when git pull is blocked by local iOS/npm file changes.
-# Safe: only resets tracked repo files to match the remote branch.
+# Force sync to origin branch — discards ALL local changes (build artifacts block pulls).
+# Usage: bash scripts/mac-force-sync.sh
 set -euo pipefail
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-cd "$ROOT"
-BRANCH="${1:-cursor/fix-native-xcode-coding-bacf}"
-echo "Fetching and hard-resetting to origin/$BRANCH ..."
+BRANCH="${1:-cursor/fix-native-localhost-oauth-bacf}"
+cd "$(git rev-parse --show-toplevel)"
+
+echo "=== Force sync to origin/$BRANCH ==="
 git fetch origin "$BRANCH"
+rm -rf ios/App/App/public
+bash scripts/mac-discard-build-files.sh 2>/dev/null || true
 git reset --hard "origin/$BRANCH"
-# Never delete committed AppIcon PNGs under Assets.xcassets
-git clean -fd --exclude=ios/App/App/Assets.xcassets/AppIcon.appiconset/
-echo "Done. Now run: bash scripts/mac-fix-app-icon.sh"
+git clean -fdx --exclude=ios/App/App/Assets.xcassets/AppIcon.appiconset/ 2>/dev/null || git clean -fd
+
+echo ""
+git log --oneline -1
+echo ""
+echo "Synced. Next: bash scripts/mac-ios-v4-rebuild.sh"
