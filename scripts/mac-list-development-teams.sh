@@ -15,6 +15,7 @@ if [ "${1:-}" = "--ids-only" ]; then
 fi
 
 echo "=== Available signing teams on this Mac ==="
+echo "(Keychain certificates — may exist without Apple ID in Xcode Accounts)"
 echo ""
 teams=$(list_teams || true)
 if [ -z "$teams" ]; then
