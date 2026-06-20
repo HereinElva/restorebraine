@@ -21,10 +21,12 @@ Target after publish: a NEW hash (not index-DVkubWP5.js) + deploy v${deployBuild
 
 Run "node scripts/list-base44-publish-files.mjs" for the full paste list.
 
-Critical auth files (Base44 support said these were never published):
-  - src/lib/AuthContext.jsx   (uses base44.auth.redirectToLogin on web)
-  - src/lib/app-params.js     (no iPhone deep-link block)
-  - src/lib/auth-urls.js      (native → Google OAuth, not app.base44.com/login page)
+Critical auth files (paste into Base44 Code editor, then Publish):
+  - src/App.jsx                    (unified login card — logo + Continue with Google)
+  - src/components/LoginLogo.jsx
+  - src/lib/login-logo-data.js     (embedded logo — run npm run build:web first)
+  - src/lib/AuthContext.jsx
+  - src/lib/auth-urls.js           (direct Google OAuth, not app.base44.com/login page)
   - src/api/base44Client.js
 
 White screen fix:

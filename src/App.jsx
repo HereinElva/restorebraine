@@ -1,5 +1,5 @@
 import './App.css'
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import { Toaster } from "@/components/ui/toaster"
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClientInstance } from '@/lib/query-client'
@@ -45,7 +45,7 @@ const signInButtonStyle = {
   touchAction: 'manipulation',
 };
 
-const SignInButton = ({ onSignIn, clearSignedOut = false }) => {
+const SignInButton = ({ clearSignedOut = false }) => {
   const [isOpening, setIsOpening] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
@@ -57,10 +57,10 @@ const SignInButton = ({ onSignIn, clearSignedOut = false }) => {
       try { localStorage.removeItem('b44_signed_out'); } catch {}
     }
     try {
-      if (LOCAL_NATIVE_BUNDLE && isNativeShell()) {
+      if (isNativeShell()) {
         await openLoginInSystemBrowser(getGoogleOAuthUrl(), 'google');
       } else {
-        await Promise.resolve(onSignIn());
+        window.location.href = getGoogleOAuthUrl();
       }
       setIsOpening(false);
     } catch (error) {
@@ -85,60 +85,47 @@ const SignInButton = ({ onSignIn, clearSignedOut = false }) => {
           cursor: isOpening ? 'wait' : 'pointer',
         }}
       >
-        {isOpening ? 'Opening sign in…' : (LOCAL_NATIVE_BUNDLE ? 'Continue with Google' : 'Sign In')}
+        {isOpening ? 'Opening sign in…' : 'Continue with Google'}
       </button>
     </>
   );
 };
 
-/** Build v4: bundled sign-in card — user taps, then direct Google OAuth (not app.base44.com/login). */
-const LoginGate = ({ onSignIn, clearSignedOut = false }) => {
-  const started = useRef(false);
-
-  useEffect(() => {
-    if (isNativeShell()) return;
-    if (started.current) return;
-    started.current = true;
-    if (clearSignedOut) {
-      try { localStorage.removeItem('b44_signed_out'); } catch {}
-    }
-    onSignIn();
-  }, [onSignIn, clearSignedOut]);
-
-  if (!isNativeShell()) {
-    return (
-      <div className="fixed inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 gap-4">
-        <div className="w-8 h-8 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin" />
-        <p className="text-sm text-gray-500">Loading sign in…</p>
-      </div>
-    );
-  }
-
-  return (
-    <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: 'linear-gradient(135deg,#eff6ff,#f5f3ff,#fdf2f8)',
-        paddingTop: 'max(16px, env(safe-area-inset-top))',
-        paddingBottom: 'max(16px, env(safe-area-inset-bottom))',
-        paddingLeft: 'max(20px, env(safe-area-inset-left))',
-        paddingRight: 'max(20px, env(safe-area-inset-right))',
-        boxSizing: 'border-box',
-      }}
-    >
-      <div style={{ background: 'white', borderRadius: '24px', padding: '36px 28px', boxShadow: '0 10px 40px rgba(0,0,0,0.1)', maxWidth: '360px', width: '100%', textAlign: 'center' }}>
-        <LoginLogo />
-        <h1 style={{ fontSize: '24px', fontWeight: '700', color: '#111', margin: '0 0 28px' }}>Restorebraine</h1>
-        <SignInButton onSignIn={onSignIn} clearSignedOut={clearSignedOut} />
-      </div>
-      <NativeDebugBadge />
-    </div>
-  );
+const loginCardStyle = {
+  background: 'white',
+  borderRadius: '24px',
+  padding: '36px 28px',
+  boxShadow: '0 10px 40px rgba(0,0,0,0.1)',
+  maxWidth: '360px',
+  width: '100%',
+  textAlign: 'center',
 };
+
+/** Same login card on web + native — logo, title, Continue with Google (no auto-redirect). */
+const LoginGate = ({ clearSignedOut = false }) => (
+  <div
+    style={{
+      position: 'fixed',
+      inset: 0,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      background: 'linear-gradient(135deg,#eff6ff,#f5f3ff,#fdf2f8)',
+      paddingTop: 'max(16px, env(safe-area-inset-top))',
+      paddingBottom: 'max(16px, env(safe-area-inset-bottom))',
+      paddingLeft: 'max(20px, env(safe-area-inset-left))',
+      paddingRight: 'max(20px, env(safe-area-inset-right))',
+      boxSizing: 'border-box',
+    }}
+  >
+    <div style={loginCardStyle}>
+      <LoginLogo />
+      <h1 style={{ fontSize: '24px', fontWeight: '700', color: '#111', margin: '0 0 28px' }}>Restorebraine</h1>
+      <SignInButton clearSignedOut={clearSignedOut} />
+    </div>
+    {isNativeShell() ? <NativeDebugBadge /> : null}
+  </div>
+);
 
 const hasStoredSessionToken = () => {
   try {
@@ -153,7 +140,7 @@ const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, isAuthenticated, navigateToLogin, manuallyLoggedOut } = useAuth();
 
   if (manuallyLoggedOut) {
-    return <LoginGate onSignIn={navigateToLogin} />;
+    return <LoginGate />;
   }
 
   const skipV4LoadingSpinner =
@@ -185,7 +172,7 @@ const AuthenticatedApp = () => {
   }
 
   if (authError || !isAuthenticated) {
-    return <LoginGate onSignIn={navigateToLogin} clearSignedOut />;
+    return <LoginGate clearSignedOut />;
   }
 
   return (

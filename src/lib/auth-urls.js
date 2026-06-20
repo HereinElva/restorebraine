@@ -1,5 +1,4 @@
 import { isNativeShell } from '@/lib/native-hosted-redirect';
-import { LOCAL_NATIVE_BUNDLE } from '@/lib/native-bundle-mode';
 import { getAuthReturnOrigin } from '@/lib/app-domains';
 import { BASE44_APP_ID, BASE44_PLATFORM_URL, getGoogleOAuthUrl } from '@/lib/native-platform-guard';
 import { openLoginInSystemBrowser } from '@/lib/native-google-oauth';
@@ -24,20 +23,16 @@ export const getPlatformLoginUrl = (fromUrl) => {
 export const getRestorebraineLoginUrl = getPlatformLoginUrl;
 
 /**
- * Native-local (build v4): skip app.base44.com/login — open Google OAuth directly.
- * Web / hosted: use platform login page.
+ * Open sign-in — web and native both use direct Google OAuth (not Base44 multi-provider login page).
  */
 export const openRestorebraineLogin = () => {
   if (typeof window === 'undefined') return;
 
   if (isNativeShell()) {
-    if (LOCAL_NATIVE_BUNDLE) {
-      return openLoginInSystemBrowser(getGoogleOAuthUrl(), 'google');
-    }
-    return openLoginInSystemBrowser(getPlatformLoginUrl(getAuthReturnOrigin()));
+    return openLoginInSystemBrowser(getGoogleOAuthUrl(), 'google');
   }
 
-  window.location.href = getPlatformLoginUrl();
+  window.location.href = getGoogleOAuthUrl();
 };
 
 /** If the user lands on /login on a custom domain, escape the broken platform page. */

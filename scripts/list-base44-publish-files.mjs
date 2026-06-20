@@ -21,6 +21,8 @@ const PUBLISH_FILES = [
   'src/lib/AuthContext.jsx',
   'src/api/base44Client.js',
   'src/App.jsx',
+  'src/components/LoginLogo.jsx',
+  'src/lib/login-logo-data.js',
   'src/lib/native-hosted-redirect.js',
   'src/lib/native-bundle-mode.js',
   'src/lib/native-oauth-fix.js',
@@ -46,7 +48,7 @@ console.log(`
 After Publish, verify:
   1. View source on https://restorebraine.base44.app — the script src must NOT be index-DVkubWP5.js
   2. Hard refresh Safari (Settings → Safari → Clear History) or use Private tab
-  3. Sign In should go to https://app.base44.com/login?app_id=68fdc5f42768c4d045fe1bac (NOT base44.app/login)
+  3. Login shows Restorebraine logo + Continue with Google (NOT "Sign in to access your memories")
 
 Mac copy commands (paste into Base44 editor, NOT Terminal):
   pbcopy < src/lib/AuthContext.jsx
