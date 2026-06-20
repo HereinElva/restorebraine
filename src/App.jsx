@@ -12,6 +12,7 @@ import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import NativeDebugBadge from '@/components/NativeDebugBadge';
+import LoginLogo from '@/components/LoginLogo';
 import { isNativeShell } from '@/lib/native-hosted-redirect';
 import { LOCAL_NATIVE_BUNDLE } from '@/lib/native-bundle-mode';
 
@@ -27,47 +28,74 @@ const LayoutWrapper = ({ children, currentPageName }) => Layout ?
   <Layout currentPageName={currentPageName}>{children}</Layout>
   : <>{children}</>;
 
-/** v4-core: auto-open real Base44 login in InAppBrowser — no custom sign-in UI. */
-const NativeLoginOpening = ({ onRetry, errorMessage = '' }) => (
-  <div className="fixed inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 gap-4 px-6">
-    <div className="w-8 h-8 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin" />
-    <p className="text-sm text-gray-500 text-center">Opening sign in…</p>
-    {errorMessage ? <p className="text-sm text-red-600 text-center max-w-xs">{errorMessage}</p> : null}
-    <button
-      type="button"
-      onClick={onRetry}
-      className="mt-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-blue-400 to-purple-500"
-    >
-      Try again
-    </button>
-    <NativeDebugBadge />
-  </div>
-);
+const signInButtonStyle = {
+  width: '100%',
+  padding: '14px',
+  background: 'linear-gradient(135deg,#60a5fa,#a78bfa)',
+  color: 'white',
+  border: 'none',
+  borderRadius: '14px',
+  fontSize: '16px',
+  fontWeight: '600',
+  cursor: 'pointer',
+  touchAction: 'manipulation',
+};
 
-const LoginGate = ({ onSignIn, clearSignedOut = false }) => {
-  const started = useRef(false);
-  const [openError, setOpenError] = useState('');
+const SignInButton = ({ onSignIn, clearSignedOut = false }) => {
+  const [isOpening, setIsOpening] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
-  const startLogin = () => {
+  const handleClick = async () => {
+    if (isOpening) return;
+    setErrorMessage('');
+    setIsOpening(true);
     if (clearSignedOut) {
       try { localStorage.removeItem('b44_signed_out'); } catch {}
     }
-    setOpenError('');
-    Promise.resolve(onSignIn()).catch((error) => {
-      console.error('Login open failed', error);
-      setOpenError(error?.message || 'Could not open sign in. Tap Try again.');
-    });
+    try {
+      await Promise.resolve(onSignIn());
+      setTimeout(() => setIsOpening(false), 1500);
+    } catch (error) {
+      console.error('Sign-in failed to open', error);
+      setErrorMessage(error?.message || 'Could not open sign in. Try again.');
+      setIsOpening(false);
+    }
   };
 
+  return (
+    <>
+      {errorMessage ? (
+        <p style={{ color: '#dc2626', fontSize: '13px', margin: '0 0 12px', lineHeight: 1.4 }}>{errorMessage}</p>
+      ) : null}
+      <button
+        type="button"
+        onClick={handleClick}
+        disabled={isOpening}
+        style={{
+          ...signInButtonStyle,
+          opacity: isOpening ? 0.75 : 1,
+          cursor: isOpening ? 'wait' : 'pointer',
+        }}
+      >
+        {isOpening ? 'Opening sign in…' : (LOCAL_NATIVE_BUNDLE ? 'Continue with Google' : 'Sign In')}
+      </button>
+    </>
+  );
+};
+
+/** Build v4: bundled sign-in card — user taps, then direct Google OAuth (not app.base44.com/login). */
+const LoginGate = ({ onSignIn, clearSignedOut = false }) => {
+  const started = useRef(false);
+
   useEffect(() => {
+    if (isNativeShell()) return;
     if (started.current) return;
     started.current = true;
-    startLogin();
-  }, []);
-
-  if (LOCAL_NATIVE_BUNDLE && isNativeShell()) {
-    return <NativeLoginOpening onRetry={startLogin} errorMessage={openError} />;
-  }
+    if (clearSignedOut) {
+      try { localStorage.removeItem('b44_signed_out'); } catch {}
+    }
+    onSignIn();
+  }, [onSignIn, clearSignedOut]);
 
   if (!isNativeShell()) {
     return (
@@ -79,16 +107,25 @@ const LoginGate = ({ onSignIn, clearSignedOut = false }) => {
   }
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg,#eff6ff,#f5f3ff,#fdf2f8)', padding: '24px' }}>
-      <div style={{ background: 'white', borderRadius: '24px', padding: '40px', boxShadow: '0 10px 40px rgba(0,0,0,0.1)', maxWidth: '360px', width: '100%', textAlign: 'center' }}>
-        <h1 style={{ fontSize: '24px', fontWeight: '700', color: '#111', marginBottom: '32px' }}>Restorebraine</h1>
-        <button
-          type="button"
-          onClick={startLogin}
-          style={{ width: '100%', padding: '14px', background: 'linear-gradient(135deg,#60a5fa,#a78bfa)', color: 'white', border: 'none', borderRadius: '14px', fontSize: '16px', fontWeight: '600', cursor: 'pointer' }}
-        >
-          Sign in
-        </button>
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: 'linear-gradient(135deg,#eff6ff,#f5f3ff,#fdf2f8)',
+        paddingTop: 'max(16px, env(safe-area-inset-top))',
+        paddingBottom: 'max(16px, env(safe-area-inset-bottom))',
+        paddingLeft: 'max(20px, env(safe-area-inset-left))',
+        paddingRight: 'max(20px, env(safe-area-inset-right))',
+        boxSizing: 'border-box',
+      }}
+    >
+      <div style={{ background: 'white', borderRadius: '24px', padding: '36px 28px', boxShadow: '0 10px 40px rgba(0,0,0,0.1)', maxWidth: '360px', width: '100%', textAlign: 'center' }}>
+        <LoginLogo />
+        <h1 style={{ fontSize: '24px', fontWeight: '700', color: '#111', margin: '0 0 28px' }}>Restorebraine</h1>
+        <SignInButton onSignIn={onSignIn} clearSignedOut={clearSignedOut} />
       </div>
       <NativeDebugBadge />
     </div>

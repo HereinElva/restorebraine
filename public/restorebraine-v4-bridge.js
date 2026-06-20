@@ -428,21 +428,12 @@
             }, 100);
           }
 
-          function getPlatformLoginUrl() {
-            return PLATFORM + '/login?app_id=' + APP_ID + '&from_url=' + encodeURIComponent(getOAuthFromUrl()) + '&prompt=select_account';
-          }
-
           function openLoginInSystemBrowser(url, providerHint) {
             providerHint = providerHint || 'google';
-            if (isBundledNativeOrigin() && (!url || /\/login/i.test(String(url)))) {
-              url = getPlatformLoginUrl();
-              providerHint = 'platform';
-            } else {
-              url = normalizeAuthUrl(url || getCanonicalOAuthUrl(providerHint), providerHint);
-            }
+            url = normalizeAuthUrl(url || getCanonicalOAuthUrl(providerHint), providerHint);
             window.__restorebraineLastOAuthUrl = url;
             if (isBundledNativeOrigin()) {
-              openLoginInWebView(url, providerHint);
+              openGoogleOAuthWithNativeSession(url);
               return;
             }
             window.__restorebraineOAuthMode = 'v4-system-browser';
@@ -862,10 +853,6 @@
 
           window.__restorebraineOpenLogin = function () {
             try { localStorage.removeItem(SIGNED_OUT_KEY); } catch (e) {}
-            if (isBundledNativeOrigin()) {
-              openLoginInWebView(getPlatformLoginUrl(), 'platform');
-              return;
-            }
             openLoginInSystemBrowser(getCanonicalOAuthUrl('google'), 'google');
           };
 
@@ -947,7 +934,7 @@
           } else if (!isBundledNativeOrigin()) {
             installPlatformGuard();
           }
-          // bundled native (capacitor://localhost): React SignInScreen → openRestorebraineLogin on tap —
+          // bundled native (capacitor://localhost): React login card → direct Google OAuth on tap —
           // interceptNativeSignInClicks breaks provider + email submit handlers.
           document.addEventListener('visibilitychange', function () {
             if (document.visibilityState === 'hidden') persistToken();

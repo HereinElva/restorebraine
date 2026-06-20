@@ -19,7 +19,6 @@ import { LOCAL_NATIVE_BUNDLE } from '@/lib/native-bundle-mode';
 import { persistSessionToNativeStorage } from '@/lib/session-bootstrap';
 import { isNativeShell, getNativeWebViewHome } from '@/lib/native-hosted-redirect';
 import { shouldBlockExternalNavigation, redirectToNativeBundleHome } from '@/lib/native-bundle-shell-guard';
-import { RestorebraineOAuth } from '@/lib/native-oauth-plugin';
 const GOOGLE_OAUTH_PATTERN = /accounts\.google\.com|google\.com\/o\/oauth|oauth2\.googleapis\.com|\/api\/apps\/auth\/login/i;
 
 const SYSTEM_BROWSER_OPTIONS = {
@@ -88,8 +87,8 @@ const isNativeCapacitorShell = () => {
 /** Capacitor 8 exposes InAppBrowser via ES import — not always on window.Capacitor.Plugins. */
 const waitForCapacitor = async () => isNativeCapacitorShell();
 
-const hasNativeOAuthPlugin = () => {
-  const plugin = window.Capacitor?.Plugins?.RestorebraineOAuth ?? RestorebraineOAuth;
+const hasRegisteredNativeOAuthPlugin = () => {
+  const plugin = window.Capacitor?.Plugins?.RestorebraineOAuth;
   return typeof plugin?.startGoogleOAuth === 'function';
 };
 
@@ -272,7 +271,10 @@ const startGoogleOAuthNative = async () => {
   window.__restorebraineOAuthMode = 'asweb-auth';
   window.__restorebraineOAuthInProgress = true;
 
-  const result = await RestorebraineOAuth.startGoogleOAuth({ url: pluginUrl });
+  const plugin = window.Capacitor?.Plugins?.RestorebraineOAuth;
+  if (!plugin?.startGoogleOAuth) throw new Error('RestorebraineOAuth plugin not registered');
+
+  const result = await plugin.startGoogleOAuth({ url: pluginUrl });
   const token = result?.token;
   if (!token) throw new Error('Native OAuth returned no token');
   await persistSessionToNativeStorage(token);
@@ -303,26 +305,18 @@ export const openLoginInSystemBrowser = async (url = getGoogleOAuthUrl(), provid
     : normalizeAuthUrl(url || getCanonicalOAuthUrl(provider), provider);
   window.__restorebraineLastOAuthUrl = oauthUrl;
 
-  // v4-core: open InAppBrowser immediately — registerPlugin stub hangs without rejecting.
-  await openInAppBrowserOAuth(oauthUrl, provider);
-};
-
-/** v4-core: real Base44 login page (all providers + email) — not a native recreation. */
-export const openPlatformLoginInBrowser = async () => {
-  const params = new URLSearchParams({
-    from_url: getAuthReturnOrigin(),
-    app_id: BASE44_APP_ID,
-    prompt: 'select_account',
-  });
-  const loginUrl = `${BASE44_PLATFORM_URL}/login?${params.toString()}`;
-  window.__restorebraineOAuthInProgress = true;
-  window.__restorebraineOAuthMode = 'platform-login';
-  window.__restorebraineLastOAuthUrl = loginUrl;
-  if (!(await waitForCapacitor())) {
-    window.__restorebraineOAuthInProgress = false;
-    throw new Error('Not running in the native app shell.');
+  if (LOCAL_NATIVE_BUNDLE && provider === 'google' && hasRegisteredNativeOAuthPlugin()) {
+    try {
+      await withTimeout(startGoogleOAuthNative(), 5000, 'Google OAuth');
+      return;
+    } catch (error) {
+      window.__restorebraineOAuthInProgress = false;
+      if (error?.code === 'CANCELED' || /cancel/i.test(error?.message || '')) return;
+      console.warn('Native Google OAuth failed — opening InAppBrowser:', error);
+    }
   }
-  await openInAppBrowserOAuth(loginUrl, 'platform');
+
+  await openInAppBrowserOAuth(oauthUrl, provider);
 };
 
 /** Install OAuth listeners once at app startup (deep links + InAppBrowser navigation). */
@@ -331,10 +325,7 @@ export const installNativeOAuthListeners = async () => {
   window.__restorebraineOAuthListenersInstalled = true;
   installNativeOAuthBridgeListener();
 
-  window.__restorebraineOpenLogin = () => {
-    if (LOCAL_NATIVE_BUNDLE) return openPlatformLoginInBrowser();
-    return openLoginInSystemBrowser(getGoogleOAuthUrl(), 'google');
-  };
+  window.__restorebraineOpenLogin = () => openLoginInSystemBrowser(getGoogleOAuthUrl(), 'google');
   window.__restorebraineOpenProviderLogin = (provider) => {
     const p = provider || 'google';
     const url = p === 'google' ? getGoogleOAuthUrl() : getProviderOAuthUrl(p);
