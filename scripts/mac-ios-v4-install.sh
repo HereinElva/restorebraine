@@ -13,6 +13,8 @@ SCHEME="App"
 export PATH="/opt/homebrew/bin:/usr/local/bin:${PATH:-}"
 
 echo "=== Restorebraine v4 INSTALL to iPhone ==="
+bash scripts/mac-check-signing.sh || true
+echo ""
 UDID=$(bash scripts/mac-detect-ios-device.sh)
 echo "Device UDID: $UDID"
 echo ""
