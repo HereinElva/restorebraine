@@ -103,6 +103,14 @@ FAIL=0
 [ "$REPO_ENTRY" = "$APP_ENTRY" ] || { echo "FAIL: entry JS mismatch"; FAIL=1; }
 [ "$URL_IN_CONFIG" = "0" ] || { echo "FAIL: server.url set — app loads hosted site not bundle"; FAIL=1; }
 [ -f "$APP/public/assets/$APP_ENTRY" ] || { echo "FAIL: entry file missing inside App.app"; FAIL=1; }
+[ -f "$APP/public/restorebraine-v4-bridge.js" ] || { echo "FAIL: restorebraine-v4-bridge.js missing from App.app/public — OAuth will not work"; FAIL=1; }
+BRIDGE_BYTES=$(wc -c < "$APP/public/restorebraine-v4-bridge.js" 2>/dev/null || echo 0)
+if [ "$BRIDGE_BYTES" -lt 30000 ] 2>/dev/null; then
+  echo "FAIL: restorebraine-v4-bridge.js too small ($BRIDGE_BYTES bytes) — stub or stale"
+  FAIL=1
+else
+  echo "v4-bridge: ${BRIDGE_BYTES} bytes in App.app/public"
+fi
 
 if [ "$FAIL" -eq 0 ]; then
   echo "OK: App.app matches repo — device should show v4-core updates"

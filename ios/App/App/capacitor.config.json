@@ -11,6 +11,7 @@
     "CAPBrowserPlugin",
     "InAppBrowserPlugin",
     "PreferencesPlugin",
-    "NativePurchasesPlugin"
+    "NativePurchasesPlugin",
+    "RestorebraineOAuthPlugin"
   ]
 }

@@ -50,7 +50,11 @@ export const AuthProvider = ({ children }) => {
       checkAppState();
     };
     window.addEventListener('restorebraine-session-updated', onSessionUpdated);
-    return () => window.removeEventListener('restorebraine-session-updated', onSessionUpdated);
+    window.addEventListener('restorebraine-native-oauth-complete', onSessionUpdated);
+    return () => {
+      window.removeEventListener('restorebraine-session-updated', onSessionUpdated);
+      window.removeEventListener('restorebraine-native-oauth-complete', onSessionUpdated);
+    };
   }, []);
 
   // Avoid an infinite spinner if the Base44 API never responds (common on flaky mobile).

@@ -13,8 +13,16 @@
           var RESTOREBRAINE = 'https://restorebraine.base44.app';
           var PLATFORM = 'https://app.base44.com';
           var APP_ID = '68fdc5f42768c4d045fe1bac';
+          var NATIVE_OAUTH_RETURN = 'restorebraine://oauth/callback';
           var FROM_URL = RESTOREBRAINE;
           var APP_LOGIN_URL = RESTOREBRAINE + '/login?from_url=' + encodeURIComponent(FROM_URL) + '&app_id=' + APP_ID + '&prompt=select_account';
+
+          function getOAuthFromUrl(provider) {
+            if (isBundledNativeOrigin()) {
+              return (provider === 'google' || !provider) ? NATIVE_OAUTH_RETURN : RESTOREBRAINE;
+            }
+            return RESTOREBRAINE;
+          }
 
           function isBundledNativeOrigin() {
             try {
@@ -66,7 +74,7 @@
             var path = provider === 'google'
               ? '/api/apps/auth/login'
               : '/api/apps/auth/' + provider + '/login';
-            return PLATFORM + path + '?app_id=' + APP_ID + '&from_url=' + encodeURIComponent(FROM_URL);
+            return PLATFORM + path + '?app_id=' + APP_ID + '&from_url=' + encodeURIComponent(getOAuthFromUrl(provider)) + '&prompt=select_account';
           }
 
           function normalizeAuthUrl(rawUrl, providerHint) {
@@ -211,6 +219,7 @@
               localStorage.setItem('base44_access_token', token);
               localStorage.setItem('token', token);
               persistToken();
+              window.dispatchEvent(new CustomEvent('restorebraine-session-updated', { detail: { token: token } }));
               return true;
             } catch (e) {}
             return false;
@@ -346,8 +355,73 @@
             });
           }
 
-          function openLoginInSystemBrowser(url, providerHint) {
+          function openLoginInWebView(url, providerHint) {
             url = normalizeAuthUrl(url || getCanonicalOAuthUrl(providerHint || 'google'), providerHint);
+            window.__restorebraineOAuthMode = 'v4-webview';
+            function launchWebView() {
+              try {
+                var ib = getInAppBrowserPlugin();
+                if (!ib || !ib.openInWebView) return false;
+                oauthBrowserListenerAttached = false;
+                attachOAuthBrowserListeners(ib);
+                ib.openInWebView({ url: url, options: WEBVIEW_OPTIONS });
+                return true;
+              } catch (e) {
+                return false;
+              }
+            }
+            if (launchWebView()) return;
+            var attempts = 0;
+            var timer = setInterval(function () {
+              attempts += 1;
+              if (launchWebView() || attempts >= 60) clearInterval(timer);
+            }, 100);
+          }
+
+          function openGoogleOAuthWithNativeSession(url) {
+            url = normalizeAuthUrl(url || getCanonicalOAuthUrl('google'), 'google');
+            window.__restorebraineOAuthMode = 'asweb-auth';
+            window.__restorebraineLastOAuthUrl = url;
+            function tryNativeOAuth() {
+              try {
+                var plugin = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.RestorebraineOAuth;
+                if (!plugin || !plugin.startGoogleOAuth) return false;
+                plugin.startGoogleOAuth({ url: url }).then(function (result) {
+                  var token = result && result.token;
+                  if (!token) return;
+                  saveToken(token);
+                  finishOAuthLogin();
+                }).catch(function (err) {
+                  var msg = (err && (err.message || err.errorMessage || String(err))) || '';
+                  if (/cancel/i.test(msg)) return;
+                  openLoginInWebView(url, 'google');
+                });
+                return true;
+              } catch (e) {
+                return false;
+              }
+            }
+            if (tryNativeOAuth()) return;
+            var tries = 0;
+            var wait = setInterval(function () {
+              tries += 1;
+              if (tryNativeOAuth() || tries >= 80) clearInterval(wait);
+            }, 100);
+          }
+
+          function openLoginInSystemBrowser(url, providerHint) {
+            providerHint = providerHint || 'google';
+            url = normalizeAuthUrl(url || getCanonicalOAuthUrl(providerHint), providerHint);
+            window.__restorebraineLastOAuthUrl = url;
+            if (isBundledNativeOrigin() && providerHint === 'google') {
+              openGoogleOAuthWithNativeSession(url);
+              return;
+            }
+            if (isBundledNativeOrigin()) {
+              openLoginInWebView(url, providerHint);
+              return;
+            }
+            window.__restorebraineOAuthMode = 'v4-system-browser';
             function launchSystemBrowser() {
               try {
                 var ib = getInAppBrowserPlugin();

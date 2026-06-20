@@ -2,8 +2,7 @@
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-// Build v4 OAuth runs via restorebraine-v4-bridge.js + InAppBrowser — no custom plugin.
-const LOCAL_PLUGINS = [];
+const LOCAL_PLUGINS = ['RestorebraineOAuthPlugin'];
 
 for (const relPath of ['ios/App/App/capacitor.config.json', 'capacitor.config.json']) {
   const configPath = resolve(relPath);

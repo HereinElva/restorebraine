@@ -24,6 +24,8 @@ export default function NativeDebugBadge() {
     const htmlStamp = typeof document !== 'undefined'
       ? document.querySelector('meta[name="restorebraine-build-stamp"]')?.getAttribute('content') ?? ''
       : '';
+    const bridgeSource = typeof window !== 'undefined' ? window.__RESTOREBRAINE_V4_BRIDGE_SOURCE__ : '';
+    const bridgeInstalled = typeof window !== 'undefined' && window.__restorebraineSessionBridgeInstalled;
     const stampMismatch = htmlStamp && !htmlStamp.includes(`v${BUILD_NUMBER}`);
     return {
       mode: getModeLabel(),
@@ -31,6 +33,8 @@ export default function NativeDebugBadge() {
       nativeStamp: nativeStamp || NATIVE_BUILD_LABEL,
       entryScript,
       htmlStamp,
+      bridgeSource,
+      bridgeInstalled,
       stampMismatch,
     };
   }, []);
@@ -74,6 +78,9 @@ export default function NativeDebugBadge() {
               oauth: {window.__restorebraineOAuthMode}
             </div>
           ) : null}
+          <div style={{ opacity: 0.65, marginTop: 2, fontSize: '9px', color: info.bridgeInstalled ? '#86efac' : '#fca5a5' }}>
+            bridge: {info.bridgeInstalled ? (info.bridgeSource || 'ok') : 'NOT LOADED'}
+          </div>
           {typeof window !== 'undefined' && window.__restorebraineLastOAuthUrl ? (
             <div style={{ opacity: 0.65, marginTop: 2, fontSize: '9px', wordBreak: 'break-all' }}>
               oauth: {String(window.__restorebraineLastOAuthUrl).slice(0, 48)}…
