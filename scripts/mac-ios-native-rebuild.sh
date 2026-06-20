@@ -11,6 +11,13 @@ force_clean_ios_public() {
 }
 
 echo "=== Restorebraine iOS native-local rebuild ==="
+CURRENT_BRANCH=$(git branch --show-current 2>/dev/null || echo unknown)
+if [ "$CURRENT_BRANCH" != "$BRANCH" ]; then
+  echo "WARNING: you are on branch '$CURRENT_BRANCH' but native-local work is on '$BRANCH'"
+  echo "  Run: bash scripts/mac-pull-and-rebuild.sh"
+  exit 1
+fi
+
 git fetch origin "$BRANCH" 2>/dev/null || true
 LOCAL=$(git rev-parse HEAD 2>/dev/null || echo unknown)
 REMOTE=$(git rev-parse "origin/$BRANCH" 2>/dev/null || echo unknown)

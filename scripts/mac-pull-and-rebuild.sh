@@ -1,13 +1,25 @@
 #!/usr/bin/env bash
-# One command to sync to latest branch and rebuild native-local (avoids zsh paste issues).
+# One command: switch to native-local branch, discard build artifacts, pull latest, rebuild.
+# Use when pull fails or you are accidentally on main.
 set -euo pipefail
 BRANCH="${1:-cursor/fix-native-localhost-oauth-bacf}"
 cd "$(git rev-parse --show-toplevel)"
 
+CURRENT=$(git branch --show-current 2>/dev/null || echo unknown)
 echo "=== Restorebraine: pull latest and rebuild ==="
+echo "Current branch: $CURRENT (target: $BRANCH)"
+
 git fetch origin "$BRANCH"
+
+if [ "$CURRENT" != "$BRANCH" ]; then
+  echo "Switching from $CURRENT to $BRANCH ..."
+fi
+
+bash scripts/mac-discard-build-files.sh 2>/dev/null || true
 git checkout -f HEAD -- ios/App/App.xcodeproj/project.pbxproj 2>/dev/null || true
-git pull origin "$BRANCH"
+
+git checkout -B "$BRANCH" "origin/$BRANCH"
+
 echo ""
 echo "Latest commit:"
 git log --oneline -1
