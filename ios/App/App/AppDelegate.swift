@@ -641,6 +641,24 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             if (titleNode) fixLoginLogoNearTitle(titleNode);
           }
 
+          function fixHeaderAppLogo() {
+            try {
+              var title = findRestorebraineTitle();
+              if (!title) return;
+              var header = title.closest('header');
+              if (!header) return;
+              var link = title.closest('a');
+              if (!link) return;
+              var iconBox = link.querySelector('div');
+              if (!iconBox || iconBox.querySelector('img[data-rb-logo="1"]')) return;
+              if (!iconBox.querySelector('svg')) return;
+              iconBox.innerHTML = '<img data-rb-logo="1" src="' + APP_LOGO_URL + '" alt="Restorebraine" style="width:32px;height:32px;border-radius:12px;object-fit:cover;display:block;" />';
+              iconBox.style.background = 'transparent';
+              iconBox.style.backgroundImage = 'none';
+              iconBox.style.boxShadow = 'none';
+            } catch (e) {}
+          }
+
           function fixRestorebraineBranding() {
             try {
               var stamp = document.getElementById('rb-native-stamp');
@@ -669,6 +687,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
               fixLoginPageByWelcomeTagline();
               var title = findRestorebraineTitle();
               fixLoginLogoNearTitle(title);
+              fixHeaderAppLogo();
 
               if (/\/login/i.test(window.location.pathname)) {
                 document.querySelectorAll('div').forEach(function (div) {
