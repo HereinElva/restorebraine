@@ -26,23 +26,26 @@ const isNativeRuntime = () => {
   }
 };
 
-/** Native login card: embedded PNG first, then bundled files, then remote. */
+/** Native login card: embedded PNG first (never wait for Capacitor), then bundled files, then remote. */
 export const getRestorebraineAppLogo = () => {
+  if (LOGIN_LOGO_DATA_URL) return LOGIN_LOGO_DATA_URL;
   if (typeof window === 'undefined') return RESTOREBRAINE_APP_LOGO_URL;
-  if (isNativeRuntime() && LOGIN_LOGO_DATA_URL) return LOGIN_LOGO_DATA_URL;
   if (isNativeRuntime()) return resolveBundledLogoUrl(bundledLogoNames[0]);
   return RESTOREBRAINE_APP_LOGO_URL;
 };
 
 export const getRestorebraineAppLogoFallbacks = () => {
-  if (typeof window === 'undefined') return [RESTOREBRAINE_APP_LOGO_URL];
-  if (isNativeRuntime()) {
-    const sources = [];
-    if (LOGIN_LOGO_DATA_URL) sources.push(LOGIN_LOGO_DATA_URL);
+  const sources = [];
+  if (LOGIN_LOGO_DATA_URL) sources.push(LOGIN_LOGO_DATA_URL);
+  if (typeof window !== 'undefined' && isNativeRuntime()) {
     sources.push(...bundledLogoNames.map(resolveBundledLogoUrl));
-    return sources;
   }
-  return [RESTOREBRAINE_APP_LOGO_URL];
+  if (typeof window !== 'undefined') {
+    sources.push(RESTOREBRAINE_APP_LOGO_URL);
+  } else if (!sources.length) {
+    sources.push(RESTOREBRAINE_APP_LOGO_URL);
+  }
+  return sources;
 };
 
 /** @deprecated prefer getRestorebraineAppLogo() */

@@ -1,9 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { getRestorebraineAppLogo, getRestorebraineAppLogoFallbacks } from '@/lib/app-branding';
 
-/** Build v4: bundled login-logo.png — brain emoji only if all bundled paths fail. */
+/** Build v4: embedded logo data URL first — brain emoji only if all sources fail. */
 export default function LoginLogo({ compact = false }) {
-  const sources = useMemo(() => getRestorebraineAppLogoFallbacks(), []);
+  const [sources] = useState(() => getRestorebraineAppLogoFallbacks());
   const [sourceIndex, setSourceIndex] = useState(0);
   const src = sources[sourceIndex] ?? getRestorebraineAppLogo();
   const size = compact ? 44 : 56;

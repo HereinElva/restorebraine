@@ -301,9 +301,9 @@ export const openLoginInSystemBrowser = async (url = getGoogleOAuthUrl(), provid
     : normalizeAuthUrl(url || getCanonicalOAuthUrl(provider), provider);
   window.__restorebraineLastOAuthUrl = oauthUrl;
 
-  // Build v4: native ASWebAuthenticationSession first (same as v4-bridge), then system browser.
+  // Build v4: WebView OAuth plugin first (reliable on device), then system browser.
   if (LOCAL_NATIVE_BUNDLE) {
-    await waitForNativeOAuthPlugin();
+    await waitForNativeOAuthPlugin(60);
     if (hasRegisteredNativeOAuthPlugin()) {
       try {
         await startGoogleOAuthNative();

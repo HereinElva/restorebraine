@@ -1,16 +1,11 @@
 /**
- * Debug builds: home screen shows "RB v{N}" so device deploy is obvious without opening app.
- * Reverts to "Restorebraine" when --hosted is passed.
+ * Home screen label — always "Restorebraine" (version lives in in-app debug badge only).
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-const useLocal = process.argv.includes('--local');
 const plistPath = resolve('ios/App/App/Info.plist');
-const buildInfoPath = resolve('src/lib/build-info.js');
-const buildNum = readFileSync(buildInfoPath, 'utf8').match(/BUILD_NUMBER = (\d+)/)?.[1] ?? '?';
-
-const displayName = useLocal ? `RB v${buildNum}` : 'Restorebraine';
+const displayName = 'Restorebraine';
 let plist = readFileSync(plistPath, 'utf8');
 
 if (/<key>CFBundleDisplayName<\/key>\s*<string>[^<]*<\/string>/.test(plist)) {

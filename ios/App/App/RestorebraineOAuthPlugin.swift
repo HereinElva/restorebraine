@@ -61,7 +61,7 @@ private final class RestorebraineOAuthWebViewController: UIViewController, WKNav
     private func tokenFromURL(_ url: URL) -> String? {
         guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
               let host = components.host?.lowercased(),
-              host == "restorebraine.base44.app" || host.hasSuffix(".base44.app"),
+              (host == "restorebraine.base44.app" || host.hasSuffix(".base44.app") || host == "app.base44.com"),
               let token = components.queryItems?.first(where: { $0.name == "access_token" })?.value,
               !token.isEmpty else { return nil }
         return token
@@ -143,11 +143,9 @@ public class RestorebraineOAuthPlugin: CAPPlugin, CAPBridgedPlugin, ASWebAuthent
             self.authSession?.cancel()
             self.oauthWebViewController?.dismiss(animated: false)
 
-            if #available(iOS 17.4, *) {
-                self.startHTTPSAuthSession(url: url, call: call)
-            } else {
-                self.startWebViewOAuth(url: url, call: call)
-            }
+            // WebView OAuth is most reliable on device — catches restorebraine.base44.app?access_token=
+            // without requiring universal-link handoff from ASWebAuthenticationSession.
+            self.startWebViewOAuth(url: url, call: call)
         }
     }
 
