@@ -26,6 +26,7 @@ const PUBLISH_FILES = [
   'src/lib/native-platform-guard.js',
   'src/lib/native-google-oauth.js',
   'src/lib/session-bootstrap.js',
+  'src/lib/app-branding.js',
   // Gallery UI (white screen + folder tiles)
   'src/components/gallery/MobileGallery.jsx',
   'src/components/gallery/folderActionStyles.js',

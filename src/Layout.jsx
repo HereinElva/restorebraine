@@ -4,7 +4,10 @@ import { createPageUrl } from "@/utils";
 import { isGalleryPath, navigateToGallery, persistActiveSession } from "@/lib/gallery-nav";
 import { useAuth } from "@/lib/AuthContext";
 import { Search, Upload, User, ChevronLeft } from "lucide-react";
-import { RESTOREBRAINE_APP_LOGO } from "@/lib/app-branding";
+
+/** Inlined for Base44 publish — do not import app-branding.js (easy to forget in editor). */
+const RESTOREBRAINE_APP_LOGO =
+  'https://media.base44.com/images/public/68fdc5f42768c4d045fe1bac/e76571efc_appstore.png';
 import { AnimatePresence, motion } from "framer-motion";
 import { NavigationProvider, useNavigation } from "./components/NavigationContext";
 import { TabStateProvider } from "./components/TabStateContext";

@@ -22,6 +22,32 @@ export const AuthProvider = ({ children }) => {
     checkAppState();
   }, []);
 
+  // Avoid an infinite white spinner if the Base44 API never responds (common on flaky mobile).
+  useEffect(() => {
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      if (cancelled) return;
+      setIsLoadingPublicSettings((loading) => {
+        if (loading) {
+          setIsLoadingAuth(false);
+          setAuthError((err) => err ?? { type: 'auth_required', message: 'Session check timed out' });
+        }
+        return false;
+      });
+      setIsLoadingAuth((loading) => {
+        if (loading) {
+          setIsLoadingPublicSettings(false);
+          setAuthError((err) => err ?? { type: 'auth_required', message: 'Session check timed out' });
+        }
+        return false;
+      });
+    }, 12000);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, []);
+
   const checkAppState = async () => {
     try {
       setIsLoadingPublicSettings(true);
