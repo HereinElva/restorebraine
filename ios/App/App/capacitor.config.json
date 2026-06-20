@@ -1,16 +1,17 @@
 {
-	"appId": "com.restorebraine.app",
-	"appName": "Restorebraine",
-	"webDir": "dist",
-	"ios": {
-		"contentInset": "automatic",
-		"backgroundColor": "#ffffff"
-	},
-	"packageClassList": [
-		"AppPlugin",
-		"CAPBrowserPlugin",
-		"InAppBrowserPlugin",
-		"PreferencesPlugin",
-		"NativePurchasesPlugin"
-	]
+  "appId": "com.restorebraine.app",
+  "appName": "Restorebraine",
+  "webDir": "dist",
+  "ios": {
+    "contentInset": "automatic",
+    "backgroundColor": "#ffffff"
+  },
+  "packageClassList": [
+    "AppPlugin",
+    "CAPBrowserPlugin",
+    "InAppBrowserPlugin",
+    "PreferencesPlugin",
+    "NativePurchasesPlugin",
+    "RestorebraineOAuthPlugin"
+  ]
 }

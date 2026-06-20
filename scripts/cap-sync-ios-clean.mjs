@@ -18,3 +18,4 @@ if (existsSync(publicDir)) {
 
 console.log('Running cap sync ios (clean public/ first)...');
 execSync('npx cap sync ios', { stdio: 'inherit' });
+execSync('node scripts/register-local-ios-plugins.mjs', { stdio: 'inherit' });

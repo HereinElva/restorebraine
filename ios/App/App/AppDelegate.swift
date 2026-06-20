@@ -1,15 +1,12 @@
 import UIKit
 import Capacitor
 import WebKit
-import AuthenticationServices
 
 @UIApplicationMain
-class AppDelegate: UIResponder, UIApplicationDelegate, WKScriptMessageHandler, ASWebAuthenticationPresentationContextProviding {
+class AppDelegate: UIResponder, UIApplicationDelegate {
 
     var window: UIWindow?
     private var pendingCacheReload = false
-    private var oauthHandlerRegistered = false
-    private var authSession: ASWebAuthenticationSession?
 
     private func persistOAuthTokenFromURL(_ url: URL) {
         guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
@@ -30,35 +27,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate, WKScriptMessageHandler, A
                 completionHandler: nil
             )
         }
-    }
-
-    /// Google OAuth in ASWebAuthenticationSession — avoids InAppBrowser opening full Safari.
-    private func startNativeOAuth(url: URL) {
-        authSession?.cancel()
-        let session = ASWebAuthenticationSession(url: url, callbackURLScheme: "restorebraine") { [weak self] callbackURL, error in
-            guard let self else { return }
-            defer { self.authSession = nil }
-            guard error == nil, let callbackURL else { return }
-            self.persistOAuthTokenFromURL(callbackURL)
-            self.notifyOAuthComplete()
-        }
-        session.presentationContextProvider = self
-        session.prefersEphemeralWebBrowserSession = false
-        authSession = session
-        session.start()
-    }
-
-    func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
-        guard message.name == "restorebraineOAuth" else { return }
-        guard let body = message.body as? [String: Any],
-              let urlString = body["url"] as? String,
-              let url = URL(string: urlString) else { return }
-        startNativeOAuth(url: url)
-    }
-
-    func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
-        if let window { return window }
-        return UIApplication.shared.windows.first { $0.isKeyWindow } ?? ASPresentationAnchor()
     }
 
     /// WKWebView caches capacitor://localhost aggressively — block briefly on stamp change.
@@ -123,10 +91,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate, WKScriptMessageHandler, A
               let webView = bridge.webView else { return }
         webView.allowsLinkPreview = false
         webView.scrollView.contentInsetAdjustmentBehavior = .automatic
-        if !oauthHandlerRegistered {
-            webView.configuration.userContentController.add(self, name: "restorebraineOAuth")
-            oauthHandlerRegistered = true
-        }
     }
 
     func application(_ app: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey: Any] = [:]) -> Bool {

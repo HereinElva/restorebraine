@@ -90,11 +90,12 @@ export const AuthProvider = ({ children }) => {
         setIsAuthenticated(false);
         setAuthError({ type: 'auth_required', message: 'Authentication required' });
         restoreSessionFromNativeStorage()
-          .then((token) => {
-            if (token) {
-              appParams.token = token;
-              window.dispatchEvent(new CustomEvent('restorebraine-session-updated', { detail: { token } }));
-            }
+          .then(async (token) => {
+            if (!token) return;
+            appParams.token = token;
+            await persistSessionToNativeStorage(token);
+            window.dispatchEvent(new CustomEvent('restorebraine-session-updated', { detail: { token } }));
+            await checkAppState();
           })
           .catch(() => {});
         return;

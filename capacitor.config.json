@@ -5,5 +5,8 @@
   "ios": {
     "contentInset": "automatic",
     "backgroundColor": "#ffffff"
-  }
+  },
+  "packageClassList": [
+    "RestorebraineOAuthPlugin"
+  ]
 }
