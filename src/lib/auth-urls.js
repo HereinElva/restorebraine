@@ -1,6 +1,6 @@
 import { isNativeShell } from '@/lib/native-hosted-redirect';
 import { getAuthReturnOrigin } from '@/lib/app-domains';
-import { BASE44_APP_ID, BASE44_PLATFORM_URL, getGoogleOAuthUrl } from '@/lib/native-platform-guard';
+import { BASE44_APP_ID, BASE44_PLATFORM_URL } from '@/lib/native-platform-guard';
 import { openLoginInSystemBrowser } from '@/lib/native-google-oauth';
 
 export { RESTOREBRAINE_FROM_URL, getGoogleOAuthUrl, getCanonicalOAuthUrl } from '@/lib/native-platform-guard';
@@ -27,7 +27,7 @@ export const openRestorebraineLogin = () => {
   if (typeof window === 'undefined') return;
 
   if (isNativeShell()) {
-    openLoginInSystemBrowser(getGoogleOAuthUrl(), 'google');
+    openLoginInSystemBrowser(getPlatformLoginUrl(getAuthReturnOrigin()));
     return;
   }
 

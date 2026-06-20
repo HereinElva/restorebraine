@@ -193,8 +193,8 @@ export const AuthProvider = ({ children }) => {
 
   const navigateToLogin = () => {
     setManuallyLoggedOut(false);
-    // Native-local bundled app: Google OAuth in system browser.
-    // Hosted native + web: same Base44 login flow as restorebraine.base44.app.
+    // Native: Base44 platform login in system browser (same providers as website).
+    // Web / hosted WebView: standard Base44 redirect.
     if (isNativeShell() && !isHostedAppOrigin()) {
       openRestorebraineLogin();
       return;
