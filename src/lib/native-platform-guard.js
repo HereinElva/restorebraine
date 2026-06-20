@@ -1,11 +1,11 @@
-import { DEFAULT_APP_ORIGIN, getAppOrigin, getAuthReturnOrigin, isAppHost } from './app-domains';
+import { DEFAULT_APP_ORIGIN, getAppOrigin, getAuthReturnOrigin, getOAuthReturnUrl, isAppHost } from './app-domains';
 import { LOCAL_NATIVE_BUNDLE } from './native-bundle-mode';
 
 export const RESTOREBRAINE_FROM_URL = DEFAULT_APP_ORIGIN;
 export const BASE44_APP_ID = '68fdc5f42768c4d045fe1bac';
 export const BASE44_PLATFORM_URL = 'https://app.base44.com';
-/** Native OAuth callback stays on the default hosted URL — not custom schemes. */
-export const NATIVE_OAUTH_CALLBACK = RESTOREBRAINE_FROM_URL;
+/** Native OAuth callback — custom scheme on v4-core, hosted URL otherwise. */
+export const NATIVE_OAUTH_CALLBACK = DEFAULT_APP_ORIGIN;
 
 const PLATFORM_HOSTS = new Set(['app.base44.com', 'base44.com']);
 
@@ -29,11 +29,10 @@ export const getCanonicalOAuthUrl = (provider = 'google') => {
     : `/api/apps/auth/${provider}/login`;
   const params = new URLSearchParams({
     app_id: BASE44_APP_ID,
-    from_url: getAuthReturnOrigin(),
+    from_url: getOAuthReturnUrl(),
     prompt: 'select_account',
   });
-  // OAuth API is on the app host — app.base44.com/api/apps/auth/login 404s in browser.
-  return `${getAuthReturnOrigin()}${path}?${params.toString()}`;
+  return `${DEFAULT_APP_ORIGIN}${path}?${params.toString()}`;
 };
 
 /** Force a valid OAuth URL — blocks capacitor://, restorebraine://, and app.base44.com from_url values. */

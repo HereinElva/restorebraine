@@ -8,7 +8,8 @@ import {
   isPlatformLoginUrl,
   normalizeAuthUrl,
 } from '@/lib/native-platform-guard';
-import { getAuthReturnOrigin } from '@/lib/app-domains';
+import { NATIVE_OAUTH_RETURN_URL } from '@/lib/app-domains';
+import { LOCAL_NATIVE_BUNDLE } from '@/lib/native-bundle-mode';
 import { persistSessionToNativeStorage } from '@/lib/session-bootstrap';
 import { isNativeShell, getNativeWebViewHome } from '@/lib/native-hosted-redirect';
 import { shouldBlockExternalNavigation, redirectToNativeBundleHome } from '@/lib/native-bundle-shell-guard';
@@ -30,28 +31,62 @@ export const isGoogleOAuthUrl = (url) => {
   }
 };
 
+export const isOAuthCallbackUrl = (url) => {
+  if (!url || typeof url !== 'string') return false;
+  if (url.includes('access_token=')) return true;
+  if (LOCAL_NATIVE_BUNDLE && url.startsWith(NATIVE_OAUTH_RETURN_URL.split('?')[0])) return true;
+  return false;
+};
+
 export const captureOAuthTokenFromUrl = async (url) => {
   if (!url) return null;
   try {
-    const parsed = new URL(url, getAuthReturnOrigin());
+    const parsed = new URL(String(url));
     const token = parsed.searchParams.get('access_token');
     if (!token) return null;
     await persistSessionToNativeStorage(token);
     return token;
   } catch {
-    return null;
+    try {
+      const match = String(url).match(/[?&]access_token=([^&]+)/);
+      if (!match?.[1]) return null;
+      const token = decodeURIComponent(match[1]);
+      await persistSessionToNativeStorage(token);
+      return token;
+    } catch {
+      return null;
+    }
   }
 };
 
 let oauthListenerAttached = false;
 
 const finishOAuthLogin = async () => {
+  window.__restorebraineOAuthInProgress = false;
   await InAppBrowser.close().catch(() => {});
   const token = localStorage.getItem('base44_access_token') || localStorage.getItem('token');
   if (token) {
     window.dispatchEvent(new CustomEvent('restorebraine-session-updated', { detail: { token } }));
   }
   window.location.replace(getNativeWebViewHome());
+};
+
+/** After system-browser OAuth, AppDelegate may have saved the token before JS listeners attach. */
+export const tryRestoreSessionAfterOAuth = async () => {
+  const existing = localStorage.getItem('base44_access_token') || localStorage.getItem('token');
+  if (existing && localStorage.getItem('b44_signed_out') !== '1') {
+    window.dispatchEvent(new CustomEvent('restorebraine-session-updated', { detail: { token: existing } }));
+    window.location.replace(getNativeWebViewHome());
+    return true;
+  }
+
+  const { restoreSessionFromNativeStorage } = await import('@/lib/session-bootstrap');
+  const token = await restoreSessionFromNativeStorage();
+  if (!token) return false;
+
+  window.dispatchEvent(new CustomEvent('restorebraine-session-updated', { detail: { token } }));
+  window.location.replace(getNativeWebViewHome());
+  return true;
 };
 
 export const handleNativeOAuthCallback = async (url) => {
@@ -66,11 +101,15 @@ const handleOAuthBrowserNavigation = async (url) => {
   if (await handleNativeOAuthCallback(url)) return true;
 
   try {
-    const parsed = new URL(url, getAuthReturnOrigin());
+    const parsed = new URL(url, window.location.href);
     const token = parsed.searchParams.get('access_token');
     if (token) {
       await persistSessionToNativeStorage(token);
       await finishOAuthLogin();
+      return true;
+    }
+    if (LOCAL_NATIVE_BUNDLE && isAppHostWithToken(url)) {
+      await redirectToNativeBundleHome(url);
       return true;
     }
     if (isPlatformLoginUrl(url)) {
@@ -83,6 +122,15 @@ const handleOAuthBrowserNavigation = async (url) => {
   return false;
 };
 
+const isAppHostWithToken = (url) => {
+  try {
+    const parsed = new URL(String(url), window.location.href);
+    return parsed.searchParams.has('access_token');
+  } catch {
+    return false;
+  }
+};
+
 const attachOAuthCompletionListener = async () => {
   if (oauthListenerAttached) return;
   oauthListenerAttached = true;
@@ -92,25 +140,28 @@ const attachOAuthCompletionListener = async () => {
   });
 
   await InAppBrowser.addListener('browserClosed', async () => {
-    const stored = localStorage.getItem('base44_access_token') || localStorage.getItem('token');
-    if (stored) {
-      window.location.replace(getNativeWebViewHome());
-      return;
-    }
+    oauthListenerAttached = false;
+    window.__restorebraineOAuthInProgress = false;
+    if (await tryRestoreSessionAfterOAuth()) return;
+
     try {
       const { App } = await import('@capacitor/app');
       const launch = await App.getLaunchUrl();
-      if (launch?.url) await handleNativeOAuthCallback(launch.url);
+      if (launch?.url && (await handleNativeOAuthCallback(launch.url))) return;
     } catch {}
-    window.location.replace(getNativeWebViewHome());
+
+    if (localStorage.getItem('b44_signed_out') !== '1') {
+      await tryRestoreSessionAfterOAuth();
+    }
   });
 };
 
-/** Google blocks embedded WebViews — must use SFSafariViewController (openInSystemBrowser). */
+/** Google requires SFSafariViewController — redirect uses restorebraine:// so iOS returns to the app. */
 export const openLoginInSystemBrowser = async (url = getGoogleOAuthUrl(), providerHint) => {
   const normalizedUrl = normalizeAuthUrl(url, providerHint);
   if (typeof window !== 'undefined') {
     window.__restorebraineLastOAuthUrl = normalizedUrl;
+    window.__restorebraineOAuthInProgress = true;
   }
   if (!isNativeShell()) {
     window.location.replace(normalizedUrl);

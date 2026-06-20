@@ -66,11 +66,12 @@ export const installNativeOAuthDeepLinkHandler = async () => {
     if (!isNativeShell()) return;
 
     const { App } = await import('@capacitor/app');
-    const { handleNativeOAuthCallback } = await import('@/lib/native-google-oauth');
+    const { handleNativeOAuthCallback, isOAuthCallbackUrl, tryRestoreSessionAfterOAuth } = await import('@/lib/native-google-oauth');
 
     await App.addListener('appUrlOpen', async ({ url }) => {
-      if (!url || !url.includes('access_token=')) return;
-      await handleNativeOAuthCallback(url);
+      if (!url || !isOAuthCallbackUrl(url)) return;
+      if (await handleNativeOAuthCallback(url)) return;
+      await tryRestoreSessionAfterOAuth();
     });
   } catch (error) {
     console.warn('Native OAuth deep link handler unavailable.', error);
@@ -92,6 +93,9 @@ export const installNativeSessionPersistence = async () => {
           const token = await restoreSessionFromNativeStorage();
           if (token) {
             window.dispatchEvent(new CustomEvent('restorebraine-session-updated', { detail: { token } }));
+          } else if (window.__restorebraineOAuthInProgress) {
+            const { tryRestoreSessionAfterOAuth } = await import('@/lib/native-google-oauth');
+            await tryRestoreSessionAfterOAuth();
           }
         }
         try {
