@@ -1,16 +1,14 @@
 import { useState } from 'react';
-import { LOCAL_NATIVE_BUNDLE } from '@/lib/native-bundle-mode';
-import { isNativeShell } from '@/lib/native-hosted-redirect';
 import { getRestorebraineAppLogo } from '@/lib/app-branding';
 
-/** Bundled brain icon — v4 native uses emoji (AppIcon.png often missing from device bundle). */
+/** Build v4: bundled AppIcon.png — brain emoji only if image missing. */
 export default function LoginLogo({ compact = false }) {
   const [failed, setFailed] = useState(false);
+  const src = getRestorebraineAppLogo();
   const size = compact ? 44 : 56;
   const radius = compact ? 12 : 16;
-  const useNativeEmoji = LOCAL_NATIVE_BUNDLE && isNativeShell();
 
-  if (useNativeEmoji || failed) {
+  if (failed) {
     return (
       <div
         style={{
@@ -31,8 +29,6 @@ export default function LoginLogo({ compact = false }) {
       </div>
     );
   }
-
-  const src = getRestorebraineAppLogo();
 
   return (
     <img

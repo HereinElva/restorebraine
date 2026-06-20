@@ -153,6 +153,15 @@ if (iosIndex && /restorebraine-v4-bridge\.js/.test(iosIndex)) {
   ok('index.html has no sync v4-bridge (async load OK)');
 }
 
+const appIconPath = resolve('ios/App/App/public/AppIcon.png');
+if (existsSync(appIconPath)) {
+  const bytes = readFileSync(appIconPath).length;
+  ok(`AppIcon.png in ios/public (${bytes} bytes — login logo)`);
+} else {
+  fail('AppIcon.png missing from ios/public — login shows wrong icon');
+  bump();
+}
+
 // 7. Git-tracked stale public risk
 try {
   const { execSync } = await import('node:child_process');

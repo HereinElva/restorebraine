@@ -91,6 +91,14 @@ const hasRegisteredNativeOAuthPlugin = () => {
   return typeof plugin?.startGoogleOAuth === 'function';
 };
 
+const waitForNativeOAuthPlugin = async (maxAttempts = 30) => {
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    if (hasRegisteredNativeOAuthPlugin()) return true;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  return hasRegisteredNativeOAuthPlugin();
+};
+
 const openInAppBrowserOAuth = async (oauthUrl, provider) => {
   oauthListenerAttached = false;
   await attachOAuthCompletionListener();
@@ -295,6 +303,7 @@ export const openLoginInSystemBrowser = async (url = getGoogleOAuthUrl(), provid
 
   // Build v4: native ASWebAuthenticationSession first (same as v4-bridge), then system browser.
   if (LOCAL_NATIVE_BUNDLE) {
+    await waitForNativeOAuthPlugin();
     if (hasRegisteredNativeOAuthPlugin()) {
       try {
         await startGoogleOAuthNative();
