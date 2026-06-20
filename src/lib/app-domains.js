@@ -28,17 +28,9 @@ export function getAppOrigin() {
   return DEFAULT_APP_ORIGIN;
 }
 
-/** OAuth redirect target — v4-core uses custom scheme so iOS returns to the app, not Safari. */
+/** OAuth from_url sent to Base44 — must be HTTPS whitelisted domain (never restorebraine://). */
 export function getOAuthReturnUrl() {
-  if (typeof window === 'undefined') return DEFAULT_APP_ORIGIN;
-  try {
-    const isNative =
-      window.Capacitor?.isNativePlatform?.() ||
-      window.location?.protocol === 'capacitor:' ||
-      window.location?.protocol === 'ionic:';
-    if (isNative && LOCAL_NATIVE_BUNDLE) return NATIVE_OAUTH_RETURN_URL;
-  } catch {}
-  return getAuthReturnOrigin();
+  return DEFAULT_APP_ORIGIN;
 }
 
 /** OAuth redirect target — native shell uses hosted URL for API callbacks. */

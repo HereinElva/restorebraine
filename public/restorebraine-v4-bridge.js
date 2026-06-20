@@ -13,14 +13,11 @@
           var RESTOREBRAINE = 'https://restorebraine.base44.app';
           var PLATFORM = 'https://app.base44.com';
           var APP_ID = '68fdc5f42768c4d045fe1bac';
-          var NATIVE_OAUTH_RETURN = 'restorebraine://oauth/callback';
           var FROM_URL = RESTOREBRAINE;
           var APP_LOGIN_URL = RESTOREBRAINE + '/login?from_url=' + encodeURIComponent(FROM_URL) + '&app_id=' + APP_ID + '&prompt=select_account';
 
-          function getOAuthFromUrl(provider) {
-            if (isBundledNativeOrigin()) {
-              return (provider === 'google' || !provider) ? NATIVE_OAUTH_RETURN : RESTOREBRAINE;
-            }
+          function getOAuthFromUrl() {
+            // Base44 only accepts whitelisted HTTPS domains as from_url — not restorebraine://
             return RESTOREBRAINE;
           }
 
