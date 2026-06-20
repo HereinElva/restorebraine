@@ -260,9 +260,95 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const loginWithEmailPassword = async ({ email, password }) => {
+    setAuthError(null);
+    try { localStorage.removeItem('b44_signed_out'); } catch {}
+    try { localStorage.removeItem('base44_logged_out'); } catch {}
+
+    try {
+      const authClient = createAxiosClient({
+        baseURL: `${appParams.serverUrl}/api`,
+        headers: { 'X-App-Id': appParams.appId },
+        interceptResponses: true,
+      });
+      const response = await authClient.post(`/apps/${appParams.appId}/auth/login`, { email, password });
+
+      if (!response?.access_token) {
+        throw new Error('Sign in failed. Please try again.');
+      }
+
+      await persistSessionToNativeStorage(response.access_token);
+      setManuallyLoggedOut(false);
+      setUser(response.user ?? null);
+      setIsAuthenticated(true);
+      setIsLoadingAuth(false);
+      setIsLoadingPublicSettings(false);
+      setAuthError(null);
+      await checkUserAuth({ ignoreManualLogout: true });
+    } catch (error) {
+      setIsLoadingAuth(false);
+      setIsAuthenticated(false);
+      setAuthError({
+        type: 'auth_required',
+        message: error?.data?.message || error?.message || 'Invalid email or password',
+      });
+      throw error;
+    }
+  };
+
+  const registerWithEmailPassword = async ({ email, password, fullName }) => {
+    setAuthError(null);
+    try { localStorage.removeItem('b44_signed_out'); } catch {}
+    try { localStorage.removeItem('base44_logged_out'); } catch {}
+
+    try {
+      const authClient = createAxiosClient({
+        baseURL: `${appParams.serverUrl}/api`,
+        headers: { 'X-App-Id': appParams.appId },
+        interceptResponses: true,
+      });
+      const response = await authClient.post(`/apps/${appParams.appId}/auth/register`, {
+        email,
+        password,
+        full_name: fullName,
+        name: fullName,
+      });
+
+      if (response?.access_token) {
+        await persistSessionToNativeStorage(response.access_token);
+        setManuallyLoggedOut(false);
+        setUser(response.user ?? null);
+        setIsAuthenticated(true);
+        setAuthError(null);
+        await checkUserAuth({ ignoreManualLogout: true });
+      } else {
+        setAuthError({ type: 'auth_required', message: 'Account created. Please sign in.' });
+      }
+
+      setIsLoadingAuth(false);
+      setIsLoadingPublicSettings(false);
+      return response;
+    } catch (error) {
+      setIsLoadingAuth(false);
+      setIsAuthenticated(false);
+      setAuthError({
+        type: 'auth_required',
+        message: error?.data?.message || error?.message || 'Unable to create account',
+      });
+      throw error;
+    }
+  };
+
   const navigateToLogin = () => {
     setManuallyLoggedOut(false);
-    // Native-local (build v48): Google OAuth in system browser — never app.base44.com/login.
+    // v4-core: show bundled NativeLoginCard — do not auto-open Safari sheet.
+    if (LOCAL_NATIVE_BUNDLE && isNativeShell() && !isHostedAppOrigin()) {
+      setIsLoadingAuth(false);
+      setIsLoadingPublicSettings(false);
+      setIsAuthenticated(false);
+      setAuthError({ type: 'auth_required', message: 'Authentication required' });
+      return;
+    }
     if (isNativeShell() && !isHostedAppOrigin()) {
       openRestorebraineLogin();
       return;
@@ -283,6 +369,8 @@ export const AuthProvider = ({ children }) => {
       resumeActiveSession,
       manuallyLoggedOut,
       navigateToLogin,
+      loginWithEmailPassword,
+      registerWithEmailPassword,
       checkAppState,
     }}>
       {children}

@@ -1,7 +1,7 @@
 import { isNativeShell } from '@/lib/native-hosted-redirect';
 import { LOCAL_NATIVE_BUNDLE } from '@/lib/native-bundle-mode';
 import { getAuthReturnOrigin } from '@/lib/app-domains';
-import { BASE44_APP_ID, BASE44_PLATFORM_URL, getGoogleOAuthUrl } from '@/lib/native-platform-guard';
+import { BASE44_APP_ID, BASE44_PLATFORM_URL, getGoogleOAuthUrl, getProviderOAuthUrl } from '@/lib/native-platform-guard';
 import { openLoginInSystemBrowser } from '@/lib/native-google-oauth';
 
 export { RESTOREBRAINE_FROM_URL, getGoogleOAuthUrl, getCanonicalOAuthUrl } from '@/lib/native-platform-guard';
@@ -24,7 +24,17 @@ export const getPlatformLoginUrl = (fromUrl) => {
 export const getRestorebraineLoginUrl = getPlatformLoginUrl;
 
 /**
- * Native-local (build v4/v48): skip app.base44.com/login — open Google OAuth directly.
+ * Open OAuth for a provider (Google / Apple / Microsoft) in Capacitor system browser.
+ * NativeLoginCard calls this per button — not on app launch.
+ */
+export const openNativeProviderLogin = (provider = 'google') => {
+  if (typeof window === 'undefined') return;
+  const url = provider === 'google' ? getGoogleOAuthUrl() : getProviderOAuthUrl(provider);
+  openLoginInSystemBrowser(url, provider);
+};
+
+/**
+ * Native-local v4-core: NativeLoginCard handles UI — this opens OAuth when invoked directly.
  * Web / hosted: use platform login page.
  */
 export const openRestorebraineLogin = () => {
@@ -32,7 +42,7 @@ export const openRestorebraineLogin = () => {
 
   if (isNativeShell()) {
     if (LOCAL_NATIVE_BUNDLE) {
-      openLoginInSystemBrowser(getGoogleOAuthUrl(), 'google');
+      openNativeProviderLogin('google');
       return;
     }
     openLoginInSystemBrowser(getPlatformLoginUrl(getAuthReturnOrigin()));
