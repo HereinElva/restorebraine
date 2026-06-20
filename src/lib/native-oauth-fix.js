@@ -31,6 +31,10 @@ export const installNativeOAuthFix = () => {
 
   captureAccessTokenFromUrl();
 
+  // Build v4: AppDelegate injects restorebraine-v4-bridge.js at document start.
+  // Do not install duplicate Location/OAuth guards — they conflict with the bridge.
+  if (window.__restorebraineSessionBridgeInstalled) return;
+
   // Capacitor + hosted Base44 URL: AppDelegate.swift already patches navigation at
   // document start. Installing web guards here double-wraps Location and causes a
   // blank white screen on iOS.

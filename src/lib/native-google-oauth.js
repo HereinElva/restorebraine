@@ -14,8 +14,6 @@ import { LOCAL_NATIVE_BUNDLE } from '@/lib/native-bundle-mode';
 import { persistSessionToNativeStorage } from '@/lib/session-bootstrap';
 import { isNativeShell, getNativeWebViewHome } from '@/lib/native-hosted-redirect';
 import { shouldBlockExternalNavigation, redirectToNativeBundleHome } from '@/lib/native-bundle-shell-guard';
-import { RestorebraineOAuth } from '@/lib/native-oauth-plugin';
-
 const GOOGLE_OAUTH_PATTERN = /accounts\.google\.com|google\.com\/o\/oauth|oauth2\.googleapis\.com|\/api\/apps\/auth\/login/i;
 
 const SYSTEM_BROWSER_OPTIONS = {
@@ -190,38 +188,9 @@ const attachOAuthCompletionListener = async () => {
   });
 };
 
-const isGoogleProvider = (providerHint, url) =>
-  providerHint === 'google' || !providerHint || isGoogleOAuthUrl(url);
-
-/** Google on v4-core: native plugin first, then build-v4 system browser (hosted from_url). */
-const startGoogleOAuthNative = async (providerHint) => {
-  const pluginUrl = normalizeAuthUrl(getGoogleOAuthUrl(), providerHint || 'google', { forWebView: false });
-  window.__restorebraineLastOAuthUrl = pluginUrl;
-  window.__restorebraineOAuthInProgress = true;
-
-  try {
-    window.__restorebraineOAuthMode = 'native-plugin';
-    const result = await RestorebraineOAuth.startGoogleOAuth({ url: pluginUrl });
-    const token = result?.token;
-    if (!token) throw new Error('Native OAuth returned no token');
-    await persistSessionToNativeStorage(token);
-    await finishOAuthLogin();
-    return true;
-  } catch (error) {
-    if (error?.code === 'CANCELED' || /cancel/i.test(error?.message || '')) {
-      window.__restorebraineOAuthInProgress = false;
-      return false;
-    }
-    console.warn('RestorebraineOAuth plugin unavailable — using build v4 system browser:', error);
-    await openOAuthInSystemBrowser(getWebViewOAuthUrl('google'), 'google');
-    return true;
-  }
-};
-
 /**
- * v4-core OAuth:
- * - Google → RestorebraineOAuth Capacitor plugin (ASWebAuthenticationSession)
- * - Apple/Microsoft → InAppBrowser WebView (captures token in-app)
+ * v4-core OAuth: delegated to restorebraine-v4-bridge.js (injected at document start).
+ * Fallback paths remain for hosted / non-bridge shells only.
  */
 export const openLoginInSystemBrowser = async (url = getGoogleOAuthUrl(), providerHint) => {
   const provider = providerHint || 'google';
@@ -233,8 +202,9 @@ export const openLoginInSystemBrowser = async (url = getGoogleOAuthUrl(), provid
     return;
   }
 
-  if (LOCAL_NATIVE_BUNDLE && isGoogleProvider(providerHint, url)) {
-    await startGoogleOAuthNative(providerHint);
+  if (LOCAL_NATIVE_BUNDLE && window.__restorebraineSessionBridgeInstalled) {
+    window.__restorebraineOAuthMode = 'v4-bridge';
+    window.__restorebraineOpenProviderLogin?.(provider);
     return;
   }
 

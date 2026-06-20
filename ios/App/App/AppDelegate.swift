@@ -2,12 +2,34 @@ import UIKit
 import Capacitor
 import WebKit
 
+private final class RestorebraineSessionMessageHandler: NSObject, WKScriptMessageHandler {
+    func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+        guard message.name == "restorebraineNativeSession",
+              let body = message.body as? [String: Any],
+              let action = body["action"] as? String,
+              action == "clear" else { return }
+        let defaults = UserDefaults.standard
+        defaults.removeObject(forKey: "CapacitorStorage.base44_access_token")
+        defaults.removeObject(forKey: "CapacitorStorage.token")
+        defaults.set("1", forKey: "CapacitorStorage.b44_signed_out")
+    }
+}
+
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
 
     var window: UIWindow?
+    private let sessionMessageHandler = RestorebraineSessionMessageHandler()
     private var pendingCacheReload = false
     private var sessionBridgeInstalled = false
+
+    private var nativeBuildLabel: String {
+        guard let url = Bundle.main.url(forResource: "BUILD_STAMP", withExtension: "txt"),
+              let label = try? String(contentsOf: url, encoding: .utf8) else {
+            return "native bundle unknown"
+        }
+        return label.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
 
     private func storedNativeToken() -> String? {
         let defaults = UserDefaults.standard
@@ -26,7 +48,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         defaults.removeObject(forKey: "CapacitorStorage.b44_signed_out")
     }
 
-    /// Build v4 flow: push token into WebView localStorage immediately (before React auth check).
     private func notifyOAuthComplete(with token: String? = nil) {
         let activeToken = token ?? storedNativeToken()
         guard let activeToken, !activeToken.isEmpty else {
@@ -62,34 +83,49 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         }
     }
 
-    private func sessionBridgeScript(syncToken: String) -> String {
-        let escaped = syncToken
+    /// Build v4: inject pre-v94 session bridge from bundled public/restorebraine-v4-bridge.js
+    private func sessionBridgeScript(for buildLabel: String, syncToken: String) -> String {
+        let escapedLabel = buildLabel
             .replacingOccurrences(of: "\\", with: "\\\\")
             .replacingOccurrences(of: "'", with: "\\'")
-        guard let bridgePath = Bundle.main.path(forResource: "capacitor-v4-session-bridge", ofType: "js", inDirectory: "public"),
-              let bridgeBody = try? String(contentsOfFile: bridgePath, encoding: .utf8) else {
-            return "window.__RESTOREBRAINE_NATIVE_SYNC_TOKEN__='\(escaped)';"
+        let escapedToken = syncToken
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "'", with: "\\'")
+
+        guard let bridgePath = Bundle.main.path(forResource: "restorebraine-v4-bridge", ofType: "js", inDirectory: "public"),
+              var bridgeBody = try? String(contentsOfFile: bridgePath, encoding: .utf8) else {
+            return "window.__RESTOREBRAINE_NATIVE_BUILD__='\(escapedLabel)';"
         }
-        return "window.__RESTOREBRAINE_NATIVE_SYNC_TOKEN__='\(escaped)';\n\(bridgeBody)"
+
+        bridgeBody = bridgeBody.replacingOccurrences(of: "SYNC_TOKEN_PLACEHOLDER", with: escapedToken)
+        bridgeBody = bridgeBody.replacingOccurrences(of: "BUILD_LABEL_PLACEHOLDER", with: escapedLabel)
+        return bridgeBody
+    }
+
+    private func configureNativeWebView(_ bridge: CAPBridgeViewController) {
+        guard let webView = bridge.webView else { return }
+        webView.allowsBackForwardNavigationGestures = false
+        webView.allowsLinkPreview = false
+        webView.scrollView.contentInsetAdjustmentBehavior = .never
+        webView.scrollView.bounces = false
     }
 
     @objc private func installSessionBridge() {
-        guard let bridge = window?.rootViewController as? CAPBridgeViewController,
-              let webView = bridge.webView else { return }
-
-        webView.allowsLinkPreview = false
-        webView.scrollView.contentInsetAdjustmentBehavior = .automatic
+        guard let bridge = window?.rootViewController as? CAPBridgeViewController else { return }
+        configureNativeWebView(bridge)
+        guard let userContentController = bridge.webView?.configuration.userContentController else { return }
 
         guard !sessionBridgeInstalled else { return }
         sessionBridgeInstalled = true
 
-        let token = storedNativeToken() ?? ""
         let script = WKUserScript(
-            source: sessionBridgeScript(syncToken: token),
+            source: sessionBridgeScript(for: nativeBuildLabel, syncToken: storedNativeToken() ?? ""),
             injectionTime: .atDocumentStart,
             forMainFrameOnly: true
         )
-        webView.configuration.userContentController.addUserScript(script)
+        userContentController.removeScriptMessageHandler(forName: "restorebraineNativeSession")
+        userContentController.add(sessionMessageHandler, name: "restorebraineNativeSession")
+        userContentController.addUserScript(script)
     }
 
     /// WKWebView caches capacitor://localhost aggressively — block briefly on stamp change.
@@ -136,7 +172,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             name: Notification.Name("CAPBridgeDidLoad"),
             object: nil
         )
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
             self.installSessionBridge()
         }
         return true

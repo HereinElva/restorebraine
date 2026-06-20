@@ -14,6 +14,7 @@
     "build:native-local": "node scripts/write-build-info.mjs && node scripts/use-local-native-bundle.mjs --local && npm run ios:icons && node scripts/sync-app-icon.mjs && vite build && node scripts/stamp-dist-index.mjs && node scripts/patch-native-purchases-podspec.mjs && node scripts/cap-sync-ios-clean.mjs && CAPACITOR_LOCAL=1 node scripts/verify-ios-sync.mjs && node scripts/verify-capacitor-ios-bundle.mjs && node scripts/verify-ios-icons.mjs && node scripts/verify-native-bundle-flag.mjs && CAPACITOR_LOCAL=1 node scripts/capacitor-audit.mjs",
     "build:v4-native": "npm run build:native-local",
     "mac:nuclear-scrub": "bash scripts/mac-nuclear-scrub.sh",
+    "mac:v4-full-reset": "bash scripts/capacitor-v4-full-reset.sh",
     "cap:hosted": "node scripts/use-local-native-bundle.mjs --hosted",
     "lint": "eslint .",
     "preview": "vite preview",

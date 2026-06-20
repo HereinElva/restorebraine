@@ -136,7 +136,16 @@ if (existsSync(distAssets)) {
   }
 }
 
-// 6. Git-tracked stale public risk
+// 6. Build v4 bridge in ios/public
+const v4Bridge = read('ios/App/App/public/restorebraine-v4-bridge.js');
+if (v4Bridge && v4Bridge.includes('__restorebraineSessionBridgeInstalled')) {
+  ok(`restorebraine-v4-bridge.js in ios/public (${v4Bridge.length} bytes)`);
+} else {
+  fail('restorebraine-v4-bridge.js missing from ios/public — run build:native-local');
+  bump();
+}
+
+// 7. Git-tracked stale public risk
 try {
   const { execSync } = await import('node:child_process');
   const tracked = execSync('git ls-files ios/App/App/public/', { cwd: repo, encoding: 'utf8' }).trim();
