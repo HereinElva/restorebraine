@@ -7,7 +7,12 @@ echo "=== Restorebraine iOS HOSTED rebuild (loads live Base44) ==="
 bash scripts/mac-discard-build-files.sh
 
 echo "Pulling $BRANCH ..."
-git pull origin "$BRANCH"
+if ! git pull origin "$BRANCH"; then
+  echo ""
+  echo "Pull blocked — running deeper clean and retrying once..."
+  bash scripts/mac-discard-build-files.sh
+  git pull origin "$BRANCH"
+fi
 
 echo "Building hosted mode (restorebraine.base44.app)..."
 npm run build

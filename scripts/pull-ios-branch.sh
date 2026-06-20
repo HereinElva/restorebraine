@@ -8,7 +8,12 @@ cd "$(git rev-parse --show-toplevel)"
 bash scripts/mac-discard-build-files.sh
 
 echo "Pulling origin/$BRANCH ..."
-git pull origin "$BRANCH"
+if ! git pull origin "$BRANCH"; then
+  echo ""
+  echo "Pull blocked — running deeper clean and retrying once..."
+  bash scripts/mac-discard-build-files.sh
+  git pull origin "$BRANCH"
+fi
 
 echo ""
 echo "Done. Pick ONE path:"

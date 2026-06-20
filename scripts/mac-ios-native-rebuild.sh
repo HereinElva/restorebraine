@@ -7,7 +7,12 @@ echo "=== Restorebraine iOS native-local rebuild ==="
 bash scripts/mac-discard-build-files.sh
 
 echo "Pulling $BRANCH ..."
-git pull origin "$BRANCH"
+if ! git pull origin "$BRANCH"; then
+  echo ""
+  echo "Pull blocked — running deeper clean and retrying once..."
+  bash scripts/mac-discard-build-files.sh
+  git pull origin "$BRANCH"
+fi
 
 echo "Building native-local bundle..."
 npm run build:native-local
@@ -23,7 +28,7 @@ fi
 
 echo ""
 echo "=== VERIFY on device ==="
-echo "Look for purple badge bottom-left: v94 · native-local"
+echo "Look for purple badge bottom-left: v95 · native-local"
 echo "Login screen shows build label (build v4 bundled shell restored)"
 echo ""
 echo "Next: Xcode -> delete app -> Clean Build Folder -> Run"
