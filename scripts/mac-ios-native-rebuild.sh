@@ -11,6 +11,14 @@ force_clean_ios_public() {
 }
 
 echo "=== Restorebraine iOS native-local rebuild ==="
+git fetch origin "$BRANCH" 2>/dev/null || true
+LOCAL=$(git rev-parse HEAD 2>/dev/null || echo unknown)
+REMOTE=$(git rev-parse "origin/$BRANCH" 2>/dev/null || echo unknown)
+echo "Branch: $BRANCH  local=${LOCAL:0:7}  remote=${REMOTE:0:7}"
+if [ "$LOCAL" != "$REMOTE" ] && [ "$REMOTE" != unknown ]; then
+  echo "NOTE: local branch differs from origin/$BRANCH — pull will update scripts (v102+ audit fixes)"
+fi
+
 force_clean_ios_public
 bash scripts/mac-discard-build-files.sh
 
