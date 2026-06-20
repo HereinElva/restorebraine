@@ -417,7 +417,14 @@
             var tries = 0;
             var wait = setInterval(function () {
               tries += 1;
-              if (tryNativeOAuth() || tries >= 80) clearInterval(wait);
+              if (tryNativeOAuth()) {
+                clearInterval(wait);
+                return;
+              }
+              if (tries >= 30) {
+                clearInterval(wait);
+                openLoginInWebView(url, 'google');
+              }
             }, 100);
           }
 

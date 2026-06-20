@@ -166,6 +166,7 @@ export const hideBase44EditorWidget = () => {
 
 export const interceptNativeSignInClicks = () => {
   if (typeof document === 'undefined' || window.__restorebraineSignInInterceptor) return;
+  if (LOCAL_NATIVE_BUNDLE) return;
   window.__restorebraineSignInInterceptor = true;
   document.addEventListener('click', (event) => {
     const target = event.target.closest('button, a, [role="button"], div[role="button"], [data-provider]');

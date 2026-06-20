@@ -1,9 +1,11 @@
 import { InAppBrowser, DefaultWebViewOptions } from '@capacitor/inappbrowser';
+import { Browser } from '@capacitor/browser';
 import { Capacitor } from '@capacitor/core';
 import {
   getGoogleOAuthUrl,
   getProviderOAuthUrl,
   getWebViewOAuthUrl,
+  getCanonicalOAuthUrl,
   NATIVE_OAUTH_CALLBACK,
   isBase44PlatformHost,
   isAuthNavigationUrl,
@@ -71,14 +73,22 @@ const withTimeout = (promise, ms, label = 'Operation') =>
     }),
   ]);
 
-const waitForCapacitor = async (maxMs = 6000) => {
-  const start = Date.now();
-  while (Date.now() - start < maxMs) {
-    if (window.Capacitor?.Plugins?.InAppBrowser?.openInWebView) return true;
-    if (Capacitor.isNativePlatform?.() && window.Capacitor?.Plugins?.InAppBrowser) return true;
-    await new Promise((resolve) => setTimeout(resolve, 50));
+const isNativeCapacitorShell = () => {
+  if (Capacitor.isNativePlatform?.()) return true;
+  try {
+    const { protocol } = window.location;
+    return protocol === 'capacitor:' || protocol === 'ionic:';
+  } catch {
+    return false;
   }
-  return !!window.Capacitor?.Plugins?.InAppBrowser;
+};
+
+/** Capacitor 8 exposes InAppBrowser via ES import — not always on window.Capacitor.Plugins. */
+const waitForCapacitor = async () => isNativeCapacitorShell();
+
+const hasNativeOAuthPlugin = () => {
+  const plugin = window.Capacitor?.Plugins?.RestorebraineOAuth ?? RestorebraineOAuth;
+  return typeof plugin?.startGoogleOAuth === 'function';
 };
 
 const openInAppBrowserOAuth = async (oauthUrl, provider) => {
@@ -86,8 +96,8 @@ const openInAppBrowserOAuth = async (oauthUrl, provider) => {
   await attachOAuthCompletionListener();
   window.__restorebraineLastOAuthUrl = oauthUrl;
   window.__restorebraineOAuthInProgress = true;
-
   window.__restorebraineOAuthMode = provider === 'google' ? 'webview-google' : 'webview';
+
   try {
     await InAppBrowser.openInWebView({ url: oauthUrl, options: DefaultWebViewOptions });
     return;
@@ -96,20 +106,15 @@ const openInAppBrowserOAuth = async (oauthUrl, provider) => {
   }
 
   window.__restorebraineOAuthMode = 'system-browser';
-  for (let attempt = 0; attempt < 60; attempt += 1) {
-    try {
-      const plugin = window.Capacitor?.Plugins?.InAppBrowser;
-      if (plugin?.openInSystemBrowser) {
-        await plugin.openInSystemBrowser({ url: oauthUrl, options: SYSTEM_BROWSER_OPTIONS });
-      } else {
-        await InAppBrowser.openInSystemBrowser({ url: oauthUrl, options: SYSTEM_BROWSER_OPTIONS });
-      }
-      return;
-    } catch (error) {
-      if (attempt === 59) throw error;
-      await new Promise((resolve) => setTimeout(resolve, 100));
-    }
+  try {
+    await InAppBrowser.openInSystemBrowser({ url: oauthUrl, options: SYSTEM_BROWSER_OPTIONS });
+    return;
+  } catch (systemError) {
+    console.warn('InAppBrowser system browser failed, trying Capacitor Browser:', systemError);
   }
+
+  window.__restorebraineOAuthMode = 'browser-fallback';
+  await Browser.open({ url: oauthUrl });
 };
 
 const finishOAuthLogin = async () => {
@@ -274,22 +279,22 @@ export const openLoginInSystemBrowser = async (url = getGoogleOAuthUrl(), provid
     return;
   }
 
-  const ready = await waitForCapacitor(6000);
-  if (!ready) {
+  if (!(await waitForCapacitor())) {
     window.__restorebraineOAuthInProgress = false;
-    throw new Error('Capacitor InAppBrowser not ready — rebuild in Xcode and try again.');
+    throw new Error('Not running in the native app shell.');
   }
 
   const oauthUrl = normalizeAuthUrl(url || getCanonicalOAuthUrl(provider), provider);
+  window.__restorebraineLastOAuthUrl = oauthUrl;
 
-  if (LOCAL_NATIVE_BUNDLE && provider === 'google') {
+  if (LOCAL_NATIVE_BUNDLE && provider === 'google' && hasNativeOAuthPlugin()) {
     try {
-      await withTimeout(startGoogleOAuthNative(), 15000, 'Google OAuth');
+      await withTimeout(startGoogleOAuthNative(), 4000, 'Google OAuth');
       return;
     } catch (error) {
       window.__restorebraineOAuthInProgress = false;
       if (error?.code === 'CANCELED' || /cancel/i.test(error?.message || '')) return;
-      console.warn('RestorebraineOAuth plugin unavailable — opening InAppBrowser:', error);
+      console.warn('Native Google OAuth unavailable — opening InAppBrowser:', error);
     }
   }
 

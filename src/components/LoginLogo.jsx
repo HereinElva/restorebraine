@@ -2,24 +2,26 @@ import { useState } from 'react';
 import { getRestorebraineAppLogo } from '@/lib/app-branding';
 
 /** Bundled brain icon — falls back if AppIcon.png missing from public/. */
-export default function LoginLogo() {
+export default function LoginLogo({ compact = false }) {
   const [failed, setFailed] = useState(false);
   const src = getRestorebraineAppLogo();
+  const size = compact ? 44 : 56;
+  const radius = compact ? 12 : 16;
 
   if (failed) {
     return (
       <div
         style={{
-          width: '56px',
-          height: '56px',
-          borderRadius: '16px',
-          margin: '0 auto 12px',
+          width: `${size}px`,
+          height: `${size}px`,
+          borderRadius: `${radius}px`,
+          margin: compact ? 0 : '0 auto 12px',
           background: 'linear-gradient(135deg,#60a5fa,#a78bfa)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          fontSize: '28px',
-          boxShadow: '0 8px 24px rgba(96,165,250,0.25)',
+          fontSize: compact ? '22px' : '28px',
+          boxShadow: '0 6px 20px rgba(96,165,250,0.22)',
         }}
         aria-hidden
       >
@@ -35,13 +37,13 @@ export default function LoginLogo() {
       data-rb-logo="1"
       onError={() => setFailed(true)}
       style={{
-        width: '56px',
-        height: '56px',
-        borderRadius: '16px',
+        width: `${size}px`,
+        height: `${size}px`,
+        borderRadius: `${radius}px`,
         objectFit: 'cover',
         display: 'block',
-        margin: '0 auto 12px',
-        boxShadow: '0 8px 24px rgba(96,165,250,0.25)',
+        margin: compact ? 0 : '0 auto 12px',
+        boxShadow: '0 6px 20px rgba(96,165,250,0.22)',
       }}
     />
   );
