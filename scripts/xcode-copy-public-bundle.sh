@@ -50,5 +50,6 @@ fi
 
 STAMP_LINE=$(tr -d '\n' < "$STAMP" 2>/dev/null || echo 'unknown')
 echo "Restorebraine DEPLOY OK: public/ -> App.app"
+echo "  dest: ${DEST_APP}"
 echo "  BUILD_STAMP: ${STAMP_LINE}"
 echo "  entry: ${ENTRY}"
