@@ -346,14 +346,6 @@ export const AuthProvider = ({ children }) => {
 
   const navigateToLogin = () => {
     setManuallyLoggedOut(false);
-    // v4-core: show bundled NativeLoginCard — do not auto-open Safari sheet.
-    if (LOCAL_NATIVE_BUNDLE && isNativeShell() && !isHostedAppOrigin()) {
-      setIsLoadingAuth(false);
-      setIsLoadingPublicSettings(false);
-      setIsAuthenticated(false);
-      setAuthError({ type: 'auth_required', message: 'Authentication required' });
-      return;
-    }
     if (isNativeShell() && !isHostedAppOrigin()) {
       openRestorebraineLogin();
       return;

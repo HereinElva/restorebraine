@@ -934,7 +934,7 @@
           } else if (!isBundledNativeOrigin()) {
             installPlatformGuard();
           }
-          // bundled native (capacitor://localhost): React NativeLoginCard handles all login buttons —
+          // bundled native (capacitor://localhost): React SignInScreen → openRestorebraineLogin on tap —
           // interceptNativeSignInClicks breaks provider + email submit handlers.
           document.addEventListener('visibilitychange', function () {
             if (document.visibilityState === 'hidden') persistToken();

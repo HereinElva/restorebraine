@@ -1,5 +1,4 @@
 import { isNativeShell } from '@/lib/native-hosted-redirect';
-import { LOCAL_NATIVE_BUNDLE } from '@/lib/native-bundle-mode';
 import { getAuthReturnOrigin } from '@/lib/app-domains';
 import { BASE44_APP_ID, BASE44_PLATFORM_URL, getGoogleOAuthUrl, getProviderOAuthUrl } from '@/lib/native-platform-guard';
 import { openLoginInSystemBrowser } from '@/lib/native-google-oauth';
@@ -25,7 +24,7 @@ export const getRestorebraineLoginUrl = getPlatformLoginUrl;
 
 /**
  * Open OAuth for a provider (Google / Apple / Microsoft) in Capacitor system browser.
- * NativeLoginCard calls this per button — not on app launch.
+ * SignInScreen / navigateToLogin calls this when user taps Continue with Google.
  */
 export const openNativeProviderLogin = (provider = 'google') => {
   if (typeof window === 'undefined') return;
@@ -34,18 +33,14 @@ export const openNativeProviderLogin = (provider = 'google') => {
 };
 
 /**
- * Native-local v4-core: NativeLoginCard handles UI — this opens OAuth when invoked directly.
- * Web / hosted: use platform login page.
+ * Build v4 native: tap Continue with Google → direct OAuth in InAppBrowser.
+ * Web / hosted: platform login page.
  */
 export const openRestorebraineLogin = () => {
   if (typeof window === 'undefined') return;
 
   if (isNativeShell()) {
-    if (LOCAL_NATIVE_BUNDLE) {
-      openNativeProviderLogin('google');
-      return;
-    }
-    openLoginInSystemBrowser(getPlatformLoginUrl(getAuthReturnOrigin()));
+    openNativeProviderLogin('google');
     return;
   }
 

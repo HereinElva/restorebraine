@@ -12,9 +12,8 @@ import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import NativeDebugBadge from '@/components/NativeDebugBadge';
-import NativeLoginCard from '@/components/NativeLoginCard';
+import LoginLogo from '@/components/LoginLogo';
 import { isNativeShell } from '@/lib/native-hosted-redirect';
-import { LOCAL_NATIVE_BUNDLE } from '@/lib/native-bundle-mode';
 
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
@@ -28,7 +27,44 @@ const LayoutWrapper = ({ children, currentPageName }) => Layout ?
   <Layout currentPageName={currentPageName}>{children}</Layout>
   : <>{children}</>;
 
-/** Web redirects to Base44 login; native v4-core shows bundled login card (all providers + email). */
+/** Web redirects to Base44 login; native v4-core shows simple sign-in → Google OAuth in browser. */
+const SignInScreen = ({ onSignIn, clearSignedOut = false }) => (
+  <div
+    style={{
+      position: 'fixed',
+      inset: 0,
+      display: 'flex',
+      flexDirection: 'column',
+      background: 'linear-gradient(135deg,#eff6ff,#f5f3ff,#fdf2f8)',
+      paddingTop: 'max(16px, env(safe-area-inset-top))',
+      paddingBottom: 'max(16px, env(safe-area-inset-bottom))',
+      paddingLeft: 'max(20px, env(safe-area-inset-left))',
+      paddingRight: 'max(20px, env(safe-area-inset-right))',
+      boxSizing: 'border-box',
+    }}
+  >
+    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 0 }}>
+      <div style={{ background: 'white', borderRadius: '24px', padding: '36px 28px', boxShadow: '0 10px 40px rgba(0,0,0,0.1)', maxWidth: '360px', width: '100%', textAlign: 'center' }}>
+        <LoginLogo />
+        <h1 style={{ fontSize: '24px', fontWeight: '700', color: '#111', margin: '0 0 28px' }}>Restorebraine</h1>
+        <button
+          type="button"
+          onClick={() => {
+            if (clearSignedOut) {
+              try { localStorage.removeItem('b44_signed_out'); } catch {}
+            }
+            onSignIn();
+          }}
+          style={{ width: '100%', padding: '14px', background: 'linear-gradient(135deg,#60a5fa,#a78bfa)', color: 'white', border: 'none', borderRadius: '14px', fontSize: '16px', fontWeight: '600', cursor: 'pointer', touchAction: 'manipulation' }}
+        >
+          Continue with Google
+        </button>
+      </div>
+    </div>
+    <NativeDebugBadge />
+  </div>
+);
+
 const LoginGate = ({ onSignIn, clearSignedOut = false }) => {
   const started = useRef(false);
 
@@ -51,31 +87,11 @@ const LoginGate = ({ onSignIn, clearSignedOut = false }) => {
     );
   }
 
-  if (LOCAL_NATIVE_BUNDLE) {
-    return <NativeLoginCard clearSignedOut={clearSignedOut} />;
+  if (isNativeShell()) {
+    return <SignInScreen onSignIn={onSignIn} clearSignedOut={clearSignedOut} />;
   }
 
-  return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg,#eff6ff,#f5f3ff,#fdf2f8)', padding: '24px' }}>
-      <div style={{ background: 'white', borderRadius: '24px', padding: '40px', boxShadow: '0 10px 40px rgba(0,0,0,0.1)', maxWidth: '360px', width: '100%', textAlign: 'center' }}>
-        <h1 style={{ fontSize: '24px', fontWeight: '700', color: '#111', marginBottom: '8px' }}>Restorebraine</h1>
-        <p style={{ color: '#666', marginBottom: '32px', fontSize: '14px' }}>Sign in to continue</p>
-        <button
-          type="button"
-          onClick={() => {
-            if (clearSignedOut) {
-              try { localStorage.removeItem('b44_signed_out'); } catch {}
-            }
-            onSignIn();
-          }}
-          style={{ width: '100%', padding: '14px', background: 'linear-gradient(135deg,#60a5fa,#a78bfa)', color: 'white', border: 'none', borderRadius: '14px', fontSize: '16px', fontWeight: '600', cursor: 'pointer' }}
-        >
-          Sign in
-        </button>
-      </div>
-      <NativeDebugBadge />
-    </div>
-  );
+  return null;
 };
 
 const AuthenticatedApp = () => {
