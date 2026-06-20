@@ -797,6 +797,15 @@ export const redirectNativeToHostedApp = () => {
 
 
 ════════════════════════════════════════════════════════════
+BASE44 PATH: src/lib/native-bundle-mode.js
+ACTION: Open this exact path in the Base44 Code editor → Select All → Paste → Save
+════════════════════════════════════════════════════════════
+// Base44 web publish: keep LOCAL_NATIVE_BUNDLE false (native-local builds set this on Mac only).
+export const LOCAL_NATIVE_BUNDLE = false;
+
+
+
+════════════════════════════════════════════════════════════
 BASE44 PATH: src/lib/native-oauth-fix.js
 ACTION: Open this exact path in the Base44 Code editor → Select All → Paste → Save
 ════════════════════════════════════════════════════════════
@@ -1365,6 +1374,10 @@ export const clearNativeSession = async () => {
 
 
 
+╔════════════════════════════════════════════════════════════╗
+║  PART 3 — Gallery UI + Layout + CSS (paste last, then Publish)║
+╚════════════════════════════════════════════════════════════╝
+
 ════════════════════════════════════════════════════════════
 BASE44 PATH: src/lib/app-branding.js
 ACTION: Open this exact path in the Base44 Code editor → Select All → Paste → Save
@@ -1374,10 +1387,6 @@ export const RESTOREBRAINE_APP_LOGO =
   'https://media.base44.com/images/public/68fdc5f42768c4d045fe1bac/e76571efc_appstore.png';
 
 
-
-╔════════════════════════════════════════════════════════════╗
-║  PART 3 — Gallery UI + Layout + CSS (paste last, then Publish)║
-╚════════════════════════════════════════════════════════════╝
 
 ════════════════════════════════════════════════════════════
 BASE44 PATH: src/components/gallery/MobileGallery.jsx

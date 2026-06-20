@@ -4,6 +4,16 @@ For each block: open BASE44 PATH in Code editor → Select All → Paste code be
 
 
 ════════════════════════════════════════════════════════════
+BASE44 PATH: src/lib/app-branding.js
+ACTION: Open this exact path in the Base44 Code editor → Select All → Paste → Save
+════════════════════════════════════════════════════════════
+/** Branded app logo — matches iOS AppIcon and App Store icon. Layout.jsx inlines this for Base44. */
+export const RESTOREBRAINE_APP_LOGO =
+  'https://media.base44.com/images/public/68fdc5f42768c4d045fe1bac/e76571efc_appstore.png';
+
+
+
+════════════════════════════════════════════════════════════
 BASE44 PATH: src/components/gallery/MobileGallery.jsx
 ACTION: Open this exact path in the Base44 Code editor → Select All → Paste → Save
 ════════════════════════════════════════════════════════════

@@ -22,6 +22,7 @@ const PUBLISH_FILES = [
   'src/api/base44Client.js',
   'src/App.jsx',
   'src/lib/native-hosted-redirect.js',
+  'src/lib/native-bundle-mode.js',
   'src/lib/native-oauth-fix.js',
   'src/lib/native-platform-guard.js',
   'src/lib/native-google-oauth.js',
