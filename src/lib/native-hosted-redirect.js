@@ -1,4 +1,5 @@
 import { DEFAULT_APP_ORIGIN, isAppHost } from './app-domains';
+import { LOCAL_NATIVE_BUNDLE } from './native-bundle-mode';
 
 export const HOSTED_APP_URL = DEFAULT_APP_ORIGIN;
 
@@ -24,6 +25,8 @@ export const isHostedAppOrigin = () => {
 
 /** Native installs should always use the live hosted app — same UI/login as kbrown9000@aol.com */
 export const redirectNativeToHostedApp = () => {
+  // npm run build:native-local — test bundled code on device without loading Base44
+  if (LOCAL_NATIVE_BUNDLE) return false;
   if (!isNativeShell() || isHostedAppOrigin()) return false;
 
   const suffix = `${window.location.pathname}${window.location.search}${window.location.hash}`;
