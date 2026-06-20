@@ -1,18 +1,28 @@
-import { DEFAULT_APP_ORIGIN, isAppHost } from './app-domains';
+import { DEFAULT_APP_ORIGIN, getAppOrigin, isAppHost } from './app-domains';
 import { LOCAL_NATIVE_BUNDLE } from './native-bundle-mode';
+import { Capacitor } from '@capacitor/core';
 
 export const HOSTED_APP_URL = DEFAULT_APP_ORIGIN;
 
 export const isNativeShell = () => {
   try {
-    return typeof window !== 'undefined' && (
-      window.Capacitor?.isNativePlatform?.() ||
-      window.location?.protocol === 'capacitor:' ||
-      window.location?.protocol === 'ionic:'
-    );
+    if (typeof window === 'undefined') return false;
+    if (Capacitor.isNativePlatform()) return true;
+    const { protocol, hostname } = window.location;
+    if (protocol === 'capacitor:' || protocol === 'ionic:') return true;
+    if ((hostname === 'localhost' || hostname === '127.0.0.1') && window.Capacitor) return true;
+    return false;
   } catch {
     return false;
   }
+};
+
+/** Where the Capacitor WebView should land after OAuth — NOT always the hosted URL. */
+export const getNativeWebViewHome = () => {
+  if (typeof window === 'undefined') return DEFAULT_APP_ORIGIN;
+  if (LOCAL_NATIVE_BUNDLE) return `${window.location.origin}/`;
+  if (isNativeShell()) return DEFAULT_APP_ORIGIN;
+  return getAppOrigin();
 };
 
 export const isHostedAppOrigin = () => {
