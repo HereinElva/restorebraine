@@ -17,6 +17,7 @@ fi
 
 bash scripts/mac-discard-build-files.sh 2>/dev/null || true
 git reset --hard "origin/$BRANCH"
+bash scripts/mac-ensure-development-team.sh
 
 echo ""
 echo "Latest commit:"

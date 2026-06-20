@@ -26,12 +26,19 @@ echo ""
 
 export PATH="/opt/homebrew/bin:/usr/local/bin:${PATH:-}"
 
+TEAM=$(bash scripts/mac-resolve-development-team.sh)
+echo "Development team: $TEAM"
+bash scripts/mac-ensure-development-team.sh
+
 xcodebuild \
   -workspace "$WS" \
   -scheme "$SCHEME" \
   -configuration Debug \
   -sdk iphoneos \
   -destination 'generic/platform=iOS' \
+  -allowProvisioningUpdates \
+  DEVELOPMENT_TEAM="$TEAM" \
+  CODE_SIGN_STYLE=Automatic \
   build \
   | tee /tmp/restorebraine-xcodebuild.log
 

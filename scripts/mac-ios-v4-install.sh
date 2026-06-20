@@ -13,6 +13,9 @@ SCHEME="App"
 export PATH="/opt/homebrew/bin:/usr/local/bin:${PATH:-}"
 
 echo "=== Restorebraine v4 INSTALL to iPhone ==="
+TEAM=$(bash scripts/mac-resolve-development-team.sh)
+echo "Development team: $TEAM"
+bash scripts/mac-ensure-development-team.sh
 bash scripts/mac-check-signing.sh || true
 echo ""
 UDID=$(bash scripts/mac-detect-ios-device.sh)
@@ -38,6 +41,8 @@ xcodebuild \
   -configuration Debug \
   -destination "platform=iOS,id=$UDID" \
   -allowProvisioningUpdates \
+  DEVELOPMENT_TEAM="$TEAM" \
+  CODE_SIGN_STYLE=Automatic \
   build 2>&1 | tee "$LOG"
 XCODE_EXIT=${PIPESTATUS[0]}
 set -e
@@ -45,8 +50,16 @@ set -e
 if [ "$XCODE_EXIT" -ne 0 ]; then
   if grep -q 'requires a development team' "$LOG"; then
     echo ""
-    echo "ERROR: No development team — set Signing in Xcode, then Run (Cmd+R)."
-    echo "  open ios/App/App.xcworkspace → App target → Signing & Capabilities → Team"
+    echo "ERROR: Signing failed — development team not accepted."
+    echo "  Tried DEVELOPMENT_TEAM=$TEAM"
+    echo ""
+    echo "Fix in Xcode (one time):"
+    echo "  open ios/App/App.xcworkspace"
+    echo "  App target → Signing & Capabilities → Team → Ariel Layugan"
+    echo "  Product → Run (Cmd+R)"
+    echo ""
+    echo "Or set your team ID:"
+    echo "  RESTOREBRAINE_DEVELOPMENT_TEAM=YOUR_TEAM_ID bash scripts/mac-ios-v4-install.sh"
     exit 1
   fi
   echo "ERROR: xcodebuild failed (exit $XCODE_EXIT) — see $LOG"
