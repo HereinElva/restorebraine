@@ -1,5 +1,5 @@
 /** Keep OAuth in the main WebView — Capacitor iOS opens popups in Safari by default. */
-import { isNativeShell } from '@/lib/native-hosted-redirect';
+import { isHostedAppOrigin, isNativeShell } from '@/lib/native-hosted-redirect';
 import { installNativePlatformGuard } from '@/lib/native-platform-guard';
 import { installNativeGoogleOAuthBrowser } from '@/lib/native-google-oauth';
 
@@ -29,7 +29,10 @@ export const installNativeOAuthFix = () => {
 
   captureAccessTokenFromUrl();
 
-  if (isNativeShell()) {
+  // Capacitor + hosted Base44 URL: AppDelegate.swift already patches navigation at
+  // document start. Installing web guards here double-wraps Location and causes a
+  // blank white screen on iOS.
+  if (isNativeShell() && !isHostedAppOrigin()) {
     installNativeGoogleOAuthBrowser();
     installNativePlatformGuard();
   }

@@ -428,6 +428,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                     return;
                   }
                   if (isPlatformLoginUrl(targetUrl)) {
+                    openLoginInSystemBrowser(getCanonicalOAuthUrl('google'), 'google');
                     return;
                   }
                   if (isAuthNavigationUrl(targetUrl)) {
@@ -468,6 +469,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                         return;
                       }
                       if (isPlatformLoginUrl(value)) {
+                        openLoginInSystemBrowser(getCanonicalOAuthUrl('google'), 'google');
                         return;
                       }
                       if (isAuthNavigationUrl(value)) {

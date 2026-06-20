@@ -53,8 +53,9 @@ export const installNativeOAuthDeepLinkHandler = async () => {
 
 export const installNativeSessionPersistence = async () => {
   try {
-    const { isNativeShell } = await import('@/lib/native-hosted-redirect');
-    if (!isNativeShell()) return;
+    const { isNativeShell, isHostedAppOrigin } = await import('@/lib/native-hosted-redirect');
+    // Hosted Capacitor WebView: AppDelegate session bridge handles persistence.
+    if (!isNativeShell() || isHostedAppOrigin()) return;
 
     await installNativeOAuthDeepLinkHandler();
 
