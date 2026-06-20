@@ -1,4 +1,5 @@
 import './App.css'
+import { useEffect, useRef } from 'react'
 import { Toaster } from "@/components/ui/toaster"
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClientInstance } from '@/lib/query-client'
@@ -10,7 +11,7 @@ import { setupIframeMessaging } from './lib/iframe-messaging';
 import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
-import { isNativeShell } from '@/lib/native-hosted-redirect';
+import { isNativeShell, isHostedAppOrigin } from '@/lib/native-hosted-redirect';
 
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
@@ -25,9 +26,27 @@ const LayoutWrapper = ({ children, currentPageName }) => Layout ?
   <Layout currentPageName={currentPageName}>{children}</Layout>
   : <>{children}</>;
 
-const SignInScreen = ({ onSignIn, clearSignedOut = false }) => {
-  const native = isNativeShell();
+const isNativeLocalBundle = () => isNativeShell() && !isHostedAppOrigin();
 
+const HostedAuthRedirect = ({ onSignIn, clearSignedOut = false }) => {
+  const started = useRef(false);
+  useEffect(() => {
+    if (started.current) return;
+    started.current = true;
+    if (clearSignedOut) {
+      try { localStorage.removeItem('b44_signed_out'); } catch {}
+    }
+    onSignIn();
+  }, [onSignIn, clearSignedOut]);
+  return (
+    <div className="fixed inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 gap-4">
+      <div className="w-8 h-8 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin" />
+      <p className="text-sm text-gray-500">Loading sign in…</p>
+    </div>
+  );
+};
+
+const SignInScreen = ({ onSignIn, clearSignedOut = false }) => {
   return (
   <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg,#eff6ff,#f5f3ff,#fdf2f8)', padding: '24px' }}>
     <div style={{ background: 'white', borderRadius: '24px', padding: '40px', boxShadow: '0 10px 40px rgba(0,0,0,0.1)', maxWidth: '360px', width: '100%', textAlign: 'center' }}>
@@ -39,7 +58,7 @@ const SignInScreen = ({ onSignIn, clearSignedOut = false }) => {
       />
       <h1 style={{ fontSize: '24px', fontWeight: '700', color: '#111', marginBottom: '8px' }}>Restorebraine</h1>
       <p style={{ color: '#666', marginBottom: '32px', fontSize: '14px' }}>
-        {native ? 'Sign in with Google to access your memories' : 'Sign in to access your memories'}
+        Sign in with Google to access your memories
       </p>
       <button
         type="button"
@@ -51,7 +70,7 @@ const SignInScreen = ({ onSignIn, clearSignedOut = false }) => {
         }}
         style={{ width: '100%', padding: '14px', background: 'linear-gradient(135deg,#60a5fa,#a78bfa)', color: 'white', border: 'none', borderRadius: '14px', fontSize: '16px', fontWeight: '600', cursor: 'pointer' }}
       >
-        {native ? 'Continue with Google' : 'Sign In'}
+        Continue with Google
       </button>
     </div>
   </div>
@@ -62,7 +81,9 @@ const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, isAuthenticated, navigateToLogin, manuallyLoggedOut } = useAuth();
 
   if (manuallyLoggedOut) {
-    return <SignInScreen onSignIn={navigateToLogin} />;
+    return isNativeLocalBundle()
+      ? <SignInScreen onSignIn={navigateToLogin} />
+      : <HostedAuthRedirect onSignIn={navigateToLogin} />;
   }
 
   if (isLoadingPublicSettings || isLoadingAuth) {
@@ -79,7 +100,9 @@ const AuthenticatedApp = () => {
   }
 
   if (authError || !isAuthenticated) {
-    return <SignInScreen onSignIn={navigateToLogin} clearSignedOut />;
+    return isNativeLocalBundle()
+      ? <SignInScreen onSignIn={navigateToLogin} clearSignedOut />
+      : <HostedAuthRedirect onSignIn={navigateToLogin} clearSignedOut />;
   }
 
   return (

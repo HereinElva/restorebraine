@@ -193,9 +193,9 @@ export const AuthProvider = ({ children }) => {
 
   const navigateToLogin = () => {
     setManuallyLoggedOut(false);
-    // Base44 support: use SDK redirect on web (base44Client overrides broken custom-domain /login).
-    // Native Capacitor still needs the system browser for Google OAuth.
-    if (isNativeShell()) {
+    // Native-local bundled app: Google OAuth in system browser.
+    // Hosted native + web: same Base44 login flow as restorebraine.base44.app.
+    if (isNativeShell() && !isHostedAppOrigin()) {
       openRestorebraineLogin();
       return;
     }

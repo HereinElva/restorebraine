@@ -1,7 +1,7 @@
 import { createClient } from '@base44/sdk';
 import { appParams, getAppOrigin } from '@/lib/app-params';
 import { getPlatformLoginUrl, openRestorebraineLogin } from '@/lib/auth-urls';
-import { isNativeShell } from '@/lib/native-hosted-redirect';
+import { isNativeShell, isHostedAppOrigin } from '@/lib/native-hosted-redirect';
 
 const { appId, serverUrl, token, functionsVersion } = appParams;
 
@@ -21,7 +21,7 @@ base44.auth.redirectToLogin = (nextUrl) => {
   if (typeof window === 'undefined') {
     return originalRedirectToLogin(nextUrl);
   }
-  if (isNativeShell()) {
+  if (isNativeShell() && !isHostedAppOrigin()) {
     openRestorebraineLogin();
     return;
   }
