@@ -13,14 +13,14 @@ import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import NativeDebugBadge from '@/components/NativeDebugBadge';
 import { NATIVE_BUILD_LABEL } from '@/lib/build-info';
+import { getRestorebraineAppLogo } from '@/lib/app-branding';
 import { isNativeShell } from '@/lib/native-hosted-redirect';
 
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
 const MainPage = mainPageKey ? Pages[mainPageKey] : <></>;
 
-const RESTOREBRAINE_APP_LOGO =
-  'https://media.base44.com/images/public/68fdc5f42768c4d045fe1bac/e76571efc_appstore.png';
+const RESTOREBRAINE_APP_LOGO = getRestorebraineAppLogo();
 
 if (!isNativeShell()) {
   setupIframeMessaging();
@@ -132,6 +132,15 @@ const AuthenticatedApp = () => {
         <div className="fixed inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 gap-4">
           <div className="w-8 h-8 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin" />
           <p className="text-sm text-gray-500">Loading Restorebraine…</p>
+          {isNativeShell() ? (
+            <button
+              type="button"
+              onClick={navigateToLogin}
+              className="mt-2 text-sm font-semibold text-purple-600 underline"
+            >
+              Sign in instead
+            </button>
+          ) : null}
         </div>
         <NativeDebugBadge />
       </>

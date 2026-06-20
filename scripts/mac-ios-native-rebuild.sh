@@ -40,7 +40,7 @@ fi
 
 echo ""
 echo "=== VERIFY on device ==="
-echo "Look for purple badge bottom-left: v96 · native-local"
+echo "Look for purple badge bottom-left: v97 · native-local"
 echo "Login screen shows build label (build v4 bundled shell restored)"
 echo ""
 echo "Next: Xcode -> delete app -> Clean Build Folder -> Run"

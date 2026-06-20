@@ -63,7 +63,10 @@ export const installNativeSessionPersistence = async () => {
     await App.addListener('appStateChange', async ({ isActive }) => {
       if (isActive) {
         if (localStorage.getItem(SIGNED_OUT_KEY) !== '1') {
-          await restoreSessionFromNativeStorage();
+          const token = await restoreSessionFromNativeStorage();
+          if (token) {
+            window.dispatchEvent(new CustomEvent('restorebraine-session-updated', { detail: { token } }));
+          }
         }
         return;
       }

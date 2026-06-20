@@ -5,9 +5,11 @@ import { isGalleryPath, navigateToGallery, persistActiveSession } from "@/lib/ga
 import { useAuth } from "@/lib/AuthContext";
 import { Search, Upload, User, ChevronLeft } from "lucide-react";
 
-/** Inlined for Base44 publish — do not import app-branding.js (easy to forget in editor). */
+/** Inlined for Base44 publish — native uses bundled /AppIcon.png (remote logo blocked on iOS). */
 const RESTOREBRAINE_APP_LOGO =
-  'https://media.base44.com/images/public/68fdc5f42768c4d045fe1bac/e76571efc_appstore.png';
+  typeof window !== 'undefined' && (window.Capacitor?.isNativePlatform?.() || window.location?.protocol === 'capacitor:')
+    ? '/AppIcon.png'
+    : 'https://media.base44.com/images/public/68fdc5f42768c4d045fe1bac/e76571efc_appstore.png';
 import { AnimatePresence, motion } from "framer-motion";
 import { NavigationProvider, useNavigation } from "./components/NavigationContext";
 import { TabStateProvider } from "./components/TabStateContext";

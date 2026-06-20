@@ -35,6 +35,14 @@ function showBootstrapError(message) {
 async function bootstrapNativeLocal() {
   installNativeOAuthFix();
 
+  const { restoreSessionFromNativeStorage, installNativeSessionPersistence } =
+    await import('@/lib/session-bootstrap');
+  try {
+    await restoreSessionFromNativeStorage();
+  } catch (error) {
+    console.warn('Session restore before mount failed:', error);
+  }
+
   const [{ default: React }, { default: ReactDOM }, { default: App }] = await Promise.all([
     import('react'),
     import('react-dom/client'),
@@ -44,18 +52,9 @@ async function bootstrapNativeLocal() {
 
   ReactDOM.createRoot(document.getElementById('root')).render(<App />);
 
-  import('@/lib/session-bootstrap')
-    .then(async ({ restoreSessionFromNativeStorage, installNativeSessionPersistence }) => {
-      try {
-        await restoreSessionFromNativeStorage();
-        await installNativeSessionPersistence();
-      } catch (error) {
-        console.warn('Background session bootstrap failed:', error);
-      }
-    })
-    .catch((error) => {
-      console.warn('Session bootstrap module unavailable:', error);
-    });
+  installNativeSessionPersistence().catch((error) => {
+    console.warn('Native session persistence unavailable:', error);
+  });
 }
 
 async function bootstrapApp() {

@@ -7,6 +7,28 @@ import { getAppOrigin } from '@/lib/app-params';
 import { clearNativeSession, persistSessionToNativeStorage, restoreSessionFromNativeStorage } from '@/lib/session-bootstrap';
 import { isHostedAppOrigin, isNativeShell } from '@/lib/native-hosted-redirect';
 
+const AUTH_TIMEOUT_MS = 8000;
+const NATIVE_AUTH_TIMEOUT_MS = 4000;
+
+const withTimeout = (promise, ms, label) =>
+  Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      setTimeout(() => reject(Object.assign(new Error(`${label} timed out`), { status: 408 })), ms);
+    }),
+  ]);
+
+const readSyncToken = () => {
+  try {
+    if (localStorage.getItem('b44_signed_out') === '1') return null;
+    return localStorage.getItem('base44_access_token') || localStorage.getItem('token');
+  } catch {
+    return null;
+  }
+};
+
+const isNativeLocalShell = () => isNativeShell() && !isHostedAppOrigin();
+
 const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
@@ -22,9 +44,18 @@ export const AuthProvider = ({ children }) => {
     checkAppState();
   }, []);
 
-  // Avoid an infinite white spinner if the Base44 API never responds (common on flaky mobile).
+  useEffect(() => {
+    const onSessionUpdated = () => {
+      checkAppState();
+    };
+    window.addEventListener('restorebraine-session-updated', onSessionUpdated);
+    return () => window.removeEventListener('restorebraine-session-updated', onSessionUpdated);
+  }, []);
+
+  // Avoid an infinite spinner if the Base44 API never responds (common on flaky mobile).
   useEffect(() => {
     let cancelled = false;
+    const timeoutMs = isNativeLocalShell() ? NATIVE_AUTH_TIMEOUT_MS : AUTH_TIMEOUT_MS;
     const timer = setTimeout(() => {
       if (cancelled) return;
       setIsLoadingPublicSettings((loading) => {
@@ -41,7 +72,7 @@ export const AuthProvider = ({ children }) => {
         }
         return false;
       });
-    }, 12000);
+    }, timeoutMs);
     return () => {
       cancelled = true;
       clearTimeout(timer);
@@ -58,6 +89,15 @@ export const AuthProvider = ({ children }) => {
         appParams.token = restoredToken;
       }
 
+      const syncToken = readSyncToken();
+      if (isNativeLocalShell() && !syncToken && !appParams.token) {
+        setIsLoadingAuth(false);
+        setIsLoadingPublicSettings(false);
+        setIsAuthenticated(false);
+        setAuthError({ type: 'auth_required', message: 'Authentication required' });
+        return;
+      }
+
       const appClient = createAxiosClient({
         baseURL: `${appParams.serverUrl}/api/apps/public`,
         headers: { 'X-App-Id': appParams.appId },
@@ -66,7 +106,11 @@ export const AuthProvider = ({ children }) => {
       });
 
       try {
-        const publicSettings = await appClient.get(`/prod/public-settings/by-id/${appParams.appId}`);
+        const publicSettings = await withTimeout(
+          appClient.get(`/prod/public-settings/by-id/${appParams.appId}`),
+          isNativeLocalShell() ? NATIVE_AUTH_TIMEOUT_MS : AUTH_TIMEOUT_MS,
+          'Public settings',
+        );
         setAppPublicSettings(publicSettings);
 
         if (appParams.token) {
@@ -92,6 +136,8 @@ export const AuthProvider = ({ children }) => {
           setAuthError({ type: 'auth_required', message: 'Authentication required' });
         } else if (appParams.token) {
           await checkUserAuth();
+        } else {
+          setAuthError({ type: 'auth_required', message: 'Authentication required' });
         }
 
         setIsLoadingPublicSettings(false);
@@ -99,7 +145,7 @@ export const AuthProvider = ({ children }) => {
       }
     } catch (error) {
       console.error('Unexpected error:', error);
-      setAuthError({ type: 'unknown', message: error.message || 'An unexpected error occurred' });
+      setAuthError({ type: 'auth_required', message: error.message || 'Authentication required' });
       setIsLoadingPublicSettings(false);
       setIsLoadingAuth(false);
     }
@@ -110,7 +156,11 @@ export const AuthProvider = ({ children }) => {
 
     try {
       setIsLoadingAuth(true);
-      const currentUser = await base44.auth.me();
+      const currentUser = await withTimeout(
+        base44.auth.me(),
+        isNativeLocalShell() ? NATIVE_AUTH_TIMEOUT_MS : AUTH_TIMEOUT_MS,
+        'Auth check',
+      );
       setUser(currentUser);
       setIsAuthenticated(true);
       setIsLoadingAuth(false);
