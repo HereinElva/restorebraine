@@ -11,7 +11,7 @@ import DuplicateDetector from "./DuplicateDetector";
 import MobileFolderCard from "./MobileFolderCard";
 import MobileDrawerMenu from "./MobileDrawerMenu";
 import { base44 } from "@/api/base44Client";
-import { BUILD_NUMBER } from "@/lib/build-info";
+import { DEPLOY_BUILD } from "@/deploy-marker";
 
 export default function MobileGallery({
   photos,
@@ -265,7 +265,7 @@ export default function MobileGallery({
   };
 
   return (
-    <div className="min-h-screen pb-24" data-rb-deploy={`v${BUILD_NUMBER}`}>
+    <div className="min-h-screen pb-24" data-rb-deploy={`v${DEPLOY_BUILD}`}>
       {/* Hero Title */}
       <div className="px-4 pt-5 pb-2">
         <h1 className="text-2xl font-bold text-gray-900">
