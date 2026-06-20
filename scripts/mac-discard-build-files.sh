@@ -10,10 +10,10 @@ restore_paths() {
     || true
 }
 
-# Cap-sync bundles block pull when locally modified or untracked — delete and restore from HEAD.
-rm -rf ios/App/App/public/assets
+# Cap-sync bundles block pull when locally modified — delete only, do NOT restore from git
+# (git-tracked ios/public is often stale and causes "no change" on device).
+rm -rf ios/App/App/public
 mkdir -p ios/App/App/public/assets
-restore_paths ios/App/App/public/
 
 restore_paths \
   ios/App/App/BUILD_STAMP.txt \
@@ -25,6 +25,6 @@ restore_paths \
   ios/App/App/capacitor.config.json \
   ios/App/App.xcodeproj/project.pbxproj
 
-git clean -ffdx ios/App/App/public/assets/ 2>/dev/null || true
+git clean -ffdx ios/App/App/public/ 2>/dev/null || true
 
-echo "Discarded local build/config stamp files, Xcode project.pbxproj, and iOS public assets (rm + restore)."
+echo "Discarded local build files (public/ wiped, not restored from git — npm build recreates it)."

@@ -1,13 +1,18 @@
-import { writeFileSync, readFileSync } from 'node:fs';
+import { writeFileSync, readFileSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-const BUILD_NUMBER = 101;
+const buildInfoPath = resolve('src/lib/build-info.js');
+const prev = existsSync(buildInfoPath)
+  ? Number(readFileSync(buildInfoPath, 'utf8').match(/BUILD_NUMBER = (\d+)/)?.[1] ?? 100)
+  : 100;
+const BUILD_NUMBER = prev + 1;
+
 const stamp = new Date().toISOString().slice(0, 16).replace('T', ' ');
 const nativeLabel = `kbrown native v${BUILD_NUMBER} · ${stamp}`;
 const webLabel = `restorebraine web v${BUILD_NUMBER}`;
 
 writeFileSync(
-  resolve('src/lib/build-info.js'),
+  buildInfoPath,
   `export const BASE44_APP_ID = '68fdc5f42768c4d045fe1bac';
 export const BUILD_NUMBER = ${BUILD_NUMBER};
 export const NATIVE_BUILD_LABEL = '${nativeLabel}';

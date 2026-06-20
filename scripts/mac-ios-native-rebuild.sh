@@ -4,13 +4,10 @@ BRANCH="${1:-cursor/fix-native-localhost-oauth-bacf}"
 cd "$(git rev-parse --show-toplevel)"
 
 force_clean_ios_public() {
-  echo "Force-cleaning ios/App/App/public (cap-sync artifacts)..."
-  rm -rf ios/App/App/public/assets
+  echo "Force-cleaning ios/App/App/public (never restore from git — stale bundles cause no-change on device)..."
+  rm -rf ios/App/App/public
   mkdir -p ios/App/App/public/assets
-  git checkout -f HEAD -- ios/App/App/public/ 2>/dev/null \
-    || git restore --worktree ios/App/App/public/ 2>/dev/null \
-    || true
-  git clean -ffdx ios/App/App/public/assets/ 2>/dev/null || true
+  git clean -ffdx ios/App/App/public/ 2>/dev/null || true
 }
 
 echo "=== Restorebraine iOS native-local rebuild ==="
@@ -54,7 +51,7 @@ XCODE_BUILD=$(grep -m1 'CURRENT_PROJECT_VERSION' ios/App/App.xcodeproj/project.p
 echo ""
 echo "=== VERIFY on device ==="
 echo "Look for purple badge bottom-left: v${BUILD_NUM} · native-local"
-echo "Badge should show BUILD_STAMP timestamp matching Terminal output above"
+echo "Badge shows BUILD_STAMP + js: index-*.js (proves which bundle loaded on device)"
 echo "Login: Continue with Google -> Google picker (not app.base44.com welcome page)"
 echo ""
 echo "Next in Xcode (required — otherwise device keeps stale WKWebView cache):"

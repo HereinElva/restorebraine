@@ -62,8 +62,14 @@ if (distHash !== iosHash) {
 const distFiles = new Set(readdirSync(resolve(distDir, 'assets')));
 const iosFiles = new Set(readdirSync(resolve(iosPublicDir, 'assets')));
 const missingOnIos = [...distFiles].filter((file) => !iosFiles.has(file));
+const orphansOnIos = [...iosFiles].filter((file) => !distFiles.has(file));
 if (missingOnIos.length) {
   fail(`ios/public/assets missing ${missingOnIos.length} file(s) from dist — re-run cap sync`);
+}
+if (orphansOnIos.length) {
+  fail(
+    `ios/public/assets has ${orphansOnIos.length} stale orphan(s): ${orphansOnIos.slice(0, 5).join(', ')} — re-run cap sync`,
+  );
 }
 
 const deployDist = getDeployVersion(distIndex);

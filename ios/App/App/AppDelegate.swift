@@ -34,6 +34,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         dataStore.removeData(ofTypes: dataTypes, modifiedSince: .distantPast) { [weak self] in
             defaults.set(stamp, forKey: cacheKey)
             DispatchQueue.main.async {
+                if let bridge = self?.window?.rootViewController as? CAPBridgeViewController {
+                    bridge.webView?.reload()
+                }
                 self?.configureNativeWebView()
             }
         }

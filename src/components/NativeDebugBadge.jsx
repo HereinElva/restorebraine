@@ -16,10 +16,16 @@ export default function NativeDebugBadge() {
   const info = useMemo(() => {
     const origin = typeof window !== 'undefined' ? window.location.origin : '';
     const nativeStamp = typeof window !== 'undefined' ? window.__RESTOREBRAINE_NATIVE_BUILD__ : '';
+    const entryScript = typeof document !== 'undefined'
+      ? [...document.querySelectorAll('script[src*="assets/"]')]
+          .map((el) => el.getAttribute('src')?.split('/').pop())
+          .find(Boolean) ?? 'unknown'
+      : 'unknown';
     return {
       mode: getModeLabel(),
       origin,
       nativeStamp: nativeStamp || NATIVE_BUILD_LABEL,
+      entryScript,
     };
   }, []);
 
@@ -56,6 +62,7 @@ export default function NativeDebugBadge() {
           <div style={{ fontWeight: 700, marginBottom: 4 }}>v{BUILD_NUMBER} · {info.mode}</div>
           <div style={{ opacity: 0.9 }}>{info.origin}</div>
           <div style={{ opacity: 0.75, marginTop: 4, fontSize: '10px' }}>{info.nativeStamp}</div>
+          <div style={{ opacity: 0.7, marginTop: 2, fontSize: '9px' }}>js: {info.entryScript}</div>
           <div style={{ opacity: 0.6, marginTop: 4, fontSize: '9px' }}>tap to minimize</div>
         </>
       ) : (
