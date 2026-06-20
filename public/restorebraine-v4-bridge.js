@@ -929,9 +929,9 @@
             installPlatformGuard();
           } else if (!isBundledNativeOrigin()) {
             installPlatformGuard();
-          } else {
-            interceptNativeSignInClicks();
           }
+          // bundled native (capacitor://localhost): React NativeLoginCard handles all login buttons —
+          // interceptNativeSignInClicks breaks provider + email submit handlers.
           document.addEventListener('visibilitychange', function () {
             if (document.visibilityState === 'hidden') persistToken();
           });

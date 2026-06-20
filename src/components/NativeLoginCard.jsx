@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { useAuth } from '@/lib/AuthContext';
-import { NATIVE_BUILD_LABEL } from '@/lib/build-info';
 import LoginLogo from '@/components/LoginLogo';
 import { openLoginInSystemBrowser } from '@/lib/native-google-oauth';
 import { getGoogleOAuthUrl, getProviderOAuthUrl } from '@/lib/native-platform-guard';
@@ -204,7 +203,6 @@ export default function NativeLoginCard({ clearSignedOut = false }) {
         >
           {mode === 'signup' ? 'Already have an account? Sign in' : "Don't have an account? Sign up"}
         </button>
-        <p style={{ margin: '14px 0 0', color: '#c4b5fd', fontSize: '11px', fontWeight: '600' }}>{NATIVE_BUILD_LABEL}</p>
       </form>
       <NativeDebugBadge />
     </div>
