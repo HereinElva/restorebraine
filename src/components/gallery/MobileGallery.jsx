@@ -352,7 +352,7 @@ export default function MobileGallery({
         ) : activeTab === "folders" ? (
           <div>
             {/* Action buttons — each cell wraps one full-width control */}
-            <div className="grid grid-cols-2 gap-2 mb-5">
+            <div className="grid grid-cols-2 gap-1.5 mb-5">
               <div className="min-w-0 w-full">
                 <OrganizeButton photos={photos} squareStyle />
               </div>

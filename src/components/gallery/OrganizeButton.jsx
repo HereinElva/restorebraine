@@ -22,8 +22,7 @@ import {
   buildMergePrompt,
   photoDataForOrganize,
 } from "@/lib/media-organize";
-import { SQUARE_FOLDER_ACTION_CLASS, SQUARE_FOLDER_ACTION_STYLE } from "./folderActionStyles";
-import { BRAND_GRADIENT_TEXT_CLASS, BrandGradientIcon } from "@/components/ui/BrandGradientIcon";
+import { ORGANIZE_ICON_CLASS, ORGANIZE_LABEL_CLASS, SQUARE_FOLDER_ACTION_CLASS, SQUARE_FOLDER_ACTION_STYLE } from "./folderActionStyles";
 
 const CHUNK_SIZE = 40;
 const CONCURRENCY = 4;
@@ -319,11 +318,11 @@ export default function OrganizeButton({ photos, squareStyle = false }) {
           style={SQUARE_FOLDER_ACTION_STYLE}
         >
           {organizing ? (
-            <BrandGradientIcon Icon={Loader2} className="w-5 h-5 animate-spin" />
+            <Loader2 className={`${ORGANIZE_ICON_CLASS} animate-spin`} />
           ) : (
-            <BrandGradientIcon Icon={Sparkles} className="w-5 h-5" />
+            <Sparkles className={ORGANIZE_ICON_CLASS} />
           )}
-          <span className={BRAND_GRADIENT_TEXT_CLASS} data-rb-organize-label>
+          <span className={ORGANIZE_LABEL_CLASS} data-rb-organize-label>
             {organizing ? "Organizing..." : "Organize"}
           </span>
           {progress && (

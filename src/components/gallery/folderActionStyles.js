@@ -1,8 +1,9 @@
+/** Soft blue→purple tile background (search-bar feel) with a visible edge */
 export const SQUARE_FOLDER_ACTION_CLASS =
-  'w-full min-h-[5.5rem] flex flex-col items-center justify-center gap-1.5 py-4 rounded-2xl bg-white text-gray-700 border border-gray-100 shadow-sm text-sm font-semibold disabled:opacity-50';
+  'w-full min-h-[5.5rem] flex flex-col items-center justify-center gap-1.5 py-4 rounded-2xl bg-gradient-to-br from-blue-50 to-purple-50 text-gray-700 border border-blue-200 shadow-sm text-sm font-semibold disabled:opacity-50';
 
-/** Organize uses the same white tile as other folder actions; gradient is on icon + label only. */
-export const ORGANIZE_FOLDER_ACTION_CLASS = SQUARE_FOLDER_ACTION_CLASS;
+export const ORGANIZE_ICON_CLASS = 'w-5 h-5 text-purple-500';
+export const ORGANIZE_LABEL_CLASS = 'text-purple-600 font-semibold';
 
 export const SQUARE_FOLDER_ACTION_STYLE = {
   width: '100%',
