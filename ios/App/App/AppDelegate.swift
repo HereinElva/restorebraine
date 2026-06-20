@@ -1,5 +1,6 @@
 import UIKit
 import Capacitor
+import WebKit
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -16,7 +17,31 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         defaults.removeObject(forKey: "CapacitorStorage.b44_signed_out")
     }
 
+    /// WKWebView caches capacitor://localhost aggressively — clear when BUILD_STAMP changes
+    /// so a new npm build actually loads on device (not stale JS from a prior install).
+    private func clearWebViewCacheIfBuildChanged() {
+        guard let stampPath = Bundle.main.path(forResource: "BUILD_STAMP", ofType: "txt"),
+              let stamp = try? String(contentsOfFile: stampPath, encoding: .utf8)
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+              !stamp.isEmpty else { return }
+
+        let cacheKey = "restorebraine_webview_cache_stamp"
+        let defaults = UserDefaults.standard
+        guard defaults.string(forKey: cacheKey) != stamp else { return }
+
+        let dataStore = WKWebsiteDataStore.default()
+        let dataTypes = WKWebsiteDataStore.allWebsiteDataTypes()
+        dataStore.removeData(ofTypes: dataTypes, modifiedSince: .distantPast) { [weak self] in
+            defaults.set(stamp, forKey: cacheKey)
+            DispatchQueue.main.async {
+                self?.configureNativeWebView()
+            }
+        }
+    }
+
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
+        clearWebViewCacheIfBuildChanged()
+
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(configureNativeWebView),

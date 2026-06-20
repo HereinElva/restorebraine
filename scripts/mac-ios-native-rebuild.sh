@@ -40,11 +40,19 @@ fi
 
 BUILD_NUM=$(grep -E '^export const BUILD_NUMBER = ' src/lib/build-info.js | sed 's/.*= //;s/;//')
 
+XCODE_BUILD=$(grep -m1 'CURRENT_PROJECT_VERSION' ios/App/App.xcodeproj/project.pbxproj | sed 's/[^0-9]*//g')
+
 echo ""
 echo "=== VERIFY on device ==="
 echo "Look for purple badge bottom-left: v${BUILD_NUM} · native-local"
-echo "Login: brain logo + Sign In button (not infinite loading)"
+echo "Badge should show BUILD_STAMP timestamp matching Terminal output above"
+echo "Login: Continue with Google -> Google picker (not app.base44.com welcome page)"
 echo ""
-echo "Next: Xcode -> delete app -> Clean Build Folder -> Run"
+echo "Next in Xcode (required — otherwise device keeps stale WKWebView cache):"
+echo "  1. Delete Restorebraine from device/simulator"
+echo "  2. Product -> Clean Build Folder (Shift+Cmd+K)"
+echo "  3. If still stale: Xcode -> Settings -> Locations -> Derived Data -> delete App folder"
+echo "  4. Run (Cmd+R) — CFBundleVersion should be ${XCODE_BUILD} (matches v${BUILD_NUM})"
+echo ""
 echo "Native-local = bundled app shell (no Base44 URL bar). Gallery + Back button fixes included."
 echo "For App Store hosted mode instead: bash scripts/mac-ios-hosted-rebuild.sh"

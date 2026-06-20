@@ -1,4 +1,5 @@
 import { LOCAL_NATIVE_BUNDLE } from '@/lib/native-bundle-mode';
+import { NATIVE_BUILD_LABEL } from '@/lib/build-info';
 import { redirectNativeToHostedApp } from '@/lib/native-hosted-redirect';
 import { installNativeOAuthFix } from '@/lib/native-oauth-fix';
 import { redirectBrokenCustomDomainLogin } from '@/lib/auth-urls';
@@ -26,6 +27,7 @@ function markAppMounted() {
 /** Build v4: mount React immediately — never block on Capacitor Preferences before first paint. */
 async function bootstrapNativeLocal() {
   installNativeOAuthFix();
+  window.__RESTOREBRAINE_NATIVE_BUILD__ = NATIVE_BUILD_LABEL;
 
   const mountTimer = setTimeout(() => {
     if (!window.__restorebraineAppMounted) {

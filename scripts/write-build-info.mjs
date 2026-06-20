@@ -1,7 +1,7 @@
 import { writeFileSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-const BUILD_NUMBER = 100;
+const BUILD_NUMBER = 101;
 const stamp = new Date().toISOString().slice(0, 16).replace('T', ' ');
 const nativeLabel = `kbrown native v${BUILD_NUMBER} · ${stamp}`;
 const webLabel = `restorebraine web v${BUILD_NUMBER}`;
@@ -23,6 +23,14 @@ export const DEPLOY_BUILD = ${BUILD_NUMBER};
 );
 
 writeFileSync(resolve('ios/App/App/BUILD_STAMP.txt'), `${nativeLabel}\n`);
+
+const pbxPath = resolve('ios/App/App.xcodeproj/project.pbxproj');
+const pbx = readFileSync(pbxPath, 'utf8');
+const updatedPbx = pbx.replace(/CURRENT_PROJECT_VERSION = \d+;/g, `CURRENT_PROJECT_VERSION = ${BUILD_NUMBER};`);
+if (updatedPbx !== pbx) {
+  writeFileSync(pbxPath, updatedPbx);
+  console.log(`Synced Xcode CURRENT_PROJECT_VERSION → ${BUILD_NUMBER}`);
+}
 
 // native-bundle-mode.js is owned by use-local-native-bundle.mjs — do not overwrite here.
 
