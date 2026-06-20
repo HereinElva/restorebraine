@@ -22,8 +22,9 @@ restore_paths \
   src/deploy-marker.js \
   index.html \
   capacitor.config.json \
-  ios/App/App/capacitor.config.json
+  ios/App/App/capacitor.config.json \
+  ios/App/App.xcodeproj/project.pbxproj
 
 git clean -ffdx ios/App/App/public/assets/ 2>/dev/null || true
 
-echo "Discarded local build/config stamp files and iOS public assets (rm + restore)."
+echo "Discarded local build/config stamp files, Xcode project.pbxproj, and iOS public assets (rm + restore)."

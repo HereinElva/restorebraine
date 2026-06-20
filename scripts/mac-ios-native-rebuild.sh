@@ -20,10 +20,19 @@ bash scripts/mac-discard-build-files.sh
 echo "Pulling $BRANCH ..."
 if ! git pull origin "$BRANCH"; then
   echo ""
-  echo "Pull still blocked — running force clean again..."
+  echo "Pull blocked — Xcode often modifies ios/App/App.xcodeproj/project.pbxproj."
+  echo "Restoring tracked files and retrying..."
   force_clean_ios_public
   bash scripts/mac-discard-build-files.sh
-  git pull origin "$BRANCH"
+  git checkout -f HEAD -- ios/App/App.xcodeproj/project.pbxproj 2>/dev/null \
+    || git restore --staged --worktree ios/App/App.xcodeproj/project.pbxproj 2>/dev/null \
+    || true
+  if ! git pull origin "$BRANCH"; then
+    echo ""
+    echo "Pull still blocked. Run this, then rebuild:"
+    echo "  bash scripts/mac-unblock-pull.sh"
+    exit 1
+  fi
 fi
 
 echo "Building native-local bundle..."
