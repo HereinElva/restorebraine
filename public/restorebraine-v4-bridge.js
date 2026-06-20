@@ -284,6 +284,13 @@
           var oauthBrowserListenerAttached = false;
           function finishOAuthLogin(ib) {
             try { if (ib) ib.close(); } catch (e) {}
+            var token = readToken();
+            if (token) {
+              window.dispatchEvent(new CustomEvent('restorebraine-session-updated', { detail: { token: token } }));
+              window.dispatchEvent(new CustomEvent('restorebraine-native-oauth-complete'));
+            }
+            // v4-core: never full-page reload — React AuthContext handles navigation (avoids white screen).
+            if (isBundledNativeOrigin() && token) return;
             window.location.replace(appHome());
           }
 

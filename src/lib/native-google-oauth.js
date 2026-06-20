@@ -14,6 +14,7 @@ import { LOCAL_NATIVE_BUNDLE } from '@/lib/native-bundle-mode';
 import { persistSessionToNativeStorage } from '@/lib/session-bootstrap';
 import { isNativeShell, getNativeWebViewHome } from '@/lib/native-hosted-redirect';
 import { shouldBlockExternalNavigation, redirectToNativeBundleHome } from '@/lib/native-bundle-shell-guard';
+import { RestorebraineOAuth } from '@/lib/native-oauth-plugin';
 const GOOGLE_OAUTH_PATTERN = /accounts\.google\.com|google\.com\/o\/oauth|oauth2\.googleapis\.com|\/api\/apps\/auth\/login/i;
 
 const SYSTEM_BROWSER_OPTIONS = {
@@ -67,7 +68,10 @@ const finishOAuthLogin = async () => {
   const token = localStorage.getItem('base44_access_token') || localStorage.getItem('token');
   if (token) {
     window.dispatchEvent(new CustomEvent('restorebraine-session-updated', { detail: { token } }));
+    window.dispatchEvent(new CustomEvent('restorebraine-native-oauth-complete'));
   }
+  // v4-core: React AuthContext updates in-place — no reload (reload caused white screen).
+  if (LOCAL_NATIVE_BUNDLE && token) return;
   if (window.location.pathname === '/' && token) return;
   window.location.replace(getNativeWebViewHome());
 };
@@ -77,6 +81,8 @@ export const tryRestoreSessionAfterOAuth = async () => {
   const existing = localStorage.getItem('base44_access_token') || localStorage.getItem('token');
   if (existing && localStorage.getItem('b44_signed_out') !== '1') {
     window.dispatchEvent(new CustomEvent('restorebraine-session-updated', { detail: { token: existing } }));
+    window.dispatchEvent(new CustomEvent('restorebraine-native-oauth-complete'));
+    if (LOCAL_NATIVE_BUNDLE) return true;
     window.location.replace(getNativeWebViewHome());
     return true;
   }
@@ -86,6 +92,8 @@ export const tryRestoreSessionAfterOAuth = async () => {
   if (!token) return false;
 
   window.dispatchEvent(new CustomEvent('restorebraine-session-updated', { detail: { token } }));
+  window.dispatchEvent(new CustomEvent('restorebraine-native-oauth-complete'));
+  if (LOCAL_NATIVE_BUNDLE) return true;
   window.location.replace(getNativeWebViewHome());
   return true;
 };
@@ -188,9 +196,23 @@ const attachOAuthCompletionListener = async () => {
   });
 };
 
+/** Google OAuth via native ASWebAuthenticationSession (works without v4 bridge). */
+const startGoogleOAuthNative = async () => {
+  const pluginUrl = normalizeAuthUrl(getGoogleOAuthUrl(), 'google');
+  window.__restorebraineLastOAuthUrl = pluginUrl;
+  window.__restorebraineOAuthMode = 'asweb-auth';
+  window.__restorebraineOAuthInProgress = true;
+
+  const result = await RestorebraineOAuth.startGoogleOAuth({ url: pluginUrl });
+  const token = result?.token;
+  if (!token) throw new Error('Native OAuth returned no token');
+  await persistSessionToNativeStorage(token);
+  await finishOAuthLogin();
+  return true;
+};
+
 /**
- * v4-core OAuth: delegated to restorebraine-v4-bridge.js (injected at document start).
- * Fallback paths remain for hosted / non-bridge shells only.
+ * v4-core OAuth: native plugin for Google; bridge or WebView for other providers.
  */
 export const openLoginInSystemBrowser = async (url = getGoogleOAuthUrl(), providerHint) => {
   const provider = providerHint || 'google';
@@ -200,6 +222,19 @@ export const openLoginInSystemBrowser = async (url = getGoogleOAuthUrl(), provid
   if (!isNativeShell()) {
     window.location.replace(normalizeAuthUrl(url, providerHint));
     return;
+  }
+
+  if (LOCAL_NATIVE_BUNDLE && provider === 'google') {
+    try {
+      await startGoogleOAuthNative();
+      return;
+    } catch (error) {
+      if (error?.code === 'CANCELED' || /cancel/i.test(error?.message || '')) {
+        window.__restorebraineOAuthInProgress = false;
+        return;
+      }
+      console.warn('RestorebraineOAuth plugin failed — trying bridge/WebView:', error);
+    }
   }
 
   if (LOCAL_NATIVE_BUNDLE && window.__restorebraineSessionBridgeInstalled) {
@@ -214,6 +249,7 @@ export const openLoginInSystemBrowser = async (url = getGoogleOAuthUrl(), provid
   if (LOCAL_NATIVE_BUNDLE) {
     const webViewUrl = normalizeAuthUrl(getWebViewOAuthUrl(provider), provider, { forWebView: true });
     window.__restorebraineLastOAuthUrl = webViewUrl;
+    window.__restorebraineOAuthMode = 'v4-webview';
     await InAppBrowser.openInWebView({ url: webViewUrl, options: DefaultWebViewOptions });
     return;
   }

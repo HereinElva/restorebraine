@@ -24,9 +24,26 @@ function markAppMounted() {
   window.__restorebraineAppMounted = true;
 }
 
+/** Load v4 bridge after React paints — never block first paint with 42KB sync script. */
+function loadV4BridgeScript() {
+  if (typeof window === 'undefined') return;
+  if (window.__restorebraineSessionBridgeInstalled || window.__restorebraineV4BridgeLoading) return;
+  window.__restorebraineV4BridgeLoading = true;
+  const script = document.createElement('script');
+  script.src = '/restorebraine-v4-bridge.js';
+  script.async = true;
+  script.onload = () => {
+    window.__restorebraineV4BridgeLoading = false;
+  };
+  script.onerror = () => {
+    window.__restorebraineV4BridgeLoading = false;
+    console.warn('restorebraine-v4-bridge.js failed to load — OAuth uses native plugin fallback');
+  };
+  document.head.appendChild(script);
+}
+
 /** Build v4: mount React immediately — never block on Capacitor Preferences before first paint. */
 async function bootstrapNativeLocal() {
-  installNativeOAuthFix();
   window.__RESTOREBRAINE_NATIVE_BUILD__ = NATIVE_BUILD_LABEL;
 
   const mountTimer = setTimeout(() => {
@@ -46,6 +63,12 @@ async function bootstrapNativeLocal() {
     ReactDOM.createRoot(document.getElementById('root')).render(<App />);
     markAppMounted();
     clearTimeout(mountTimer);
+
+    // Bridge + OAuth fix after UI is visible (prevents white screen from sync bridge / Location guards).
+    requestAnimationFrame(() => {
+      loadV4BridgeScript();
+      installNativeOAuthFix();
+    });
 
     import('@/lib/session-bootstrap')
       .then(async ({ restoreSessionFromNativeStorage, installNativeSessionPersistence }) => {

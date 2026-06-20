@@ -83,28 +83,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         }
     }
 
-    /// Build v4: inject pre-v94 session bridge from bundled public/restorebraine-v4-bridge.js
-    private func loadV4BridgeBody() -> (body: String, source: String)? {
-        let bundle = Bundle.main
-        var candidates: [(String, String)] = [
-            (bundle.bundleURL.appendingPathComponent("public/restorebraine-v4-bridge.js").path, "appdelegate-public"),
-        ]
-        if let path = bundle.path(forResource: "restorebraine-v4-bridge", ofType: "js", inDirectory: "public") {
-            candidates.append((path, "appdelegate-resource"))
-        }
-        if let path = bundle.path(forResource: "restorebraine-v4-bridge", ofType: "js") {
-            candidates.append((path, "appdelegate-root"))
-        }
-
-        for (path, source) in candidates {
-            guard FileManager.default.fileExists(atPath: path),
-                  let body = try? String(contentsOfFile: path, encoding: .utf8),
-                  body.contains("__restorebraineSessionBridgeInstalled") else { continue }
-            return (body, source)
-        }
-        return nil
-    }
-
+    /// Minimal sync at document start — full bridge loads after React mounts (index.html / main.jsx).
     private func sessionBridgeScript(for buildLabel: String, syncToken: String) -> String {
         let escapedLabel = buildLabel
             .replacingOccurrences(of: "\\", with: "\\\\")
@@ -113,17 +92,11 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             .replacingOccurrences(of: "\\", with: "\\\\")
             .replacingOccurrences(of: "'", with: "\\'")
 
-        guard let loaded = loadV4BridgeBody() else {
-            return """
-            window.__RESTOREBRAINE_V4_BRIDGE_SOURCE__='appdelegate-stub';
-            window.__RESTOREBRAINE_NATIVE_BUILD__='\(escapedLabel)';
-            """
-        }
-
-        var bridgeBody = loaded.body
-        bridgeBody = bridgeBody.replacingOccurrences(of: "SYNC_TOKEN_PLACEHOLDER", with: escapedToken)
-        bridgeBody = bridgeBody.replacingOccurrences(of: "BUILD_LABEL_PLACEHOLDER", with: escapedLabel)
-        return "window.__RESTOREBRAINE_V4_BRIDGE_SOURCE__='\(loaded.source)';\n\(bridgeBody)"
+        return """
+        window.__RESTOREBRAINE_V4_BRIDGE_SOURCE__='appdelegate-sync';
+        window.__RESTOREBRAINE_NATIVE_BUILD__='\(escapedLabel)';
+        window.__RESTOREBRAINE_NATIVE_SYNC_TOKEN__='\(escapedToken)';
+        """
     }
 
     private func configureNativeWebView(_ bridge: CAPBridgeViewController) {
