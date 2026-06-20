@@ -34,6 +34,14 @@ ditto "$SRC_PUBLIC" "$DEST_PUBLIC"
 [ -f "$STAMP" ] && cp "$STAMP" "${DEST_APP}/BUILD_STAMP.txt"
 [ -f "$CONFIG" ] && cp "$CONFIG" "${DEST_APP}/capacitor.config.json"
 
+MANIFEST="${DEST_APP}/DEPLOY_MANIFEST.txt"
+{
+  echo "deployed_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  echo "build_stamp=$(tr -d '\n' < "$STAMP" 2>/dev/null || echo unknown)"
+  echo "entry=${ENTRY}"
+  echo "src_public=${SRC_PUBLIC}"
+} > "$MANIFEST"
+
 # Prove copy landed (catches Xcode skipping stale folder references)
 if [ ! -f "${DEST_PUBLIC}/assets/${ENTRY}" ]; then
   echo "error: copy failed — ${DEST_PUBLIC}/assets/${ENTRY} missing after ditto"

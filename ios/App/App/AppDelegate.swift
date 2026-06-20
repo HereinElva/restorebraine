@@ -30,6 +30,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         guard defaults.string(forKey: cacheKey) != stamp else { return false }
 
         URLCache.shared.removeAllCachedResponses()
+        HTTPCookieStorage.shared.removeCookies(since: .distantPast)
 
         let dataStore = WKWebsiteDataStore.default()
         let dataTypes = WKWebsiteDataStore.allWebsiteDataTypes()

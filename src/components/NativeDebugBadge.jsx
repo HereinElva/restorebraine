@@ -24,12 +24,14 @@ export default function NativeDebugBadge() {
     const htmlStamp = typeof document !== 'undefined'
       ? document.querySelector('meta[name="restorebraine-build-stamp"]')?.getAttribute('content') ?? ''
       : '';
+    const stampMismatch = htmlStamp && !htmlStamp.includes(`v${BUILD_NUMBER}`);
     return {
       mode: getModeLabel(),
       origin,
       nativeStamp: nativeStamp || NATIVE_BUILD_LABEL,
       entryScript,
       htmlStamp,
+      stampMismatch,
     };
   }, []);
 
@@ -68,8 +70,12 @@ export default function NativeDebugBadge() {
           <div style={{ opacity: 0.75, marginTop: 4, fontSize: '10px' }}>{info.nativeStamp}</div>
           <div style={{ opacity: 0.7, marginTop: 2, fontSize: '9px' }}>js: {info.entryScript}</div>
           {info.htmlStamp ? (
-            <div style={{ opacity: 0.65, marginTop: 2, fontSize: '9px' }}>html: {info.htmlStamp.slice(0, 40)}</div>
-          ) : null}
+            <div style={{ opacity: 0.65, marginTop: 2, fontSize: '9px', color: info.stampMismatch ? '#fca5a5' : undefined }}>
+              html: {info.htmlStamp.slice(0, 40)}{info.stampMismatch ? ' STALE' : ''}
+            </div>
+          ) : (
+            <div style={{ opacity: 0.65, marginTop: 2, fontSize: '9px', color: '#fca5a5' }}>html: missing stamp — stale bundle</div>
+          )}
           <div style={{ opacity: 0.6, marginTop: 4, fontSize: '9px' }}>tap to minimize</div>
         </>
       ) : (
