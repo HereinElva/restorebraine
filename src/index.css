@@ -174,9 +174,9 @@ div.grid.grid-cols-2.gap-2.mb-5 [data-rb-folder-action] {
   gap: 0.25rem !important;
   padding: 0.75rem !important;
   border-radius: 1rem !important;
-  background: linear-gradient(to bottom right, rgb(239 246 255), rgb(250 245 255)) !important;
-  border: none !important;
-  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.06) !important;
+  background: linear-gradient(to bottom right, #ffffff 0%, #ffffff 70%, rgb(250 245 255) 100%) !important;
+  border: 1px solid rgb(229 231 235) !important;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.08), 0 1px 2px -1px rgba(0, 0, 0, 0.04) !important;
   font-size: 0.875rem !important;
   font-weight: 600 !important;
   outline: none !important;
@@ -215,8 +215,8 @@ div.grid.grid-cols-2.gap-1\.5.mb-5 button.border-purple-100,
 div.grid.grid-cols-2.gap-1\.5.mb-5 button.border-purple-200,
 div.grid.grid-cols-2.gap-2.mb-5 button.border-purple-100,
 div.grid.grid-cols-2.gap-2.mb-5 button.border-purple-200 {
-  border: none !important;
-  background: linear-gradient(to bottom right, rgb(239 246 255), rgb(250 245 255)) !important;
+  border: 1px solid rgb(229 231 235) !important;
+  background: linear-gradient(to bottom right, #ffffff 0%, #ffffff 70%, rgb(250 245 255) 100%) !important;
 }
 
 div.grid.grid-cols-2.gap-1\.5.mb-5 button span.text-xs,

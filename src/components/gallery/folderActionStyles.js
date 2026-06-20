@@ -1,6 +1,6 @@
-/** Compact tile — gradient fill is the full button (no outer border rim) */
+/** Compact tile — mostly white with a subtle purple hint at the corner */
 export const SQUARE_FOLDER_ACTION_CLASS =
-  'w-full min-h-[4.25rem] flex flex-col items-center justify-center gap-1 py-3 rounded-2xl bg-gradient-to-br from-blue-50 to-purple-50 text-gray-700 border-0 shadow-sm text-sm font-semibold disabled:opacity-50';
+  'w-full min-h-[4.25rem] flex flex-col items-center justify-center gap-1 py-3 rounded-2xl bg-gradient-to-br from-white via-white to-purple-50/60 text-gray-700 border border-gray-200/80 shadow-sm text-sm font-semibold disabled:opacity-50';
 
 export const ORGANIZE_ICON_CLASS = 'w-5 h-5 text-purple-500';
 export const ORGANIZE_LABEL_CLASS = 'text-purple-600 font-semibold';
