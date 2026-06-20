@@ -24,4 +24,5 @@ fi
 
 echo ""
 echo "Next: Xcode -> delete app -> Clean Build Folder -> Run"
-echo "Launch from home screen icon, NOT Safari."
+echo "Native-local = bundled app shell (no Base44 URL bar). Gallery + Back button fixes included."
+echo "For App Store hosted mode instead: bash scripts/mac-ios-hosted-rebuild.sh"

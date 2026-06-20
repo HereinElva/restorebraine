@@ -79,6 +79,39 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
           var FROM_URL = RESTOREBRAINE;
           var APP_LOGIN_URL = RESTOREBRAINE + '/login?from_url=' + encodeURIComponent(FROM_URL) + '&app_id=' + APP_ID + '&prompt=select_account';
 
+          function isBundledNativeOrigin() {
+            try {
+              var host = window.location.hostname;
+              return host === 'localhost' || host === '127.0.0.1';
+            } catch (e) { return false; }
+          }
+
+          function isHostedAppOrigin() {
+            try {
+              var host = window.location.hostname;
+              return host === 'restorebraine.base44.app' || host === 'restorebraine.com' || host === 'www.restorebraine.com';
+            } catch (e) { return false; }
+          }
+
+          function appHome() {
+            try {
+              if (isBundledNativeOrigin() || isHostedAppOrigin()) {
+                return window.location.origin + '/';
+              }
+            } catch (e) {}
+            return RESTOREBRAINE;
+          }
+
+          function injectNativeViewportMeta() {
+            try {
+              if (document.querySelector('meta[name="viewport"][content*="viewport-fit"]')) return;
+              var meta = document.createElement('meta');
+              meta.name = 'viewport';
+              meta.content = 'width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no';
+              (document.head || document.documentElement).appendChild(meta);
+            } catch (e) {}
+          }
+
           function providerFromPath(pathname) {
             if (/\/apple\//i.test(pathname || '')) return 'apple';
             if (/\/microsoft\//i.test(pathname || '')) return 'microsoft';
@@ -166,7 +199,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
           function goToRegularLoginPage() {
             removeNativeSignInOverlay();
-            window.location.replace(RESTOREBRAINE + '/');
+            window.location.replace(appHome() + (appHome().slice(-1) === '/' ? '' : '/'));
           }
 
           function guardSignedOutLoginPage() {
@@ -213,7 +246,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
           function performNativeSignOut() {
             clearNativeSession();
             removeNativeSignInOverlay();
-            window.location.replace(RESTOREBRAINE + '/');
+            window.location.replace(appHome() + (appHome().slice(-1) === '/' ? '' : '/'));
           }
 
           function readToken() {
@@ -300,7 +333,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
           var oauthBrowserListenerAttached = false;
           function finishOAuthLogin(ib) {
             try { if (ib) ib.close(); } catch (e) {}
-            window.location.replace(RESTOREBRAINE);
+            window.location.replace(appHome());
           }
 
           function handleOAuthBrowserUrl(url, ib) {
@@ -361,15 +394,15 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             });
             ib.addListener('browserClosed', function () {
               if (readToken()) {
-                window.location.replace(RESTOREBRAINE);
+                window.location.replace(appHome());
                 return;
               }
               captureAccessTokenFromUrl();
               if (readToken()) {
-                window.location.replace(RESTOREBRAINE);
+                window.location.replace(appHome());
                 return;
               }
-              window.location.replace(RESTOREBRAINE);
+              window.location.replace(appHome());
             });
             ib.addListener('browserPageLoaded', function () {
               if (readToken()) finishOAuthLogin(ib);
@@ -419,7 +452,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                 try {
                   var parsed = new URL(String(targetUrl), window.location.href);
                   if (captureAccessTokenFromUrl(parsed.href)) {
-                    window.location.replace(RESTOREBRAINE);
+                    window.location.replace(appHome());
                     return;
                   }
                   if (isAuthLogoutUrl(targetUrl)) {
@@ -436,7 +469,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                     return;
                   }
                   if (isBase44PlatformHost(parsed.hostname)) {
-                    window.location.replace(RESTOREBRAINE);
+                    window.location.replace(appHome());
                     return;
                   }
                 } catch (e) {
@@ -460,7 +493,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                     try {
                       var parsed = new URL(String(value), window.location.href);
                       if (captureAccessTokenFromUrl(parsed.href)) {
-                        window.location.replace(RESTOREBRAINE);
+                        window.location.replace(appHome());
                         return;
                       }
                       if (isAuthLogoutUrl(value)) {
@@ -477,7 +510,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                         return;
                       }
                       if (isBase44PlatformHost(parsed.hostname)) {
-                        window.location.replace(RESTOREBRAINE);
+                        window.location.replace(appHome());
                         return;
                       }
                     } catch (e) {
@@ -505,7 +538,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                 try {
                   var parsed = new URL(url, window.location.href);
                   if (isBase44PlatformHost(parsed.hostname)) {
-                    window.location.replace(RESTOREBRAINE);
+                    window.location.replace(appHome());
                     return window;
                   }
                 } catch (e) {}
@@ -521,7 +554,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
               if (captureAccessTokenFromUrl()) return;
               if (!isBase44PlatformHost(window.location.hostname)) return;
               if (window.location.pathname.indexOf('/api/apps/auth') === 0) return;
-              window.location.replace(RESTOREBRAINE);
+              window.location.replace(appHome());
             } catch (e) {}
           }
 
@@ -529,7 +562,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             try {
               if (window.location.hostname !== 'accounts.google.com') return;
               if (window.history.length > 1) window.history.back();
-              else window.location.replace(RESTOREBRAINE);
+              else window.location.replace(appHome());
               openLoginInSystemBrowser(getCanonicalOAuthUrl('google'), 'google');
             } catch (e) {}
           }
@@ -851,10 +884,17 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
           window.__RESTOREBRAINE_NATIVE_BUILD__ = '\#(escapedLabel)';
           restoreToken();
           captureAccessTokenFromUrl();
+          injectNativeViewportMeta();
           installOAuthDeepLinkHandler();
           fixRestorebraineBranding();
           fixFolderActionButtons();
-          installPlatformGuard();
+          if (isHostedAppOrigin()) {
+            installPlatformGuard();
+          } else if (!isBundledNativeOrigin()) {
+            installPlatformGuard();
+          } else {
+            interceptNativeSignInClicks();
+          }
           document.addEventListener('visibilitychange', function () {
             if (document.visibilityState === 'hidden') persistToken();
           });
@@ -881,6 +921,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
     @objc private func installSessionBridge() {
         guard let bridge = window?.rootViewController as? CAPBridgeViewController else { return }
+        configureNativeWebView(bridge)
         let userContentController = bridge.webView?.configuration.userContentController
         guard let userContentController = userContentController else { return }
 
@@ -892,6 +933,14 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         userContentController.removeScriptMessageHandler(forName: "restorebraineNativeSession")
         userContentController.add(sessionMessageHandler, name: "restorebraineNativeSession")
         userContentController.addUserScript(script)
+    }
+
+    private func configureNativeWebView(_ bridge: CAPBridgeViewController) {
+        guard let webView = bridge.webView else { return }
+        webView.allowsBackForwardNavigationGestures = false
+        webView.allowsLinkPreview = false
+        webView.scrollView.contentInsetAdjustmentBehavior = .never
+        webView.scrollView.bounces = false
     }
 
     func applicationWillResignActive(_ application: UIApplication) {
