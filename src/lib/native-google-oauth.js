@@ -2,19 +2,26 @@ import { InAppBrowser } from '@capacitor/inappbrowser';
 import {
   getGoogleOAuthUrl,
   getProviderOAuthUrl,
+  getWebViewOAuthUrl,
   NATIVE_OAUTH_CALLBACK,
   isBase44PlatformHost,
   isAuthNavigationUrl,
   isPlatformLoginUrl,
   normalizeAuthUrl,
 } from '@/lib/native-platform-guard';
-import { NATIVE_OAUTH_RETURN_URL } from '@/lib/app-domains';
+import { isAppHost, NATIVE_OAUTH_RETURN_URL } from '@/lib/app-domains';
 import { LOCAL_NATIVE_BUNDLE } from '@/lib/native-bundle-mode';
 import { persistSessionToNativeStorage } from '@/lib/session-bootstrap';
 import { isNativeShell, getNativeWebViewHome } from '@/lib/native-hosted-redirect';
 import { shouldBlockExternalNavigation, redirectToNativeBundleHome } from '@/lib/native-bundle-shell-guard';
 
 const GOOGLE_OAUTH_PATTERN = /accounts\.google\.com|google\.com\/o\/oauth|oauth2\.googleapis\.com|\/api\/apps\/auth\/login/i;
+const GOOGLE_WEBVIEW_BLOCKED = /disallowed_useragent|doesn't comply with Google|403/i;
+
+const WEB_VIEW_OPTIONS = {
+  iOS: { closeButtonText: 2, viewStyle: 2, animationEffect: 2, enableBarsCollapsing: true, enableReadersMode: false },
+  android: { showTitle: false, hideToolbarOnScroll: false, viewStyle: 0, startAnimation: 0, exitAnimation: 1 },
+};
 
 const SYSTEM_BROWSER_OPTIONS = {
   iOS: { closeButtonText: 2, viewStyle: 2, animationEffect: 2, enableBarsCollapsing: true, enableReadersMode: false },
@@ -60,9 +67,12 @@ export const captureOAuthTokenFromUrl = async (url) => {
 };
 
 let oauthListenerAttached = false;
+let oauthWebViewFallbackProvider = null;
 
 const finishOAuthLogin = async () => {
   window.__restorebraineOAuthInProgress = false;
+  window.__restorebraineOAuthWebViewMode = false;
+  oauthWebViewFallbackProvider = null;
   await InAppBrowser.close().catch(() => {});
   const token = localStorage.getItem('base44_access_token') || localStorage.getItem('token');
   if (token) {
@@ -96,8 +106,50 @@ export const handleNativeOAuthCallback = async (url) => {
   return true;
 };
 
+const isHostedOAuthReturn = (url) => {
+  try {
+    const parsed = new URL(String(url), window.location.href);
+    return isAppHost(parsed.hostname) && parsed.searchParams.has('access_token');
+  } catch {
+    return false;
+  }
+};
+
+const shouldFallbackOAuthToSystemBrowser = (url) => {
+  if (!url || !window.__restorebraineOAuthWebViewMode) return false;
+  if (GOOGLE_WEBVIEW_BLOCKED.test(String(url))) return true;
+  try {
+    const parsed = new URL(String(url), window.location.href);
+    if (/accounts\.google\.com/i.test(parsed.hostname) && parsed.pathname.includes('disallowed')) return true;
+  } catch {}
+  return false;
+};
+
+const openOAuthInSystemBrowser = async (url, providerHint) => {
+  window.__restorebraineOAuthWebViewMode = false;
+  const normalizedUrl = normalizeAuthUrl(url, providerHint, { forWebView: false });
+  if (typeof window !== 'undefined') {
+    window.__restorebraineLastOAuthUrl = normalizedUrl;
+    window.__restorebraineOAuthInProgress = true;
+  }
+  oauthListenerAttached = false;
+  await attachOAuthCompletionListener();
+  await InAppBrowser.openInSystemBrowser({ url: normalizedUrl, options: SYSTEM_BROWSER_OPTIONS });
+};
+
 const handleOAuthBrowserNavigation = async (url) => {
   if (!url) return false;
+
+  if (shouldFallbackOAuthToSystemBrowser(url)) {
+    const provider = oauthWebViewFallbackProvider || 'google';
+    await InAppBrowser.close().catch(() => {});
+    await openOAuthInSystemBrowser(
+      provider === 'google' ? getGoogleOAuthUrl() : getProviderOAuthUrl(provider),
+      provider,
+    );
+    return true;
+  }
+
   if (await handleNativeOAuthCallback(url)) return true;
 
   try {
@@ -108,7 +160,7 @@ const handleOAuthBrowserNavigation = async (url) => {
       await finishOAuthLogin();
       return true;
     }
-    if (LOCAL_NATIVE_BUNDLE && isAppHostWithToken(url)) {
+    if (LOCAL_NATIVE_BUNDLE && isHostedOAuthReturn(url)) {
       await redirectToNativeBundleHome(url);
       return true;
     }
@@ -122,15 +174,6 @@ const handleOAuthBrowserNavigation = async (url) => {
   return false;
 };
 
-const isAppHostWithToken = (url) => {
-  try {
-    const parsed = new URL(String(url), window.location.href);
-    return parsed.searchParams.has('access_token');
-  } catch {
-    return false;
-  }
-};
-
 const attachOAuthCompletionListener = async () => {
   if (oauthListenerAttached) return;
   oauthListenerAttached = true;
@@ -142,6 +185,8 @@ const attachOAuthCompletionListener = async () => {
   await InAppBrowser.addListener('browserClosed', async () => {
     oauthListenerAttached = false;
     window.__restorebraineOAuthInProgress = false;
+    window.__restorebraineOAuthWebViewMode = false;
+    oauthWebViewFallbackProvider = null;
     if (await tryRestoreSessionAfterOAuth()) return;
 
     try {
@@ -156,21 +201,38 @@ const attachOAuthCompletionListener = async () => {
   });
 };
 
-/** Google requires SFSafariViewController — redirect uses restorebraine:// so iOS returns to the app. */
+/**
+ * v4-core: OAuth in Capacitor InAppBrowser WebView (stays in app shell).
+ * Captures access_token via browserPageNavigationCompleted on hosted redirect.
+ * Google WebView block → fallback to system browser + restorebraine:// callback.
+ */
 export const openLoginInSystemBrowser = async (url = getGoogleOAuthUrl(), providerHint) => {
-  const normalizedUrl = normalizeAuthUrl(url, providerHint);
   if (typeof window !== 'undefined') {
-    window.__restorebraineLastOAuthUrl = normalizedUrl;
+    window.__restorebraineLastOAuthUrl = url;
     window.__restorebraineOAuthInProgress = true;
+    oauthWebViewFallbackProvider = providerHint || 'google';
   }
   if (!isNativeShell()) {
-    window.location.replace(normalizedUrl);
+    window.location.replace(normalizeAuthUrl(url, providerHint));
     return;
   }
 
   oauthListenerAttached = false;
   await attachOAuthCompletionListener();
-  await InAppBrowser.openInSystemBrowser({ url: normalizedUrl, options: SYSTEM_BROWSER_OPTIONS });
+
+  if (LOCAL_NATIVE_BUNDLE) {
+    const webViewUrl = normalizeAuthUrl(
+      providerHint ? getWebViewOAuthUrl(providerHint) : url,
+      providerHint,
+      { forWebView: true },
+    );
+    window.__restorebraineOAuthWebViewMode = true;
+    window.__restorebraineLastOAuthUrl = webViewUrl;
+    await InAppBrowser.openInWebView({ url: webViewUrl, options: WEB_VIEW_OPTIONS });
+    return;
+  }
+
+  await openOAuthInSystemBrowser(url, providerHint);
 };
 
 const handleAuthNavigation = (url, providerHint) => {
@@ -284,10 +346,14 @@ export const installNativeGoogleOAuthBrowser = () => {
   installLocationNavigationGuard();
 
   const originalOpen = window.open;
-  window.open = function openWithSystemBrowser(url, target, features) {
+  window.open = function openWithInAppBrowser(url, target, features) {
     if (typeof url === 'string' && url.length > 0) {
       if (isPlatformLoginUrl(url) || isAuthNavigationUrl(url)) {
         handleAuthNavigation(isPlatformLoginUrl(url) ? getGoogleOAuthUrl() : url);
+        return window;
+      }
+      if (shouldBlockExternalNavigation(url)) {
+        redirectToNativeBundleHome(String(url));
         return window;
       }
       window.location.assign(url);

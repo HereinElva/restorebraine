@@ -23,30 +23,33 @@ const providerFromLabel = (label = '') => {
   return 'google';
 };
 
-export const getCanonicalOAuthUrl = (provider = 'google') => {
+/** OAuth URL — WebView uses hosted from_url (token captured in-app); system browser uses custom scheme. */
+export const getCanonicalOAuthUrl = (provider = 'google', { forWebView = false } = {}) => {
   const path = provider === 'google'
     ? '/api/apps/auth/login'
     : `/api/apps/auth/${provider}/login`;
   const params = new URLSearchParams({
     app_id: BASE44_APP_ID,
-    from_url: getOAuthReturnUrl(),
+    from_url: forWebView ? getAuthReturnOrigin() : getOAuthReturnUrl(),
     prompt: 'select_account',
   });
   return `${DEFAULT_APP_ORIGIN}${path}?${params.toString()}`;
 };
 
-/** Force a valid OAuth URL — blocks capacitor://, restorebraine://, and app.base44.com from_url values. */
-export const normalizeAuthUrl = (rawUrl, providerHint) => {
+export const getWebViewOAuthUrl = (provider = 'google') => getCanonicalOAuthUrl(provider, { forWebView: true });
+
+/** Force a valid OAuth URL — blocks capacitor:// and app.base44.com from_url values. */
+export const normalizeAuthUrl = (rawUrl, providerHint, { forWebView = false } = {}) => {
   try {
     if (LOCAL_NATIVE_BUNDLE && isPlatformLoginUrl(rawUrl)) {
-      return getCanonicalOAuthUrl('google');
+      return getCanonicalOAuthUrl('google', { forWebView });
     }
     const parsed = new URL(String(rawUrl || ''), typeof window !== 'undefined' ? window.location.href : DEFAULT_APP_ORIGIN);
     if (!isAuthNavigationUrl(rawUrl) && !providerHint && !isPlatformLoginUrl(rawUrl)) return String(rawUrl);
     const provider = providerHint || providerFromPath(parsed.pathname);
-    return getCanonicalOAuthUrl(provider);
+    return getCanonicalOAuthUrl(provider, { forWebView });
   } catch {
-    return getCanonicalOAuthUrl(providerHint || 'google');
+    return getCanonicalOAuthUrl(providerHint || 'google', { forWebView });
   }
 };
 
