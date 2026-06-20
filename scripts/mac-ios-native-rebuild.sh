@@ -53,6 +53,11 @@ else
 fi
 
 BUILD_NUM=$(grep -E '^export const BUILD_NUMBER = ' src/lib/build-info.js | sed 's/.*= //;s/;//')
+if [ "$BUILD_NUM" -le 101 ] 2>/dev/null; then
+  echo ""
+  echo "WARNING: still on v${BUILD_NUM}. Pull latest branch for v102 audit (force Xcode copy public/, auto bump build)."
+  echo "  git fetch origin $BRANCH && git pull origin $BRANCH && bash scripts/mac-ios-native-rebuild.sh"
+fi
 
 XCODE_BUILD=$(grep -m1 'CURRENT_PROJECT_VERSION' ios/App/App.xcodeproj/project.pbxproj | sed 's/[^0-9]*//g')
 
