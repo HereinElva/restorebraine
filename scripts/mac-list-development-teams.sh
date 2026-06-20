@@ -36,5 +36,7 @@ while IFS= read -r team; do
 done <<< "$teams"
 
 echo ""
-echo "Use a specific team for CLI install:"
-echo "  RESTOREBRAINE_DEVELOPMENT_TEAM=YOUR_TEAM_ID bash scripts/mac-ios-v4-install.sh"
+echo "Use a specific team for CLI install (replace with real 10-char ID from list above):"
+echo "  RESTOREBRAINE_DEVELOPMENT_TEAM=V378L53XQP bash scripts/mac-ios-v4-install.sh"
+echo ""
+echo "Do NOT copy YOUR_TEAM_ID literally — that is documentation placeholder text."
