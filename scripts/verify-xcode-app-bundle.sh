@@ -45,24 +45,34 @@ echo ""
 if [ -z "$APP" ]; then
   echo "FAIL: No deployed App.app with public/index.html in DerivedData"
   echo ""
+  if [ "$REPO_STAMP" != missing ] && [ "$REPO_ENTRY" != missing ]; then
+    echo "Repo bundle is READY ($REPO_STAMP) — do NOT rebuild in Terminal."
+    echo "Xcode has not Run to your iPhone yet (only opened/indexed the project)."
+  fi
+  echo ""
   echo "You only have an Index.noindex build (empty shell — NOT installed on device)."
-  echo "You must Run (Cmd+R) to your iPhone in Xcode — Build alone is not enough."
+  echo "You must Run to your iPhone in Xcode — Build alone is not enough."
   echo ""
   NON_INDEX=$(find ~/Library/Developer/Xcode/DerivedData -name 'App.app' -path '*/Build/Products/*' ! -path '*Index.noindex*' -print 2>/dev/null | head -3)
   if [ -n "$NON_INDEX" ]; then
     echo "Non-index App.app exists but has no public/ — copy script did not run:"
     echo "$NON_INDEX" | sed 's/^/  /'
-    echo "  Search Xcode build log for 'Restorebraine DEPLOY OK' or errors from xcode-copy-public-bundle.sh"
+    echo "  Search Xcode build log for Restorebraine DEPLOY OK or xcode-copy-public-bundle.sh errors"
+  else
+    echo "No real App.app in DerivedData yet — press Run in Xcode with your iPhone selected."
   fi
   echo ""
   echo "Index shells (ignore):"
   find ~/Library/Developer/Xcode/DerivedData -name 'App.app' -path '*Index.noindex*' -print 2>/dev/null | head -2 | sed 's/^/  /'
   echo ""
-  echo "Fix:"
-  echo "  1. bash scripts/mac-force-sync.sh   (get latest verify script)"
-  echo "  2. bash scripts/mac-ios-v4-rebuild.sh"
-  echo "  3. Xcode -> Run (Cmd+R) to iPhone"
-  echo "  4. bash scripts/verify-xcode-app-bundle.sh"
+  echo "Fix — Xcode only (skip Terminal rebuild):"
+  echo "  1. open ios/App/App.xcworkspace"
+  echo "  2. Device menu: select your iPhone by name"
+  echo "  3. Delete Restorebraine from the iPhone"
+  echo "  4. Product -> Clean Build Folder"
+  echo "  5. Product -> Run  (keyboard: Cmd+R)"
+  echo "  6. Build log must show: Restorebraine DEPLOY OK"
+  echo "  7. bash scripts/verify-xcode-app-bundle.sh"
   exit 1
 fi
 
