@@ -6,6 +6,7 @@ import WebKit
 class AppDelegate: UIResponder, UIApplicationDelegate {
 
     var window: UIWindow?
+    private var pendingCacheReload = false
 
     private func persistOAuthTokenFromURL(_ url: URL) {
         guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
@@ -17,34 +18,42 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         defaults.removeObject(forKey: "CapacitorStorage.b44_signed_out")
     }
 
-    /// WKWebView caches capacitor://localhost aggressively — clear when BUILD_STAMP changes
-    /// so a new npm build actually loads on device (not stale JS from a prior install).
-    private func clearWebViewCacheIfBuildChanged() {
+    /// WKWebView caches capacitor://localhost aggressively — block briefly on stamp change.
+    private func clearWebViewCacheIfBuildChanged() -> Bool {
         guard let stampPath = Bundle.main.path(forResource: "BUILD_STAMP", ofType: "txt"),
               let stamp = try? String(contentsOfFile: stampPath, encoding: .utf8)
                 .trimmingCharacters(in: .whitespacesAndNewlines),
-              !stamp.isEmpty else { return }
+              !stamp.isEmpty else { return false }
 
         let cacheKey = "restorebraine_webview_cache_stamp"
         let defaults = UserDefaults.standard
-        guard defaults.string(forKey: cacheKey) != stamp else { return }
+        guard defaults.string(forKey: cacheKey) != stamp else { return false }
+
+        URLCache.shared.removeAllCachedResponses()
 
         let dataStore = WKWebsiteDataStore.default()
         let dataTypes = WKWebsiteDataStore.allWebsiteDataTypes()
-        dataStore.removeData(ofTypes: dataTypes, modifiedSince: .distantPast) { [weak self] in
+        let group = DispatchGroup()
+        group.enter()
+        dataStore.removeData(ofTypes: dataTypes, modifiedSince: .distantPast) {
             defaults.set(stamp, forKey: cacheKey)
-            DispatchQueue.main.async {
-                if let bridge = self?.window?.rootViewController as? CAPBridgeViewController {
-                    bridge.webView?.reload()
-                }
-                self?.configureNativeWebView()
-            }
+            group.leave()
         }
+        _ = group.wait(timeout: .now() + 3.0)
+
+        pendingCacheReload = true
+        return true
     }
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-        clearWebViewCacheIfBuildChanged()
+        _ = clearWebViewCacheIfBuildChanged()
 
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(onBridgeDidLoad),
+            name: Notification.Name("CAPBridgeDidLoad"),
+            object: nil
+        )
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(configureNativeWebView),
@@ -55,6 +64,14 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             self.configureNativeWebView()
         }
         return true
+    }
+
+    @objc private func onBridgeDidLoad() {
+        guard pendingCacheReload,
+              let bridge = window?.rootViewController as? CAPBridgeViewController,
+              let webView = bridge.webView else { return }
+        pendingCacheReload = false
+        webView.reload()
     }
 
     @objc private func configureNativeWebView() {

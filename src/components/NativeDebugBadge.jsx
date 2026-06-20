@@ -21,11 +21,15 @@ export default function NativeDebugBadge() {
           .map((el) => el.getAttribute('src')?.split('/').pop())
           .find(Boolean) ?? 'unknown'
       : 'unknown';
+    const htmlStamp = typeof document !== 'undefined'
+      ? document.querySelector('meta[name="restorebraine-build-stamp"]')?.getAttribute('content') ?? ''
+      : '';
     return {
       mode: getModeLabel(),
       origin,
       nativeStamp: nativeStamp || NATIVE_BUILD_LABEL,
       entryScript,
+      htmlStamp,
     };
   }, []);
 
@@ -63,6 +67,9 @@ export default function NativeDebugBadge() {
           <div style={{ opacity: 0.9 }}>{info.origin}</div>
           <div style={{ opacity: 0.75, marginTop: 4, fontSize: '10px' }}>{info.nativeStamp}</div>
           <div style={{ opacity: 0.7, marginTop: 2, fontSize: '9px' }}>js: {info.entryScript}</div>
+          {info.htmlStamp ? (
+            <div style={{ opacity: 0.65, marginTop: 2, fontSize: '9px' }}>html: {info.htmlStamp.slice(0, 40)}</div>
+          ) : null}
           <div style={{ opacity: 0.6, marginTop: 4, fontSize: '9px' }}>tap to minimize</div>
         </>
       ) : (
