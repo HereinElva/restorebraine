@@ -1,4 +1,5 @@
 import './App.css'
+import { useEffect, useRef } from 'react'
 import { Toaster } from "@/components/ui/toaster"
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClientInstance } from '@/lib/query-client'
@@ -27,6 +28,17 @@ const LayoutWrapper = ({ children, currentPageName }) => Layout ?
 
 const SignInScreen = ({ onSignIn, clearSignedOut = false }) => {
   const native = isNativeShell();
+  const autoOpened = useRef(false);
+
+  useEffect(() => {
+    if (!native || autoOpened.current) return;
+    autoOpened.current = true;
+    if (clearSignedOut) {
+      try { localStorage.removeItem('b44_signed_out'); } catch {}
+    }
+    onSignIn();
+  }, [native, onSignIn, clearSignedOut]);
+
   return (
   <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg,#eff6ff,#f5f3ff,#fdf2f8)', padding: '24px' }}>
     <div style={{ background: 'white', borderRadius: '24px', padding: '40px', boxShadow: '0 10px 40px rgba(0,0,0,0.1)', maxWidth: '360px', width: '100%', textAlign: 'center' }}>

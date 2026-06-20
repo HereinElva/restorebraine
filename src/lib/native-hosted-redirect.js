@@ -17,7 +17,13 @@ export const isNativeShell = () => {
 
 export const isHostedAppOrigin = () => {
   try {
-    return typeof window !== 'undefined' && isAppHost(window.location.hostname);
+    if (typeof window === 'undefined') return false;
+    const { protocol, hostname } = window.location;
+    // Bundled native app (capacitor://localhost or https://localhost) is NOT the live hosted site.
+    if (protocol === 'capacitor:' || protocol === 'ionic:') return false;
+    if (LOCAL_NATIVE_BUNDLE) return false;
+    if (hostname === 'localhost' || hostname === '127.0.0.1') return false;
+    return isAppHost(hostname);
   } catch {
     return false;
   }
