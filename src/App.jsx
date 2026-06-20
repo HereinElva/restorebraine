@@ -12,6 +12,7 @@ import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import NativeDebugBadge from '@/components/NativeDebugBadge';
+import { BUILD_NUMBER } from '@/lib/build-info';
 import LoginLogo from '@/components/LoginLogo';
 import { isNativeShell } from '@/lib/native-hosted-redirect';
 import { LOCAL_NATIVE_BUNDLE } from '@/lib/native-bundle-mode';
@@ -83,6 +84,46 @@ const SignInButton = ({ onSignIn, clearSignedOut = false }) => {
   );
 };
 
+/** Runtime proof that the bundled public/ on device matches this JS build. */
+const DeployProof = () => {
+  const [manifest, setManifest] = useState(null);
+  const [manifestError, setManifestError] = useState('');
+
+  useEffect(() => {
+    fetch('./deploy-manifest.json', { cache: 'no-store' })
+      .then((response) => {
+        if (!response.ok) throw new Error(`manifest ${response.status}`);
+        return response.json();
+      })
+      .then(setManifest)
+      .catch((error) => setManifestError(error?.message || 'missing'));
+  }, []);
+
+  const entry = typeof document !== 'undefined'
+    ? document.querySelector('script[src*="assets/"]')?.getAttribute('src')?.split('/').pop() ?? 'unknown'
+    : 'unknown';
+  const manifestBuild = manifest?.buildNumber;
+  const stale = manifestBuild != null && Number(manifestBuild) !== BUILD_NUMBER;
+  const missingManifest = !manifest && manifestError;
+
+  return (
+    <div style={{ margin: '16px 0 0', lineHeight: 1.35 }}>
+      <p style={{ margin: 0, color: stale || missingManifest ? '#dc2626' : '#7c3aed', fontSize: '11px', fontWeight: '700' }}>
+        {stale
+          ? `STALE BUNDLE — js v${BUILD_NUMBER} but device public/ is v${manifestBuild}`
+          : missingManifest
+            ? `STALE BUNDLE — no deploy-manifest (run mac-ios-v4-install)`
+            : `deploy v${BUILD_NUMBER} · ${entry}`}
+      </p>
+      {manifest?.entryHash ? (
+        <p style={{ margin: '4px 0 0', color: '#6b7280', fontSize: '10px', fontWeight: '500' }}>
+          hash {manifest.entryHash} · {manifest.gitCommit ?? '?'}
+        </p>
+      ) : null}
+    </div>
+  );
+};
+
 /** Build v4: bundled sign-in card — user taps, then direct Google OAuth (not app.base44.com/login). */
 const LoginGate = ({ onSignIn, clearSignedOut = false }) => {
   const started = useRef(false);
@@ -126,6 +167,7 @@ const LoginGate = ({ onSignIn, clearSignedOut = false }) => {
         <LoginLogo />
         <h1 style={{ fontSize: '24px', fontWeight: '700', color: '#111', margin: '0 0 28px' }}>Restorebraine</h1>
         <SignInButton onSignIn={onSignIn} clearSignedOut={clearSignedOut} />
+        <DeployProof />
       </div>
       <NativeDebugBadge />
     </div>

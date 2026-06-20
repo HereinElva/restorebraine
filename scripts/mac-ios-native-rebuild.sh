@@ -26,22 +26,33 @@ if [ "$LOCAL" != "$REMOTE" ] && [ "$REMOTE" != unknown ]; then
   echo "NOTE: local branch differs from origin/$BRANCH — pull will update scripts (v102+ audit fixes)"
 fi
 
+# --sync or RESTOREBRAINE_SYNC=1: pull origin before build (legacy behavior).
+SYNC=0
+for arg in "$@"; do
+  [ "$arg" = "--sync" ] && SYNC=1
+done
+[ "${RESTOREBRAINE_SYNC:-0}" = "1" ] && SYNC=1
+
 force_clean_ios_public
 bash scripts/mac-discard-build-files.sh
 
-echo "Syncing to origin/$BRANCH ..."
-git fetch origin "$BRANCH"
-if git diff --quiet HEAD 2>/dev/null \
-  && git diff --cached --quiet HEAD 2>/dev/null \
-  && [ "$(git rev-parse HEAD)" = "$(git rev-parse "origin/$BRANCH")" ]; then
-  echo "Already up to date at $(git rev-parse --short HEAD)."
-else
-  if ! git diff --quiet HEAD 2>/dev/null || ! git diff --cached --quiet HEAD 2>/dev/null; then
-    echo "Discarding local build-artifact changes (build-info, deploy-marker, pbxproj) ..."
-    bash scripts/mac-discard-build-files.sh
+if [ "$SYNC" = "1" ]; then
+  echo "Syncing to origin/$BRANCH ..."
+  git fetch origin "$BRANCH"
+  if git diff --quiet HEAD 2>/dev/null \
+    && git diff --cached --quiet HEAD 2>/dev/null \
+    && [ "$(git rev-parse HEAD)" = "$(git rev-parse "origin/$BRANCH")" ]; then
+    echo "Already up to date at $(git rev-parse --short HEAD)."
+  else
+    if ! git diff --quiet HEAD 2>/dev/null || ! git diff --cached --quiet HEAD 2>/dev/null; then
+      echo "Discarding local build-artifact changes (build-info, deploy-marker, pbxproj) ..."
+      bash scripts/mac-discard-build-files.sh
+    fi
+    git reset --hard "origin/$BRANCH"
+    echo "Synced to: $(git log --oneline -1)"
   fi
-  git reset --hard "origin/$BRANCH"
-  echo "Synced to: $(git log --oneline -1)"
+else
+  echo "Building current checkout (no git reset). Use --sync to pull origin/$BRANCH first."
 fi
 
 echo "Building native-local bundle..."
@@ -71,12 +82,16 @@ echo "Look for purple badge: v${BUILD_NUM} · v4-core"
 echo "Xcode build log MUST show: Restorebraine DEPLOY OK"
 echo "After Run verify: bash scripts/verify-xcode-app-bundle.sh"
 echo ""
-echo "Next in Xcode:"
+echo "npm build done — iPhone NOT updated yet. Run ONE of:"
+echo "  bash scripts/mac-ios-v4-install.sh     (CLI install to connected iPhone)"
+echo "  bash scripts/mac-ios-v4-deploy.sh      (build + install)"
+echo ""
+echo "Or in Xcode:"
 echo "  0. Signing: App target -> Signing & Capabilities -> Team = your Apple ID"
-echo "  1. Delete Restorebraine from device/simulator"
+echo "  1. Delete Restorebraine from device"
 echo "  2. Product -> Clean Build Folder (Shift+Cmd+K)"
 echo "  3. Run (Cmd+R) — CFBundleVersion ${XCODE_BUILD}"
-echo "  4. Full scrub if stale: bash scripts/mac-scrub-ios-deploy.sh"
+echo "  4. Build log MUST show: Restorebraine DEPLOY OK"
 echo ""
 echo "Native-local = bundled app shell (no Base44 URL bar). Gallery + Back button fixes included."
 echo "For App Store hosted mode instead: bash scripts/mac-ios-hosted-rebuild.sh"

@@ -65,6 +65,7 @@ export const captureOAuthTokenFromUrl = async (url) => {
 };
 
 let oauthListenerAttached = false;
+let browserListenerAttached = false;
 
 const withTimeout = (promise, ms, label = 'Operation') =>
   Promise.race([
@@ -92,21 +93,29 @@ const hasRegisteredNativeOAuthPlugin = () => {
   return typeof plugin?.startGoogleOAuth === 'function';
 };
 
+const attachBrowserOAuthListener = async () => {
+  if (browserListenerAttached) return;
+  browserListenerAttached = true;
+  await Browser.addListener('browserFinished', async () => {
+    window.__restorebraineOAuthInProgress = false;
+    await tryRestoreSessionAfterOAuth();
+  });
+};
+
 const openInAppBrowserOAuth = async (oauthUrl, provider) => {
   oauthListenerAttached = false;
   await attachOAuthCompletionListener();
   window.__restorebraineLastOAuthUrl = oauthUrl;
   window.__restorebraineOAuthInProgress = true;
 
-  const tryWebViewFirst = provider === 'platform';
-
-  if (tryWebViewFirst) {
-    window.__restorebraineOAuthMode = 'platform-login-webview';
+  if (LOCAL_NATIVE_BUNDLE) {
+    window.__restorebraineOAuthMode = 'cap-browser';
+    await attachBrowserOAuthListener();
     try {
-      await InAppBrowser.openInWebView({ url: oauthUrl, options: DefaultWebViewOptions });
+      await Browser.open({ url: oauthUrl });
       return;
-    } catch (webviewError) {
-      console.warn('InAppBrowser WebView failed for platform login:', webviewError);
+    } catch (browserError) {
+      console.warn('Capacitor Browser failed, trying InAppBrowser:', browserError);
     }
   }
 
@@ -118,18 +127,15 @@ const openInAppBrowserOAuth = async (oauthUrl, provider) => {
     console.warn('InAppBrowser system browser failed, trying WebView:', systemError);
   }
 
-  if (!tryWebViewFirst) {
-    window.__restorebraineOAuthMode = provider === 'google' ? 'webview-google' : 'webview';
-    try {
-      await InAppBrowser.openInWebView({ url: oauthUrl, options: DefaultWebViewOptions });
-      return;
-    } catch (webviewError) {
-      console.warn('InAppBrowser WebView failed, trying Capacitor Browser:', webviewError);
-    }
+  window.__restorebraineOAuthMode = provider === 'google' ? 'webview-google' : 'webview';
+  try {
+    await InAppBrowser.openInWebView({ url: oauthUrl, options: DefaultWebViewOptions });
+    return;
+  } catch (webviewError) {
+    console.warn('InAppBrowser WebView failed:', webviewError);
   }
 
-  window.__restorebraineOAuthMode = 'browser-fallback';
-  await Browser.open({ url: oauthUrl });
+  throw new Error('Could not open sign in. Rebuild in Xcode and try again.');
 };
 
 const finishOAuthLogin = async () => {
@@ -305,7 +311,13 @@ export const openLoginInSystemBrowser = async (url = getGoogleOAuthUrl(), provid
     : normalizeAuthUrl(url || getCanonicalOAuthUrl(provider), provider);
   window.__restorebraineLastOAuthUrl = oauthUrl;
 
-  if (LOCAL_NATIVE_BUNDLE && provider === 'google' && hasRegisteredNativeOAuthPlugin()) {
+  // v4-core: Browser.open first — native plugin wait caused dead "Opening sign in…" on device.
+  if (LOCAL_NATIVE_BUNDLE) {
+    await openInAppBrowserOAuth(oauthUrl, provider);
+    return;
+  }
+
+  if (provider === 'google' && hasRegisteredNativeOAuthPlugin()) {
     try {
       await withTimeout(startGoogleOAuthNative(), 5000, 'Google OAuth');
       return;
