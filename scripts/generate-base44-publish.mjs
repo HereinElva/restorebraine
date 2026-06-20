@@ -1,9 +1,12 @@
 /**
- * Generates base44-publish-v84.txt — labeled paths + full file contents for Base44 editor.
+ * Generates base44-publish-v{N}.txt — labeled paths + full file contents for Base44 editor.
  * Usage: node scripts/generate-base44-publish.mjs
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { execSync } from 'node:child_process';
+
+execSync('node scripts/embed-login-logo.mjs', { stdio: 'inherit' });
 
 const deployBuild =
   readFileSync(resolve('src/deploy-marker.js'), 'utf8').match(/DEPLOY_BUILD = (\d+)/)?.[1] ?? '?';
@@ -44,8 +47,17 @@ const PARTS = [
   { label: 'PART 3 — Gallery UI + Layout + CSS (paste last, then Publish)', files: FILES.slice(17) },
 ];
 
+function readPublishContent(path) {
+  if (path === 'src/lib/native-bundle-mode.js') {
+    return `// Base44 hosted web — must be false (iOS v4 native uses true via build:native-local)
+export const LOCAL_NATIVE_BUNDLE = false;
+`;
+  }
+  return readFileSync(resolve(path), 'utf8');
+}
+
 function block(path) {
-  const content = readFileSync(resolve(path), 'utf8');
+  const content = readPublishContent(path);
   return [
     '',
     '════════════════════════════════════════════════════════════',
