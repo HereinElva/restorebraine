@@ -61,7 +61,8 @@ if [ ! -f "ios/App/App/public/index.html" ]; then
   echo "ios/App/App/public/ missing — run: bash scripts/mac-ios-v4-rebuild.sh"
 fi
 
-URL_COUNT=$(grep -c '"url"' ios/App/App/capacitor.config.json 2>/dev/null || echo 0)
+URL_COUNT=$(grep -c '"url"' ios/App/App/capacitor.config.json 2>/dev/null || true)
+URL_COUNT=${URL_COUNT:-0}
 echo "server.url in capacitor.config.json: $URL_COUNT (must be 0 for v4-core)"
 
 if [ -d "$HOME/Library/Developer/Xcode/DerivedData" ]; then

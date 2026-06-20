@@ -88,7 +88,8 @@ echo "Found (deployed): $APP"
 APP_STAMP=$(tr -d '\n' < "$APP/BUILD_STAMP.txt" 2>/dev/null || echo missing)
 APP_ENTRY=$(grep -o 'src="\./assets/[^"]*\.js"' "$APP/public/index.html" 2>/dev/null | head -1 | sed 's/.*assets\///;s/"//' || echo missing)
 APP_MANIFEST=$(cat "$APP/DEPLOY_MANIFEST.txt" 2>/dev/null || echo missing)
-URL_IN_CONFIG=$(grep -c '"url"' "$APP/capacitor.config.json" 2>/dev/null || echo 0)
+URL_IN_CONFIG=$(grep -c '"url"' "$APP/capacitor.config.json" 2>/dev/null || true)
+URL_IN_CONFIG=${URL_IN_CONFIG:-0}
 
 echo "App BUILD_STAMP:  $APP_STAMP"
 echo "App entry JS:     $APP_ENTRY"
