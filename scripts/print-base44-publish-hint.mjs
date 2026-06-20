@@ -8,6 +8,7 @@ Base44 does NOT auto-update from GitHub. After git pull + npm run build, you mus
 
 1. Open https://app.base44.com → Restorebraine → Code editor
 2. Sync or paste updated files from your Mac repo (minimum set):
+   - index.html
    - src/index.css
    - src/components/gallery/MobileGallery.jsx
    - src/components/gallery/OrganizeButton.jsx
