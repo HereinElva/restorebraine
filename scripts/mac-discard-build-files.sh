@@ -3,19 +3,27 @@
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 
-git checkout -- \
+restore_paths() {
+  git restore --staged --worktree "$@" 2>/dev/null \
+    || git checkout -f HEAD -- "$@" 2>/dev/null \
+    || git checkout -- "$@" 2>/dev/null \
+    || true
+}
+
+# Cap-sync bundles block pull when locally modified or untracked — delete and restore from HEAD.
+rm -rf ios/App/App/public/assets
+mkdir -p ios/App/App/public/assets
+restore_paths ios/App/App/public/
+
+restore_paths \
   ios/App/App/BUILD_STAMP.txt \
   src/lib/build-info.js \
   src/lib/native-bundle-mode.js \
   src/deploy-marker.js \
   index.html \
   capacitor.config.json \
-  ios/App/App/capacitor.config.json \
-  ios/App/App/public/index.html \
-  ios/App/App/public/assets \
-  2>/dev/null || true
+  ios/App/App/capacitor.config.json
 
-# Remove untracked cap-sync bundles (e.g. index-DAhpVSIf.css from a local build)
-git clean -fd ios/App/App/public/assets/ 2>/dev/null || true
+git clean -ffdx ios/App/App/public/assets/ 2>/dev/null || true
 
-echo "Discarded local build/config stamp files and iOS public assets."
+echo "Discarded local build/config stamp files and iOS public assets (rm + restore)."

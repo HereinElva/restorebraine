@@ -3,13 +3,25 @@ set -euo pipefail
 BRANCH="${1:-cursor/fix-native-localhost-oauth-bacf}"
 cd "$(git rev-parse --show-toplevel)"
 
+force_clean_ios_public() {
+  echo "Force-cleaning ios/App/App/public (cap-sync artifacts)..."
+  rm -rf ios/App/App/public/assets
+  mkdir -p ios/App/App/public/assets
+  git checkout -f HEAD -- ios/App/App/public/ 2>/dev/null \
+    || git restore --worktree ios/App/App/public/ 2>/dev/null \
+    || true
+  git clean -ffdx ios/App/App/public/assets/ 2>/dev/null || true
+}
+
 echo "=== Restorebraine iOS native-local rebuild ==="
+force_clean_ios_public
 bash scripts/mac-discard-build-files.sh
 
 echo "Pulling $BRANCH ..."
 if ! git pull origin "$BRANCH"; then
   echo ""
-  echo "Pull blocked — running deeper clean and retrying once..."
+  echo "Pull still blocked — running force clean again..."
+  force_clean_ios_public
   bash scripts/mac-discard-build-files.sh
   git pull origin "$BRANCH"
 fi
@@ -28,7 +40,7 @@ fi
 
 echo ""
 echo "=== VERIFY on device ==="
-echo "Look for purple badge bottom-left: v95 · native-local"
+echo "Look for purple badge bottom-left: v96 · native-local"
 echo "Login screen shows build label (build v4 bundled shell restored)"
 echo ""
 echo "Next: Xcode -> delete app -> Clean Build Folder -> Run"
