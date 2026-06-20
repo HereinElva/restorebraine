@@ -38,8 +38,8 @@ const FILES = [
 
 const PARTS = [
   { label: 'PART 1 — Boot + auth (paste first)', files: FILES.slice(0, 10) },
-  { label: 'PART 2 — Native OAuth + session', files: FILES.slice(10, 16) },
-  { label: 'PART 3 — Gallery UI + Layout + CSS (paste last, then Publish)', files: FILES.slice(16) },
+  { label: 'PART 2 — Native OAuth + session', files: FILES.slice(10, 17) },
+  { label: 'PART 3 — Gallery UI + Layout + CSS (paste last, then Publish)', files: FILES.slice(17) },
 ];
 
 function block(path) {
