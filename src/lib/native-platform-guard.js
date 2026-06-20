@@ -1,4 +1,5 @@
 import { DEFAULT_APP_ORIGIN, getAppOrigin, getAuthReturnOrigin, isAppHost } from './app-domains';
+import { LOCAL_NATIVE_BUNDLE } from './native-bundle-mode';
 
 export const RESTOREBRAINE_FROM_URL = DEFAULT_APP_ORIGIN;
 export const BASE44_APP_ID = '68fdc5f42768c4d045fe1bac';
@@ -36,8 +37,11 @@ export const getCanonicalOAuthUrl = (provider = 'google') => {
 /** Force a valid OAuth URL — blocks capacitor://, restorebraine://, and app.base44.com from_url values. */
 export const normalizeAuthUrl = (rawUrl, providerHint) => {
   try {
+    if (LOCAL_NATIVE_BUNDLE && isPlatformLoginUrl(rawUrl)) {
+      return getCanonicalOAuthUrl('google');
+    }
     const parsed = new URL(String(rawUrl || ''), typeof window !== 'undefined' ? window.location.href : DEFAULT_APP_ORIGIN);
-    if (!isAuthNavigationUrl(rawUrl) && !providerHint) return String(rawUrl);
+    if (!isAuthNavigationUrl(rawUrl) && !providerHint && !isPlatformLoginUrl(rawUrl)) return String(rawUrl);
     const provider = providerHint || providerFromPath(parsed.pathname);
     return getCanonicalOAuthUrl(provider);
   } catch {
@@ -65,6 +69,15 @@ export const isAuthNavigationUrl = (url) => {
     if (/accounts\.google\.com|google\.com\/o\/oauth|oauth2\.googleapis\.com/i.test(parsed.href)) return true;
     if (isBase44PlatformHost(parsed.hostname) && parsed.pathname.startsWith('/api/apps/auth')) return true;
     if (isAppHost(parsed.hostname) && parsed.pathname.startsWith('/api/apps/auth')) return true;
+  } catch {}
+  return false;
+};
+
+export const isPlatformLoginUrl = (url) => {
+  if (!url) return false;
+  try {
+    const parsed = new URL(String(url), typeof window !== 'undefined' ? window.location.href : DEFAULT_APP_ORIGIN);
+    return isBase44PlatformHost(parsed.hostname) && /\/login/i.test(parsed.pathname);
   } catch {}
   return false;
 };

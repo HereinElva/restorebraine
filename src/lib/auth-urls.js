@@ -1,6 +1,7 @@
 import { isNativeShell } from '@/lib/native-hosted-redirect';
+import { LOCAL_NATIVE_BUNDLE } from '@/lib/native-bundle-mode';
 import { getAuthReturnOrigin } from '@/lib/app-domains';
-import { BASE44_APP_ID, BASE44_PLATFORM_URL } from '@/lib/native-platform-guard';
+import { BASE44_APP_ID, BASE44_PLATFORM_URL, getGoogleOAuthUrl } from '@/lib/native-platform-guard';
 import { openLoginInSystemBrowser } from '@/lib/native-google-oauth';
 
 export { RESTOREBRAINE_FROM_URL, getGoogleOAuthUrl, getCanonicalOAuthUrl } from '@/lib/native-platform-guard';
@@ -22,11 +23,18 @@ export const getPlatformLoginUrl = (fromUrl) => {
 
 export const getRestorebraineLoginUrl = getPlatformLoginUrl;
 
-/** Open Restorebraine login — never the broken custom-domain /login route. */
+/**
+ * Native-local (build v4/v48): skip app.base44.com/login — open Google OAuth directly.
+ * Web / hosted: use platform login page.
+ */
 export const openRestorebraineLogin = () => {
   if (typeof window === 'undefined') return;
 
   if (isNativeShell()) {
+    if (LOCAL_NATIVE_BUNDLE) {
+      openLoginInSystemBrowser(getGoogleOAuthUrl(), 'google');
+      return;
+    }
     openLoginInSystemBrowser(getPlatformLoginUrl(getAuthReturnOrigin()));
     return;
   }

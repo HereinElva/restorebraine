@@ -9,7 +9,7 @@ export const getRestorebraineAppLogo = () => {
       window.Capacitor?.isNativePlatform?.() ||
       window.location?.protocol === 'capacitor:' ||
       window.location?.protocol === 'ionic:';
-    if (isNative) return '/AppIcon.png';
+    if (isNative) return new URL('AppIcon.png', window.location.href).href;
   } catch {}
   return RESTOREBRAINE_APP_LOGO_URL;
 };

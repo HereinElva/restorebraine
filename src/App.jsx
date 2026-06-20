@@ -15,6 +15,7 @@ import NativeDebugBadge from '@/components/NativeDebugBadge';
 import { NATIVE_BUILD_LABEL } from '@/lib/build-info';
 import { getRestorebraineAppLogo } from '@/lib/app-branding';
 import { isNativeShell } from '@/lib/native-hosted-redirect';
+import { LOCAL_NATIVE_BUNDLE } from '@/lib/native-bundle-mode';
 
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
@@ -70,7 +71,7 @@ const SignInButton = ({ onSignIn, clearSignedOut = false }) => {
         cursor: isOpening ? 'wait' : 'pointer',
       }}
     >
-      {isOpening ? 'Opening sign in…' : 'Sign In'}
+      {isOpening ? 'Opening sign in…' : (LOCAL_NATIVE_BUNDLE ? 'Continue with Google' : 'Sign In')}
     </button>
   );
 };
