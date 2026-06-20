@@ -112,6 +112,13 @@ else
   echo "v4-bridge: ${BRIDGE_BYTES} bytes in App.app/public"
 fi
 
+if grep -q 'restorebraine-v4-bridge\.js' "$APP/public/index.html" 2>/dev/null; then
+  echo "FAIL: index.html loads v4-bridge synchronously — causes white screen on launch"
+  FAIL=1
+else
+  echo "OK: index.html uses async bridge load (no sync script)"
+fi
+
 if [ "$FAIL" -eq 0 ]; then
   echo "OK: App.app matches repo — device should show v4-core updates"
 else

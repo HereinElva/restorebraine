@@ -24,19 +24,26 @@ function markAppMounted() {
   window.__restorebraineAppMounted = true;
 }
 
+/** Load v4 bridge after React paints — never block first paint with 42KB sync script (v127). */
 function loadV4BridgeScript() {
   if (typeof window === 'undefined') return;
   if (window.__restorebraineSessionBridgeInstalled || window.__restorebraineV4BridgeLoading) return;
   window.__restorebraineV4BridgeLoading = true;
   const script = document.createElement('script');
-  script.src = '/restorebraine-v4-bridge.js';
+  script.src = './restorebraine-v4-bridge.js';
   script.async = true;
   script.onload = () => {
     window.__restorebraineV4BridgeLoading = false;
+    import('@/lib/native-google-oauth')
+      .then(({ installNativeOAuthListeners }) => installNativeOAuthListeners())
+      .catch((error) => console.warn('OAuth listeners after bridge:', error));
   };
   script.onerror = () => {
     window.__restorebraineV4BridgeLoading = false;
     console.warn('restorebraine-v4-bridge.js failed to load — OAuth uses native plugin fallback');
+    import('@/lib/native-google-oauth')
+      .then(({ installNativeOAuthListeners }) => installNativeOAuthListeners())
+      .catch((error) => console.warn('OAuth listeners unavailable:', error));
   };
   document.head.appendChild(script);
 }
@@ -63,13 +70,10 @@ async function bootstrapNativeLocal() {
     markAppMounted();
     clearTimeout(mountTimer);
 
-    // Bridge + OAuth listeners after UI is visible.
+    // Bridge after UI is visible — sync bridge in index.html causes white screen (v127).
     requestAnimationFrame(() => {
       loadV4BridgeScript();
       installNativeOAuthFix();
-      import('@/lib/native-google-oauth')
-        .then(({ installNativeOAuthListeners }) => installNativeOAuthListeners())
-        .catch((error) => console.warn('OAuth listeners unavailable:', error));
     });
 
     import('@/lib/session-bootstrap')

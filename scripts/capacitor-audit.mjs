@@ -145,6 +145,14 @@ if (v4Bridge && v4Bridge.includes('__restorebraineSessionBridgeInstalled')) {
   bump();
 }
 
+const iosIndex = read('ios/App/App/public/index.html');
+if (iosIndex && /restorebraine-v4-bridge\.js/.test(iosIndex)) {
+  fail('index.html has sync v4-bridge script — causes white screen; bridge loads async in main.jsx');
+  bump();
+} else if (iosIndex) {
+  ok('index.html has no sync v4-bridge (async load OK)');
+}
+
 // 7. Git-tracked stale public risk
 try {
   const { execSync } = await import('node:child_process');

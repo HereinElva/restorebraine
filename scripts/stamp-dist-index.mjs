@@ -28,18 +28,10 @@ html = html.replace(
 writeFileSync(distIndex, html);
 console.log(`OK: stamped dist/index.html (v${buildNum})`);
 
-// Build v4: load OAuth bridge before React so __restorebraineOpenLogin is ready on first tap.
-if (existsSync(distBridge) && !html.includes('restorebraine-v4-bridge.js')) {
-  html = readFileSync(distIndex, 'utf8');
-  const bridgeTag = '<script src="./restorebraine-v4-bridge.js"></script>';
-  if (html.includes('<script type="module"')) {
-    html = html.replace(
-      /(<script type="module"[^>]*>)/,
-      `${bridgeTag}\n    $1`,
-    );
-    writeFileSync(distIndex, html);
-    console.log('OK: injected restorebraine-v4-bridge.js before app bundle');
-  }
+// v4-bridge must load ASYNC after React (sync script in index.html causes white screen — v127).
+if (html.includes('restorebraine-v4-bridge.js')) {
+  console.error('FAIL: index.html must not include sync restorebraine-v4-bridge.js — use main.jsx async load');
+  process.exit(1);
 }
 
 if (existsSync(distBridge)) {
