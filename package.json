@@ -11,7 +11,7 @@
     "mac:pre-upload": "bash scripts/mac-pre-upload-checklist.sh",
     "mac:verify-icon": "bash scripts/mac-verify-archive-icon.sh",
     "build:web": "node scripts/write-build-info.mjs && node scripts/ensure-app-icon.mjs && node scripts/sync-app-icon.mjs && vite build",
-    "build:native-local": "node scripts/write-build-info.mjs && node scripts/use-local-native-bundle.mjs --local && npm run ios:icons && node scripts/sync-app-icon.mjs && vite build && node scripts/stamp-dist-index.mjs && node scripts/write-deploy-manifest.mjs && node scripts/patch-native-purchases-podspec.mjs && node scripts/cap-sync-ios-clean.mjs && CAPACITOR_LOCAL=1 node scripts/verify-ios-sync.mjs && node scripts/verify-capacitor-ios-bundle.mjs && node scripts/verify-ios-icons.mjs && node scripts/verify-native-bundle-flag.mjs && CAPACITOR_LOCAL=1 node scripts/capacitor-audit.mjs",
+    "build:native-local": "node scripts/write-build-info.mjs && node scripts/use-local-native-bundle.mjs --local && npm run ios:icons && node scripts/sync-app-icon.mjs && vite build && node scripts/stamp-dist-index.mjs && node scripts/patch-native-purchases-podspec.mjs && node scripts/cap-sync-ios-clean.mjs && node scripts/write-deploy-manifest.mjs && CAPACITOR_LOCAL=1 node scripts/verify-ios-sync.mjs && node scripts/verify-capacitor-ios-bundle.mjs && node scripts/verify-ios-icons.mjs && node scripts/verify-native-bundle-flag.mjs && CAPACITOR_LOCAL=1 node scripts/capacitor-audit.mjs",
     "build:v4-native": "npm run build:native-local",
     "mac:nuclear-scrub": "bash scripts/mac-nuclear-scrub.sh",
     "mac:v4-build": "bash scripts/mac-ios-v4-build.sh",

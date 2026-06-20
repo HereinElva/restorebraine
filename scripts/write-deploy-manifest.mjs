@@ -11,17 +11,27 @@ const distDir = resolve('dist');
 const buildInfoPath = resolve('src/lib/build-info.js');
 const stampPath = resolve('ios/App/App/BUILD_STAMP.txt');
 
+const readEntryFromIndex = (indexHtmlPath) => {
+  if (!existsSync(indexHtmlPath)) return { entry: 'unknown', entryPath: null };
+  const html = readFileSync(indexHtmlPath, 'utf8');
+  const entry = html.match(/src="\.\/assets\/([^"]+\.js)"/)?.[1] ?? 'unknown';
+  const baseDir = resolve(indexHtmlPath, '..');
+  const entryPath = entry !== 'unknown' ? resolve(baseDir, 'assets', entry) : null;
+  return { entry, entryPath };
+};
+
 const buildInfo = readFileSync(buildInfoPath, 'utf8');
 const buildNumber = buildInfo.match(/BUILD_NUMBER = (\d+)/)?.[1] ?? '?';
 const stamp = existsSync(stampPath) ? readFileSync(stampPath, 'utf8').trim() : '';
-const indexPath = resolve(publicDir, 'index.html');
-const entry = existsSync(indexPath)
-  ? indexPath.match(/src="\.\/assets\/([^"]+\.js)"/)?.[1] ?? 'unknown'
-  : 'unknown';
+
+// Prefer ios public after cap sync; fall back to dist during early pipeline runs.
+let { entry, entryPath } = readEntryFromIndex(resolve(publicDir, 'index.html'));
+if (entry === 'unknown') {
+  ({ entry, entryPath } = readEntryFromIndex(resolve(distDir, 'index.html')));
+}
 
 let entryHash = '';
-const entryPath = resolve(publicDir, 'assets', entry);
-if (existsSync(entryPath)) {
+if (entryPath && existsSync(entryPath)) {
   entryHash = createHash('sha256').update(readFileSync(entryPath)).digest('hex').slice(0, 16);
 }
 
