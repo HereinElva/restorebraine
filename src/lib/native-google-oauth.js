@@ -109,14 +109,34 @@ const isHostedOAuthReturn = (url) => {
 };
 
 const openOAuthInSystemBrowser = async (url, providerHint) => {
-  const normalizedUrl = normalizeAuthUrl(url, providerHint, { forWebView: false });
+  // Build v4 fallback: hosted from_url so OAuth sheet can return via restorebraine:// deep link.
+  const normalizedUrl = normalizeAuthUrl(
+    url || getWebViewOAuthUrl(providerHint || 'google'),
+    providerHint,
+    { forWebView: true },
+  );
   if (typeof window !== 'undefined') {
     window.__restorebraineLastOAuthUrl = normalizedUrl;
+    window.__restorebraineOAuthMode = 'v4-system-browser';
     window.__restorebraineOAuthInProgress = true;
   }
   oauthListenerAttached = false;
   await attachOAuthCompletionListener();
-  await InAppBrowser.openInSystemBrowser({ url: normalizedUrl, options: SYSTEM_BROWSER_OPTIONS });
+
+  for (let attempt = 0; attempt < 60; attempt += 1) {
+    try {
+      const plugin = window.Capacitor?.Plugins?.InAppBrowser;
+      if (plugin?.openInSystemBrowser) {
+        await plugin.openInSystemBrowser({ url: normalizedUrl, options: SYSTEM_BROWSER_OPTIONS });
+      } else {
+        await InAppBrowser.openInSystemBrowser({ url: normalizedUrl, options: SYSTEM_BROWSER_OPTIONS });
+      }
+      return;
+    } catch (error) {
+      if (attempt === 59) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+  }
 };
 
 const handleOAuthBrowserNavigation = async (url) => {
@@ -173,14 +193,15 @@ const attachOAuthCompletionListener = async () => {
 const isGoogleProvider = (providerHint, url) =>
   providerHint === 'google' || !providerHint || isGoogleOAuthUrl(url);
 
-/** Google on v4-core: native Capacitor plugin + ASWebAuthenticationSession (never full Safari). */
+/** Google on v4-core: native plugin first, then build-v4 system browser (hosted from_url). */
 const startGoogleOAuthNative = async (providerHint) => {
-  const oauthUrl = normalizeAuthUrl(getGoogleOAuthUrl(), providerHint || 'google', { forWebView: false });
-  window.__restorebraineLastOAuthUrl = oauthUrl;
+  const pluginUrl = normalizeAuthUrl(getGoogleOAuthUrl(), providerHint || 'google', { forWebView: false });
+  window.__restorebraineLastOAuthUrl = pluginUrl;
   window.__restorebraineOAuthInProgress = true;
 
   try {
-    const result = await RestorebraineOAuth.startGoogleOAuth({ url: oauthUrl });
+    window.__restorebraineOAuthMode = 'native-plugin';
+    const result = await RestorebraineOAuth.startGoogleOAuth({ url: pluginUrl });
     const token = result?.token;
     if (!token) throw new Error('Native OAuth returned no token');
     await persistSessionToNativeStorage(token);
@@ -191,8 +212,8 @@ const startGoogleOAuthNative = async (providerHint) => {
       window.__restorebraineOAuthInProgress = false;
       return false;
     }
-    console.warn('Native OAuth plugin failed, falling back to system browser:', error);
-    await openOAuthInSystemBrowser(oauthUrl, 'google');
+    console.warn('RestorebraineOAuth plugin unavailable — using build v4 system browser:', error);
+    await openOAuthInSystemBrowser(getWebViewOAuthUrl('google'), 'google');
     return true;
   }
 };

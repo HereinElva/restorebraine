@@ -7,6 +7,14 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
     var window: UIWindow?
     private var pendingCacheReload = false
+    private var sessionBridgeInstalled = false
+
+    private func storedNativeToken() -> String? {
+        let defaults = UserDefaults.standard
+        if defaults.string(forKey: "CapacitorStorage.b44_signed_out") == "1" { return nil }
+        return defaults.string(forKey: "CapacitorStorage.base44_access_token")
+            ?? defaults.string(forKey: "CapacitorStorage.token")
+    }
 
     private func persistOAuthTokenFromURL(_ url: URL) {
         guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
@@ -18,15 +26,70 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         defaults.removeObject(forKey: "CapacitorStorage.b44_signed_out")
     }
 
-    private func notifyOAuthComplete() {
+    /// Build v4 flow: push token into WebView localStorage immediately (before React auth check).
+    private func notifyOAuthComplete(with token: String? = nil) {
+        let activeToken = token ?? storedNativeToken()
+        guard let activeToken, !activeToken.isEmpty else {
+            DispatchQueue.main.async {
+                guard let bridge = self.window?.rootViewController as? CAPBridgeViewController,
+                      let webView = bridge.webView else { return }
+                webView.evaluateJavaScript(
+                    "window.dispatchEvent(new CustomEvent('restorebraine-native-oauth-complete'));",
+                    completionHandler: nil
+                )
+            }
+            return
+        }
+
+        let escaped = activeToken
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "'", with: "\\'")
+        let js = """
+        (function(){
+          try {
+            localStorage.removeItem('b44_signed_out');
+            localStorage.setItem('base44_access_token','\(escaped)');
+            localStorage.setItem('token','\(escaped)');
+            window.dispatchEvent(new CustomEvent('restorebraine-session-updated',{detail:{token:'\(escaped)'}}));
+            window.dispatchEvent(new CustomEvent('restorebraine-native-oauth-complete'));
+          } catch(e) {}
+        })();
+        """
         DispatchQueue.main.async {
             guard let bridge = self.window?.rootViewController as? CAPBridgeViewController,
                   let webView = bridge.webView else { return }
-            webView.evaluateJavaScript(
-                "window.dispatchEvent(new CustomEvent('restorebraine-native-oauth-complete'));",
-                completionHandler: nil
-            )
+            webView.evaluateJavaScript(js, completionHandler: nil)
         }
+    }
+
+    private func sessionBridgeScript(syncToken: String) -> String {
+        let escaped = syncToken
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "'", with: "\\'")
+        guard let bridgePath = Bundle.main.path(forResource: "capacitor-v4-session-bridge", ofType: "js", inDirectory: "public"),
+              let bridgeBody = try? String(contentsOfFile: bridgePath, encoding: .utf8) else {
+            return "window.__RESTOREBRAINE_NATIVE_SYNC_TOKEN__='\(escaped)';"
+        }
+        return "window.__RESTOREBRAINE_NATIVE_SYNC_TOKEN__='\(escaped)';\n\(bridgeBody)"
+    }
+
+    @objc private func installSessionBridge() {
+        guard let bridge = window?.rootViewController as? CAPBridgeViewController,
+              let webView = bridge.webView else { return }
+
+        webView.allowsLinkPreview = false
+        webView.scrollView.contentInsetAdjustmentBehavior = .automatic
+
+        guard !sessionBridgeInstalled else { return }
+        sessionBridgeInstalled = true
+
+        let token = storedNativeToken() ?? ""
+        let script = WKUserScript(
+            source: sessionBridgeScript(syncToken: token),
+            injectionTime: .atDocumentStart,
+            forMainFrameOnly: true
+        )
+        webView.configuration.userContentController.addUserScript(script)
     }
 
     /// WKWebView caches capacitor://localhost aggressively — block briefly on stamp change.
@@ -54,6 +117,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         _ = group.wait(timeout: .now() + 3.0)
 
         pendingCacheReload = true
+        sessionBridgeInstalled = false
         return true
     }
 
@@ -68,12 +132,12 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         )
         NotificationCenter.default.addObserver(
             self,
-            selector: #selector(configureNativeWebView),
+            selector: #selector(installSessionBridge),
             name: Notification.Name("CAPBridgeDidLoad"),
             object: nil
         )
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-            self.configureNativeWebView()
+            self.installSessionBridge()
         }
         return true
     }
@@ -86,17 +150,10 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         webView.reload()
     }
 
-    @objc private func configureNativeWebView() {
-        guard let bridge = window?.rootViewController as? CAPBridgeViewController,
-              let webView = bridge.webView else { return }
-        webView.allowsLinkPreview = false
-        webView.scrollView.contentInsetAdjustmentBehavior = .automatic
-    }
-
     func application(_ app: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey: Any] = [:]) -> Bool {
         persistOAuthTokenFromURL(url)
-        if url.scheme == "restorebraine" {
-            notifyOAuthComplete()
+        if url.scheme == "restorebraine" || url.absoluteString.contains("access_token=") {
+            notifyOAuthComplete(with: storedNativeToken())
         }
         return ApplicationDelegateProxy.shared.application(app, open: url, options: options)
     }
@@ -104,6 +161,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     func application(_ application: UIApplication, continue userActivity: NSUserActivity, restorationHandler: @escaping ([UIUserActivityRestoring]?) -> Void) -> Bool {
         if userActivity.activityType == NSUserActivityTypeBrowsingWeb, let url = userActivity.webpageURL {
             persistOAuthTokenFromURL(url)
+            notifyOAuthComplete(with: storedNativeToken())
         }
         return ApplicationDelegateProxy.shared.application(application, continue: userActivity, restorationHandler: restorationHandler)
     }

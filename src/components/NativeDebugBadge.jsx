@@ -69,6 +69,11 @@ export default function NativeDebugBadge() {
           <div style={{ opacity: 0.9 }}>{info.origin}</div>
           <div style={{ opacity: 0.75, marginTop: 4, fontSize: '10px' }}>{info.nativeStamp}</div>
           <div style={{ opacity: 0.7, marginTop: 2, fontSize: '9px' }}>js: {info.entryScript}</div>
+          {typeof window !== 'undefined' && window.__restorebraineOAuthMode ? (
+            <div style={{ opacity: 0.65, marginTop: 2, fontSize: '9px' }}>
+              oauth: {window.__restorebraineOAuthMode}
+            </div>
+          ) : null}
           {typeof window !== 'undefined' && window.__restorebraineLastOAuthUrl ? (
             <div style={{ opacity: 0.65, marginTop: 2, fontSize: '9px', wordBreak: 'break-all' }}>
               oauth: {String(window.__restorebraineLastOAuthUrl).slice(0, 48)}…
