@@ -1,5 +1,5 @@
 import './App.css'
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Toaster } from "@/components/ui/toaster"
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClientInstance } from '@/lib/query-client'
@@ -12,6 +12,7 @@ import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import NativeDebugBadge from '@/components/NativeDebugBadge';
+import { NATIVE_BUILD_LABEL } from '@/lib/build-info';
 import { isNativeShell } from '@/lib/native-hosted-redirect';
 
 const { Pages, Layout, mainPage } = pagesConfig;
@@ -21,13 +22,60 @@ const MainPage = mainPageKey ? Pages[mainPageKey] : <></>;
 const RESTOREBRAINE_APP_LOGO =
   'https://media.base44.com/images/public/68fdc5f42768c4d045fe1bac/e76571efc_appstore.png';
 
-setupIframeMessaging();
+if (!isNativeShell()) {
+  setupIframeMessaging();
+}
 
 const LayoutWrapper = ({ children, currentPageName }) => Layout ?
   <Layout currentPageName={currentPageName}>{children}</Layout>
   : <>{children}</>;
 
-/** Web redirects to Base44 login immediately; native shows a Sign in button (no auto-open). */
+const signInButtonStyle = {
+  width: '100%',
+  padding: '14px',
+  background: 'linear-gradient(135deg,#60a5fa,#a78bfa)',
+  color: 'white',
+  border: 'none',
+  borderRadius: '14px',
+  fontSize: '16px',
+  fontWeight: '600',
+  cursor: 'pointer',
+};
+
+const SignInButton = ({ onSignIn, clearSignedOut = false }) => {
+  const [isOpening, setIsOpening] = useState(false);
+
+  const handleClick = () => {
+    if (isOpening) return;
+    setIsOpening(true);
+    if (clearSignedOut) {
+      try { localStorage.removeItem('b44_signed_out'); } catch {}
+    }
+    try {
+      onSignIn();
+    } catch (error) {
+      console.error('Sign-in failed to open', error);
+      setIsOpening(false);
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={handleClick}
+      disabled={isOpening}
+      style={{
+        ...signInButtonStyle,
+        opacity: isOpening ? 0.75 : 1,
+        cursor: isOpening ? 'wait' : 'pointer',
+      }}
+    >
+      {isOpening ? 'Opening sign in…' : 'Sign In'}
+    </button>
+  );
+};
+
+/** Web redirects immediately; native uses build-v4 bundled shell with manual Sign In (no auto-open). */
 const LoginGate = ({ onSignIn, clearSignedOut = false }) => {
   const started = useRef(false);
 
@@ -61,20 +109,10 @@ const LoginGate = ({ onSignIn, clearSignedOut = false }) => {
         />
         <h1 style={{ fontSize: '24px', fontWeight: '700', color: '#111', marginBottom: '8px' }}>Restorebraine</h1>
         <p style={{ color: '#666', marginBottom: '32px', fontSize: '14px' }}>
-          Sign in to continue
+          Sign in to access your memories
         </p>
-        <button
-          type="button"
-          onClick={() => {
-            if (clearSignedOut) {
-              try { localStorage.removeItem('b44_signed_out'); } catch {}
-            }
-            onSignIn();
-          }}
-          style={{ width: '100%', padding: '14px', background: 'linear-gradient(135deg,#60a5fa,#a78bfa)', color: 'white', border: 'none', borderRadius: '14px', fontSize: '16px', fontWeight: '600', cursor: 'pointer' }}
-        >
-          Sign in
-        </button>
+        <SignInButton onSignIn={onSignIn} clearSignedOut={clearSignedOut} />
+        <p style={{ margin: '14px 0 0', color: '#c4b5fd', fontSize: '11px', fontWeight: '600' }}>{NATIVE_BUILD_LABEL}</p>
       </div>
       <NativeDebugBadge />
     </div>

@@ -11,17 +11,30 @@ export const LOCAL_NATIVE_BUNDLE = ${useLocal};
 `
 );
 console.log(`Wrote ${bundleModePath} (LOCAL_NATIVE_BUNDLE=${useLocal})`);
+
 const paths = [
   resolve('capacitor.config.json'),
   resolve('ios/App/App/capacitor.config.json'),
 ];
+
+const baseIos = {
+  contentInset: 'automatic',
+  backgroundColor: '#ffffff',
+};
+
+const hostedIos = {
+  ...baseIos,
+  allowsLinkPreview: false,
+  zoomEnabled: false,
+};
 
 for (const configPath of paths) {
   const config = JSON.parse(readFileSync(configPath, 'utf8'));
 
   if (useLocal) {
     delete config.server;
-    console.log(`Local bundle mode: removed server.url from ${configPath}`);
+    config.ios = { ...baseIos };
+    console.log(`Local bundle mode (build v4 style): removed server.url from ${configPath}`);
   } else {
     config.server = {
       url: 'https://restorebraine.base44.app',
@@ -41,6 +54,7 @@ for (const configPath of paths) {
         'hooks.stripe.com',
       ],
     };
+    config.ios = { ...hostedIos };
     console.log(`Hosted mode: restored server.url in ${configPath}`);
   }
 

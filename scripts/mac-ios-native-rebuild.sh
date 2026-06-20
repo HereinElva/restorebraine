@@ -23,8 +23,8 @@ fi
 
 echo ""
 echo "=== VERIFY on device ==="
-echo "Look for purple badge bottom-left: v93 · native-local"
-echo "If badge shows v86 or native-hosted, you are NOT on this build."
+echo "Look for purple badge bottom-left: v94 · native-local"
+echo "Login screen shows build label (build v4 bundled shell restored)"
 echo ""
 echo "Next: Xcode -> delete app -> Clean Build Folder -> Run"
 echo "Native-local = bundled app shell (no Base44 URL bar). Gallery + Back button fixes included."

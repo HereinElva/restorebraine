@@ -3,11 +3,8 @@
 	"appName": "Restorebraine",
 	"webDir": "dist",
 	"ios": {
-		"contentInset": "never",
-		"backgroundColor": "#ffffff",
-		"preferredContentMode": "mobile",
-		"allowsLinkPreview": false,
-		"zoomEnabled": false
+		"contentInset": "automatic",
+		"backgroundColor": "#ffffff"
 	},
 	"packageClassList": [
 		"AppPlugin",

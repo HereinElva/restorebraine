@@ -1,3 +1,4 @@
+import { LOCAL_NATIVE_BUNDLE } from '@/lib/native-bundle-mode';
 import { redirectNativeToHostedApp } from '@/lib/native-hosted-redirect';
 import { installNativeOAuthFix } from '@/lib/native-oauth-fix';
 import { redirectBrokenCustomDomainLogin } from '@/lib/auth-urls';
@@ -30,13 +31,44 @@ function showBootstrapError(message) {
   `;
 }
 
-async function bootstrapApp() {
-  showBootstrapLoading();
+/** Build v4 used a direct React mount with no hosted redirect — keep that for native-local. */
+async function bootstrapNativeLocal() {
+  installNativeOAuthFix();
 
+  const [{ default: React }, { default: ReactDOM }, { default: App }] = await Promise.all([
+    import('react'),
+    import('react-dom/client'),
+    import('@/App.jsx'),
+  ]);
+  await import('@/index.css');
+
+  ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+
+  import('@/lib/session-bootstrap')
+    .then(async ({ restoreSessionFromNativeStorage, installNativeSessionPersistence }) => {
+      try {
+        await restoreSessionFromNativeStorage();
+        await installNativeSessionPersistence();
+      } catch (error) {
+        console.warn('Background session bootstrap failed:', error);
+      }
+    })
+    .catch((error) => {
+      console.warn('Session bootstrap module unavailable:', error);
+    });
+}
+
+async function bootstrapApp() {
   if (redirectBrokenCustomDomainLogin()) {
     return;
   }
 
+  if (LOCAL_NATIVE_BUNDLE) {
+    await bootstrapNativeLocal();
+    return;
+  }
+
+  showBootstrapLoading();
   installNativeOAuthFix();
 
   if (redirectNativeToHostedApp()) {
@@ -58,7 +90,6 @@ async function bootstrapApp() {
     ReactDOM.createRoot(document.getElementById('root')).render(<App />);
     clearTimeout(bootstrapTimeout);
 
-    // Do not block first paint — AuthContext restores session on its own.
     import('@/lib/session-bootstrap')
       .then(async ({ restoreSessionFromNativeStorage, installNativeSessionPersistence }) => {
         try {
