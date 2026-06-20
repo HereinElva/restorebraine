@@ -38,10 +38,12 @@ else
   echo "Run: npm run build:native-local"
 fi
 
+BUILD_NUM=$(grep -E '^export const BUILD_NUMBER = ' src/lib/build-info.js | sed 's/.*= //;s/;//')
+
 echo ""
 echo "=== VERIFY on device ==="
-echo "Look for purple badge bottom-left: v97 · native-local"
-echo "Login screen shows build label (build v4 bundled shell restored)"
+echo "Look for purple badge bottom-left: v${BUILD_NUM} · native-local"
+echo "Login: brain logo + Sign In button (not infinite loading)"
 echo ""
 echo "Next: Xcode -> delete app -> Clean Build Folder -> Run"
 echo "Native-local = bundled app shell (no Base44 URL bar). Gallery + Back button fixes included."
