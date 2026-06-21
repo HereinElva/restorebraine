@@ -31,6 +31,7 @@ export function normalizeFolderRecord(folder) {
     description: folder.description ?? inner.description ?? '',
     photo_ids: folder.photo_ids || inner.photo_ids || [],
     cover_photo_url: folder.cover_photo_url || inner.cover_photo_url || '',
+    created_by: folder.created_by ?? inner.created_by,
   };
 }
 
@@ -60,65 +61,40 @@ function photoIdsPersisted(persistedIds, expectedIds) {
   return (expectedIds || []).every((id) => persistedNorm.has(normalizePhotoId(id)));
 }
 
-function folderWritePayload(folder, overrides = {}) {
-  const base = normalizeFolderRecord(folder);
-  return {
-    name: overrides.name ?? base.name,
-    description: overrides.description ?? base.description ?? '',
-    photo_ids: overrides.photo_ids ?? base.photo_ids ?? [],
-    cover_photo_url: overrides.cover_photo_url ?? base.cover_photo_url ?? '',
-  };
-}
-
 export async function listAllFolders() {
   const result = await base44.entities.Folder.list('-created_date', 200);
   return (result || []).map(normalizeFolderRecord);
 }
 
-/** Read full folder records — list() can return incomplete membership. */
-export async function fetchFoldersWithFullMembership(folderIds = null) {
-  const listed = await listAllFolders();
-  const refreshIds = folderIds ? new Set(folderIds) : null;
-
-  return Promise.all(
-    listed.map(async (folder) => {
-      if (!refreshIds || refreshIds.has(folder.id)) {
-        try {
-          const full = normalizeFolderRecord(await base44.entities.Folder.get(folder.id));
-          return full || folder;
-        } catch {
-          return folder;
-        }
-      }
-      return folder;
-    }),
-  );
+/** Folders visible to this user — fall back to full list if filter hides everything (API auth scopes list). */
+export function filterFoldersForUser(folders, email) {
+  const listed = (folders || []).map(normalizeFolderRecord);
+  if (!email) return listed;
+  const filtered = listed.filter((f) => !f.created_by || f.created_by === email);
+  if (filtered.length === 0 && listed.length > 0) return listed;
+  return filtered;
 }
 
-/** Always read server state first, then PUT full folder payload (Base44 uses PUT). */
-async function updateFolderOnServer(folderId, overrides = {}) {
-  const current = normalizeFolderRecord(await base44.entities.Folder.get(folderId));
-  const payload = folderWritePayload(current, overrides);
-  const updated = normalizeFolderRecord(
-    await base44.entities.Folder.update(folderId, payload),
-  );
-  return updated?.photo_ids?.length ? updated : { ...current, ...payload };
+/** Partial update only — never full PUT (avoids wiping created_by / other fields). */
+async function updateFolderPhotoIds(folderId, photoIds, extra = {}) {
+  const updated = await base44.entities.Folder.update(folderId, {
+    photo_ids: photoIds,
+    ...extra,
+  });
+  return normalizeFolderRecord(updated);
 }
 
 async function appendPhotoToFolderOnServer(folderId, photo, userEmail) {
-  const current = normalizeFolderRecord(await base44.entities.Folder.get(folderId));
-  const updatedIds = mergePhotoIdsLikeManualMove(current.photo_ids, [photo.id]);
-  const coverUrl = current.cover_photo_url || photo.file_url || '';
+  let base = normalizeFolderRecord(await base44.entities.Folder.get(folderId));
+  const coverUrl = base.cover_photo_url || photo.file_url || '';
 
-  let saved = null;
   for (let attempt = 0; attempt < 4; attempt++) {
-    if (attempt > 0) await sleep(300 * attempt);
-    const base =
-      attempt === 0
-        ? current
-        : normalizeFolderRecord(await base44.entities.Folder.get(folderId));
-    saved = await updateFolderOnServer(folderId, {
-      photo_ids: mergePhotoIdsLikeManualMove(base.photo_ids, [photo.id]),
+    if (attempt > 0) {
+      await sleep(300 * attempt);
+      base = normalizeFolderRecord(await base44.entities.Folder.get(folderId));
+    }
+    const updatedIds = mergePhotoIdsLikeManualMove(base.photo_ids, [photo.id]);
+    await updateFolderPhotoIds(folderId, updatedIds, {
       ...(!base.cover_photo_url && coverUrl ? { cover_photo_url: coverUrl } : {}),
     });
     const verified = normalizeFolderRecord(await base44.entities.Folder.get(folderId));
@@ -129,11 +105,12 @@ async function appendPhotoToFolderOnServer(folderId, photo, userEmail) {
   }
 
   if (userEmail) await recordPhotoFolderMembership(userEmail, photo.id, folderId);
-  return saved || { ...current, photo_ids: updatedIds };
+  const last = normalizeFolderRecord(await base44.entities.Folder.get(folderId));
+  return last || base;
 }
 
 /**
- * Assign loose photos one at a time — read-modify-write from server each time.
+ * Assign loose photos one at a time — read-modify-write from server, partial update only.
  */
 export async function assignLoosePhotosOneByOne({
   photosToAssign,
@@ -199,14 +176,11 @@ export async function assignLoosePhotosOneByOne({
   return folders;
 }
 
-/** @deprecated Use assignLoosePhotosOneByOne — batch updates can race on PUT. */
+/** @deprecated Use assignLoosePhotosOneByOne */
 export async function assignLoosePhotosToFolders(options) {
   return assignLoosePhotosOneByOne(options);
 }
 
-/**
- * Move all media from source folder(s) into a target folder, then delete the source folder(s).
- */
 export async function mergeFoldersIntoTarget({
   targetFolderId,
   sourceFolderIds,
@@ -236,8 +210,7 @@ export async function mergeFoldersIntoTarget({
   );
   const coverUrl = targetFolder.cover_photo_url || coverPhoto?.file_url || '';
 
-  const verified = await updateFolderOnServer(targetFolderId, {
-    photo_ids: mergedIds,
+  const verified = await updateFolderPhotoIds(targetFolderId, mergedIds, {
     ...(!targetFolder.cover_photo_url && coverUrl ? { cover_photo_url: coverUrl } : {}),
   });
 
@@ -264,7 +237,6 @@ export async function mergeFoldersIntoTarget({
     .map((f) => (f.id === targetFolderId ? updatedTarget : f));
 }
 
-/** Merge API folder list with in-memory saves — prefer API photo_ids when present. */
 export function mergeApiFoldersWithLocal(apiFolders, localFolders) {
   const apiById = new Map((apiFolders || []).map((f) => [f.id, normalizeFolderRecord(f)]));
   const localById = new Map((localFolders || []).map((f) => [f.id, normalizeFolderRecord(f)]));
@@ -275,13 +247,10 @@ export function mergeApiFoldersWithLocal(apiFolders, localFolders) {
     const api = apiById.get(id);
     const local = localById.get(id);
     if (api && local) {
-      const apiHasIds = (api.photo_ids || []).length > 0;
       merged.push({
         ...api,
         ...local,
-        photo_ids: apiHasIds
-          ? mergePhotoIdsLikeManualMove(api.photo_ids, local.photo_ids)
-          : local.photo_ids || api.photo_ids || [],
+        photo_ids: mergePhotoIdsLikeManualMove(api.photo_ids, local.photo_ids),
       });
     } else if (local) {
       merged.push(local);
@@ -300,13 +269,12 @@ export async function reconcileOrganizeBatch({
   userEmail,
 }) {
   let desiredFolders = afterFolders || [];
-  const touchedIds = desiredFolders.map((f) => f.id);
 
   for (let attempt = 0; attempt < 3; attempt++) {
     await sleep(attempt === 0 ? 300 : 500 * attempt);
-    const apiFolders = await fetchFoldersWithFullMembership(touchedIds);
+    const apiFolders = await listAllFolders();
 
-    let missedPhotos = getUnorganizedPhotos(batchPhotos, apiFolders);
+    const missedPhotos = getUnorganizedPhotos(batchPhotos, apiFolders);
     if (missedPhotos.length === 0) {
       return {
         folders: mergeApiFoldersWithLocal(apiFolders, desiredFolders),
@@ -325,10 +293,9 @@ export async function reconcileOrganizeBatch({
       onProgress,
       userEmail,
     });
-    touchedIds.splice(0, touchedIds.length, ...desiredFolders.map((f) => f.id));
   }
 
-  const apiFolders = await fetchFoldersWithFullMembership(touchedIds);
+  const apiFolders = await listAllFolders();
   const missedPhotos = getUnorganizedPhotos(batchPhotos, apiFolders);
 
   return {
@@ -339,10 +306,10 @@ export async function reconcileOrganizeBatch({
   };
 }
 
-/** Gallery load: full membership from API + local cache backup. */
+/** Gallery load: Folder.list + local membership cache (no N+1 GET). */
 export async function fetchGalleryFoldersWithMembership(email, photos = []) {
-  const apiFolders = await fetchFoldersWithFullMembership();
-  const filtered = apiFolders.filter((f) => !f.created_by || f.created_by === email);
+  const listed = await listAllFolders();
+  const filtered = filterFoldersForUser(listed, email);
   const cached = await loadFolderMembershipCache(email);
   return applyFolderMembershipCache(filtered, photos, cached);
 }

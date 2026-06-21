@@ -164,6 +164,12 @@ export async function runMediaOrganize({
   }
 
   if (includeOrganized && existingFolders.length > 0) {
+    const confirmed = typeof window !== 'undefined' && window.confirm(
+      `Delete all ${existingFolders.length} existing folders and re-sort every photo? Your photos will not be deleted.`,
+    );
+    if (!confirmed) {
+      return { ok: false, reason: 'Re-organize cancelled.' };
+    }
     onProgress?.("Clearing folders…");
     for (const folder of existingFolders) {
       await base44.entities.Folder.delete(folder.id);
