@@ -2,9 +2,27 @@
 
 Known-good Restorebraine builds. **Use this baseline so login/auth experiments do not interfere** with gallery navigation, folder tiles, or account UI.
 
-## Omega 2 — current bundled iPhone snapshot (v217)
+## Omega 3 — current bundled iPhone snapshot (v261)
 
-**→ Before rebuilding on Mac, you can restore this exact build with tag `omega-2`**
+**→ Recommended restore point. Organize, folder persistence, and gallery refresh all working.**
+
+See [OMEGA-3.md](./OMEGA-3.md) for full details.
+
+| Item | Value |
+|------|--------|
+| **Git tag** | `omega-3` |
+| **Build** | v261 |
+| **Branch** | `cursor/fix-organize-partial-save-bacf` |
+
+```bash
+git fetch origin --tags
+git reset --hard omega-3
+bash build-iphone.sh --no-git
+```
+
+---
+
+## Omega 2 — previous bundled snapshot (v217)
 
 See [OMEGA-2.md](./OMEGA-2.md) for full details.
 
