@@ -24,8 +24,8 @@ import { useNavigation } from "../components/NavigationContext";
 import { useTabState } from "../components/TabStateContext";
 import MobileGallery from "../components/gallery/MobileGallery";
 import { setGalleryOrganizeSnapshot, toStoredPhotoIds, normalizePhotoId } from "@/lib/gallery-organize-snapshot";
-import { fetchGalleryFoldersWithMembership } from "@/lib/folder-membership";
-import { loadFolderSnapshotCacheSync } from "@/lib/folder-membership-cache";
+import { fetchGalleryFoldersWithMembership, mergeApiFoldersWithLocal } from "@/lib/folder-membership";
+import { loadFolderSnapshotCache, loadFolderSnapshotCacheSync } from "@/lib/folder-membership-cache";
 import "../components/gallery/mobile-gallery-layout.css";
  
 // ---------------------------------------------------------------------------
@@ -191,7 +191,9 @@ export default function Gallery() {
       const photosData =
         queryClient.getQueryData(['photos', me.email]) ??
         (await base44.entities.Photo.filter({ created_by: me.email }, '-created_date'));
-      return fetchGalleryFoldersWithMembership(me.email, photosData || []);
+      const snapshot = await loadFolderSnapshotCache(me.email);
+      const fetched = await fetchGalleryFoldersWithMembership(me.email, photosData || []);
+      return mergeApiFoldersWithLocal(fetched, snapshot);
     },
     enabled: canFetchData && !!userEmail,
     staleTime: CACHE.folders.staleTime,
@@ -205,6 +207,16 @@ export default function Gallery() {
     retry: 2,
     refetchOnMount: 'always',
   });
+
+  useEffect(() => {
+    if (!userEmail || !canFetchData) return;
+    loadFolderSnapshotCache(userEmail).then((snapshot) => {
+      if (!snapshot.length) return;
+      queryClient.setQueryData(['folders', userEmail], (prev) =>
+        mergeApiFoldersWithLocal(prev ?? [], snapshot),
+      );
+    });
+  }, [userEmail, canFetchData, queryClient]);
 
   useEffect(() => {
     if (!userEmail || !canFetchData) return;

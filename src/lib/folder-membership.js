@@ -176,10 +176,7 @@ export async function fetchGalleryFoldersWithMembership(email, photos = []) {
   }
 
   let result = applyFolderMembershipCache(folderSource, photos, cached);
-
-  if (snapshot.length > 0 && result.length < snapshot.length) {
-    result = mergeApiFoldersWithLocal(result, snapshot);
-  }
+  result = mergeApiFoldersWithLocal(result, snapshot);
 
   if (email && result.length > 0) {
     await persistGalleryFolders(email, result);

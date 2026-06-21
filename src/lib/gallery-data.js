@@ -1,6 +1,10 @@
 import { base44 } from '@/api/base44Client';
 import { ensureClientSessionToken } from '@/lib/session-bootstrap';
-import { fetchGalleryFoldersWithMembership } from '@/lib/folder-membership';
+import {
+  fetchGalleryFoldersWithMembership,
+  mergeApiFoldersWithLocal,
+} from '@/lib/folder-membership';
+import { loadFolderSnapshotCache } from '@/lib/folder-membership-cache';
 
 export async function fetchGalleryUser() {
   ensureClientSessionToken();
@@ -19,8 +23,9 @@ export async function fetchGalleryFolders(email, photos = []) {
   ensureClientSessionToken();
   const me = email ? { email } : await base44.auth.me();
   if (!me?.email) return { me: null, folders: [] };
+  const snapshot = await loadFolderSnapshotCache(me.email);
   const folders = await fetchGalleryFoldersWithMembership(me.email, photos);
-  return { me, folders };
+  return { me, folders: mergeApiFoldersWithLocal(folders, snapshot) };
 }
 
 export async function loadGalleryData(queryClient) {
@@ -30,7 +35,9 @@ export async function loadGalleryData(queryClient) {
     queryClient.setQueryData(['current-user'], me);
     queryClient.setQueryData(['photos', me.email], photos);
     const { folders } = await fetchGalleryFolders(me.email, photos);
-    queryClient.setQueryData(['folders', me.email], folders);
+    queryClient.setQueryData(['folders', me.email], (prev) =>
+      mergeApiFoldersWithLocal(folders, prev ?? []),
+    );
   }
   return { me, photos };
 }

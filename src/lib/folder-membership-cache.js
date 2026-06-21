@@ -167,5 +167,7 @@ export function buildMembershipMapFromFolders(folders) {
 export async function persistGalleryFolders(email, folders) {
   if (!email || !folders?.length) return;
   await saveFolderSnapshotCache(email, folders);
-  await saveFolderMembershipCache(email, buildMembershipMapFromFolders(folders));
+  const existingMap = await loadFolderMembershipCache(email);
+  const fromFolders = buildMembershipMapFromFolders(folders);
+  await saveFolderMembershipCache(email, { ...existingMap, ...fromFolders });
 }
