@@ -20,6 +20,7 @@
     "mac:v4-install": "bash scripts/mac-ios-v4-install.sh",
     "mac:v4-deploy": "bash scripts/mac-ios-v4-deploy.sh",
     "mac:v4-deploy:sync": "bash scripts/mac-ios-v4-deploy.sh --sync",
+    "mac:native-webapp": "bash scripts/mac-native-as-webapp.sh",
     "mac:v4-full-reset": "bash scripts/capacitor-v4-full-reset.sh",
     "cap:hosted": "node scripts/use-local-native-bundle.mjs --hosted",
     "lint": "eslint .",

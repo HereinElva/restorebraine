@@ -11,10 +11,15 @@ if [ ! -f ios/App/App/public/index.html ]; then
   exit 1
 fi
 
-REPO_ENTRY=$(grep -o 'src="\./assets/[^"]*\.js"' ios/App/App/public/index.html | head -1 | sed 's/.*assets\///;s/"//')
+REPO_ENTRY=$(grep -o 'src="\./assets/[^"]*\.js"' ios/App/App/public/index.html 2>/dev/null | head -1 | sed 's/.*assets\///;s/"//' || echo '?')
 REPO_STAMP=$(tr -d '\n' < ios/App/App/BUILD_STAMP.txt 2>/dev/null || echo missing)
+HOSTED=$(grep -c '"url".*restorebraine.base44.app' ios/App/App/capacitor.config.json 2>/dev/null || echo 0)
+
 echo "Repo ready: $REPO_STAMP"
 echo "Entry JS:   $REPO_ENTRY"
+if [ "$HOSTED" != "0" ]; then
+  echo "Mode:       HOSTED WebView → restorebraine.base44.app"
+fi
 echo ""
 
 echo "=== Copy ios/public → DerivedData App.app ==="
@@ -59,8 +64,8 @@ if xcrun devicectl help device install app >/dev/null 2>&1; then
     echo ""
     echo "════════════════════════════════════════════════════════════════"
     echo "  INSTALLED on iPhone: v${BUILD_NUM} · ${REPO_ENTRY}"
-    echo "  Login: Restorebraine + Native bundle · v${BUILD_NUM} + Continue with Google"
-    echo "  Tap purple badge → v4-core · capacitor://localhost · auth: sign-in-v4"
+    echo "  Login: same as https://restorebraine.base44.app (hosted WebView)"
+    echo "  Tap Continue with Google — identical to Safari web app"
     echo "════════════════════════════════════════════════════════════════"
     exit 0
   fi
