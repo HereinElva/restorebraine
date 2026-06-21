@@ -3,6 +3,20 @@ import { normalizePhotoId } from '@/lib/gallery-organize-snapshot';
 
 const CACHE_KEY_PREFIX = 'restorebraine_folder_membership:';
 const SNAPSHOT_KEY_PREFIX = 'restorebraine_folder_snapshot:';
+const PERSIST_TIMEOUT_MS = 8000;
+
+/** Serialize Preferences writes — concurrent get/set pairs can hang on iOS. */
+let persistQueue = Promise.resolve();
+
+function enqueuePersist(task) {
+  const run = persistQueue.then(task, task);
+  persistQueue = run.catch(() => {});
+  return run;
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 function cacheKey(email) {
   return `${CACHE_KEY_PREFIX}${email || 'unknown'}`;
@@ -30,6 +44,18 @@ export async function loadFolderMembershipCache(email) {
   if (!email) return {};
   try {
     const raw = await persistentStorage.get(cacheKey(email));
+    if (!raw) return loadFolderMembershipCacheSync(email);
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return loadFolderMembershipCacheSync(email);
+  }
+}
+
+export function loadFolderMembershipCacheSync(email) {
+  if (!email) return {};
+  try {
+    const raw = persistentStorage.getSync(cacheKey(email));
     if (!raw) return {};
     const parsed = JSON.parse(raw);
     return parsed && typeof parsed === 'object' ? parsed : {};
@@ -83,11 +109,8 @@ function mergeSnapshotRecords(a = [], b = []) {
   return [...byId.values()];
 }
 
-export async function saveFolderSnapshotCache(email, folders) {
-  if (!email || !folders?.length) return;
-  const existing = await loadFolderSnapshotCache(email);
-  const merged = mergeSnapshotRecords(existing, folders);
-  const slim = merged.map((f) => ({
+function slimFolderSnapshot(folders) {
+  return (folders || []).map((f) => ({
     id: f.id,
     name: f.name,
     description: f.description || '',
@@ -95,23 +118,23 @@ export async function saveFolderSnapshotCache(email, folders) {
     cover_photo_url: f.cover_photo_url || '',
     created_by: f.created_by,
   }));
-  await persistentStorage.set(snapshotKey(email), JSON.stringify(slim));
+}
+
+async function writeFolderSnapshot(email, folders) {
+  const existing = loadFolderSnapshotCacheSync(email);
+  const merged = mergeSnapshotRecords(existing, folders);
+  await persistentStorage.set(snapshotKey(email), JSON.stringify(slimFolderSnapshot(merged)));
+}
+
+export async function saveFolderSnapshotCache(email, folders) {
+  if (!email || !folders?.length) return;
+  await writeFolderSnapshot(email, folders);
 }
 
 /** Fast snapshot write during organize — sync merge only, no blocking Preferences read. */
 export async function saveFolderSnapshotCacheFast(email, folders) {
   if (!email || !folders?.length) return;
-  const existing = loadFolderSnapshotCacheSync(email);
-  const merged = mergeSnapshotRecords(existing, folders);
-  const slim = merged.map((f) => ({
-    id: f.id,
-    name: f.name,
-    description: f.description || '',
-    photo_ids: f.photo_ids || [],
-    cover_photo_url: f.cover_photo_url || '',
-    created_by: f.created_by,
-  }));
-  await persistentStorage.set(snapshotKey(email), JSON.stringify(slim));
+  await writeFolderSnapshot(email, folders);
 }
 
 /** Instant read from localStorage mirror — for showing cached folders before API responds. */
@@ -179,23 +202,22 @@ export function buildMembershipMapFromFolders(folders) {
   return map;
 }
 
-/** Await snapshot + membership so folders survive app close/reload. */
-export async function persistGalleryFolders(email, folders) {
-  if (!email || !folders?.length) return;
-  await saveFolderSnapshotCache(email, folders);
-  const existingMap = await loadFolderMembershipCache(email);
+async function persistGalleryFoldersCore(email, folders) {
+  await writeFolderSnapshot(email, folders);
+  const existingMap = loadFolderMembershipCacheSync(email);
   const fromFolders = buildMembershipMapFromFolders(folders);
   await saveFolderMembershipCache(email, { ...existingMap, ...fromFolders });
 }
 
-/** Fire-and-forget snapshot during organize saves — never block the save loop. */
+/** Await snapshot + membership so folders survive app close/reload. */
+export async function persistGalleryFolders(email, folders, { timeoutMs = PERSIST_TIMEOUT_MS } = {}) {
+  if (!email || !folders?.length) return;
+  const work = enqueuePersist(() => persistGalleryFoldersCore(email, folders));
+  await Promise.race([work, sleep(timeoutMs)]);
+}
+
+/** Fire-and-forget during organize saves — queued but never blocks callers. */
 export function persistGalleryFoldersFast(email, folders) {
   if (!email || !folders?.length) return;
-  void saveFolderSnapshotCacheFast(email, folders);
-  void loadFolderMembershipCache(email).then((existingMap) =>
-    saveFolderMembershipCache(email, {
-      ...existingMap,
-      ...buildMembershipMapFromFolders(folders),
-    }),
-  );
+  void enqueuePersist(() => persistGalleryFoldersCore(email, folders));
 }

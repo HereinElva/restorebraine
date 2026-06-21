@@ -18,7 +18,6 @@ import {
   listAllFoldersSafe,
 } from "@/lib/folder-membership";
 import {
-  persistGalleryFolders,
   recordBatchFolderMembership,
 } from "@/lib/folder-membership-cache";
 
@@ -222,10 +221,6 @@ export async function runMediaOrganize({
   const failedNormIds = new Set((saveResult.failedPhotoIds || []).map(normalizePhotoId));
 
   onProgress?.("Finishing…");
-
-  if (userEmail && afterFolders.length > 0) {
-    await persistGalleryFolders(userEmail, afterFolders);
-  }
 
   const savedApiFolders = afterFolders;
 

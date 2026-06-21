@@ -214,14 +214,14 @@ div.grid.grid-cols-2.gap-2.mb-5 [data-rb-folder-action="select"].bg-purple-600 {
   color: #ffffff !important;
 }
 
-/* Organize: solid purple icon + label */
+/* Organize: solid purple icon + label — match other tiles when idle */
 div.grid.grid-cols-2.gap-1\.5.mb-5 [data-rb-folder-action="organize"] [data-rb-organize-label],
 div.grid.grid-cols-2.gap-2.mb-5 [data-rb-folder-action="organize"] [data-rb-organize-label] {
   color: rgb(147 51 234) !important;
   -webkit-text-fill-color: rgb(147 51 234) !important;
   background: none !important;
-  font-size: 0.65rem !important;
-  line-height: 1.1 !important;
+  font-size: 0.875rem !important;
+  line-height: 1.25 !important;
   max-width: 100% !important;
   overflow: hidden !important;
   text-overflow: ellipsis !important;
@@ -229,8 +229,17 @@ div.grid.grid-cols-2.gap-2.mb-5 [data-rb-folder-action="organize"] [data-rb-orga
   display: block !important;
 }
 
+div.grid.grid-cols-2.gap-1\.5.mb-5 [data-rb-folder-action="organize"][data-rb-organizing="true"] [data-rb-organize-label],
+div.grid.grid-cols-2.gap-2.mb-5 [data-rb-folder-action="organize"][data-rb-organizing="true"] [data-rb-organize-label] {
+  font-size: 0.65rem !important;
+  line-height: 1.1 !important;
+}
+
 div.grid.grid-cols-2.gap-1\.5.mb-5 [data-rb-folder-action="organize"] svg.lucide,
 div.grid.grid-cols-2.gap-2.mb-5 [data-rb-folder-action="organize"] svg.lucide {
+  width: 1.25rem !important;
+  height: 1.25rem !important;
+  flex-shrink: 0 !important;
   stroke: rgb(168 85 247) !important;
   color: rgb(168 85 247) !important;
 }

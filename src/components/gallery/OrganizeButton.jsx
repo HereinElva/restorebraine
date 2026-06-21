@@ -107,8 +107,6 @@ export default function OrganizeButton({ photos, folders: foldersProp, squareSty
       });
 
       if (!result.ok) {
-        setOrganizing(false);
-        setProgressLabel("");
         alert(result.reason);
         return;
       }
@@ -142,6 +140,7 @@ export default function OrganizeButton({ photos, folders: foldersProp, squareSty
     } catch (error) {
       console.error("Error organizing:", error);
       alert(formatLLMError(error));
+    } finally {
       setOrganizing(false);
       setProgressLabel("");
     }
@@ -153,6 +152,7 @@ export default function OrganizeButton({ photos, folders: foldersProp, squareSty
         <button
           type="button"
           data-rb-folder-action="organize"
+          data-rb-organizing={organizing ? "true" : undefined}
           onClick={() => setShowDialog(true)}
           disabled={organizing || photos.length < 1}
           className={`relative ${SQUARE_FOLDER_ACTION_CLASS}`}
