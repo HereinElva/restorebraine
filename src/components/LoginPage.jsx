@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import LoginLogo from '@/components/LoginLogo';
 import NativeDebugBadge from '@/components/NativeDebugBadge';
 import { getGoogleOAuthUrl } from '@/lib/auth-urls';
 import { isNativeShell } from '@/lib/native-hosted-redirect';
@@ -74,7 +73,7 @@ function GoogleSignInButton({ clearSignedOut = false }) {
   );
 }
 
-/** Restorebraine login — white card, brain logo, Continue with Google. Web + native identical. */
+/** Restorebraine login — white card, title, Continue with Google (no logo). Web + native identical. */
 export default function LoginPage({ clearSignedOut = false }) {
   return (
     <div
@@ -95,7 +94,6 @@ export default function LoginPage({ clearSignedOut = false }) {
       }}
     >
       <div style={cardStyle}>
-        <LoginLogo />
         <h1 style={{ fontSize: '24px', fontWeight: '700', color: '#111', margin: '0 0 28px' }}>
           Restorebraine
         </h1>

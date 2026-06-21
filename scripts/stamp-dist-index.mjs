@@ -19,17 +19,9 @@ const stamp = existsSync(stampPath)
   : 'unknown';
 const buildNum = readFileSync(buildInfoPath, 'utf8').match(/BUILD_NUMBER = (\d+)/)?.[1] ?? '?';
 
-const loginLogoDataPath = resolve('src/lib/login-logo-data.js');
-let loginLogoSrc = './login-logo.png';
-if (existsSync(loginLogoDataPath)) {
-  const logoMatch = readFileSync(loginLogoDataPath, 'utf8').match(/LOGIN_LOGO_DATA_URL = '([^']+)'/);
-  if (logoMatch?.[1]) loginLogoSrc = logoMatch[1];
-}
-
 const v4LoginShell = `
       <div id="rb-v4-login-shell" style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#eff6ff,#f5f3ff,#fdf2f8);padding:max(16px,env(safe-area-inset-top)) max(20px,env(safe-area-inset-right)) max(16px,env(safe-area-inset-bottom)) max(20px,env(safe-area-inset-left));box-sizing:border-box;font-family:system-ui,sans-serif;">
         <div style="background:#fff;border-radius:24px;padding:36px 28px;box-shadow:0 10px 40px rgba(0,0,0,0.1);max-width:360px;width:100%;text-align:center;">
-          <img src="${loginLogoSrc}" alt="Restorebraine" width="56" height="56" style="width:56px;height:56px;border-radius:16px;object-fit:cover;display:block;margin:0 auto 12px;box-shadow:0 6px 20px rgba(96,165,250,0.22);" />
           <h1 style="font-size:24px;font-weight:700;color:#111;margin:0 0 28px;">Restorebraine</h1>
           <button type="button" id="rb-v4-google-btn" style="width:100%;padding:14px;background:linear-gradient(135deg,#60a5fa,#a78bfa);color:#fff;border:none;border-radius:14px;font-size:16px;font-weight:600;cursor:pointer;touch-action:manipulation;">Continue with Google</button>
         </div>
