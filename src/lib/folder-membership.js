@@ -7,9 +7,11 @@ import {
 } from '@/lib/gallery-organize-snapshot';
 import {
   applyFolderMembershipCache,
+  clearFolderMembershipCache,
   loadFolderMembershipCache,
   recordBatchFolderMembership,
   recordPhotoFolderMembership,
+  saveFolderMembershipCache,
 } from '@/lib/folder-membership-cache';
 
 function sleep(ms) {
@@ -66,16 +68,29 @@ export async function listAllFolders() {
   return (result || []).map(normalizeFolderRecord);
 }
 
-/** Folders visible to this user — fall back to full list if filter hides everything (API auth scopes list). */
-export function filterFoldersForUser(folders, email) {
-  const listed = (folders || []).map(normalizeFolderRecord);
-  if (!email) return listed;
-  const filtered = listed.filter((f) => !f.created_by || f.created_by === email);
-  if (filtered.length === 0 && listed.length > 0) return listed;
-  return filtered;
-}
+/** Gallery load: Folder.list + pruned local membership cache. */
+export async function fetchGalleryFoldersWithMembership(email, photos = []) {
+  const listed = await listAllFolders();
+  let cached = await loadFolderMembershipCache(email);
 
-/** Partial update only — never full PUT (avoids wiping created_by / other fields). */
+  const validIds = new Set(listed.map((f) => f.id));
+  const pruned = {};
+  for (const [photoNorm, folderId] of Object.entries(cached)) {
+    if (validIds.has(folderId)) pruned[photoNorm] = folderId;
+  }
+
+  if (email) {
+    if (listed.length === 0 && Object.keys(cached).length > 0) {
+      await clearFolderMembershipCache(email);
+      cached = {};
+    } else if (Object.keys(pruned).length !== Object.keys(cached).length) {
+      await saveFolderMembershipCache(email, pruned);
+      cached = pruned;
+    }
+  }
+
+  return applyFolderMembershipCache(listed, photos, cached);
+}
 async function updateFolderPhotoIds(folderId, photoIds, extra = {}) {
   const updated = await base44.entities.Folder.update(folderId, {
     photo_ids: photoIds,
@@ -304,12 +319,4 @@ export async function reconcileOrganizeBatch({
     totalSaved: batchPhotos.length - missedPhotos.length,
     missed: missedPhotos.length,
   };
-}
-
-/** Gallery load: Folder.list + local membership cache (no N+1 GET). */
-export async function fetchGalleryFoldersWithMembership(email, photos = []) {
-  const listed = await listAllFolders();
-  const filtered = filterFoldersForUser(listed, email);
-  const cached = await loadFolderMembershipCache(email);
-  return applyFolderMembershipCache(filtered, photos, cached);
 }

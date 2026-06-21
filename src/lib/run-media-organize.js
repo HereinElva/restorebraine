@@ -8,8 +8,8 @@ import {
   photoDataForOrganize,
 } from "@/lib/media-organize";
 import {
-  getOrganizedPhotoIds,
   getUnorganizedPhotos,
+  loosePhotosForOrganize,
   normalizePhotoId,
   toStoredPhotoIds,
 } from "@/lib/gallery-organize-snapshot";
@@ -18,7 +18,10 @@ import {
   listAllFolders,
   reconcileOrganizeBatch,
 } from "@/lib/folder-membership";
-import { recordBatchFolderMembership } from "@/lib/folder-membership-cache";
+import {
+  clearFolderMembershipCache,
+  recordBatchFolderMembership,
+} from "@/lib/folder-membership-cache";
 
 const CHUNK_SIZE = 15;
 const LLM_DELAY_MS = 1500;
@@ -138,21 +141,27 @@ export async function runMediaOrganize({
   onProgress?.("Preparing…");
 
   const allPhotoIds = new Set(photos.map((p) => normalizePhotoId(p.id)).filter(Boolean));
+  const uiFolders = foldersSnapshot ?? [];
 
   let existingFolders = await listAllFolders();
   existingFolders = sanitizeFoldersLocally(existingFolders, photos, allPhotoIds);
 
-  const snapshotFolders = foldersSnapshot?.length ? foldersSnapshot : existingFolders;
-  const existingFolderNames = existingFolders.map((f) => f.name);
-
-  let photosToOrganize = includeOrganized
-    ? photos
-    : getUnorganizedPhotos(photos, snapshotFolders);
-
-  if (photosToOrganize.length === 0 && !includeOrganized) {
-    const apiOrganized = getOrganizedPhotoIds(existingFolders);
-    photosToOrganize = photos.filter((p) => !apiOrganized.has(normalizePhotoId(p.id)));
+  // UI shows 0 folders but API still has ghost records — clear them so organize can proceed.
+  if (uiFolders.length === 0 && existingFolders.length > 0 && !includeOrganized) {
+    onProgress?.("Clearing stale folders…");
+    for (const folder of existingFolders) {
+      await base44.entities.Folder.delete(folder.id);
+    }
+    if (userEmail) await clearFolderMembershipCache(userEmail);
+    existingFolders = [];
   }
+
+  const liveFolderSource = uiFolders.length ? uiFolders : existingFolders;
+  const existingFolderNames = liveFolderSource.map((f) => f.name);
+
+  const photosToOrganize = includeOrganized
+    ? photos
+    : loosePhotosForOrganize(photos, uiFolders);
 
   if (photosToOrganize.length === 0) {
     return {
@@ -192,7 +201,7 @@ export async function runMediaOrganize({
 
   onProgress?.("Saving folders…");
 
-  const liveFolders = includeOrganized ? [] : existingFolders;
+  const liveFolders = includeOrganized ? [] : liveFolderSource;
   const labelByPhotoNormId = new Map(allLabels.map((l) => [l.id, l.folder]));
   const nameList = folderNamesForLabel.length ? folderNamesForLabel : existingFolderNames;
 

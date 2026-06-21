@@ -38,6 +38,11 @@ export async function saveFolderMembershipCache(email, photoFolderMap) {
   await persistentStorage.set(cacheKey(email), JSON.stringify(photoFolderMap || {}));
 }
 
+export async function clearFolderMembershipCache(email) {
+  if (!email) return;
+  await persistentStorage.remove(cacheKey(email));
+}
+
 export async function recordPhotoFolderMembership(email, photoId, folderId) {
   if (!email || photoId == null || !folderId) return;
   const map = await loadFolderMembershipCache(email);

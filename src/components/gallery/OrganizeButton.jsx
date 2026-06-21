@@ -18,7 +18,7 @@ import { useAuth } from "@/lib/AuthContext";
 import {
   foldersForGalleryView,
   getGalleryOrganizeSnapshot,
-  getUnorganizedPhotos,
+  loosePhotosForOrganize,
   setGalleryOrganizeSnapshot,
 } from "@/lib/gallery-organize-snapshot";
 import { mergeApiFoldersWithLocal } from "@/lib/folder-membership";
@@ -52,7 +52,7 @@ export default function OrganizeButton({ photos, folders: foldersProp, squareSty
 
   const snapshot = getGalleryOrganizeSnapshot();
   const folders = foldersProp ?? snapshot.folders;
-  const unorganizedCount = getUnorganizedPhotos(photos, folders).length;
+  const unorganizedCount = loosePhotosForOrganize(photos, folders).length;
 
   const handleOrganize = async () => {
     if (photos.length < 1) {

@@ -23,6 +23,15 @@ export function getUnorganizedPhotos(photos = snapshot.photos, folders = snapsho
   return (photos || []).filter((p) => p?.id != null && !organized.has(normalizePhotoId(p.id)));
 }
 
+/** Photos to sort when Organize is tapped — follows what the gallery actually shows. */
+export function loosePhotosForOrganize(photos, uiFolders) {
+  const visible = uiFolders ?? [];
+  if (visible.length === 0) {
+    return (photos || []).filter((p) => p?.id != null);
+  }
+  return getUnorganizedPhotos(photos, visible);
+}
+
 /** Map IDs to the same type/value stored on Photo entities (fixes Recents not clearing). */
 export function toStoredPhotoIds(ids, photos = snapshot.photos) {
   const photoByNorm = new Map(
