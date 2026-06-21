@@ -65,27 +65,14 @@ export default function NativeLoginCard({ clearSignedOut = false }) {
 
   useEffect(() => {
     const resetOpening = () => setOpeningProvider(null);
-    const recoverAfterOAuth = async () => {
-      if (!window.__restorebraineOAuthInProgress) return;
-      try {
-        const { tryRestoreSessionAfterOAuth } = await import('@/lib/native-google-oauth');
-        if (await tryRestoreSessionAfterOAuth()) resetOpening();
-      } catch {
-        /* ignore */
-      }
-    };
+    const onSessionUpdated = () => resetOpening();
     window.addEventListener('restorebraine-native-oauth-complete', resetOpening);
-    document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible') recoverAfterOAuth();
-    });
-    const safetyTimer = setInterval(() => {
-      if (!window.__restorebraineOAuthInProgress && openingProvider) resetOpening();
-    }, 2000);
+    window.addEventListener('restorebraine-session-updated', onSessionUpdated);
     return () => {
       window.removeEventListener('restorebraine-native-oauth-complete', resetOpening);
-      clearInterval(safetyTimer);
+      window.removeEventListener('restorebraine-session-updated', onSessionUpdated);
     };
-  }, [openingProvider]);
+  }, []);
 
   const clearSignedOutFlag = () => {
     try {

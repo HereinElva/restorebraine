@@ -78,6 +78,42 @@ export const captureOAuthTokenFromUrl = async (url) => {
 };
 
 let oauthListenerAttached = false;
+let oauthTokenPollTimer = null;
+
+const stopOAuthTokenPoll = () => {
+  if (oauthTokenPollTimer) {
+    clearInterval(oauthTokenPollTimer);
+    oauthTokenPollTimer = null;
+  }
+};
+
+const startOAuthTokenPoll = () => {
+  stopOAuthTokenPoll();
+  oauthTokenPollTimer = setInterval(async () => {
+    if (!window.__restorebraineOAuthInProgress) {
+      stopOAuthTokenPoll();
+      return;
+    }
+    try {
+      const existing = localStorage.getItem('base44_access_token') || localStorage.getItem('token');
+      if (existing && localStorage.getItem('b44_signed_out') !== '1') {
+        await finishOAuthLogin();
+        return;
+      }
+      if (await tryRestoreSessionAfterOAuth()) {
+        await finishOAuthLogin();
+      }
+    } catch {
+      /* ignore poll errors */
+    }
+  }, 400);
+};
+
+const signalOAuthEnded = () => {
+  window.__restorebraineOAuthInProgress = false;
+  stopOAuthTokenPoll();
+  window.dispatchEvent(new CustomEvent('restorebraine-native-oauth-complete'));
+};
 
 const withTimeout = (promise, ms, label = 'Operation') =>
   Promise.race([
@@ -151,6 +187,7 @@ const openInAppBrowserOAuth = async (oauthUrl, provider) => {
 };
 
 const finishOAuthLogin = async () => {
+  stopOAuthTokenPoll();
   window.__restorebraineOAuthInProgress = false;
   try {
     const ib = await getInAppBrowserPluginAsync(5);
@@ -161,12 +198,12 @@ const finishOAuthLogin = async () => {
   const token = localStorage.getItem('base44_access_token') || localStorage.getItem('token');
   if (token) {
     window.dispatchEvent(new CustomEvent('restorebraine-session-updated', { detail: { token } }));
-    window.dispatchEvent(new CustomEvent('restorebraine-native-oauth-complete'));
   }
+  window.dispatchEvent(new CustomEvent('restorebraine-native-oauth-complete'));
   // v4-core: React AuthContext updates in-place — no reload (reload caused white screen).
   if (LOCAL_NATIVE_BUNDLE && token) return;
   if (window.location.pathname === '/' && token) return;
-  window.location.replace(getNativeWebViewHome());
+  if (token) window.location.replace(getNativeWebViewHome());
 };
 
 /** After OAuth, AppDelegate / native plugin may have saved the token before JS listeners attach. */
@@ -246,21 +283,21 @@ const openOAuthInWebView = async (url, providerHint) => {
     window.__restorebraineOAuthInProgress = true;
   }
   recordOAuthDebug({ stage: 'inapp-webview', url: normalizedUrl.slice(0, 120) });
-  oauthListenerAttached = false;
   await attachOAuthCompletionListener();
+  startOAuthTokenPoll();
   const ib = await getInAppBrowserPluginAsync(30);
   if (!ib?.openInWebView) {
-    window.__restorebraineOAuthInProgress = false;
+    signalOAuthEnded();
     throw new Error('InAppBrowser openInWebView not available — rebuild in Xcode.');
   }
   try {
     await ib.openInWebView({ url: normalizedUrl, options: WEBVIEW_OPTIONS });
   } catch (error) {
-    window.__restorebraineOAuthInProgress = false;
+    signalOAuthEnded();
     recordOAuthError(error, 'inappbrowser-webview-open');
     throw error;
   }
-  await waitForOAuthBrowserClose(ib);
+  // Sheet is open — caller can reset UI; completion handled by listeners + token poll.
 };
 
 const openOAuthInSystemBrowser = async (url, providerHint) => {
@@ -275,8 +312,8 @@ const openOAuthInSystemBrowser = async (url, providerHint) => {
     window.__restorebraineOAuthInProgress = true;
   }
   recordOAuthDebug({ stage: 'system-browser', url: normalizedUrl.slice(0, 120) });
-  oauthListenerAttached = false;
   await attachOAuthCompletionListener();
+  startOAuthTokenPoll();
   const ib = await getInAppBrowserPluginAsync(30);
   try {
     await ib.openInSystemBrowser({ url: normalizedUrl, options: SYSTEM_BROWSER_OPTIONS });
@@ -306,6 +343,7 @@ const openBundledNativeOAuth = async (oauthUrl, provider) => {
 
 const handleOAuthBrowserNavigation = async (url) => {
   if (!url) return false;
+  recordOAuthDebug({ stage: 'oauth-nav', url: String(url).slice(0, 160) });
   if (await handleNativeOAuthCallback(url)) return true;
 
   try {
@@ -316,11 +354,7 @@ const handleOAuthBrowserNavigation = async (url) => {
       await finishOAuthLogin();
       return true;
     }
-    if (LOCAL_NATIVE_BUNDLE && isHostedOAuthReturn(url)) {
-      await redirectToNativeBundleHome(url);
-      return true;
-    }
-    if (isAppHost(parsed.hostname) && parsed.searchParams.has('access_token')) {
+    if (LOCAL_NATIVE_BUNDLE && isAppHost(parsed.hostname) && parsed.searchParams.has('access_token')) {
       await persistSessionToNativeStorage(parsed.searchParams.get('access_token'));
       await finishOAuthLogin();
       return true;
@@ -347,19 +381,16 @@ const attachOAuthCompletionListener = async () => {
   });
 
   await ib.addListener('browserClosed', async () => {
-    oauthListenerAttached = false;
-    window.__restorebraineOAuthInProgress = false;
     if (await tryRestoreSessionAfterOAuth()) return;
-
     try {
       const { App } = await import('@capacitor/app');
       const launch = await App.getLaunchUrl();
       if (launch?.url && (await handleNativeOAuthCallback(launch.url))) return;
     } catch {}
-
     if (localStorage.getItem('b44_signed_out') !== '1') {
       await tryRestoreSessionAfterOAuth();
     }
+    signalOAuthEnded();
   });
 };
 
@@ -444,7 +475,6 @@ export const installNativeOAuthListeners = async () => {
   try {
     const { installNativeOAuthDeepLinkHandler } = await import('@/lib/session-bootstrap');
     await installNativeOAuthDeepLinkHandler();
-    oauthListenerAttached = false;
     await attachOAuthCompletionListener();
   } catch (error) {
     console.warn('Native OAuth listener setup failed:', error);
