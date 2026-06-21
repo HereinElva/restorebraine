@@ -13,12 +13,14 @@ const deployBuild =
 
 const FILES = [
   'index.html',
+  'public/native-oauth-return.js',
   'public/login-redirect.js',
   'src/main.jsx',
   'src/deploy-marker.js',
   'src/lib/app-params.js',
   'src/lib/app-domains.js',
   'src/lib/auth-urls.js',
+  'src/lib/sign-in-with-provider.js',
   'src/lib/sign-in-with-google.js',
   'src/lib/AuthContext.jsx',
   'src/api/base44Client.js',
@@ -46,9 +48,9 @@ const FILES = [
 ];
 
 const PARTS = [
-  { label: 'PART 1 — Boot + auth (paste first)', files: FILES.slice(0, 10) },
-  { label: 'PART 2 — Native OAuth + session', files: FILES.slice(10, 17) },
-  { label: 'PART 3 — Gallery UI + Layout + CSS (paste last, then Publish)', files: FILES.slice(17) },
+  { label: 'PART 1 — Boot + auth (paste first)', files: FILES.slice(0, 12) },
+  { label: 'PART 2 — Native OAuth + session', files: FILES.slice(12, 19) },
+  { label: 'PART 3 — Gallery UI + Layout + CSS (paste last, then Publish)', files: FILES.slice(19) },
 ];
 
 function readPublishContent(path) {

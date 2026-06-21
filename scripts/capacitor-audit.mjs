@@ -134,8 +134,8 @@ if (existsSync(distAssets)) {
       ok(`${label} ${file} has LOCAL_NATIVE_BUNDLE=true`);
     }
     if (isLocal && (label === 'App chunk' || (label === 'Entry chunk' && !appChunk))) {
-      if (/Continue with Google|restorebraine-signin|data-rb-auth=sign-in-v4/.test(content)) {
-        ok(`${label} ${file} has SignInScreen (Continue with Google)`);
+      if (/Continue with Google|Continue with Apple|Sign in with email|restorebraine-signin|data-rb-auth=sign-in-v4/.test(content)) {
+        ok(`${label} ${file} has SignInScreen (multi-provider login)`);
       } else {
         fail(`${label} ${file} missing SignInScreen — old login bundle?`);
         bump();
