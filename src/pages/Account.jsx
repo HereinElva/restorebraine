@@ -37,16 +37,6 @@ export default function Account() {
       return;
     }
 
-    if (isHostedAppOrigin()) {
-      await logout();
-      return;
-    }
-
-    if (typeof window !== 'undefined' && window.__restorebrainePerformSignOut) {
-      window.__restorebrainePerformSignOut();
-      return;
-    }
-
     await logout();
   };
 

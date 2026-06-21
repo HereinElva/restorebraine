@@ -64,8 +64,8 @@ const AuthenticatedApp = () => {
     return <UserNotRegisteredError />;
   }
 
-  if (authError || !isAuthenticated) {
-    return <SignInScreen clearSignedOut />;
+  if (!isAuthenticated) {
+    return <SignInScreen clearSignedOut={manuallyLoggedOut} />;
   }
 
   return (

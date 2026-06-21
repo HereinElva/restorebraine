@@ -209,6 +209,7 @@ try {
 try {
   const { execSync } = await import('node:child_process');
   execSync('node scripts/verify-omega-baseline.mjs', { cwd: repo, stdio: 'inherit' });
+  execSync('node scripts/verify-auth-flow.mjs', { cwd: repo, stdio: 'inherit' });
 } catch {
   bump();
 }

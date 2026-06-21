@@ -55,7 +55,20 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   useEffect(() => {
-    const onSessionUpdated = () => {
+    const onSessionUpdated = (event) => {
+      try {
+        const token =
+          event?.detail?.token ||
+          (localStorage.getItem('b44_signed_out') === '1'
+            ? null
+            : localStorage.getItem('base44_access_token') || localStorage.getItem('token'));
+        if (token) {
+          setManuallyLoggedOut(false);
+          setAuthError(null);
+        }
+      } catch {
+        /* ignore */
+      }
       checkAppState();
     };
     window.addEventListener('restorebraine-session-updated', onSessionUpdated);

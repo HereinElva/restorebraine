@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { useAuth } from '@/lib/AuthContext';
-import { NATIVE_BUILD_LABEL } from '@/lib/build-info';
+import { NATIVE_BUILD_LABEL, WEB_BUILD_LABEL } from '@/lib/build-info';
 import { openLoginInSystemBrowser } from '@/lib/native-google-oauth';
 import { getGoogleOAuthUrl, getProviderOAuthUrl } from '@/lib/native-platform-guard';
+import { isNativeShell } from '@/lib/native-hosted-redirect';
 import NativeDebugBadge from '@/components/NativeDebugBadge';
 
 const cardStyle = {
@@ -61,9 +62,9 @@ export default function NativeLoginCard({ clearSignedOut = false }) {
   const [openingProvider, setOpeningProvider] = useState(null);
 
   const clearSignedOutFlag = () => {
-    if (!clearSignedOut) return;
     try {
       localStorage.removeItem('b44_signed_out');
+      localStorage.removeItem('base44_logged_out');
     } catch {
       /* ignore */
     }
@@ -209,7 +210,9 @@ export default function NativeLoginCard({ clearSignedOut = false }) {
         >
           {mode === 'signup' ? 'Already have an account? Sign in' : "Don't have an account? Sign up"}
         </button>
-        <p style={{ margin: '14px 0 0', color: '#c4b5fd', fontSize: '11px', fontWeight: '600' }}>{NATIVE_BUILD_LABEL}</p>
+        <p style={{ margin: '14px 0 0', color: '#c4b5fd', fontSize: '11px', fontWeight: '600' }}>
+          {isNativeShell() ? NATIVE_BUILD_LABEL : WEB_BUILD_LABEL}
+        </p>
       </form>
       <NativeDebugBadge />
     </div>

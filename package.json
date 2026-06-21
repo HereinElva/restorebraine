@@ -16,6 +16,7 @@
     "cap:merge-web-into-ios": "node scripts/cap-merge-web-into-ios.mjs",
     "cap:explain": "bash scripts/explain-deploy-targets.sh",
     "verify:omega": "node scripts/verify-omega-baseline.mjs",
+    "verify:auth": "node scripts/verify-auth-flow.mjs",
     "mac:nuclear-scrub": "bash scripts/mac-nuclear-scrub.sh",
     "mac:v4-build": "bash scripts/mac-ios-v4-build.sh",
     "mac:v4-install": "bash scripts/mac-ios-v4-install.sh",
