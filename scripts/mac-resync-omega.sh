@@ -76,13 +76,17 @@ phase_base44() {
   echo ""
 
   DEPLOY=$(grep -E '^export const DEPLOY_BUILD = ' src/deploy-marker.js | sed 's/.*= //;s/;//')
+  PUBLISH="base44-publish-v${DEPLOY}.txt"
+  BLOCKS=$(grep -c 'BASE44 PATH:' "$PUBLISH" 2>/dev/null || echo 0)
 
   cat <<EOF
 ════════════════════════════════════════════════════════════════
   PHASE 1 — BASE44: paste publish pack, then Publish ONCE
 ════════════════════════════════════════════════════════════════
 
-  open base44-publish-v${DEPLOY}.txt
+  Publish pack: ${PUBLISH} (${BLOCKS} files)
+
+  open ${PUBLISH}
 
   For EACH "BASE44 PATH:" block:
     1. Open that exact path in Base44 Code editor

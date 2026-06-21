@@ -14,6 +14,8 @@ bash scripts/mac-resync-omega.sh
 
 Check Base44 drift: `node scripts/verify-base44-live.mjs`
 
+Full pre-flight (Mac or CI): `npm run verify:resync`
+
 One terminal workflow to reset Restorebraine to the **Omega hosted architecture** (login worked), while **keeping** launch screen, Back to Gallery, and folder-tab button fixes.
 
 ## What this restores

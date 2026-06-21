@@ -17,6 +17,9 @@ DO NOT upload after mac-ios-v4-deploy or mac-capacitor-web-sync — those bundle
 capacitor://localhost and login buttons break on TestFlight.
 
 Before Archive run:
+  bash scripts/mac-resync-omega.sh --native-only
+
+Or the equivalent:
   bash scripts/mac-appstore-deploy.sh
 
 That sets server.url → https://restorebraine.base44.app (same login as Safari).
@@ -31,7 +34,8 @@ if [[ "$REPO_URL" == *"restorebraine.base44.app"* ]]; then
   echo "OK: capacitor.config.json is HOSTED (App Store / TestFlight ready)"
 else
   echo "FAIL: Repo is bundled localhost — login breaks on TestFlight"
-  echo "      Run: bash scripts/mac-appstore-deploy.sh"
+  echo "      Run: bash scripts/mac-resync-omega.sh --native-only"
+  echo "      Or:  bash scripts/mac-appstore-deploy.sh"
   FAIL=1
 fi
 

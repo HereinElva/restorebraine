@@ -24,14 +24,14 @@ fi
 
 if [ ! -d "$SRC_PUBLIC" ] || [ ! -f "${SRC_PUBLIC}/index.html" ]; then
   echo "error: ${SRC_PUBLIC}/index.html missing"
-  echo "       Run: bash scripts/mac-ios-v4-rebuild.sh"
+  echo "       Run: bash scripts/mac-xcode-full-replace.sh --hosted"
   exit 1
 fi
 
 ENTRY=$(grep -o 'src="\./assets/[^"]*\.js"' "${SRC_PUBLIC}/index.html" 2>/dev/null | head -1 | sed 's/.*assets\///;s/"//')
 if [ -z "$ENTRY" ] || [ ! -f "${SRC_PUBLIC}/assets/${ENTRY}" ]; then
   echo "error: index.html entry ${ENTRY:-missing} not found in ${SRC_PUBLIC}/assets"
-  echo "       Run: bash scripts/mac-ios-v4-rebuild.sh"
+  echo "       Run: bash scripts/mac-xcode-full-replace.sh --hosted"
   exit 1
 fi
 
@@ -59,11 +59,11 @@ fi
 
 if [ ! -f "${SRC_PUBLIC}/login-logo.png" ]; then
   echo "warning: ${SRC_PUBLIC}/login-logo.png missing — login card may show brain emoji"
-  echo "         Run: bash scripts/mac-ios-v4-rebuild.sh"
+  echo "         Run: bash scripts/mac-xcode-full-replace.sh --hosted"
 fi
 if [ ! -f "${SRC_PUBLIC}/AppIcon.png" ]; then
   echo "warning: ${SRC_PUBLIC}/AppIcon.png missing"
-  echo "         Run: bash scripts/mac-ios-v4-rebuild.sh"
+  echo "         Run: bash scripts/mac-xcode-full-replace.sh --hosted"
 fi
 
 STAMP_LINE=$(tr -d '\n' < "$STAMP" 2>/dev/null || echo 'unknown')
