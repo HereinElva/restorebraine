@@ -108,45 +108,8 @@ EOF
 }
 
 phase_native() {
-  echo "=== Pre-flight: Base44 must match git before Capacitor ==="
-  if ! node scripts/verify-base44-live.mjs; then
-    echo ""
-    echo "STOP: Publish Base44 first (Phase 1)."
-    echo "  bash scripts/mac-resync-omega.sh --base44-only"
-    exit 1
-  fi
-  echo ""
-
-  echo "=== Phase 2: Capacitor hosted + full Xcode replace ==="
-  bash scripts/mac-xcode-full-replace.sh --hosted
-  echo ""
-
-  bash scripts/mac-pre-upload-checklist.sh || true
-
-  BUILD_NUM=$(grep -E '^export const BUILD_NUMBER = ' src/lib/build-info.js | sed 's/.*= //;s/;//')
-  DEPLOY=$(grep -E '^export const DEPLOY_BUILD = ' src/deploy-marker.js | sed 's/.*= //;s/;//')
-
-  cat <<EOF
-════════════════════════════════════════════════════════════════
-  PHASE 2 COMPLETE — Capacitor v${BUILD_NUM} · Base44 v${DEPLOY}
-════════════════════════════════════════════════════════════════
-
-  open ios/App/App.xcworkspace
-
-  1. Product → Clean Build Folder
-  2. Product → Run on iPhone
-     Build log MUST show:
-       FULL REPLACE: copied ... files into App.app/public
-       Restorebraine DEPLOY OK: public/ -> App.app
-  3. Badge: native-hosted · restorebraine.base44.app
-  4. Test login (same as Safari)
-  5. Clean → Archive → Upload
-
-  bash scripts/verify-hosted-app-bundle.sh
-
-  DO NOT USE: mac-capacitor-web-sync.sh · mac-ios-v4-deploy.sh
-
-EOF
+  echo "=== Phase 2: one-shot full Xcode replace (no Base44 paste) ==="
+  bash scripts/mac-build.sh --no-git "$@"
 }
 
 case "$PHASE" in
@@ -158,9 +121,11 @@ case "$PHASE" in
     read -r -p "Published to Base44 and verify-base44-live OK? (y/N) " PUBLISHED
     if [[ ! "$PUBLISHED" =~ ^[Yy]$ ]]; then
       echo ""
-      echo "Finish Base44 Publish, then:"
-      echo "  node scripts/verify-base44-live.mjs"
-      echo "  bash scripts/mac-resync-omega.sh --native-only"
+      echo "Skip Base44 — build iPhone app directly:"
+      echo "  bash scripts/mac-build.sh"
+      echo ""
+      echo "Or finish Base44 Publish, then:"
+      echo "  bash scripts/mac-build.sh --hosted"
       exit 0
     fi
     echo ""

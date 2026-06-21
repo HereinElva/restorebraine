@@ -30,7 +30,7 @@ if [ "$LIVE" = "$GIT" ] && [ "$HAS_APPLE" = "yes" ]; then
   echo "  ██████████████████████████████████████████████████████████"
   echo ""
   echo "  Next command:"
-  echo "    bash scripts/mac-resync-omega.sh --native-only"
+  echo "    bash scripts/mac-build.sh --hosted"
   exit 0
 fi
 
