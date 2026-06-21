@@ -279,7 +279,39 @@ const waitForOAuthBrowserClose = async (ib) => {
   });
 };
 
-/** Bundled native: in-app WebView modal — must return quickly so login button does not stick. */
+/** Bundled native: SFSafariViewController — Google MFA/passkeys work; must return quickly so login button does not stick. */
+const openOAuthInSystemBrowserNonBlocking = async (url, providerHint) => {
+  const normalizedUrl = normalizeAuthUrl(
+    url || getWebViewOAuthUrl(providerHint || 'google'),
+    providerHint,
+    { forWebView: false },
+  );
+  if (typeof window !== 'undefined') {
+    window.__restorebraineLastOAuthUrl = normalizedUrl;
+    window.__restorebraineOAuthMode = 'v4-system-browser';
+    window.__restorebraineOAuthInProgress = true;
+  }
+  recordOAuthDebug({ stage: 'system-browser-nonblocking', url: normalizedUrl.slice(0, 120) });
+
+  void attachOAuthCompletionListener().catch((error) => {
+    console.warn('OAuth listeners attach failed:', error);
+  });
+  startOAuthTokenPoll();
+
+  const ib = await withTimeout(getInAppBrowserPluginAsync(25), 2500, 'InAppBrowser plugin');
+  if (!ib?.openInSystemBrowser) {
+    signalOAuthEnded();
+    throw new Error('InAppBrowser openInSystemBrowser not available — rebuild in Xcode.');
+  }
+
+  ib.openInSystemBrowser({ url: normalizedUrl, options: SYSTEM_BROWSER_OPTIONS }).catch((error) => {
+    if (!window.__restorebraineOAuthInProgress) return;
+    signalOAuthEnded();
+    recordOAuthError(error, 'inappbrowser-system-open');
+  });
+};
+
+/** Legacy in-app WebView — Google MFA/passkeys fail; kept for diagnostics only. */
 const openOAuthInWebView = async (url, providerHint) => {
   const normalizedUrl = normalizeAuthUrl(
     url || getWebViewOAuthUrl(providerHint || 'google'),
@@ -338,14 +370,14 @@ const openOAuthInSystemBrowser = async (url, providerHint) => {
   await waitForOAuthBrowserClose(ib);
 };
 
-/** Bundled native: in-app WebView only — never ASWeb / system browser (no Base44 redirect popup). */
+/** Bundled native: system browser sheet — Google MFA/passkeys supported; token via deep link or nav listeners. */
 const openBundledNativeOAuth = async (oauthUrl, provider) => {
   recordOAuthDebug({ stage: 'bundled-oauth-start', url: oauthUrl.slice(0, 120) });
   try {
-    await withTimeout(openOAuthInWebView(oauthUrl, provider), 3000, 'OAuth sheet launch');
+    await withTimeout(openOAuthInSystemBrowserNonBlocking(oauthUrl, provider), 3000, 'OAuth sheet launch');
   } catch (error) {
     window.__restorebraineOAuthInProgress = false;
-    recordOAuthError(error, 'inappbrowser-webview');
+    recordOAuthError(error, 'inappbrowser-system');
     const message = error?.message || error?.errorMessage || String(error || '');
     if (error?.code === 'CANCELED' || /^oauth canceled$/i.test(message)) return;
     throw error;
@@ -484,7 +516,7 @@ export const openLoginInSystemBrowser = async (url = getGoogleOAuthUrl(), provid
     : normalizeAuthUrl(url || getCanonicalOAuthUrl(provider), provider);
   window.__restorebraineLastOAuthUrl = oauthUrl;
 
-  // Bundled: in-app WebView sheet (returns within ~3s — OAuth completion is async).
+  // Bundled: SFSafariViewController sheet (returns within ~3s — OAuth completion is async).
   if (LOCAL_NATIVE_BUNDLE) {
     await openBundledNativeOAuth(oauthUrl, provider);
     return;

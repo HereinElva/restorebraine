@@ -420,27 +420,6 @@
                 return false;
               }
             }
-            function launchSystemBrowserForOAuth(oauthUrl) {
-              window.__restorebraineOAuthMode = 'v4-system-browser';
-              function launch() {
-                try {
-                  var ib = getInAppBrowserPlugin();
-                  if (!ib) return false;
-                  oauthBrowserListenerAttached = false;
-                  attachOAuthBrowserListeners(ib);
-                  ib.openInSystemBrowser({ url: oauthUrl, options: SYSTEM_BROWSER_OPTIONS });
-                  return true;
-                } catch (e) {
-                  return false;
-                }
-              }
-              if (launch()) return;
-              var attempts = 0;
-              var timer = setInterval(function () {
-                attempts += 1;
-                if (launch() || attempts >= 60) clearInterval(timer);
-              }, 100);
-            }
             if (tryNativeOAuth()) return;
             var tries = 0;
             var wait = setInterval(function () {
@@ -456,33 +435,35 @@
             }, 100);
           }
 
-          function openLoginInSystemBrowser(url, providerHint) {
-            providerHint = providerHint || 'google';
-            url = normalizeAuthUrl(url || getCanonicalOAuthUrl(providerHint), providerHint);
-            window.__restorebraineLastOAuthUrl = url;
-            if (isBundledNativeOrigin()) {
-              openLoginInWebView(url, providerHint);
-              return;
-            }
+          function launchSystemBrowserForOAuth(oauthUrl) {
             window.__restorebraineOAuthMode = 'v4-system-browser';
-            function launchSystemBrowser() {
+            window.__restorebraineOAuthInProgress = true;
+            function launch() {
               try {
                 var ib = getInAppBrowserPlugin();
                 if (!ib) return false;
                 oauthBrowserListenerAttached = false;
                 attachOAuthBrowserListeners(ib);
-                ib.openInSystemBrowser({ url: url, options: SYSTEM_BROWSER_OPTIONS });
+                ib.openInSystemBrowser({ url: oauthUrl, options: SYSTEM_BROWSER_OPTIONS });
                 return true;
               } catch (e) {
                 return false;
               }
             }
-            if (launchSystemBrowser()) return;
+            if (launch()) return;
             var attempts = 0;
             var timer = setInterval(function () {
               attempts += 1;
-              if (launchSystemBrowser() || attempts >= 60) clearInterval(timer);
+              if (launch() || attempts >= 60) clearInterval(timer);
             }, 100);
+          }
+
+          function openLoginInSystemBrowser(url, providerHint) {
+            providerHint = providerHint || 'google';
+            url = normalizeAuthUrl(url || getCanonicalOAuthUrl(providerHint), providerHint);
+            window.__restorebraineLastOAuthUrl = url;
+            // Bundled + hosted: SFSafariViewController — embedded WebView breaks Google MFA/passkeys.
+            launchSystemBrowserForOAuth(url);
           }
 
           function installOAuthDeepLinkHandler() {

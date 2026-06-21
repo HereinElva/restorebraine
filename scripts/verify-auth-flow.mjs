@@ -59,10 +59,13 @@ if (!oauthJs.includes('oauthListenerAttachPromise') && /getInAppBrowserPluginAsy
 } else {
   bad('OAuth listener attach order unclear');
 }
-if (oauthJs.includes('openInWebView({ url: normalizedUrl') && !oauthJs.includes('await ib.openInWebView({ url: normalizedUrl')) {
-  ok('Bundled WebView open is non-blocking (button resets after sheet opens)');
+if (
+  oauthJs.includes('openOAuthInSystemBrowserNonBlocking')
+  && oauthJs.includes('ib.openInSystemBrowser({ url: normalizedUrl, options: SYSTEM_BROWSER_OPTIONS }).catch')
+) {
+  ok('Bundled system browser open is non-blocking (button resets after sheet opens)');
 } else {
-  bad('openInWebView is still awaited — login button will stick on Opening Google');
+  bad('Bundled system browser open may block login button on Opening Google');
 }
 
 const pbx = existsSync('ios/App/App.xcodeproj/project.pbxproj') ? read('ios/App/App.xcodeproj/project.pbxproj') : '';
@@ -79,7 +82,7 @@ if (rootCap.includes('InAppBrowserPlugin')) {
   bad('Root capacitor.config.json missing InAppBrowserPlugin');
 }
 
-if (oauthJs.includes('launchProviderOAuth') && oauthJs.includes('withTimeout(openOAuthInWebView')) {
+if (oauthJs.includes('launchProviderOAuth') && oauthJs.includes('withTimeout(openOAuthInSystemBrowserNonBlocking')) {
   ok('Bundled OAuth launch is time-bounded and non-blocking for login button');
 } else {
   bad('Bundled OAuth launch may block login button');
@@ -95,8 +98,8 @@ if (card.includes('launchProviderOAuth')) {
   bad('NativeLoginCard still awaits blocking openLoginInSystemBrowser');
 }
 
-if (oauthJs.includes('LOCAL_NATIVE_BUNDLE') && oauthJs.includes('openOAuthInWebView')) {
-  ok('Bundled native uses in-app WebView for OAuth (no Base44 system popup)');
+if (oauthJs.includes('LOCAL_NATIVE_BUNDLE') && oauthJs.includes('openOAuthInSystemBrowserNonBlocking')) {
+  ok('Bundled native uses system browser for OAuth (Google MFA/passkeys supported)');
 } else if (oauthJs.includes('LOCAL_NATIVE_BUNDLE') && oauthJs.includes('openBundledNativeOAuth')) {
   ok('Bundled native has openBundledNativeOAuth entry path');
 } else {
@@ -121,10 +124,14 @@ if (!auth.includes('setManuallyLoggedOut(false)') || !auth.includes('restorebrai
 }
 
 const bridge = existsSync('public/restorebraine-v4-bridge.js') ? read('public/restorebraine-v4-bridge.js') : '';
-if (bridge.includes('openLoginInWebView') && bridge.includes('isBundledNativeOrigin()')) {
-  ok('Bridge uses in-app WebView for bundled OAuth (no Base44 system popup)');
+if (
+  bridge.includes('launchSystemBrowserForOAuth')
+  && /openLoginInSystemBrowser[\s\S]{0,400}launchSystemBrowserForOAuth\(url\)/.test(bridge)
+  && !/isBundledNativeOrigin\(\)[\s\S]{0,120}openLoginInWebView/.test(bridge)
+) {
+  ok('Bridge uses system browser for bundled OAuth (Google MFA/passkeys supported)');
 } else if (bridge) {
-  bad('Bridge missing in-app WebView path for bundled OAuth');
+  bad('Bridge still routes bundled OAuth through embedded WebView');
 }
 
 console.log('');
