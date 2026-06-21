@@ -399,16 +399,19 @@ export default function Gallery() {
     }
   };
  
-  // Pull-to-refresh forces a fresh fetch bypassing the cache
+  // Pull-to-refresh — refetch gallery data; always completes so spinner clears
   const handleRefresh = async () => {
     window.dispatchEvent(new Event("restorebraine-gallery-refresh"));
+    if (!userEmail) return;
+
     await Promise.race([
       Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["photos", userEmail] }),
-        queryClient.invalidateQueries({ queryKey: ["folders", userEmail] }),
-        queryClient.invalidateQueries({ queryKey: ["current-user"] }),
-      ]),
-      new Promise((resolve) => setTimeout(resolve, 12000)),
+        queryClient.refetchQueries({ queryKey: ["photos", userEmail] }),
+        queryClient.refetchQueries({ queryKey: ["folders", userEmail] }),
+      ]).catch((error) => {
+        console.warn("Gallery refetch failed:", error);
+      }),
+      new Promise((resolve) => setTimeout(resolve, 8000)),
     ]);
   };
  

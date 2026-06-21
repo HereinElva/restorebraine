@@ -2,11 +2,14 @@ import React, { useRef, useState } from "react";
 import { RefreshCw } from "lucide-react";
 
 const THRESHOLD = 70;
+const REFRESH_SAFETY_MS = 6000;
 
 export default function PullToRefresh({ onRefresh, children }) {
   const [pullDistance, setPullDistance] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const startY = useRef(null);
+  const onRefreshRef = useRef(onRefresh);
+  onRefreshRef.current = onRefresh;
 
   const isModalOpen = () => document.body.classList.contains('modal-open');
 
@@ -27,18 +30,35 @@ export default function PullToRefresh({ onRefresh, children }) {
     }
   };
 
-  const handleTouchEnd = async () => {
-    if (isModalOpen()) return;
-    if (pullDistance >= THRESHOLD && !refreshing) {
-      setRefreshing(true);
-      try {
-        await onRefresh();
-      } finally {
-        setRefreshing(false);
-      }
-    }
+  const finishRefresh = () => {
+    setRefreshing(false);
     setPullDistance(0);
     startY.current = null;
+  };
+
+  const handleTouchEnd = () => {
+    if (isModalOpen()) {
+      finishRefresh();
+      return;
+    }
+
+    if (pullDistance >= THRESHOLD && !refreshing) {
+      setRefreshing(true);
+      const safetyTimer = setTimeout(finishRefresh, REFRESH_SAFETY_MS);
+
+      Promise.resolve()
+        .then(() => onRefreshRef.current?.())
+        .catch((error) => {
+          console.warn('Pull-to-refresh failed:', error);
+        })
+        .finally(() => {
+          clearTimeout(safetyTimer);
+          finishRefresh();
+        });
+      return;
+    }
+
+    finishRefresh();
   };
 
   const indicatorVisible = pullDistance > 10 || refreshing;
@@ -60,7 +80,7 @@ export default function PullToRefresh({ onRefresh, children }) {
         >
           <RefreshCw
             className={`w-5 h-5 text-purple-500 ${refreshing ? "animate-spin" : ""}`}
-            style={{ transform: `rotate(${(pullDistance / THRESHOLD) * 180}deg)` }}
+            style={{ transform: refreshing ? undefined : `rotate(${(pullDistance / THRESHOLD) * 180}deg)` }}
           />
         </div>
       ) : null}
