@@ -58,21 +58,22 @@ export default function NativeDebugBadge() {
       onClick={() => setExpanded((v) => !v)}
       style={{
         position: 'fixed',
-        bottom: expanded ? 'calc(12px + env(safe-area-inset-bottom, 0px))' : 'calc(8px + env(safe-area-inset-bottom, 0px))',
-        left: '8px',
+        bottom: expanded ? 'calc(12px + env(safe-area-inset-bottom, 0px))' : 'calc(10px + env(safe-area-inset-bottom, 0px))',
+        left: '10px',
         zIndex: 99999,
         margin: 0,
-        padding: expanded ? '8px 10px' : '4px 8px',
-        borderRadius: '10px',
-        border: '1px solid rgba(147,51,234,0.35)',
-        background: 'rgba(17,24,39,0.88)',
-        color: '#f3e8ff',
-        fontSize: expanded ? '11px' : '10px',
+        padding: expanded ? '10px 12px' : '6px 10px',
+        borderRadius: '12px',
+        border: '2px solid #a855f7',
+        background: expanded ? 'rgba(88,28,135,0.94)' : 'rgba(124,58,237,0.92)',
+        color: '#faf5ff',
+        fontSize: expanded ? '11px' : '11px',
+        fontWeight: 600,
         lineHeight: 1.35,
         textAlign: 'left',
         fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-        boxShadow: '0 4px 16px rgba(0,0,0,0.25)',
-        maxWidth: expanded ? 'min(92vw, 320px)' : '72px',
+        boxShadow: '0 4px 20px rgba(124,58,237,0.45)',
+        maxWidth: expanded ? 'min(92vw, 320px)' : '88px',
         cursor: 'pointer',
       }}
       aria-label="Restorebraine build info"
@@ -111,7 +112,7 @@ export default function NativeDebugBadge() {
           <div style={{ opacity: 0.6, marginTop: 4, fontSize: '9px' }}>tap to minimize</div>
         </>
       ) : (
-        `v${BUILD_NUMBER}`
+        <>v{BUILD_NUMBER} ⓘ</>
       )}
     </button>
   );
