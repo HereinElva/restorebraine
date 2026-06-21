@@ -56,8 +56,6 @@ public class RestorebraineOAuthPlugin: CAPPlugin, CAPBridgedPlugin, ASWebAuthent
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
             self.authSession?.cancel()
 
-            let started = false
-
             // iOS 17.4+: catch https://restorebraine.base44.app/?access_token= directly.
             if #available(iOS 17.4, *) {
                 let httpsSession = ASWebAuthenticationSession(
@@ -71,10 +69,7 @@ public class RestorebraineOAuthPlugin: CAPPlugin, CAPBridgedPlugin, ASWebAuthent
                 httpsSession.presentationContextProvider = self
                 httpsSession.prefersEphemeralWebBrowserSession = false
                 self.authSession = httpsSession
-                if httpsSession.start() {
-                    started = true
-                    return
-                }
+                if httpsSession.start() { return }
                 self.authSession = nil
             }
 
@@ -87,15 +82,10 @@ public class RestorebraineOAuthPlugin: CAPPlugin, CAPBridgedPlugin, ASWebAuthent
             schemeSession.presentationContextProvider = self
             schemeSession.prefersEphemeralWebBrowserSession = false
             self.authSession = schemeSession
-            if schemeSession.start() {
-                started = true
-                return
-            }
+            if schemeSession.start() { return }
 
             self.authSession = nil
-            if !started {
-                call.reject("Could not start OAuth session")
-            }
+            call.reject("Could not start OAuth session")
         }
     }
 
