@@ -4,10 +4,11 @@ import { useAuth } from "@/lib/AuthContext";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Trash2, AlertTriangle, LogOut } from "lucide-react";
-import { Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useNavigation } from "@/components/NavigationContext";
 import { persistActiveSession } from "@/lib/gallery-nav";
+import { resetAppScrollPosition } from "@/lib/scroll-reset";
 import { isHostedAppOrigin, isNativeShell } from "@/lib/native-hosted-redirect";
 
 export default function Account() {
@@ -15,6 +16,7 @@ export default function Account() {
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const { popBack } = useNavigation();
   const { logout, localLogout, resumeActiveSession } = useAuth();
 
@@ -55,23 +57,26 @@ export default function Account() {
     }
   };
 
+  const goToGallery = () => {
+    popBack();
+    resetAppScrollPosition();
+    navigate('/', { replace: true });
+    void persistActiveSession();
+    void resumeActiveSession?.();
+  };
+
   return (
     <div className="relative z-0 min-h-0 bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 py-4 pb-8">
       <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8">
-        <Link
-          to="/"
-          replace
+        <button
+          type="button"
           data-rb-gallery-nav="back"
-          onClick={() => {
-            popBack();
-            void persistActiveSession();
-            void resumeActiveSession?.();
-          }}
-          className="inline-flex items-center mb-4 relative z-10 min-h-[44px] px-2 -ml-2 text-purple-600 font-medium hover:text-purple-700"
+          onClick={goToGallery}
+          className="inline-flex items-center mb-4 relative z-10 min-h-[44px] px-2 -ml-2 text-purple-600 font-medium hover:text-purple-700 bg-transparent border-0 cursor-pointer"
         >
           <ArrowLeft className="w-4 h-4 mr-2" />
           Back to Gallery
-        </Link>
+        </button>
         <div className="bg-white rounded-2xl shadow-lg p-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-6">Account Settings</h1>
           {user && (

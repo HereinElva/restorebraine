@@ -1,9 +1,11 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useLayoutEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/lib/AuthContext";
 import { hasStoredSessionToken } from "@/screens/SignInScreen";
 import { ensureClientSessionToken } from "@/lib/session-bootstrap";
+import { loadGalleryData } from "@/lib/gallery-data";
+import { resetAppScrollPosition } from "@/lib/scroll-reset";
 import { Search, Image as ImageIcon, Sparkles, MousePointer2 } from "lucide-react";
 import PullToRefresh from "../components/gallery/PullToRefresh";
 import { Input } from "@/components/ui/input";
@@ -110,16 +112,24 @@ export default function Gallery() {
     ensureClientSessionToken();
     const refreshGallery = () => {
       ensureClientSessionToken();
-      queryClient.invalidateQueries({ queryKey: ['photos'] });
-      queryClient.invalidateQueries({ queryKey: ['folders'] });
-      queryClient.invalidateQueries({ queryKey: ['current-user'] });
+      void loadGalleryData(queryClient);
+      resetAppScrollPosition();
     };
+    void loadGalleryData(queryClient);
     window.addEventListener('restorebraine-session-updated', refreshGallery);
     window.addEventListener('restorebraine-native-oauth-complete', refreshGallery);
+    window.addEventListener('restorebraine-gallery-ready', refreshGallery);
     return () => {
       window.removeEventListener('restorebraine-session-updated', refreshGallery);
       window.removeEventListener('restorebraine-native-oauth-complete', refreshGallery);
+      window.removeEventListener('restorebraine-gallery-ready', refreshGallery);
     };
+  }, [canFetchData, queryClient]);
+
+  useLayoutEffect(() => {
+    if (!canFetchData) return;
+    resetAppScrollPosition();
+    void loadGalleryData(queryClient);
   }, [canFetchData, queryClient]);
 
   useEffect(() => {

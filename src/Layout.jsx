@@ -4,8 +4,9 @@ import { createPageUrl } from "@/utils";
 import { isGalleryPath, navigateToGallery, persistActiveSession } from "@/lib/gallery-nav";
 import { useAuth } from "@/lib/AuthContext";
 import { Search, Upload, User, ChevronLeft } from "lucide-react";
+import { LOCAL_NATIVE_BUNDLE } from "@/lib/native-bundle-mode";
+import { resetAppScrollPosition } from "@/lib/scroll-reset";
 
-/** Inlined for Base64 publish — native uses bundled AppIcon.png (remote logo blocked on iOS). */
 const RESTOREBRAINE_APP_LOGO =
   typeof window !== 'undefined' && (window.Capacitor?.isNativePlatform?.() || window.location?.protocol === 'capacitor:')
     ? new URL('AppIcon.png', window.location.href).href
@@ -16,19 +17,13 @@ import { TabStateProvider } from "./components/TabStateContext";
 import { BrandGradientDefs } from "@/components/ui/BrandGradientIcon";
 
 const TAB_ORDER = ["Gallery", "Upload", "Account"];
-/** Header bar height excluding safe-area (matches Tailwind h-11). */
 const HEADER_BAR_PX = 44;
-
-function resetScrollPosition() {
-  window.scrollTo(0, 0);
-  document.documentElement.scrollTop = 0;
-  document.body.scrollTop = 0;
-}
 
 function LayoutInner({ children, currentPageName }) {
   const location = useLocation();
   const navigate = useNavigate();
   const prevIndexRef = useRef(0);
+  const mainScrollRef = useRef(null);
   const { backState, popBack } = useNavigation();
   const { resumeActiveSession } = useAuth();
 
@@ -46,27 +41,26 @@ function LayoutInner({ children, currentPageName }) {
   }, [activeIndex]);
 
   useEffect(() => {
-    resetScrollPosition();
-    requestAnimationFrame(resetScrollPosition);
+    resetAppScrollPosition();
+    requestAnimationFrame(resetAppScrollPosition);
+    const t = window.setTimeout(resetAppScrollPosition, 50);
+    return () => window.clearTimeout(t);
   }, [location.pathname]);
 
   useEffect(() => {
-    resetScrollPosition();
+    resetAppScrollPosition();
   }, []);
 
-  // Dark mode detection
-  useEffect(() => {
-    const mq = window.matchMedia("(prefers-color-scheme: dark)");
-    const apply = (e) => document.documentElement.classList.toggle("dark", e.matches);
-    apply(mq);
-    mq.addEventListener("change", apply);
-    return () => mq.removeEventListener("change", apply);
-  }, []);
-
-  // Prevent overscroll bounce
   useEffect(() => {
     document.body.style.overscrollBehaviorY = "none";
-    return () => { document.body.style.overscrollBehaviorY = ""; };
+    document.documentElement.style.height = "100%";
+    document.body.style.height = "100%";
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overscrollBehaviorY = "";
+      document.body.style.height = "";
+      document.body.style.overflow = "";
+    };
   }, []);
 
   const tabs = [
@@ -83,13 +77,11 @@ function LayoutInner({ children, currentPageName }) {
 
   const handleBack = () => {
     if (!backState) return;
-
     if (isGalleryPath(location.pathname)) {
       backState.onBack();
       popBack();
       return;
     }
-
     popBack();
     navigateToGallery(navigate, { resumeActiveSession });
   };
@@ -98,13 +90,29 @@ function LayoutInner({ children, currentPageName }) {
     if (!isGalleryPath(location.pathname)) popBack();
   }, [location.pathname, popBack]);
 
+  const pageContent = LOCAL_NATIVE_BUNDLE ? (
+    <div key={location.pathname}>{children}</div>
+  ) : (
+    <AnimatePresence custom={direction} mode="wait">
+      <motion.div
+        key={location.pathname}
+        custom={direction}
+        variants={variants}
+        initial="enter"
+        animate="center"
+        exit="exit"
+        transition={{ type: "tween", duration: 0.22, ease: "easeInOut" }}
+      >
+        {children}
+      </motion.div>
+    </AnimatePresence>
+  );
+
   return (
-    <div className="min-h-[100dvh] bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
+    <div className="h-[100dvh] flex flex-col bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 overflow-hidden">
       <BrandGradientDefs />
       <style>{`
         :root {
-          --primary: 250 70% 75%;
-          --primary-dark: 250 65% 65%;
           --rb-header-bar: ${HEADER_BAR_PX}px;
           --rb-header-total: calc(var(--rb-header-bar) + env(safe-area-inset-top, 0px));
           --rb-tab-bar: calc(3.25rem + env(safe-area-inset-bottom, 0px));
@@ -113,9 +121,8 @@ function LayoutInner({ children, currentPageName }) {
         button, a, [role="button"] { user-select: none; -webkit-user-select: none; }
       `}</style>
 
-      {/* Compact top header — safe-area once, inside fixed bar */}
       <header
-        className="fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-xl border-b border-purple-100 shadow-sm select-none"
+        className="flex-shrink-0 z-50 bg-white/80 backdrop-blur-xl border-b border-purple-100 shadow-sm select-none"
         style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
       >
         <div className="max-w-7xl mx-auto px-3 sm:px-4">
@@ -131,7 +138,6 @@ function LayoutInner({ children, currentPageName }) {
                 <span className="text-sm">{backState.label}</span>
               </button>
             ) : null}
-
             <div className={`flex-1 flex justify-center ${backState ? 'invisible' : ''}`}>
               <Link to="/" replace className="flex items-center gap-1.5 select-none group min-h-[44px]">
                 <img
@@ -150,29 +156,15 @@ function LayoutInner({ children, currentPageName }) {
       </header>
 
       <main
-        className="box-border min-h-[100dvh]"
-        style={{
-          paddingTop: 'var(--rb-header-total)',
-          paddingBottom: 'var(--rb-tab-bar)',
-        }}
+        id="rb-app-scroll"
+        ref={mainScrollRef}
+        className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-y-contain -webkit-overflow-scrolling-touch"
       >
-        <AnimatePresence custom={direction} mode="wait">
-          <motion.div
-            key={location.pathname}
-            custom={direction}
-            variants={variants}
-            initial="enter"
-            animate="center"
-            exit="exit"
-            transition={{ type: "tween", duration: 0.22, ease: "easeInOut" }}
-          >
-            {children}
-          </motion.div>
-        </AnimatePresence>
+        {pageContent}
       </main>
 
       <nav
-        className="fixed bottom-0 left-0 right-0 z-[100] select-none bg-white/90 backdrop-blur-xl border-t border-purple-100 shadow-lg"
+        className="flex-shrink-0 z-[100] select-none bg-white/90 backdrop-blur-xl border-t border-purple-100 shadow-lg"
         style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
         aria-label="App navigation"
       >
@@ -186,27 +178,20 @@ function LayoutInner({ children, currentPageName }) {
                 to={galleryTarget}
                 replace={isActive}
                 data-rb-gallery-nav={name === 'Gallery' ? 'tab' : undefined}
-                onClick={name === 'Gallery' ? () => {
+                onClick={() => {
                   popBack();
-                  void persistActiveSession().then(() => resumeActiveSession?.());
-                } : undefined}
+                  resetAppScrollPosition();
+                  if (name === 'Gallery') {
+                    void persistActiveSession().then(() => resumeActiveSession?.());
+                  }
+                }}
                 className="flex-1 flex flex-col items-center justify-center py-2.5 gap-0.5 select-none relative min-h-[52px]"
               >
-                <Icon
-                  className={`w-5 h-5 transition-colors select-none ${
-                    isActive ? "text-purple-600" : "text-gray-400"
-                  }`}
-                />
-                <span
-                  className={`text-xs font-medium transition-colors select-none ${
-                    isActive ? "text-purple-600" : "text-gray-400"
-                  }`}
-                >
+                <Icon className={`w-5 h-5 transition-colors select-none ${isActive ? "text-purple-600" : "text-gray-400"}`} />
+                <span className={`text-xs font-medium transition-colors select-none ${isActive ? "text-purple-600" : "text-gray-400"}`}>
                   {label}
                 </span>
-                {isActive && (
-                  <span className="absolute bottom-0 w-8 h-0.5 bg-purple-500 rounded-full" />
-                )}
+                {isActive ? <span className="absolute bottom-0 w-8 h-0.5 bg-purple-500 rounded-full" /> : null}
               </Link>
             );
           })}

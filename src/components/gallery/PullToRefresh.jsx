@@ -7,13 +7,13 @@ export default function PullToRefresh({ onRefresh, children }) {
   const [pullDistance, setPullDistance] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const startY = useRef(null);
-  const containerRef = useRef(null);
 
   const isModalOpen = () => document.body.classList.contains('modal-open');
 
   const handleTouchStart = (e) => {
     if (isModalOpen()) return;
-    if (containerRef.current?.scrollTop === 0) {
+    const scrollEl = document.getElementById('rb-app-scroll') || document.documentElement;
+    if (scrollEl.scrollTop <= 0) {
       startY.current = e.touches[0].clientY;
     }
   };
@@ -42,23 +42,25 @@ export default function PullToRefresh({ onRefresh, children }) {
 
   return (
     <div
-      ref={containerRef}
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
       className="relative"
     >
-      {indicatorVisible && (
+      {indicatorVisible ? (
         <div
-          className="flex items-center justify-center transition-all duration-200"
-          style={{ height: refreshing ? 48 : pullDistance }}
+          className="pointer-events-none fixed left-0 right-0 z-[60] flex items-center justify-center"
+          style={{
+            top: 'var(--rb-header-total, 3.5rem)',
+            height: refreshing ? 48 : Math.max(pullDistance, 32),
+          }}
         >
           <RefreshCw
             className={`w-5 h-5 text-purple-500 ${refreshing ? "animate-spin" : ""}`}
             style={{ transform: `rotate(${(pullDistance / THRESHOLD) * 180}deg)` }}
           />
         </div>
-      )}
+      ) : null}
       {children}
     </div>
   );

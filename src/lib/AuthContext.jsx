@@ -252,6 +252,9 @@ export const AuthProvider = ({ children }) => {
       if (token) {
         await persistSessionToNativeStorage(token);
       }
+      if (currentUser?.email) {
+        window.dispatchEvent(new CustomEvent('restorebraine-gallery-ready', { detail: { email: currentUser.email } }));
+      }
     } catch (error) {
       console.error('User auth check failed:', error);
 
