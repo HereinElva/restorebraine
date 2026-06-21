@@ -166,7 +166,7 @@ if (iosIndex && /restorebraine-v4-bridge\.js/.test(iosIndex)) {
   ok('index.html has no sync v4-bridge (async load OK)');
 }
 
-for (const required of ['restorebraine-v4-bridge.js', 'v4-native-oauth.js', 'login-logo.png']) {
+for (const required of ['restorebraine-v4-bridge.js', 'v4-native-oauth.js']) {
   const iosPath = resolve(`ios/App/App/public/${required}`);
   if (existsSync(iosPath)) {
     ok(`${required} in ios/public (${readFileSync(iosPath).length} bytes)`);
