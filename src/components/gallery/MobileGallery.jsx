@@ -12,7 +12,10 @@ import MobileFolderCard from "./MobileFolderCard";
 import MobileDrawerMenu from "./MobileDrawerMenu";
 import { base44 } from "@/api/base44Client";
 import { DEPLOY_BUILD } from "@/deploy-marker";
-import { normalizePhotoId } from "@/lib/gallery-organize-snapshot";
+import { normalizePhotoId, foldersForGalleryView } from "@/lib/gallery-organize-snapshot";
+import { mergeFoldersIntoTarget } from "@/lib/folder-membership";
+import { getGalleryUserEmail, galleryFoldersKey } from "@/lib/gallery-query-keys";
+import { useAuth } from "@/lib/AuthContext";
 
 export default function MobileGallery({
   photos,
@@ -49,6 +52,7 @@ export default function MobileGallery({
   const [merging, setMerging] = useState(false);
   const [folderMoveDrawerOpen, setFolderMoveDrawerOpen] = useState(false);
   const inputRef = useRef(null);
+  const { user: authUser } = useAuth();
 
   const photosInFolders = new Set(
     folders.flatMap((f) => (f.photo_ids || []).map(normalizePhotoId)),
@@ -80,29 +84,29 @@ export default function MobileGallery({
     exitSelection();
   };
 
-  // Merge selected folders into a target folder
+  // Move/merge selected folder(s) into a target folder (sources are deleted)
   const handleMerge = async (targetFolderId) => {
     setMergeDrawerOpen(false);
     setMerging(true);
-    const targetFolder = folders.find(f => f.id === targetFolderId);
-    const sourceIds = selectedFolderIds; // all selected folders merge INTO target
-    let allPhotoIds = [...(targetFolder.photo_ids || [])];
-    for (const srcId of sourceIds) {
-      const src = folders.find(f => f.id === srcId);
-      if (src) allPhotoIds = [...allPhotoIds, ...(src.photo_ids || [])];
+    try {
+      const updatedFolders = await mergeFoldersIntoTarget({
+        targetFolderId,
+        sourceFolderIds: selectedFolderIds,
+        folders,
+        photos,
+      });
+      const email = getGalleryUserEmail(queryClient, authUser?.email);
+      queryClient.setQueryData(
+        galleryFoldersKey(email),
+        foldersForGalleryView(updatedFolders, photos),
+      );
+      exitSelection();
+    } catch (error) {
+      console.error("Error moving folder:", error);
+      alert("Could not move folder contents. Try again.");
+    } finally {
+      setMerging(false);
     }
-    const uniqueIds = [...new Set(allPhotoIds)];
-    const coverPhoto = photos.find(p => p.id === uniqueIds[0]);
-    await base44.entities.Folder.update(targetFolderId, {
-      photo_ids: uniqueIds,
-      ...(coverPhoto && { cover_photo_url: coverPhoto.file_url }),
-    });
-    for (const srcId of sourceIds) {
-      await base44.entities.Folder.delete(srcId);
-    }
-    queryClient.invalidateQueries({ queryKey: ['folders'] });
-    setMerging(false);
-    exitSelection();
   };
 
   const handleDeleteFolders = async () => {
@@ -475,7 +479,7 @@ export default function MobileGallery({
                 </button>
               )}
 
-              {/* Merge — when 1+ folders selected */}
+              {/* Move / merge folders — when 1+ folders selected, no loose photos */}
               {selectedFolderIds.length >= 1 && selectedIds.length === 0 && (
                 <button
                   onClick={() => setMergeDrawerOpen(true)}
@@ -483,7 +487,7 @@ export default function MobileGallery({
                   className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-purple-600 text-white text-sm font-semibold disabled:opacity-50"
                 >
                   {merging ? <Loader2 className="w-4 h-4 animate-spin" /> : <FolderInput className="w-4 h-4" />}
-                  Merge Folders
+                  {selectedFolderIds.length === 1 ? "Move into Folder" : "Merge Folders"}
                 </button>
               )}
 
@@ -514,8 +518,12 @@ export default function MobileGallery({
         </div>
       )}
 
-      {/* Merge folders drawer */}
-      <MobileDrawerMenu open={mergeDrawerOpen} onOpenChange={setMergeDrawerOpen} title="Merge into folder">
+      {/* Move / merge folders drawer */}
+      <MobileDrawerMenu
+        open={mergeDrawerOpen}
+        onOpenChange={setMergeDrawerOpen}
+        title={selectedFolderIds.length === 1 ? "Move into folder" : "Merge into folder"}
+      >
         {folders
           .filter(f => !selectedFolderIds.includes(f.id))
           .map(folder => (

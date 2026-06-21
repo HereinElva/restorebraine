@@ -90,3 +90,53 @@ export async function assignLoosePhotosToFolders({
 
   return folders;
 }
+
+/**
+ * Move all media from source folder(s) into a target folder, then delete the source folder(s).
+ * Same reliable photo_id merge as manual move. Returns updated in-memory folder list for cache.
+ */
+export async function mergeFoldersIntoTarget({
+  targetFolderId,
+  sourceFolderIds,
+  folders,
+  photos,
+}) {
+  const targetFolder = folders.find((f) => f.id === targetFolderId);
+  if (!targetFolder) {
+    throw new Error('Target folder not found');
+  }
+
+  const sources = sourceFolderIds.filter((id) => id !== targetFolderId);
+  let mergedIds = [...(targetFolder.photo_ids || [])];
+
+  for (const srcId of sources) {
+    const src = folders.find((f) => f.id === srcId);
+    if (src?.photo_ids?.length) {
+      mergedIds = mergePhotoIdsLikeManualMove(mergedIds, src.photo_ids);
+    }
+  }
+
+  const coverPhoto = photos.find(
+    (p) => normalizePhotoId(p.id) === normalizePhotoId(mergedIds[0]),
+  );
+  const coverUrl = targetFolder.cover_photo_url || coverPhoto?.file_url || '';
+
+  await base44.entities.Folder.update(targetFolderId, {
+    photo_ids: mergedIds,
+    ...(!targetFolder.cover_photo_url && coverUrl ? { cover_photo_url: coverUrl } : {}),
+  });
+
+  for (const srcId of sources) {
+    await base44.entities.Folder.delete(srcId);
+  }
+
+  const updatedTarget = {
+    ...targetFolder,
+    photo_ids: mergedIds,
+    cover_photo_url: coverUrl || targetFolder.cover_photo_url,
+  };
+
+  return folders
+    .filter((f) => !sources.includes(f.id))
+    .map((f) => (f.id === targetFolderId ? updatedTarget : f));
+}

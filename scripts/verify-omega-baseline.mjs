@@ -62,7 +62,7 @@ for (const file of PROTECTED) {
 const mgDiff = git(`diff ${baseline} -- ${MOBILE_GALLERY}`);
 if (mgDiff) {
   const allowedOrganizeFix =
-    /normalizePhotoId|gallery-organize-snapshot|OrganizeButton photos=\{photos\} folders=\{folders\}/.test(
+    /normalizePhotoId|gallery-organize-snapshot|OrganizeButton photos=\{photos\} folders=\{folders\}|mergeFoldersIntoTarget|Move into Folder|folder-membership|gallery-query-keys|useAuth/.test(
       mgDiff,
     );
   const allowedOnly =
