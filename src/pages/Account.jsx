@@ -7,8 +7,7 @@ import { ArrowLeft, Trash2, AlertTriangle, LogOut } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useNavigation } from "@/components/NavigationContext";
-import { persistActiveSession } from "@/lib/gallery-nav";
-import { resetAppScrollPosition } from "@/lib/scroll-reset";
+import { navigateToGallery } from "@/lib/gallery-nav";
 import { isHostedAppOrigin, isNativeShell } from "@/lib/native-hosted-redirect";
 
 export default function Account() {
@@ -58,11 +57,7 @@ export default function Account() {
   };
 
   const goToGallery = () => {
-    popBack();
-    resetAppScrollPosition();
-    navigate('/', { replace: true });
-    void persistActiveSession();
-    void resumeActiveSession?.();
+    navigateToGallery(navigate, { popBack, resumeActiveSession });
   };
 
   return (

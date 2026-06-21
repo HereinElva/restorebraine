@@ -56,7 +56,10 @@ function loadV4BridgeScript() {
 
 function bootstrapNativeLocal() {
   window.__RESTOREBRAINE_NATIVE_BUILD__ = NATIVE_BUILD_LABEL;
-  ensureClientSessionToken();
+  const bootToken = ensureClientSessionToken();
+  if (bootToken) {
+    window.dispatchEvent(new CustomEvent('restorebraine-gallery-ready', { detail: { token: bootToken } }));
+  }
 
   const { protocol, hostname } = window.location;
   const bundledOrigin =

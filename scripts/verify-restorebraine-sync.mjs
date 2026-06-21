@@ -30,6 +30,7 @@ if (!existsSync(pubIndex)) {
 } else {
   const html = readFileSync(pubIndex, 'utf8');
   const entry = html.match(/assets\/(index-[^"]+\.js)/)?.[1] ?? '?';
+  const iosDeploy = html.match(/restorebraine-deploy[^>]*content="v(\d+)"/)?.[1] ?? '?';
   const stamp = existsSync(resolve('ios/App/App/BUILD_STAMP.txt'))
     ? readFileSync(resolve('ios/App/App/BUILD_STAMP.txt'), 'utf8').trim()
     : '?';
@@ -37,13 +38,18 @@ if (!existsSync(pubIndex)) {
     ? readFileSync(resolve('ios/App/App/capacitor.config.json'), 'utf8')
     : '';
   const hosted = capConfig.includes('restorebraine.base44.app');
+  console.log(`  deploy:  v${iosDeploy} (source v${build})`);
   console.log(`  stamp:   ${stamp}`);
   console.log(`  entry:   ${entry}`);
   console.log(`  mode:    ${hosted ? 'hosted (Omega shell)' : 'bundled (full app in iPhone)'}`);
-  if (entry.includes('yywMD') || entry.includes('DEgtMOC')) {
-    /* ok */
+  if (iosDeploy !== build) {
+    console.log(`  status:  STALE — ios v${iosDeploy} != git v${build}. Run npm run build:native-local`);
+    fail += 1;
+  } else if (entry !== '?') {
+    okCapacitor(true);
+  } else {
+    okCapacitor(false);
   }
-  okCapacitor(entry !== '?');
 }
 
 function okCapacitor(ok) {

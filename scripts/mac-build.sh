@@ -68,10 +68,17 @@ if [ "$SKIP_GIT" = "0" ]; then
   echo ""
 fi
 
+echo "=== Step 1b: wipe stale ios bundle (survives git pull — causes v199 UI on device) ==="
+rm -rf ios/App/App/public dist node_modules/.vite
+mkdir -p ios/App/App/public/assets
+echo "Removed old ios/App/App/public — fresh bundle will be built in Step 3"
+echo ""
+
 echo "=== Step 2: verify 1.0.1 features + Omega baseline ==="
 node scripts/verify-restorebraine-1.0.1.mjs
 node scripts/verify-omega-baseline.mjs
 node scripts/verify-auth-flow.mjs
+node scripts/verify-ios-bundle-version.mjs
 echo ""
 
 if [ "$NUCLEAR" = "1" ]; then

@@ -173,6 +173,7 @@ export const AuthProvider = ({ children }) => {
         base44.auth.setToken(tokenAfterRestore, false);
         setIsAuthenticated(true);
         setIsLoadingAuth(false);
+        window.dispatchEvent(new CustomEvent('restorebraine-gallery-ready', { detail: { token: tokenAfterRestore } }));
         void checkUserAuth({ ignoreManualLogout: true });
 
         if (isNativeLocalShell()) {
