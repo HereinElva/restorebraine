@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { FolderPlus, Loader2, Sparkles } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -21,13 +21,13 @@ import {
   loosePhotosForOrganize,
   setGalleryOrganizeSnapshot,
 } from "@/lib/gallery-organize-snapshot";
-import { persistGalleryFolders } from "@/lib/folder-membership-cache";
+import { persistGalleryFolders, persistGalleryFoldersFast } from "@/lib/folder-membership-cache";
 import { mergeApiFoldersWithLocal } from "@/lib/folder-membership";
 import { getGalleryUserEmail, galleryFoldersKey, galleryPhotosKey } from "@/lib/gallery-query-keys";
 import { runMediaOrganize } from "@/lib/run-media-organize";
 import { ORGANIZE_ICON_CLASS, ORGANIZE_LABEL_CLASS, SQUARE_FOLDER_ACTION_CLASS, SQUARE_FOLDER_ACTION_STYLE } from "./folderActionStyles";
 
-function truncateProgress(text, max = 22) {
+function truncateProgress(text, max = 16) {
   if (!text || text.length <= max) return text || "Organizing...";
   return `${text.slice(0, max - 1)}…`;
 }
@@ -58,6 +58,15 @@ export default function OrganizeButton({ photos, folders: foldersProp, squareSty
   const folders = foldersProp ?? snapshot.folders;
   const unorganizedCount = loosePhotosForOrganize(photos, folders).length;
 
+  useEffect(() => {
+    const resetOrganizing = () => {
+      setOrganizing(false);
+      setProgressLabel("");
+    };
+    window.addEventListener("restorebraine-gallery-refresh", resetOrganizing);
+    return () => window.removeEventListener("restorebraine-gallery-refresh", resetOrganizing);
+  }, []);
+
   const handleOrganize = async () => {
     if (photos.length < 1) {
       alert("Add photos before organizing.");
@@ -84,7 +93,7 @@ export default function OrganizeButton({ photos, folders: foldersProp, squareSty
         includeOrganized,
         customInstructions,
         onProgress: setProgressLabel,
-        onPartialSave: async (partialFolders) => {
+        onPartialSave: (partialFolders) => {
           const existing = queryClient.getQueryData(galleryFoldersKey(email)) ?? [];
           const verified = foldersForGalleryView(
             mergeApiFoldersWithLocal(partialFolders, existing),
@@ -92,7 +101,7 @@ export default function OrganizeButton({ photos, folders: foldersProp, squareSty
           );
           queryClient.setQueryData(galleryFoldersKey(email), verified);
           setGalleryOrganizeSnapshot({ photos, folders: verified });
-          if (email) await persistGalleryFolders(email, verified);
+          if (email) persistGalleryFoldersFast(email, verified);
         },
         userEmail: email,
       });

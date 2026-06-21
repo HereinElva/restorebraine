@@ -401,9 +401,15 @@ export default function Gallery() {
  
   // Pull-to-refresh forces a fresh fetch bypassing the cache
   const handleRefresh = async () => {
-    await queryClient.invalidateQueries({ queryKey: ['photos'] });
-    await queryClient.invalidateQueries({ queryKey: ['folders'] });
-    await queryClient.invalidateQueries({ queryKey: ['current-user'] });
+    window.dispatchEvent(new Event("restorebraine-gallery-refresh"));
+    await Promise.race([
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["photos", userEmail] }),
+        queryClient.invalidateQueries({ queryKey: ["folders", userEmail] }),
+        queryClient.invalidateQueries({ queryKey: ["current-user"] }),
+      ]),
+      new Promise((resolve) => setTimeout(resolve, 12000)),
+    ]);
   };
  
   if (isIOS) {

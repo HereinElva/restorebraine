@@ -255,7 +255,6 @@ export async function assignLoosePhotosByFolder({
     groups.get(folderName).push(photo);
   }
 
-  let processed = 0;
   let groupIndex = 0;
   const groupCount = groups.size;
   const cacheEntries = [];
@@ -263,8 +262,7 @@ export async function assignLoosePhotosByFolder({
 
   for (const [folderName, groupPhotos] of groups) {
     groupIndex += 1;
-    processed += groupPhotos.length;
-    onProgress?.(`Saving folder ${groupIndex}/${groupCount} (${processed}/${total})…`);
+    onProgress?.(`Save ${groupIndex}/${groupCount}…`);
 
     const photoIds = groupPhotos.map((p) => p.id);
     let folderId = null;
@@ -325,7 +323,6 @@ export async function assignLoosePhotosByFolder({
       }
 
       onPartialSave?.(folders);
-      if (userEmail) await persistGalleryFolders(userEmail, folders);
     } catch (error) {
       console.warn('Folder group save failed:', folderName, error);
       failedPhotoIds.push(...photoIds);

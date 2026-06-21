@@ -179,15 +179,17 @@ div.grid.grid-cols-2.gap-2.mb-5 > button,
 div.grid.grid-cols-2.gap-2.mb-5 [data-rb-folder-action] {
   box-sizing: border-box !important;
   width: 100% !important;
-  height: auto !important;
+  height: 4.25rem !important;
   min-height: 4.25rem !important;
+  max-height: 4.25rem !important;
+  overflow: hidden !important;
   max-width: none !important;
   display: flex !important;
   flex-direction: column !important;
   align-items: center !important;
   justify-content: center !important;
-  gap: 0.25rem !important;
-  padding: 0.75rem !important;
+  gap: 0.125rem !important;
+  padding: 0.5rem !important;
   border-radius: 1rem !important;
   background: linear-gradient(to bottom right, #ffffff 0%, #ffffff 70%, rgb(250 245 255) 100%) !important;
   border: 1px solid rgb(229 231 235) !important;
@@ -218,6 +220,13 @@ div.grid.grid-cols-2.gap-2.mb-5 [data-rb-folder-action="organize"] [data-rb-orga
   color: rgb(147 51 234) !important;
   -webkit-text-fill-color: rgb(147 51 234) !important;
   background: none !important;
+  font-size: 0.65rem !important;
+  line-height: 1.1 !important;
+  max-width: 100% !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  display: block !important;
 }
 
 div.grid.grid-cols-2.gap-1\.5.mb-5 [data-rb-folder-action="organize"] svg.lucide,

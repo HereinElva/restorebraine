@@ -31,8 +31,11 @@ export default function PullToRefresh({ onRefresh, children }) {
     if (isModalOpen()) return;
     if (pullDistance >= THRESHOLD && !refreshing) {
       setRefreshing(true);
-      await onRefresh();
-      setRefreshing(false);
+      try {
+        await onRefresh();
+      } finally {
+        setRefreshing(false);
+      }
     }
     setPullDistance(0);
     startY.current = null;
