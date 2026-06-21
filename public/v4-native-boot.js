@@ -127,4 +127,21 @@
   } else {
     wireGoogleButton();
   }
+
+  function showBuildTag() {
+    var tag = document.getElementById('rb-signin-build-tag');
+    if (!tag) return;
+    var stamp =
+      (document.querySelector('meta[name="restorebraine-build-stamp"]') || {}).content ||
+      (document.querySelector('meta[name="restorebraine-deploy"]') || {}).content ||
+      '';
+    var version = (stamp.match(/v(\d+)/) || [])[1];
+    tag.textContent = version ? 'Bundled app · build v' + version : 'Bundled app · v4-core';
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', showBuildTag);
+  } else {
+    showBuildTag();
+  }
 })();

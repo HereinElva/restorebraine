@@ -1,8 +1,23 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import NativeDebugBadge from '@/components/NativeDebugBadge';
+import { BUILD_NUMBER } from '@/lib/build-info';
+import { LOCAL_NATIVE_BUNDLE } from '@/lib/native-bundle-mode';
 import { isNativeShell } from '@/lib/native-hosted-redirect';
 import { startGoogleSignIn } from '@/auth/googleSignIn';
 import '@/auth/sign-in-screen.css';
+
+/** Strip legacy Base44 login nodes if they appear above our card (hosted leak / stale DOM). */
+function scrubLegacyLoginDom() {
+  if (typeof document === 'undefined' || !LOCAL_NATIVE_BUNDLE) return;
+  document.querySelectorAll('p, span, h1, h2, h3, div').forEach((node) => {
+    const text = (node.textContent || '').replace(/\s+/g, ' ').trim();
+    if (!/sign in to access your memories|sign in to continue/i.test(text)) return;
+    if (text.length > 120) return;
+    const card = document.getElementById('restorebraine-signin-shell');
+    if (card && card.contains(node)) return;
+    node.remove();
+  });
+}
 
 function GoogleSignInControl({ clearSignedOut = false }) {
   const [busy, setBusy] = useState(false);
@@ -40,15 +55,23 @@ function GoogleSignInControl({ clearSignedOut = false }) {
 
 /** v4 sign-in gate — white card, title, Google only (no logo). */
 export default function RestorebraineSignIn({ clearSignedOut = false }) {
+  useEffect(() => {
+    scrubLegacyLoginDom();
+  }, []);
+
   return (
     <main
       id="restorebraine-signin-shell"
       className="rb-signin-shell"
       data-rb-v4-auth="react"
+      data-rb-build={BUILD_NUMBER}
       aria-label="Sign in to Restorebraine"
     >
       <div className="rb-signin-card">
         <h1 className="rb-signin-title">Restorebraine</h1>
+        {LOCAL_NATIVE_BUNDLE && isNativeShell() ? (
+          <p className="rb-signin-build-tag">Bundled app · build v{BUILD_NUMBER}</p>
+        ) : null}
         <GoogleSignInControl clearSignedOut={clearSignedOut} />
       </div>
       {isNativeShell() ? <NativeDebugBadge /> : null}

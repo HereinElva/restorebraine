@@ -23,6 +23,7 @@ const v4SignInShell = `
       <main id="restorebraine-signin-shell" class="rb-signin-shell" data-rb-v4-auth="preboot" aria-label="Sign in to Restorebraine">
         <div class="rb-signin-card">
           <h1 class="rb-signin-title">Restorebraine</h1>
+          <p class="rb-signin-build-tag" id="rb-signin-build-tag">Bundled app · loading…</p>
           <button type="button" id="restorebraine-google-btn" class="rb-signin-google">Continue with Google</button>
         </div>
       </main>`;

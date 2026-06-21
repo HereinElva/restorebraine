@@ -30,6 +30,14 @@
   letter-spacing: -0.02em;
 }
 
+.rb-signin-build-tag {
+  margin: -16px 0 20px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #7c3aed;
+  letter-spacing: 0.02em;
+}
+
 .rb-signin-google {
   width: 100%;
   padding: 14px 16px;
