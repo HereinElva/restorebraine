@@ -15,12 +15,11 @@ import {
 import {
   assignLoosePhotosByFolder,
   deleteFoldersWithTimeout,
-  listAllFolders,
-  mergeApiFoldersWithLocal,
+  listAllFoldersSafe,
 } from "@/lib/folder-membership";
 import {
-  clearFolderMembershipCache,
   recordBatchFolderMembership,
+  saveFolderSnapshotCache,
 } from "@/lib/folder-membership-cache";
 
 const CHUNK_SIZE = 15;
@@ -145,17 +144,15 @@ export async function runMediaOrganize({
   const uiFolders = foldersSnapshot ?? [];
   const uiShowsNoFolders = uiFolders.length === 0;
 
-  let apiFolders = sanitizeFoldersLocally(await listAllFolders(), photos, allPhotoIds);
-
-  // Ghost folders on API but UI shows none — don't block on slow/hanging deletes.
-  const ghostFolderIds =
-    uiShowsNoFolders && !includeOrganized && apiFolders.length > 0
-      ? apiFolders.map((f) => f.id)
-      : [];
-
-  if (ghostFolderIds.length > 0) {
-    if (userEmail) await clearFolderMembershipCache(userEmail);
-    void deleteFoldersWithTimeout(ghostFolderIds);
+  // When UI shows no folders, skip Folder.list — it often hangs and blocks organize.
+  let apiFolders = [];
+  if (includeOrganized || !uiShowsNoFolders) {
+    onProgress?.("Checking folders…");
+    apiFolders = sanitizeFoldersLocally(
+      await listAllFoldersSafe({ timeoutMs: 8000 }),
+      photos,
+      allPhotoIds,
+    );
   }
 
   const liveFolderSource = uiShowsNoFolders ? [] : uiFolders.length ? uiFolders : apiFolders;
@@ -186,7 +183,6 @@ export async function runMediaOrganize({
     }
     onProgress?.("Clearing folders…");
     await deleteFoldersWithTimeout(apiFolders.map((f) => f.id));
-    if (userEmail) await clearFolderMembershipCache(userEmail);
     apiFolders = [];
   }
 
@@ -223,18 +219,11 @@ export async function runMediaOrganize({
   let afterFolders = saveResult.folders;
   const failedNormIds = new Set((saveResult.failedPhotoIds || []).map(normalizePhotoId));
 
-  let savedApiFolders = await listAllFolders();
-  afterFolders = mergeApiFoldersWithLocal(savedApiFolders, afterFolders);
-
-  if (ghostFolderIds.length > 0) {
-    const savedIds = new Set(afterFolders.map((f) => f.id));
-    const remainingGhosts = ghostFolderIds.filter((id) => !savedIds.has(id));
-    if (remainingGhosts.length > 0) {
-      onProgress?.("Cleaning up…");
-      await deleteFoldersWithTimeout(remainingGhosts);
-    }
-    savedApiFolders = savedApiFolders.filter((f) => !ghostFolderIds.includes(f.id));
+  if (userEmail && afterFolders.length > 0) {
+    await saveFolderSnapshotCache(userEmail, afterFolders);
   }
+
+  const savedApiFolders = afterFolders;
 
   const missedPhotos = batchPhotos.filter(
     (p) =>

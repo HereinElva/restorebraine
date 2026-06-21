@@ -2,9 +2,14 @@ import { persistentStorage } from '@/lib/persistentStorage';
 import { normalizePhotoId } from '@/lib/gallery-organize-snapshot';
 
 const CACHE_KEY_PREFIX = 'restorebraine_folder_membership:';
+const SNAPSHOT_KEY_PREFIX = 'restorebraine_folder_snapshot:';
 
 function cacheKey(email) {
   return `${CACHE_KEY_PREFIX}${email || 'unknown'}`;
+}
+
+function snapshotKey(email) {
+  return `${SNAPSHOT_KEY_PREFIX}${email || 'unknown'}`;
 }
 
 function mergeIds(existingIds = [], newIds = []) {
@@ -41,6 +46,37 @@ export async function saveFolderMembershipCache(email, photoFolderMap) {
 export async function clearFolderMembershipCache(email) {
   if (!email) return;
   await persistentStorage.remove(cacheKey(email));
+}
+
+/** Last known folder list — used when Folder.list is slow or returns empty. */
+export async function loadFolderSnapshotCache(email) {
+  if (!email) return [];
+  try {
+    const raw = await persistentStorage.get(snapshotKey(email));
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function saveFolderSnapshotCache(email, folders) {
+  if (!email || !folders?.length) return;
+  const slim = folders.map((f) => ({
+    id: f.id,
+    name: f.name,
+    description: f.description || '',
+    photo_ids: f.photo_ids || [],
+    cover_photo_url: f.cover_photo_url || '',
+    created_by: f.created_by,
+  }));
+  await persistentStorage.set(snapshotKey(email), JSON.stringify(slim));
+}
+
+export async function clearFolderSnapshotCache(email) {
+  if (!email) return;
+  await persistentStorage.remove(snapshotKey(email));
 }
 
 export async function recordPhotoFolderMembership(email, photoId, folderId) {

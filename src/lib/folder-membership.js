@@ -9,9 +9,11 @@ import {
   applyFolderMembershipCache,
   clearFolderMembershipCache,
   loadFolderMembershipCache,
+  loadFolderSnapshotCache,
   recordBatchFolderMembership,
   recordPhotoFolderMembership,
   saveFolderMembershipCache,
+  saveFolderSnapshotCache,
 } from '@/lib/folder-membership-cache';
 
 function sleep(ms) {
@@ -63,11 +65,6 @@ function photoIdsPersisted(persistedIds, expectedIds) {
   return (expectedIds || []).every((id) => persistedNorm.has(normalizePhotoId(id)));
 }
 
-export async function listAllFolders() {
-  const result = await base44.entities.Folder.list('-created_date', 200);
-  return (result || []).map(normalizeFolderRecord);
-}
-
 const FOLDER_DELETE_TIMEOUT_MS = 8000;
 const FOLDER_API_TIMEOUT_MS = 25000;
 
@@ -78,6 +75,24 @@ function withFolderApiTimeout(promise, label, timeoutMs = FOLDER_API_TIMEOUT_MS)
       throw new Error(`${label} timed out after ${timeoutMs}ms`);
     }),
   ]);
+}
+
+export async function listAllFoldersSafe({ timeoutMs = 12000 } = {}) {
+  try {
+    const result = await withFolderApiTimeout(
+      base44.entities.Folder.list('-created_date', 200),
+      'Folder.list',
+      timeoutMs,
+    );
+    return (result || []).map(normalizeFolderRecord);
+  } catch (error) {
+    console.warn('Folder.list failed:', error);
+    return [];
+  }
+}
+
+export async function listAllFolders() {
+  return listAllFoldersSafe();
 }
 
 async function getFolderOnServer(folderId) {
@@ -130,28 +145,33 @@ export async function deleteFoldersWithTimeout(folderIds, { timeoutMs = FOLDER_D
   return { deleted, failed };
 }
 
-/** Gallery load: Folder.list + pruned local membership cache. */
+/** Gallery load: Folder.list (with timeout) + local snapshot/membership fallback. */
 export async function fetchGalleryFoldersWithMembership(email, photos = []) {
-  const listed = await listAllFolders();
+  const listed = await listAllFoldersSafe();
   let cached = await loadFolderMembershipCache(email);
 
-  const validIds = new Set(listed.map((f) => f.id));
+  let folderSource = listed;
+  if (listed.length === 0 && email) {
+    const snapshot = await loadFolderSnapshotCache(email);
+    if (snapshot.length > 0) folderSource = snapshot;
+  }
+
+  const validIds = new Set(folderSource.map((f) => f.id));
   const pruned = {};
   for (const [photoNorm, folderId] of Object.entries(cached)) {
     if (validIds.has(folderId)) pruned[photoNorm] = folderId;
   }
 
-  if (email) {
-    if (listed.length === 0 && Object.keys(cached).length > 0) {
-      await clearFolderMembershipCache(email);
-      cached = {};
-    } else if (Object.keys(pruned).length !== Object.keys(cached).length) {
-      await saveFolderMembershipCache(email, pruned);
-      cached = pruned;
-    }
+  if (email && listed.length > 0 && Object.keys(pruned).length !== Object.keys(cached).length) {
+    await saveFolderMembershipCache(email, pruned);
+    cached = pruned;
   }
 
-  return applyFolderMembershipCache(listed, photos, cached);
+  const result = applyFolderMembershipCache(folderSource, photos, cached);
+  if (email && result.length > 0) {
+    await saveFolderSnapshotCache(email, result);
+  }
+  return result;
 }
 async function updateFolderPhotoIds(folderId, photoIds, extra = {}) {
   return updateFolderPhotoIdsWithTimeout(folderId, photoIds, extra);

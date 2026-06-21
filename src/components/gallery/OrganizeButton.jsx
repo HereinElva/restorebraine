@@ -21,7 +21,7 @@ import {
   loosePhotosForOrganize,
   setGalleryOrganizeSnapshot,
 } from "@/lib/gallery-organize-snapshot";
-import { mergeApiFoldersWithLocal } from "@/lib/folder-membership";
+import { saveFolderSnapshotCache } from "@/lib/folder-membership-cache";
 import { getGalleryUserEmail, galleryFoldersKey, galleryPhotosKey } from "@/lib/gallery-query-keys";
 import { runMediaOrganize } from "@/lib/run-media-organize";
 import { ORGANIZE_ICON_CLASS, ORGANIZE_LABEL_CLASS, SQUARE_FOLDER_ACTION_CLASS, SQUARE_FOLDER_ACTION_STYLE } from "./folderActionStyles";
@@ -97,16 +97,11 @@ export default function OrganizeButton({ photos, folders: foldersProp, squareSty
       queryClient.setQueryData(galleryFoldersKey(email), verifiedFolders);
       setGalleryOrganizeSnapshot({ photos: syncedPhotos, folders: verifiedFolders });
 
-      await queryClient.invalidateQueries({ queryKey: galleryFoldersKey(email) });
-      await queryClient.refetchQueries({ queryKey: galleryFoldersKey(email) });
+      if (email && verifiedFolders.length > 0) {
+        await saveFolderSnapshotCache(email, verifiedFolders);
+      }
 
-      const refetched = queryClient.getQueryData(galleryFoldersKey(email)) ?? [];
-      const merged = foldersForGalleryView(
-        mergeApiFoldersWithLocal(refetched, verifiedFolders),
-        syncedPhotos,
-      );
-      queryClient.setQueryData(galleryFoldersKey(email), merged);
-      setGalleryOrganizeSnapshot({ photos: syncedPhotos, folders: merged });
+      void queryClient.invalidateQueries({ queryKey: galleryFoldersKey(email) });
 
       alert(
         organizeResultMessage({
