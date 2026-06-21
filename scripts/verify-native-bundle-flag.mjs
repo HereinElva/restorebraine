@@ -31,16 +31,27 @@ const checkBundle = (file, label) => {
 };
 
 const appBundle = readdirSync(assetsDir).find((f) => f.startsWith('App-') && f.endsWith('.js'));
-if (!appBundle) {
-  console.error('FAIL: no App-*.js in dist/assets');
-  process.exit(1);
+const bundlesToCheck = [];
+
+if (appBundle) {
+  bundlesToCheck.push(['App chunk', appBundle]);
 }
-checkBundle(appBundle, 'App chunk');
 
 if (entryBundle && entryBundle !== appBundle) {
   if (!existsSync(resolve(assetsDir, entryBundle))) {
     console.error(`FAIL: index.html references missing entry ${entryBundle}`);
     process.exit(1);
   }
-  checkBundle(entryBundle, 'Entry chunk');
+  bundlesToCheck.push(['Entry chunk', entryBundle]);
+} else if (!appBundle && entryBundle) {
+  bundlesToCheck.push(['Entry chunk', entryBundle]);
+}
+
+if (bundlesToCheck.length === 0) {
+  console.error('FAIL: no entry or App chunk in dist/assets');
+  process.exit(1);
+}
+
+for (const [label, file] of bundlesToCheck) {
+  checkBundle(file, label);
 }

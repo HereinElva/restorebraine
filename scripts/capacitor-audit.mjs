@@ -133,11 +133,11 @@ if (existsSync(distAssets)) {
     } else if (/LOCAL_NATIVE_BUNDLE=!0|LOCAL_NATIVE_BUNDLE=true|ar=!0/.test(content)) {
       ok(`${label} ${file} has LOCAL_NATIVE_BUNDLE=true`);
     }
-    if (isLocal && label === 'App chunk') {
-      if (/Continue with Google|restorebraine-signin-shell|data-rb-v4-auth/.test(content)) {
-        ok(`${label} ${file} has rebuilt sign-in screen (Continue with Google)`);
+    if (isLocal && (label === 'App chunk' || (label === 'Entry chunk' && !appChunk))) {
+      if (/Continue with Google|restorebraine-signin|data-rb-auth=sign-in-v4/.test(content)) {
+        ok(`${label} ${file} has SignInScreen (Continue with Google)`);
       } else {
-        fail(`${label} ${file} missing sign-in screen — old login bundle?`);
+        fail(`${label} ${file} missing SignInScreen — old login bundle?`);
         bump();
       }
       if (/data:image\/png;base64,/.test(content)) {
@@ -166,7 +166,7 @@ if (iosIndex && /restorebraine-v4-bridge\.js/.test(iosIndex)) {
   ok('index.html has no sync v4-bridge (async load OK)');
 }
 
-for (const required of ['restorebraine-v4-bridge.js', 'v4-native-boot.js', 'login-logo.png']) {
+for (const required of ['restorebraine-v4-bridge.js', 'v4-native-oauth.js', 'login-logo.png']) {
   const iosPath = resolve(`ios/App/App/public/${required}`);
   if (existsSync(iosPath)) {
     ok(`${required} in ios/public (${readFileSync(iosPath).length} bytes)`);

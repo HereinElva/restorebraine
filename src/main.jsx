@@ -1,3 +1,7 @@
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import App from '@/App.jsx';
+import '@/index.css';
 import { LOCAL_NATIVE_BUNDLE } from '@/lib/native-bundle-mode';
 import { NATIVE_BUILD_LABEL } from '@/lib/build-info';
 import { redirectNativeToHostedApp } from '@/lib/native-hosted-redirect';
@@ -24,7 +28,6 @@ function markAppMounted() {
   window.__restorebraineAppMounted = true;
 }
 
-/** Load v4 bridge after React paints — never block first paint with 42KB sync script (v127). */
 function loadV4BridgeScript() {
   if (typeof window === 'undefined') return;
   if (window.__restorebraineSessionBridgeInstalled || window.__restorebraineV4BridgeLoading) return;
@@ -40,7 +43,6 @@ function loadV4BridgeScript() {
   };
   script.onerror = () => {
     window.__restorebraineV4BridgeLoading = false;
-    console.warn('restorebraine-v4-bridge.js failed to load — OAuth uses native plugin fallback');
     import('@/lib/native-google-oauth')
       .then(({ installNativeOAuthListeners }) => installNativeOAuthListeners())
       .catch((error) => console.warn('OAuth listeners unavailable:', error));
@@ -48,8 +50,7 @@ function loadV4BridgeScript() {
   document.head.appendChild(script);
 }
 
-/** Build v4: mount React immediately — never block on Capacitor Preferences before first paint. */
-async function bootstrapNativeLocal() {
+function bootstrapNativeLocal() {
   window.__RESTOREBRAINE_NATIVE_BUILD__ = NATIVE_BUILD_LABEL;
 
   const { protocol, hostname } = window.location;
@@ -58,42 +59,33 @@ async function bootstrapNativeLocal() {
     protocol === 'ionic:' ||
     hostname === 'localhost' ||
     hostname === '127.0.0.1';
+
   if (!bundledOrigin) {
     showBootstrapError(
-      `Wrong WebView origin: ${window.location.origin}. Run bash scripts/mac-ios-v4-deploy.sh — server.url must be unset.`,
+      `Wrong WebView origin: ${window.location.origin}. Run bash scripts/mac-capacitor-web-sync.sh — server.url must be unset.`,
     );
     return;
   }
 
-  const [{ installNativeBundleShellGuard }] = await Promise.all([
-    import('@/lib/native-bundle-shell-guard'),
-  ]);
-  installNativeBundleShellGuard();
+  import('@/lib/native-bundle-shell-guard')
+    .then(({ installNativeBundleShellGuard }) => installNativeBundleShellGuard())
+    .catch((error) => console.warn('Bundle shell guard:', error));
 
-  // OAuth listeners before React — do not wait for async v4-bridge.
   import('@/lib/native-google-oauth')
     .then(({ installNativeOAuthListeners }) => installNativeOAuthListeners())
     .catch((error) => console.warn('Early OAuth listeners:', error));
 
   const mountTimer = setTimeout(() => {
     if (!window.__restorebraineAppMounted) {
-      showBootstrapError('Startup timed out. Run bash scripts/mac-ios-native-rebuild.sh then Clean Build Folder in Xcode.');
+      showBootstrapError('Startup timed out. Run bash scripts/mac-capacitor-web-sync.sh then Xcode Run.');
     }
-  }, 10000);
+  }, 12000);
 
   try {
-    const [{ default: React }, { default: ReactDOM }, { default: App }] = await Promise.all([
-      import('react'),
-      import('react-dom/client'),
-      import('@/App.jsx'),
-    ]);
-    await import('@/index.css');
-
     ReactDOM.createRoot(document.getElementById('root')).render(<App />);
     markAppMounted();
     clearTimeout(mountTimer);
 
-    // Bridge after UI is visible — sync bridge in index.html causes white screen (v127).
     requestAnimationFrame(() => {
       loadV4BridgeScript();
       installNativeOAuthFix();
@@ -111,25 +103,14 @@ async function bootstrapNativeLocal() {
           console.warn('Background session bootstrap failed:', error);
         }
       })
-      .catch((error) => {
-        console.warn('Session bootstrap module unavailable:', error);
-      });
+      .catch((error) => console.warn('Session bootstrap module unavailable:', error));
   } catch (error) {
     clearTimeout(mountTimer);
     throw error;
   }
 }
 
-async function bootstrapApp() {
-  if (redirectBrokenCustomDomainLogin()) {
-    return;
-  }
-
-  if (LOCAL_NATIVE_BUNDLE) {
-    await bootstrapNativeLocal();
-    return;
-  }
-
+function bootstrapWeb() {
   installNativeOAuthFix();
 
   if (redirectNativeToHostedApp()) {
@@ -141,13 +122,6 @@ async function bootstrapApp() {
   }, 15000);
 
   try {
-    const [{ default: React }, { default: ReactDOM }, { default: App }] = await Promise.all([
-      import('react'),
-      import('react-dom/client'),
-      import('@/App.jsx'),
-    ]);
-    await import('@/index.css');
-
     ReactDOM.createRoot(document.getElementById('root')).render(<App />);
     markAppMounted();
     clearTimeout(bootstrapTimeout);
@@ -161,13 +135,24 @@ async function bootstrapApp() {
           console.warn('Background session bootstrap failed:', error);
         }
       })
-      .catch((error) => {
-        console.warn('Session bootstrap module unavailable:', error);
-      });
+      .catch((error) => console.warn('Session bootstrap module unavailable:', error));
   } catch (error) {
     clearTimeout(bootstrapTimeout);
     throw error;
   }
+}
+
+function bootstrapApp() {
+  if (redirectBrokenCustomDomainLogin()) {
+    return;
+  }
+
+  if (LOCAL_NATIVE_BUNDLE) {
+    bootstrapNativeLocal();
+    return;
+  }
+
+  bootstrapWeb();
 }
 
 bootstrapApp().catch((error) => {

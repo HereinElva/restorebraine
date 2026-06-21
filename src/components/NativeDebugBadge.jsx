@@ -30,7 +30,7 @@ export default function NativeDebugBadge() {
     const stampMismatch = htmlStamp && !htmlStamp.includes(`v${BUILD_NUMBER}`);
     const wrongOrigin = isV4CoreWrongOrigin();
     const authLayer = typeof document !== 'undefined'
-      ? document.querySelector('[data-rb-v4-auth]')?.getAttribute('data-rb-v4-auth') ?? 'none'
+      ? document.querySelector('[data-rb-auth]')?.getAttribute('data-rb-auth') ?? 'none'
       : 'none';
     const oldLoginUi = typeof document !== 'undefined'
       && /sign in to access your memories/i.test(document.body?.innerText ?? '');

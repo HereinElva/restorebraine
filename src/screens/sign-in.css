@@ -1,5 +1,4 @@
-/* Restorebraine v4 sign-in — fresh layout (no logo on login). */
-.rb-signin-shell {
+.rb-signin {
   position: fixed;
   inset: 0;
   display: flex;
@@ -17,17 +16,23 @@
   max-width: 360px;
   padding: 36px 28px;
   border-radius: 24px;
-  background: #ffffff;
+  background: #fff;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
   text-align: center;
 }
 
 .rb-signin-title {
-  margin: 0 0 28px;
+  margin: 0 0 8px;
   font-size: 24px;
   font-weight: 700;
   color: #111827;
-  letter-spacing: -0.02em;
+}
+
+.rb-signin-tag {
+  margin: 0 0 24px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #7c3aed;
 }
 
 .rb-signin-google {
@@ -36,12 +41,11 @@
   border: none;
   border-radius: 14px;
   background: linear-gradient(135deg, #60a5fa 0%, #a78bfa 100%);
-  color: #ffffff;
+  color: #fff;
   font-size: 16px;
   font-weight: 600;
   cursor: pointer;
   touch-action: manipulation;
-  -webkit-tap-highlight-color: transparent;
 }
 
 .rb-signin-google:disabled {
@@ -49,17 +53,8 @@
   cursor: wait;
 }
 
-.rb-signin-build-tag {
-  margin: -16px 0 20px;
-  font-size: 12px;
-  font-weight: 600;
-  color: #7c3aed;
-  letter-spacing: 0.02em;
-}
-
 .rb-signin-error {
   margin: 0 0 12px;
   font-size: 13px;
-  line-height: 1.4;
   color: #dc2626;
 }
