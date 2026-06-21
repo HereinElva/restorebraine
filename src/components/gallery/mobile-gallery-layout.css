@@ -10,27 +10,32 @@
   padding-bottom: 0.25rem !important;
 }
 
-/* Tabs scroll with content — sticky caused bar to float separated while scrolling */
+/* Tabs: full width aligned with search bar (px-4) and content below */
 .rb-mobile-gallery-shell .sticky.top-14 {
   position: static !important;
   top: auto !important;
   z-index: auto !important;
-  justify-content: center !important;
-  gap: 0.5rem !important;
+  display: flex !important;
+  padding-left: 1rem !important;
+  padding-right: 1rem !important;
   padding-top: 0.25rem !important;
-  padding-bottom: 0.25rem !important;
+  padding-bottom: 0.375rem !important;
   margin-bottom: 0 !important;
+  gap: 0.5rem !important;
+  justify-content: stretch !important;
 }
 
 .rb-mobile-gallery-shell .sticky.top-14 > button {
-  flex: 0 1 11rem !important;
-  max-width: 11rem;
-  min-width: 8rem;
+  flex: 1 1 0 !important;
+  max-width: none !important;
+  min-width: 0 !important;
   padding-top: 0.5rem !important;
   padding-bottom: 0.5rem !important;
 }
 
-/* Content area closer to tabs */
+/* Content area — match search bar horizontal inset (1rem / px-4) */
 .rb-mobile-gallery-shell .min-h-screen > .px-3.pt-1 {
+  padding-left: 1rem !important;
+  padding-right: 1rem !important;
   padding-top: 0.25rem !important;
 }

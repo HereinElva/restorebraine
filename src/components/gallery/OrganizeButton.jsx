@@ -22,8 +22,14 @@ import {
 import { runMediaOrganize } from "@/lib/run-media-organize";
 import { ORGANIZE_ICON_CLASS, ORGANIZE_LABEL_CLASS, SQUARE_FOLDER_ACTION_CLASS, SQUARE_FOLDER_ACTION_STYLE } from "./folderActionStyles";
 
+function truncateProgress(text, max = 22) {
+  if (!text || text.length <= max) return text || "Organizing...";
+  return `${text.slice(0, max - 1)}…`;
+}
+
 export default function OrganizeButton({ photos, folders: foldersProp, squareStyle = false }) {
   const [organizing, setOrganizing] = useState(false);
+  const [progressLabel, setProgressLabel] = useState("");
   const [showDialog, setShowDialog] = useState(false);
   const [customInstructions, setCustomInstructions] = useState("");
   const [includeOrganized, setIncludeOrganized] = useState(false);
@@ -51,6 +57,7 @@ export default function OrganizeButton({ photos, folders: foldersProp, squareSty
 
     setShowDialog(false);
     setOrganizing(true);
+    setProgressLabel("Starting…");
 
     try {
       const result = await runMediaOrganize({
@@ -59,6 +66,7 @@ export default function OrganizeButton({ photos, folders: foldersProp, squareSty
         includeOrganized,
         sharpenTags,
         customInstructions,
+        onProgress: setProgressLabel,
       });
 
       if (!result.ok) {
@@ -85,6 +93,7 @@ export default function OrganizeButton({ photos, folders: foldersProp, squareSty
       alert(formatLLMError(error));
     } finally {
       setOrganizing(false);
+      setProgressLabel("");
     }
   };
 
@@ -105,7 +114,7 @@ export default function OrganizeButton({ photos, folders: foldersProp, squareSty
             <Sparkles className={ORGANIZE_ICON_CLASS} />
           )}
           <span className={ORGANIZE_LABEL_CLASS} data-rb-organize-label>
-            {organizing ? "Organizing..." : "Organize"}
+            {organizing ? truncateProgress(progressLabel) : "Organize"}
           </span>
         </button>
       ) : (
@@ -136,9 +145,9 @@ export default function OrganizeButton({ photos, folders: foldersProp, squareSty
               {unorganizedCount > 0
                 ? `Sort ${unorganizedCount} loose photo${unorganizedCount !== 1 ? "s" : ""} and video${unorganizedCount !== 1 ? "s" : ""} from Recents into folders. AI reads each item's visual description to group similar subjects together. Photos already in folders are skipped.`
                 : "Sort loose media from Recents into folders by visual content. Photos already in folders are skipped."}
-              {weakInBatch > 0 && unorganizedCount > 0 && (
-                <span className="block mt-1 text-purple-600">
-                  {weakInBatch} item{weakInBatch !== 1 ? "s have" : " has"} vague descriptions — AI will re-read {weakInBatch === 1 ? "it" : "them"} from the image before sorting.
+              {weakInBatch > 0 && unorganizedCount > 0 && !sharpenTags && (
+                <span className="block mt-1 text-gray-500 text-xs">
+                  Tip: check re-read from image for better grouping on vague items.
                 </span>
               )}
             </DialogDescription>

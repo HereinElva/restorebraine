@@ -24,7 +24,7 @@ Return JSON:
 
 Be literal and specific — only describe what is actually visible.`;
 
-export async function analyzeMedia(fileUrl, fileType, filename) {
+export async function analyzeMedia(fileUrl, fileType, filename, { timeoutMs = 55000 } = {}) {
   const isVideo = fileType === 'video';
 
   const result = await invokeLLMWithRetry(
@@ -40,7 +40,7 @@ export async function analyzeMedia(fileUrl, fileType, filename) {
         required: ['ai_description', 'ai_tags'],
       },
     },
-    { maxRetries: 5, baseDelayMs: 5000 },
+    { maxRetries: 1, baseDelayMs: 3000, timeoutMs },
   );
 
   const description = (result.ai_description || filename).trim();
@@ -65,7 +65,13 @@ export async function reanalyzePhoto(photo) {
   );
 }
 
-export async function reanalyzeWeakPhotos(photos, { onProgress, concurrency = 1, delayMs = 3500, forceAll = false } = {}) {
+export async function reanalyzeWeakPhotos(photos, {
+  onProgress,
+  concurrency = 1,
+  delayMs = 1500,
+  forceAll = false,
+  timeoutMs = 55000,
+} = {}) {
   const weak = forceAll ? photos : photos.filter(isWeakMetadata);
 
   if (!weak.length) return photos;
@@ -78,7 +84,12 @@ export async function reanalyzeWeakPhotos(photos, { onProgress, concurrency = 1,
       await new Promise((r) => setTimeout(r, delayMs));
     }
     try {
-      const analysis = await reanalyzePhoto(photo);
+      const analysis = await analyzeMedia(
+        photo.file_url,
+        photo.file_type || 'image',
+        photo.original_filename || 'media',
+        { timeoutMs },
+      );
       await base44.entities.Photo.update(photo.id, {
         ai_description: analysis.ai_description,
         ai_tags: analysis.ai_tags,
@@ -88,7 +99,7 @@ export async function reanalyzeWeakPhotos(photos, { onProgress, concurrency = 1,
       console.warn('Re-analysis failed for', photo.id, error);
     } finally {
       completed += 1;
-      onProgress?.(`Sharpening descriptions ${completed}/${weak.length}…`);
+      onProgress?.(`Re-reading ${completed}/${weak.length}…`);
     }
   });
 
