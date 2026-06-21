@@ -1,19 +1,51 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
-import { appParams } from '@/lib/app-params';
+import { appParams, getAppOrigin } from '@/lib/app-params';
 import { createAxiosClient } from '@base44/sdk/dist/utils/axios-client';
 import { openRestorebraineLogin } from '@/lib/auth-urls';
-import { getAppOrigin } from '@/lib/app-params';
 import { clearNativeSession, persistSessionToNativeStorage, restoreSessionFromNativeStorage } from '@/lib/session-bootstrap';
-import { isHostedAppOrigin } from '@/lib/native-hosted-redirect';
+import { isHostedAppOrigin, isNativeShell } from '@/lib/native-hosted-redirect';
+import { LOCAL_NATIVE_BUNDLE } from '@/lib/native-bundle-mode';
+
+const AUTH_TIMEOUT_MS = 8000;
+const NATIVE_AUTH_TIMEOUT_MS = 4000;
+
+const withTimeout = (promise, ms, label) =>
+  Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      setTimeout(() => reject(Object.assign(new Error(`${label} timed out`), { status: 408 })), ms);
+    }),
+  ]);
+
+const readSyncToken = () => {
+  try {
+    if (localStorage.getItem('b44_signed_out') === '1') return null;
+    return localStorage.getItem('base44_access_token') || localStorage.getItem('token');
+  } catch {
+    return null;
+  }
+};
+
+const isNativeLocalShell = () => LOCAL_NATIVE_BUNDLE || (isNativeShell() && !isHostedAppOrigin());
+
+const shouldSkipInitialAuthLoading = () => {
+  try {
+    if (localStorage.getItem('b44_signed_out') === '1') return true;
+    return !(localStorage.getItem('base44_access_token') || localStorage.getItem('token'));
+  } catch {
+    return true;
+  }
+};
 
 const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
+  const skipInitialLoad = shouldSkipInitialAuthLoading();
   const [user, setUser] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [isLoadingAuth, setIsLoadingAuth] = useState(true);
-  const [isLoadingPublicSettings, setIsLoadingPublicSettings] = useState(true);
+  const [isLoadingAuth, setIsLoadingAuth] = useState(!skipInitialLoad);
+  const [isLoadingPublicSettings, setIsLoadingPublicSettings] = useState(!skipInitialLoad);
   const [authError, setAuthError] = useState(null);
   const [appPublicSettings, setAppPublicSettings] = useState(null);
   const [manuallyLoggedOut, setManuallyLoggedOut] = useState(false);
@@ -22,14 +54,81 @@ export const AuthProvider = ({ children }) => {
     checkAppState();
   }, []);
 
+  useEffect(() => {
+    const onSessionUpdated = () => {
+      checkAppState();
+    };
+    window.addEventListener('restorebraine-session-updated', onSessionUpdated);
+    window.addEventListener('restorebraine-native-oauth-complete', onSessionUpdated);
+    return () => {
+      window.removeEventListener('restorebraine-session-updated', onSessionUpdated);
+      window.removeEventListener('restorebraine-native-oauth-complete', onSessionUpdated);
+    };
+  }, []);
+
+  // Avoid an infinite spinner if the Base44 API never responds (common on flaky mobile).
+  useEffect(() => {
+    let cancelled = false;
+    const timeoutMs = isNativeLocalShell() ? NATIVE_AUTH_TIMEOUT_MS : AUTH_TIMEOUT_MS;
+    const timer = setTimeout(() => {
+      if (cancelled) return;
+      setIsLoadingPublicSettings((loading) => {
+        if (loading) {
+          setIsLoadingAuth(false);
+          setAuthError((err) => err ?? { type: 'auth_required', message: 'Session check timed out' });
+        }
+        return false;
+      });
+      setIsLoadingAuth((loading) => {
+        if (loading) {
+          setIsLoadingPublicSettings(false);
+          setAuthError((err) => err ?? { type: 'auth_required', message: 'Session check timed out' });
+        }
+        return false;
+      });
+    }, timeoutMs);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, []);
+
   const checkAppState = async () => {
     try {
+      const syncToken = readSyncToken();
+
+      if (LOCAL_NATIVE_BUNDLE && !syncToken) {
+        setIsLoadingAuth(false);
+        setIsLoadingPublicSettings(false);
+        setIsAuthenticated(false);
+        setAuthError({ type: 'auth_required', message: 'Authentication required' });
+        restoreSessionFromNativeStorage()
+          .then(async (token) => {
+            if (!token) return;
+            appParams.token = token;
+            await persistSessionToNativeStorage(token);
+            window.dispatchEvent(new CustomEvent('restorebraine-session-updated', { detail: { token } }));
+            await checkAppState();
+          })
+          .catch(() => {});
+        return;
+      }
+
       setIsLoadingPublicSettings(true);
       setAuthError(null);
 
       const restoredToken = await restoreSessionFromNativeStorage();
       if (restoredToken) {
         appParams.token = restoredToken;
+      }
+
+      const tokenAfterRestore = readSyncToken() || appParams.token;
+      if (LOCAL_NATIVE_BUNDLE && !tokenAfterRestore) {
+        setIsLoadingAuth(false);
+        setIsLoadingPublicSettings(false);
+        setIsAuthenticated(false);
+        setAuthError({ type: 'auth_required', message: 'Authentication required' });
+        return;
       }
 
       const appClient = createAxiosClient({
@@ -40,7 +139,11 @@ export const AuthProvider = ({ children }) => {
       });
 
       try {
-        const publicSettings = await appClient.get(`/prod/public-settings/by-id/${appParams.appId}`);
+        const publicSettings = await withTimeout(
+          appClient.get(`/prod/public-settings/by-id/${appParams.appId}`),
+          isNativeLocalShell() ? NATIVE_AUTH_TIMEOUT_MS : AUTH_TIMEOUT_MS,
+          'Public settings',
+        );
         setAppPublicSettings(publicSettings);
 
         if (appParams.token) {
@@ -66,6 +169,8 @@ export const AuthProvider = ({ children }) => {
           setAuthError({ type: 'auth_required', message: 'Authentication required' });
         } else if (appParams.token) {
           await checkUserAuth();
+        } else {
+          setAuthError({ type: 'auth_required', message: 'Authentication required' });
         }
 
         setIsLoadingPublicSettings(false);
@@ -73,7 +178,7 @@ export const AuthProvider = ({ children }) => {
       }
     } catch (error) {
       console.error('Unexpected error:', error);
-      setAuthError({ type: 'unknown', message: error.message || 'An unexpected error occurred' });
+      setAuthError({ type: 'auth_required', message: error.message || 'Authentication required' });
       setIsLoadingPublicSettings(false);
       setIsLoadingAuth(false);
     }
@@ -84,7 +189,11 @@ export const AuthProvider = ({ children }) => {
 
     try {
       setIsLoadingAuth(true);
-      const currentUser = await base44.auth.me();
+      const currentUser = await withTimeout(
+        base44.auth.me(),
+        isNativeLocalShell() ? NATIVE_AUTH_TIMEOUT_MS : AUTH_TIMEOUT_MS,
+        'Auth check',
+      );
       setUser(currentUser);
       setIsAuthenticated(true);
       setIsLoadingAuth(false);
@@ -165,6 +274,85 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const loginWithEmailPassword = async ({ email, password }) => {
+    setAuthError(null);
+    try { localStorage.removeItem('b44_signed_out'); } catch {}
+    try { localStorage.removeItem('base44_logged_out'); } catch {}
+
+    try {
+      const authClient = createAxiosClient({
+        baseURL: `${appParams.serverUrl}/api`,
+        headers: { 'X-App-Id': appParams.appId },
+        interceptResponses: true,
+      });
+      const response = await authClient.post(`/apps/${appParams.appId}/auth/login`, { email, password });
+
+      if (!response?.access_token) {
+        throw new Error('Sign in failed. Please try again.');
+      }
+
+      await persistSessionToNativeStorage(response.access_token);
+      setManuallyLoggedOut(false);
+      setUser(response.user ?? null);
+      setIsAuthenticated(true);
+      setIsLoadingAuth(false);
+      setIsLoadingPublicSettings(false);
+      setAuthError(null);
+      await checkUserAuth({ ignoreManualLogout: true });
+    } catch (error) {
+      setIsLoadingAuth(false);
+      setIsAuthenticated(false);
+      setAuthError({
+        type: 'auth_required',
+        message: error?.data?.message || error?.message || 'Invalid email or password',
+      });
+      throw error;
+    }
+  };
+
+  const registerWithEmailPassword = async ({ email, password, fullName }) => {
+    setAuthError(null);
+    try { localStorage.removeItem('b44_signed_out'); } catch {}
+    try { localStorage.removeItem('base44_logged_out'); } catch {}
+
+    try {
+      const authClient = createAxiosClient({
+        baseURL: `${appParams.serverUrl}/api`,
+        headers: { 'X-App-Id': appParams.appId },
+        interceptResponses: true,
+      });
+      const response = await authClient.post(`/apps/${appParams.appId}/auth/register`, {
+        email,
+        password,
+        full_name: fullName,
+        name: fullName,
+      });
+
+      if (response?.access_token) {
+        await persistSessionToNativeStorage(response.access_token);
+        setManuallyLoggedOut(false);
+        setUser(response.user ?? null);
+        setIsAuthenticated(true);
+        setAuthError(null);
+        await checkUserAuth({ ignoreManualLogout: true });
+      } else {
+        setAuthError({ type: 'auth_required', message: 'Account created. Please sign in.' });
+      }
+
+      setIsLoadingAuth(false);
+      setIsLoadingPublicSettings(false);
+      return response;
+    } catch (error) {
+      setIsLoadingAuth(false);
+      setIsAuthenticated(false);
+      setAuthError({
+        type: 'auth_required',
+        message: error?.data?.message || error?.message || 'Unable to create account',
+      });
+      throw error;
+    }
+  };
+
   const navigateToLogin = () => {
     setManuallyLoggedOut(false);
     openRestorebraineLogin();
@@ -183,6 +371,8 @@ export const AuthProvider = ({ children }) => {
       resumeActiveSession,
       manuallyLoggedOut,
       navigateToLogin,
+      loginWithEmailPassword,
+      registerWithEmailPassword,
       checkAppState,
     }}>
       {children}

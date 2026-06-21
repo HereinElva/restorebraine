@@ -1,0 +1,60 @@
+.rb-signin {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  padding: max(16px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right))
+    max(16px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
+  background: linear-gradient(135deg, #eff6ff 0%, #f5f3ff 50%, #fdf2f8 100%);
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+.rb-signin-card {
+  width: 100%;
+  max-width: 360px;
+  padding: 36px 28px;
+  border-radius: 24px;
+  background: #fff;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+  text-align: center;
+}
+
+.rb-signin-title {
+  margin: 0 0 8px;
+  font-size: 24px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.rb-signin-tag {
+  margin: 0 0 24px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #7c3aed;
+}
+
+.rb-signin-google {
+  width: 100%;
+  padding: 14px 16px;
+  border: none;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #60a5fa 0%, #a78bfa 100%);
+  color: #fff;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.rb-signin-google:disabled {
+  opacity: 0.75;
+  cursor: wait;
+}
+
+.rb-signin-error {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: #dc2626;
+}

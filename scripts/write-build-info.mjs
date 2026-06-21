@@ -1,13 +1,18 @@
-import { writeFileSync, readFileSync } from 'node:fs';
+import { writeFileSync, readFileSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-const BUILD_NUMBER = 80;
+const buildInfoPath = resolve('src/lib/build-info.js');
+const prev = existsSync(buildInfoPath)
+  ? Number(readFileSync(buildInfoPath, 'utf8').match(/BUILD_NUMBER = (\d+)/)?.[1] ?? 100)
+  : 100;
+const BUILD_NUMBER = prev + 1;
+
 const stamp = new Date().toISOString().slice(0, 16).replace('T', ' ');
-const nativeLabel = `kbrown native v${BUILD_NUMBER} · ${stamp}`;
+const nativeLabel = `kbrown v4-core v${BUILD_NUMBER} · ${stamp}`;
 const webLabel = `restorebraine web v${BUILD_NUMBER}`;
 
 writeFileSync(
-  resolve('src/lib/build-info.js'),
+  buildInfoPath,
   `export const BASE44_APP_ID = '68fdc5f42768c4d045fe1bac';
 export const BUILD_NUMBER = ${BUILD_NUMBER};
 export const NATIVE_BUILD_LABEL = '${nativeLabel}';
@@ -23,6 +28,16 @@ export const DEPLOY_BUILD = ${BUILD_NUMBER};
 );
 
 writeFileSync(resolve('ios/App/App/BUILD_STAMP.txt'), `${nativeLabel}\n`);
+
+const pbxPath = resolve('ios/App/App.xcodeproj/project.pbxproj');
+const pbx = readFileSync(pbxPath, 'utf8');
+const updatedPbx = pbx.replace(/CURRENT_PROJECT_VERSION = \d+;/g, `CURRENT_PROJECT_VERSION = ${BUILD_NUMBER};`);
+if (updatedPbx !== pbx) {
+  writeFileSync(pbxPath, updatedPbx);
+  console.log(`Synced Xcode CURRENT_PROJECT_VERSION → ${BUILD_NUMBER}`);
+}
+
+// native-bundle-mode.js is owned by use-local-native-bundle.mjs — do not overwrite here.
 
 const indexHtmlPath = resolve('index.html');
 const indexHtml = readFileSync(indexHtmlPath, 'utf8');

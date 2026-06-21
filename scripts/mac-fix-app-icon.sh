@@ -50,7 +50,10 @@ echo "==> Resetting icon + splash assets from GitHub (fixes accidental Xcode dra
 git checkout origin/main -- \
   "$ICON_DIR" \
   "$SPLASH_DIR" \
+  ios/App/App/Assets.xcassets/LaunchLogo.imageset \
+  ios/App/App/Base.lproj/LaunchScreen.storyboard \
   scripts/generate-ios-app-icons.mjs \
+  scripts/generate-ios-launch-screen.mjs \
   scripts/verify-ios-icons.mjs \
   ios/App/App/Info.plist \
   ios/App/App.xcodeproj/project.pbxproj

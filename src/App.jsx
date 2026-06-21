@@ -10,86 +10,76 @@ import { setupIframeMessaging } from './lib/iframe-messaging';
 import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
-import { getPlatformLoginUrl } from '@/lib/auth-urls';
+import NativeDebugBadge from '@/components/NativeDebugBadge';
+import SignInScreen, { hasStoredSessionToken } from '@/screens/SignInScreen';
+import V4CoreWrongOrigin from '@/components/V4CoreWrongOrigin';
+import { isNativeShell } from '@/lib/native-hosted-redirect';
+import { isV4CoreWrongOrigin } from '@/lib/v4-core-guard';
 
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
 const MainPage = mainPageKey ? Pages[mainPageKey] : <></>;
 
-setupIframeMessaging();
+if (!isNativeShell()) {
+  setupIframeMessaging();
+}
 
 const LayoutWrapper = ({ children, currentPageName }) => Layout ?
   <Layout currentPageName={currentPageName}>{children}</Layout>
   : <>{children}</>;
 
 const AuthenticatedApp = () => {
-  const { isLoadingAuth, isLoadingPublicSettings, authError, isAuthenticated, navigateToLogin, manuallyLoggedOut } = useAuth();
+  const { isLoadingAuth, isLoadingPublicSettings, authError, isAuthenticated, manuallyLoggedOut } = useAuth();
 
-  // Check if user manually logged out FIRST before anything else
   if (manuallyLoggedOut) {
+    return <SignInScreen clearSignedOut />;
+  }
+
+  if (!isAuthenticated && !hasStoredSessionToken()) {
+    return <SignInScreen />;
+  }
+
+  if ((isLoadingPublicSettings || isLoadingAuth) && hasStoredSessionToken()) {
     return (
-      <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'linear-gradient(135deg,#eff6ff,#f5f3ff,#fdf2f8)',padding:'24px'}}>
-        <div style={{background:'white',borderRadius:'24px',padding:'40px',boxShadow:'0 10px 40px rgba(0,0,0,0.1)',maxWidth:'360px',width:'100%',textAlign:'center'}}>
-          <div style={{width:'64px',height:'64px',background:'linear-gradient(135deg,#93c5fd,#a78bfa)',borderRadius:'20px',display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 20px'}}>
-            <span style={{fontSize:'28px'}}>🔍</span>
-          </div>
-          <h1 style={{fontSize:'24px',fontWeight:'700',color:'#111',marginBottom:'8px'}}>Restorebraine</h1>
-          <p style={{color:'#666',marginBottom:'32px',fontSize:'14px'}}>Sign in to access your memories</p>
-          <button onClick={() => { window.location.href = getPlatformLoginUrl(); }} style={{width:'100%',padding:'14px',background:'linear-gradient(135deg,#60a5fa,#a78bfa)',color:'white',border:'none',borderRadius:'14px',fontSize:'16px',fontWeight:'600',cursor:'pointer'}}>
-            Sign In
-          </button>
+      <>
+        <div className="fixed inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 gap-4">
+          <div className="w-8 h-8 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin" />
+          <p className="text-sm text-gray-500">Loading Restorebraine…</p>
         </div>
-      </div>
+        {isNativeShell() ? <NativeDebugBadge /> : null}
+      </>
     );
   }
 
-  // Show loading spinner while checking app public settings or auth
-  if (isLoadingPublicSettings || isLoadingAuth) {
-    return (
-      <div className="fixed inset-0 flex items-center justify-center">
-        <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin"></div>
-      </div>
-    );
+  if (authError?.type === 'user_not_registered') {
+    return <UserNotRegisteredError />;
   }
 
-  // Handle authentication errors
-  if (manuallyLoggedOut || authError) {
-    if (authError.type === 'user_not_registered') {
-      return <UserNotRegisteredError />;
-    } else if (authError.type === 'auth_required') {
-      return (
-        <div style={{minHeight:'100vh',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',background:'linear-gradient(135deg,#eff6ff,#f5f3ff,#fdf2f8)',padding:'24px'}}>
-          <div style={{background:'white',borderRadius:'24px',padding:'40px',boxShadow:'0 10px 40px rgba(0,0,0,0.1)',maxWidth:'360px',width:'100%',textAlign:'center'}}>
-            <div style={{width:'64px',height:'64px',background:'linear-gradient(135deg,#93c5fd,#a78bfa)',borderRadius:'20px',display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 20px'}}>
-              <span style={{fontSize:'28px'}}>🔍</span>
-            </div>
-            <h1 style={{fontSize:'24px',fontWeight:'700',color:'#111',marginBottom:'8px'}}>Restorebraine</h1>
-            <p style={{color:'#666',marginBottom:'32px',fontSize:'14px'}}>Sign in to access your memories</p>
-            <button onClick={() => { localStorage.removeItem('b44_signed_out'); window.location.href = getPlatformLoginUrl(); }} style={{width:'100%',padding:'14px',background:'linear-gradient(135deg,#60a5fa,#a78bfa)',color:'white',border:'none',borderRadius:'14px',fontSize:'16px',fontWeight:'600',cursor:'pointer'}}>
-              Sign In
-            </button>
-          </div>
-        </div>
-      );
-    }
+  if (authError || !isAuthenticated) {
+    return <SignInScreen clearSignedOut />;
   }
 
-  // Render the main app
   return (
-    <LayoutWrapper currentPageName={mainPageKey}>
-      <Routes>
-        <Route path="/" element={<MainPage />} />
-        {Object.entries(Pages).map(([path, Page]) => (
-          <Route key={path} path={`/${path.toLowerCase()}`} element={<Page />} />
-        ))}
-        <Route path="*" element={<PageNotFound />} />
-      </Routes>
-    </LayoutWrapper>
+    <>
+      <LayoutWrapper currentPageName={mainPageKey}>
+        <Routes>
+          <Route path="/" element={<MainPage />} />
+          {Object.entries(Pages).map(([path, Page]) => (
+            <Route key={path} path={`/${path.toLowerCase()}`} element={<Page />} />
+          ))}
+          <Route path="*" element={<PageNotFound />} />
+        </Routes>
+      </LayoutWrapper>
+      {isNativeShell() ? <NativeDebugBadge /> : null}
+    </>
   );
 };
 
 
 function App() {
+  if (isV4CoreWrongOrigin()) {
+    return <V4CoreWrongOrigin />;
+  }
 
   return (
     <AuthProvider>
