@@ -13,44 +13,32 @@ import {
   normalizePhotoId,
   toStoredPhotoIds,
 } from "@/lib/gallery-organize-snapshot";
-import { assignLoosePhotosToFolders, mergeApiFoldersWithLocal } from "@/lib/folder-membership";
+import {
+  assignLoosePhotosToFolders,
+  listAllFolders,
+  mergeApiFoldersWithLocal,
+  reconcileOrganizeBatch,
+} from "@/lib/folder-membership";
 
 const CHUNK_SIZE = 15;
 const LLM_DELAY_MS = 1500;
 const MISC_FOLDER = "Miscellaneous";
 
-async function runConcurrent(tasks, concurrency) {
-  const results = new Array(tasks.length);
-  let index = 0;
-  async function runNext() {
-    while (index < tasks.length) {
-      const i = index++;
-      results[i] = await tasks[i]();
-    }
-  }
-  await Promise.all(Array.from({ length: Math.min(concurrency, tasks.length) }, runNext));
-  return results;
-}
-
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function sanitizeFolderMembership(folders, photos, allPhotoIds) {
-  const tasks = folders.map((folder) => async () => {
+/** Clean folder membership in memory only — do not write to API before organize saves. */
+function sanitizeFoldersLocally(folders, photos, allPhotoIds) {
+  return (folders || []).map((folder) => {
     const normalized = (folder.photo_ids || [])
       .map(normalizePhotoId)
       .filter((id) => allPhotoIds.has(id));
-    const cleaned = toStoredPhotoIds(normalized, photos);
-    const prevNorm = (folder.photo_ids || []).map(normalizePhotoId).sort().join(',');
-    const nextNorm = cleaned.map(normalizePhotoId).sort().join(',');
-    if (prevNorm !== nextNorm) {
-      await base44.entities.Folder.update(folder.id, { photo_ids: cleaned });
-      return { ...folder, photo_ids: cleaned };
-    }
-    return folder;
+    return {
+      ...folder,
+      photo_ids: toStoredPhotoIds(normalized, photos),
+    };
   });
-  return runConcurrent(tasks, 5);
 }
 
 async function labelChunkWithAI(chunk, existingFolderNames, customInstructions, customFolderHints) {
@@ -140,21 +128,6 @@ async function buildLabelsFromDescriptions(
   return allLabels;
 }
 
-async function cleanupEmptyFolders(allPhotoIds) {
-  const folders = await base44.entities.Folder.list();
-  const emptyFolders = folders.filter((f) => {
-    const validIds = (f.photo_ids || []).map(normalizePhotoId).filter((id) => allPhotoIds.has(id));
-    return validIds.length === 0;
-  });
-
-  if (emptyFolders.length > 0) {
-    await runConcurrent(
-      emptyFolders.map((f) => () => base44.entities.Folder.delete(f.id)),
-      5
-    );
-  }
-}
-
 export async function runMediaOrganize({
   photos,
   folders: foldersSnapshot,
@@ -166,10 +139,8 @@ export async function runMediaOrganize({
 
   const allPhotoIds = new Set(photos.map((p) => normalizePhotoId(p.id)).filter(Boolean));
 
-  let existingFolders = await base44.entities.Folder.list();
-  existingFolders = await sanitizeFolderMembership(existingFolders, photos, allPhotoIds);
-  await cleanupEmptyFolders(allPhotoIds);
-  existingFolders = await base44.entities.Folder.list();
+  let existingFolders = await listAllFolders();
+  existingFolders = sanitizeFoldersLocally(existingFolders, photos, allPhotoIds);
 
   const snapshotFolders = foldersSnapshot?.length ? foldersSnapshot : existingFolders;
   const existingFolderNames = existingFolders.map((f) => f.name);
@@ -196,10 +167,9 @@ export async function runMediaOrganize({
 
   if (includeOrganized && existingFolders.length > 0) {
     onProgress?.("Clearing folders…");
-    await runConcurrent(
-      existingFolders.map((f) => () => base44.entities.Folder.delete(f.id)),
-      5
-    );
+    for (const folder of existingFolders) {
+      await base44.entities.Folder.delete(folder.id);
+    }
     existingFolders = [];
   }
 
@@ -227,49 +197,28 @@ export async function runMediaOrganize({
     liveFolders,
     existingFolderNames: nameList,
     includeOrganized,
+    photos,
     onProgress,
   });
 
-  for (let attempt = 0; attempt < 3; attempt++) {
-    let organizedAfter = getOrganizedPhotoIds(afterFolders);
-    let missedPhotos = photosToOrganize.filter(
-      (p) => !organizedAfter.has(normalizePhotoId(p.id)),
-    );
+  const reconciled = await reconcileOrganizeBatch({
+    batchPhotos: photosToOrganize,
+    afterFolders,
+    labelByPhotoNormId,
+    photos,
+    onProgress,
+  });
 
-    if (missedPhotos.length === 0) break;
+  const apiFolders = reconciled.apiFolders || [];
+  afterFolders = mergeApiFoldersWithLocal(apiFolders, reconciled.folders);
 
-    onProgress?.(
-      attempt === 0
-        ? `Confirming ${missedPhotos.length} remaining…`
-        : `Retrying ${missedPhotos.length}… (${attempt + 1}/3)`,
-    );
-
-    const apiFolders = await base44.entities.Folder.list();
-    afterFolders = await assignLoosePhotosToFolders({
-      photosToAssign: missedPhotos,
-      labelByPhotoNormId,
-      liveFolders: apiFolders.length ? apiFolders : afterFolders,
-      existingFolderNames: (apiFolders.length ? apiFolders : afterFolders).map((f) => f.name),
-      includeOrganized: false,
-      onProgress,
-    });
-  }
-
-  const apiFolders = await base44.entities.Folder.list();
-  afterFolders = mergeApiFoldersWithLocal(apiFolders, afterFolders);
-
-  const organizedAfter = getOrganizedPhotoIds(afterFolders);
-  const actuallySaved = photosToOrganize.filter((p) =>
-    organizedAfter.has(normalizePhotoId(p.id)),
-  ).length;
-  const missed = photosToOrganize.length - actuallySaved;
-
-  await cleanupEmptyFolders(allPhotoIds);
+  const missedPhotos = getUnorganizedPhotos(photosToOrganize, apiFolders);
+  const actuallySaved = photosToOrganize.length - missedPhotos.length;
 
   if (actuallySaved === 0 && photosToOrganize.length > 0) {
     return {
       ok: false,
-      reason: "Folders could not be saved. Pull down to refresh and try Organize again.",
+      reason: "Folders could not be saved to the server. Pull down to refresh and try Organize again.",
     };
   }
 
@@ -278,8 +227,9 @@ export async function runMediaOrganize({
     foldersSaved: new Set(allLabels.map((l) => l.folder)).size,
     totalSaved: actuallySaved,
     totalToOrganize: photosToOrganize.length,
-    missed,
+    missed: missedPhotos.length,
     afterFolders,
+    apiFolders,
     photosToOrganize,
     labelByPhotoNormId,
   };

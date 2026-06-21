@@ -22,9 +22,7 @@ import {
   normalizePhotoId,
   setGalleryOrganizeSnapshot,
 } from "@/lib/gallery-organize-snapshot";
-import { mergeApiFoldersWithLocal, reconcileOrganizeBatch } from "@/lib/folder-membership";
 import { getGalleryUserEmail, galleryFoldersKey, galleryPhotosKey } from "@/lib/gallery-query-keys";
-import { loadGalleryData } from "@/lib/gallery-data";
 import { runMediaOrganize } from "@/lib/run-media-organize";
 import { ORGANIZE_ICON_CLASS, ORGANIZE_LABEL_CLASS, SQUARE_FOLDER_ACTION_CLASS, SQUARE_FOLDER_ACTION_STYLE } from "./folderActionStyles";
 
@@ -88,36 +86,14 @@ export default function OrganizeButton({ photos, folders: foldersProp, squareSty
       }
 
       const email = getGalleryUserEmail(queryClient, authUser?.email);
-      const freshPhotos = queryClient.getQueryData(galleryPhotosKey(email)) ?? photos;
+      const syncedPhotos = queryClient.getQueryData(galleryPhotosKey(email)) ?? photos;
 
-      if (result.afterFolders?.length) {
-        const normalizedFolders = foldersForGalleryView(result.afterFolders, freshPhotos);
-        queryClient.setQueryData(galleryFoldersKey(email), normalizedFolders);
-        setGalleryOrganizeSnapshot({ photos: freshPhotos, folders: normalizedFolders });
-      }
+      // Refetch folders from server — same pattern as manual move (invalidateQueries)
+      await queryClient.invalidateQueries({ queryKey: galleryFoldersKey(email) });
+      await queryClient.refetchQueries({ queryKey: galleryFoldersKey(email) });
 
-      // Sync from server; merge so a slow API response does not undo Recents clearing
-      await loadGalleryData(queryClient);
-      const syncedPhotos = queryClient.getQueryData(galleryPhotosKey(email)) ?? freshPhotos;
-      let syncedFolders = queryClient.getQueryData(galleryFoldersKey(email)) ?? [];
-      let merged = foldersForGalleryView(
-        mergeApiFoldersWithLocal(syncedFolders, result.afterFolders || []),
-        syncedPhotos,
-      );
-
-      const reconciled = await reconcileOrganizeBatch({
-        batchPhotos: result.photosToOrganize || [],
-        afterFolders: merged,
-        labelByPhotoNormId: result.labelByPhotoNormId,
-        photos: syncedPhotos,
-        onProgress: setProgressLabel,
-      });
-
-      const apiFolders = reconciled.apiFolders || [];
-      const finalFolders = foldersForGalleryView(
-        mergeApiFoldersWithLocal(apiFolders, reconciled.folders),
-        syncedPhotos,
-      );
+      const apiFolders = queryClient.getQueryData(galleryFoldersKey(email)) ?? result.apiFolders ?? [];
+      const finalFolders = foldersForGalleryView(apiFolders, syncedPhotos);
 
       queryClient.setQueryData(galleryFoldersKey(email), finalFolders);
       setGalleryOrganizeSnapshot({ photos: syncedPhotos, folders: finalFolders });
@@ -128,15 +104,12 @@ export default function OrganizeButton({ photos, folders: foldersProp, squareSty
       const remainingLoose = getUnorganizedPhotos(syncedPhotos, apiFolders).filter((p) =>
         batchNormIds.has(normalizePhotoId(p.id)),
       ).length;
-      const totalToOrganize = result.totalToOrganize;
-      const totalSaved = totalToOrganize - remainingLoose;
-      const missed = remainingLoose;
 
       alert(
         organizeResultMessage({
-          totalSaved,
-          totalToOrganize,
-          missed,
+          totalSaved: result.totalToOrganize - remainingLoose,
+          totalToOrganize: result.totalToOrganize,
+          missed: remainingLoose,
           foldersSaved: result.foldersSaved,
         }),
       );

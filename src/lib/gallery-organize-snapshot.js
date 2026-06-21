@@ -33,8 +33,9 @@ export function toStoredPhotoIds(ids, photos = snapshot.photos) {
     const norm = normalizePhotoId(id);
     if (!norm) continue;
     const original = photoByNorm.get(norm);
-    if (original != null && !stored.some((s) => normalizePhotoId(s) === norm)) {
-      stored.push(original);
+    const canonical = original != null ? original : id;
+    if (!stored.some((s) => normalizePhotoId(s) === norm)) {
+      stored.push(canonical);
     }
   }
   return stored;
