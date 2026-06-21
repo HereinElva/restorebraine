@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/AuthContext';
 import { NATIVE_BUILD_LABEL, WEB_BUILD_LABEL } from '@/lib/build-info';
 import { openLoginInSystemBrowser } from '@/lib/native-google-oauth';
@@ -63,19 +63,16 @@ export default function NativeLoginCard({ clearSignedOut = false }) {
   const [noticeMessage, setNoticeMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [openingProvider, setOpeningProvider] = useState(null);
-  const openingResetRef = useRef(null);
 
-  useEffect(() => () => {
-    if (openingResetRef.current) clearTimeout(openingResetRef.current);
+  useEffect(() => {
+    const resetOpening = () => setOpeningProvider(null);
+    window.addEventListener('restorebraine-native-oauth-complete', resetOpening);
+    window.addEventListener('restorebraine-session-updated', resetOpening);
+    return () => {
+      window.removeEventListener('restorebraine-native-oauth-complete', resetOpening);
+      window.removeEventListener('restorebraine-session-updated', resetOpening);
+    };
   }, []);
-
-  const clearOpeningProvider = () => {
-    if (openingResetRef.current) {
-      clearTimeout(openingResetRef.current);
-      openingResetRef.current = null;
-    }
-    setOpeningProvider(null);
-  };
 
   const clearSignedOutFlag = () => {
     try {
@@ -90,25 +87,25 @@ export default function NativeLoginCard({ clearSignedOut = false }) {
     if (openingProvider) return;
     clearSignedOutFlag();
     setErrorMessage('');
-    setNoticeMessage('');
+    setNoticeMessage('Tap Continue on the next screen, then sign in with your account.');
     setOpeningProvider(provider);
-    openingResetRef.current = setTimeout(() => {
-      clearOpeningProvider();
-      setErrorMessage('Sign in timed out. Tap again or use email.');
-    }, 15000);
     try {
       if (typeof window !== 'undefined') {
         window.__restorebraineLastOAuthError = '';
-        window.__restorebraineOAuthInProgress = false;
       }
       const url = provider === 'google' ? getGoogleOAuthUrl() : getProviderOAuthUrl(provider);
       await openLoginInSystemBrowser(url, provider);
+      setNoticeMessage('');
     } catch (error) {
       console.error(`${provider} sign-in failed to open`, error);
       const detail = typeof window !== 'undefined' ? window.__restorebraineLastOAuthError : '';
-      setErrorMessage(detail || error?.message || 'Could not open sign in. Try again or use email.');
+      const canceled = error?.code === 'CANCELED' || /cancel/i.test(error?.message || detail || '');
+      if (!canceled) {
+        setErrorMessage(detail || error?.message || 'Could not open sign in. Try again or use email.');
+      }
+      setNoticeMessage('');
     } finally {
-      clearOpeningProvider();
+      setOpeningProvider(null);
     }
   };
 

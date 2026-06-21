@@ -319,7 +319,7 @@ export const openLoginInSystemBrowser = async (url = getGoogleOAuthUrl(), provid
     : normalizeAuthUrl(url || getCanonicalOAuthUrl(provider), provider);
   window.__restorebraineLastOAuthUrl = oauthUrl;
 
-  // ASWebAuthenticationSession via native plugin (never WKWebView — Google blocks embedded WebViews).
+  // ASWebAuthenticationSession via native plugin — wait for user to finish (no short timeout).
   if (LOCAL_NATIVE_BUNDLE) {
     await waitForNativeOAuthPlugin(15);
     recordOAuthDebug({
@@ -329,7 +329,7 @@ export const openLoginInSystemBrowser = async (url = getGoogleOAuthUrl(), provid
     });
     if (hasRegisteredNativeOAuthPlugin()) {
       try {
-        await withTimeout(startNativeOAuthSession(oauthUrl, provider), 8000, 'OAuth');
+        await startNativeOAuthSession(oauthUrl, provider);
         return;
       } catch (error) {
         window.__restorebraineOAuthInProgress = false;
