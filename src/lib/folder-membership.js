@@ -69,6 +69,40 @@ export async function listAllFolders() {
 }
 
 const FOLDER_DELETE_TIMEOUT_MS = 8000;
+const FOLDER_API_TIMEOUT_MS = 25000;
+
+function withFolderApiTimeout(promise, label, timeoutMs = FOLDER_API_TIMEOUT_MS) {
+  return Promise.race([
+    promise,
+    sleep(timeoutMs).then(() => {
+      throw new Error(`${label} timed out after ${timeoutMs}ms`);
+    }),
+  ]);
+}
+
+async function getFolderOnServer(folderId) {
+  const folder = await withFolderApiTimeout(
+    base44.entities.Folder.get(folderId),
+    `Folder.get ${folderId}`,
+  );
+  return normalizeFolderRecord(folder);
+}
+
+async function createFolderOnServer(payload) {
+  const folder = await withFolderApiTimeout(
+    base44.entities.Folder.create(payload),
+    'Folder.create',
+  );
+  return normalizeFolderRecord(folder);
+}
+
+async function updateFolderPhotoIdsWithTimeout(folderId, photoIds, extra = {}) {
+  const updated = await withFolderApiTimeout(
+    base44.entities.Folder.update(folderId, { photo_ids: photoIds, ...extra }),
+    `Folder.update ${folderId}`,
+  );
+  return normalizeFolderRecord(updated);
+}
 
 /** Delete folders in parallel; each call times out so organize never hangs indefinitely. */
 export async function deleteFoldersWithTimeout(folderIds, { timeoutMs = FOLDER_DELETE_TIMEOUT_MS } = {}) {
@@ -120,40 +154,137 @@ export async function fetchGalleryFoldersWithMembership(email, photos = []) {
   return applyFolderMembershipCache(listed, photos, cached);
 }
 async function updateFolderPhotoIds(folderId, photoIds, extra = {}) {
-  const updated = await base44.entities.Folder.update(folderId, {
-    photo_ids: photoIds,
-    ...extra,
-  });
-  return normalizeFolderRecord(updated);
+  return updateFolderPhotoIdsWithTimeout(folderId, photoIds, extra);
 }
 
-async function appendPhotoToFolderOnServer(folderId, photo, userEmail) {
-  let base = normalizeFolderRecord(await base44.entities.Folder.get(folderId));
-  const coverUrl = base.cover_photo_url || photo.file_url || '';
+async function appendPhotosToFolderOnServer(folderId, photos, userEmail) {
+  const photoIds = (photos || []).map((p) => p.id).filter((id) => id != null);
+  if (!photoIds.length) return getFolderOnServer(folderId);
 
-  for (let attempt = 0; attempt < 4; attempt++) {
+  let base = await getFolderOnServer(folderId);
+  const coverUrl = base.cover_photo_url || photos[0]?.file_url || '';
+
+  for (let attempt = 0; attempt < 2; attempt++) {
     if (attempt > 0) {
-      await sleep(300 * attempt);
-      base = normalizeFolderRecord(await base44.entities.Folder.get(folderId));
+      await sleep(400);
+      base = await getFolderOnServer(folderId);
     }
-    const updatedIds = mergePhotoIdsLikeManualMove(base.photo_ids, [photo.id]);
-    await updateFolderPhotoIds(folderId, updatedIds, {
+    const updatedIds = mergePhotoIdsLikeManualMove(base.photo_ids, photoIds);
+    const updated = await updateFolderPhotoIdsWithTimeout(folderId, updatedIds, {
       ...(!base.cover_photo_url && coverUrl ? { cover_photo_url: coverUrl } : {}),
     });
-    const verified = normalizeFolderRecord(await base44.entities.Folder.get(folderId));
-    if (photoIdsPersisted(verified?.photo_ids, [photo.id])) {
-      if (userEmail) await recordPhotoFolderMembership(userEmail, photo.id, folderId);
-      return verified;
+    if (photoIdsPersisted(updated?.photo_ids, photoIds)) {
+      if (userEmail) {
+        await recordBatchFolderMembership(
+          userEmail,
+          photos.map((photo) => ({ photoId: photo.id, folderId })),
+        );
+      }
+      return updated;
     }
   }
 
-  if (userEmail) await recordPhotoFolderMembership(userEmail, photo.id, folderId);
-  const last = normalizeFolderRecord(await base44.entities.Folder.get(folderId));
+  if (userEmail) {
+    await recordBatchFolderMembership(
+      userEmail,
+      photos.map((photo) => ({ photoId: photo.id, folderId })),
+    );
+  }
+  const last = await getFolderOnServer(folderId);
   return last || base;
 }
 
+async function appendPhotoToFolderOnServer(folderId, photo, userEmail) {
+  return appendPhotosToFolderOnServer(folderId, [photo], userEmail);
+}
+
 /**
- * Assign loose photos one at a time — read-modify-write from server, partial update only.
+ * Assign loose photos grouped by folder name — one API write per folder, not per photo.
+ */
+export async function assignLoosePhotosByFolder({
+  photosToAssign,
+  labelByPhotoNormId,
+  liveFolders,
+  onProgress,
+  userEmail,
+}) {
+  let folders = [...(liveFolders || [])];
+  const names = () => folders.map((f) => f.name);
+  const total = photosToAssign.filter((p) => p?.id != null).length;
+
+  const groups = new Map();
+  for (const photo of photosToAssign) {
+    if (photo?.id == null) continue;
+    const norm = normalizePhotoId(photo.id);
+    const folderName = normalizeFolderName(
+      labelByPhotoNormId.get(norm) || 'Miscellaneous',
+      names(),
+    );
+    if (!groups.has(folderName)) groups.set(folderName, []);
+    groups.get(folderName).push(photo);
+  }
+
+  let processed = 0;
+  let groupIndex = 0;
+  const groupCount = groups.size;
+  const cacheEntries = [];
+  const failedPhotoIds = [];
+
+  for (const [folderName, groupPhotos] of groups) {
+    groupIndex += 1;
+    processed += groupPhotos.length;
+    onProgress?.(`Saving folder ${groupIndex}/${groupCount} (${processed}/${total})…`);
+
+    try {
+      const target = findFolderByDisplayName(folders, folderName, names());
+
+      if (target) {
+        const verified = await appendPhotosToFolderOnServer(target.id, groupPhotos, userEmail);
+        folders = folders.map((f) =>
+          f.id === target.id
+            ? { ...f, ...verified, photo_ids: verified?.photo_ids || f.photo_ids }
+            : f,
+        );
+        for (const photo of groupPhotos) {
+          cacheEntries.push({ photoId: photo.id, folderId: target.id });
+        }
+      } else {
+        const photoIds = groupPhotos.map((p) => p.id);
+        const created = await createFolderOnServer({
+          name: folderName,
+          description: '',
+          photo_ids: photoIds,
+          cover_photo_url: groupPhotos[0]?.file_url || '',
+        });
+        let verified = created;
+        if (!photoIdsPersisted(created?.photo_ids, photoIds)) {
+          verified = await appendPhotosToFolderOnServer(created.id, groupPhotos, userEmail);
+        }
+        folders.push({
+          ...created,
+          ...verified,
+          name: folderName,
+          photo_ids: verified?.photo_ids || photoIds,
+        });
+        for (const photo of groupPhotos) {
+          cacheEntries.push({ photoId: photo.id, folderId: created.id });
+        }
+      }
+    } catch (error) {
+      console.warn('Folder group save failed:', folderName, error);
+      failedPhotoIds.push(...groupPhotos.map((p) => p.id));
+    }
+  }
+
+  if (userEmail && cacheEntries.length) {
+    await recordBatchFolderMembership(userEmail, cacheEntries);
+  }
+
+  return { folders, failedPhotoIds };
+}
+
+/**
+ * Assign loose photos one at a time — used for small retry batches only.
  */
 export async function assignLoosePhotosOneByOne({
   photosToAssign,
@@ -188,14 +319,12 @@ export async function assignLoosePhotosOneByOne({
       );
       cacheEntries.push({ photoId: photo.id, folderId: target.id });
     } else {
-      const created = normalizeFolderRecord(
-        await base44.entities.Folder.create({
-          name: folderName,
-          description: '',
-          photo_ids: [photo.id],
-          cover_photo_url: photo.file_url || '',
-        }),
-      );
+      const created = await createFolderOnServer({
+        name: folderName,
+        description: '',
+        photo_ids: [photo.id],
+        cover_photo_url: photo.file_url || '',
+      });
       let verified = created;
       if (!photoIdsPersisted(created?.photo_ids, [photo.id])) {
         verified = await appendPhotoToFolderOnServer(created.id, photo, userEmail);
@@ -328,14 +457,14 @@ export async function reconcileOrganizeBatch({
     }
 
     onProgress?.(`Retrying ${missedPhotos.length}… (${attempt + 1}/3)`);
-    desiredFolders = await assignLoosePhotosOneByOne({
+    const retryResult = await assignLoosePhotosByFolder({
       photosToAssign: missedPhotos,
       labelByPhotoNormId,
       liveFolders: mergeApiFoldersWithLocal(apiFolders, desiredFolders),
-      includeOrganized: false,
       onProgress,
       userEmail,
     });
+    desiredFolders = retryResult.folders;
   }
 
   const apiFolders = await listAllFolders();

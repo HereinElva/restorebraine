@@ -13,10 +13,10 @@ import {
   toStoredPhotoIds,
 } from "@/lib/gallery-organize-snapshot";
 import {
-  assignLoosePhotosOneByOne,
+  assignLoosePhotosByFolder,
   deleteFoldersWithTimeout,
   listAllFolders,
-  reconcileOrganizeBatch,
+  mergeApiFoldersWithLocal,
 } from "@/lib/folder-membership";
 import {
   clearFolderMembershipCache,
@@ -24,6 +24,7 @@ import {
 } from "@/lib/folder-membership-cache";
 
 const CHUNK_SIZE = 15;
+const SAVE_BATCH_SIZE = 20;
 const LLM_DELAY_MS = 1500;
 const MISC_FOLDER = "Miscellaneous";
 
@@ -173,6 +174,9 @@ export async function runMediaOrganize({
     };
   }
 
+  const batchPhotos = photosToOrganize.slice(0, SAVE_BATCH_SIZE);
+  const remainingLoose = photosToOrganize.length - batchPhotos.length;
+
   if (includeOrganized && apiFolders.length > 0) {
     const confirmed = typeof window !== 'undefined' && window.confirm(
       `Delete all ${apiFolders.length} existing folders and re-sort every photo? Your photos will not be deleted.`,
@@ -186,13 +190,17 @@ export async function runMediaOrganize({
     apiFolders = [];
   }
 
-  onProgress?.(`Sorting ${photosToOrganize.length} loose item${photosToOrganize.length !== 1 ? "s" : ""}…`);
+  onProgress?.(
+    remainingLoose > 0
+      ? `Sorting ${batchPhotos.length} of ${photosToOrganize.length} loose items…`
+      : `Sorting ${batchPhotos.length} loose item${batchPhotos.length !== 1 ? "s" : ""}…`,
+  );
 
-  const validPhotoIds = new Set(photosToOrganize.map((p) => normalizePhotoId(p.id)));
+  const validPhotoIds = new Set(batchPhotos.map((p) => normalizePhotoId(p.id)));
   const folderNamesForLabel = includeOrganized ? [] : existingFolderNames;
 
   const allLabels = await buildLabelsFromDescriptions(
-    photosToOrganize,
+    batchPhotos,
     folderNamesForLabel,
     customInstructions,
     validPhotoIds,
@@ -203,27 +211,20 @@ export async function runMediaOrganize({
 
   const liveFolders = includeOrganized ? [] : liveFolderSource;
   const labelByPhotoNormId = new Map(allLabels.map((l) => [l.id, l.folder]));
-  const nameList = folderNamesForLabel.length ? folderNamesForLabel : existingFolderNames;
 
-  let afterFolders = await assignLoosePhotosOneByOne({
-    photosToAssign: photosToOrganize,
+  const saveResult = await assignLoosePhotosByFolder({
+    photosToAssign: batchPhotos,
     labelByPhotoNormId,
     liveFolders,
-    includeOrganized,
     onProgress,
     userEmail,
   });
 
-  const reconciled = await reconcileOrganizeBatch({
-    batchPhotos: photosToOrganize,
-    afterFolders,
-    labelByPhotoNormId,
-    onProgress,
-    userEmail,
-  });
+  let afterFolders = saveResult.folders;
+  const failedNormIds = new Set((saveResult.failedPhotoIds || []).map(normalizePhotoId));
 
-  let savedApiFolders = reconciled.apiFolders || [];
-  afterFolders = reconciled.folders;
+  let savedApiFolders = await listAllFolders();
+  afterFolders = mergeApiFoldersWithLocal(savedApiFolders, afterFolders);
 
   if (ghostFolderIds.length > 0) {
     const savedIds = new Set(afterFolders.map((f) => f.id));
@@ -235,10 +236,15 @@ export async function runMediaOrganize({
     savedApiFolders = savedApiFolders.filter((f) => !ghostFolderIds.includes(f.id));
   }
 
-  const missedPhotos = getUnorganizedPhotos(photosToOrganize, afterFolders);
-  const actuallySaved = photosToOrganize.length - missedPhotos.length;
+  const missedPhotos = batchPhotos.filter(
+    (p) =>
+      failedNormIds.has(normalizePhotoId(p.id)) ||
+      getUnorganizedPhotos([p], afterFolders).length > 0,
+  );
+  const actuallySaved = batchPhotos.length - missedPhotos.length;
+  const totalRemainingLoose = remainingLoose + missedPhotos.length;
 
-  if (actuallySaved === 0 && photosToOrganize.length > 0) {
+  if (actuallySaved === 0 && batchPhotos.length > 0) {
     return {
       ok: false,
       reason: "Organize could not save photos into folders. Pull down to refresh, then try again.",
@@ -247,7 +253,7 @@ export async function runMediaOrganize({
 
   if (userEmail && actuallySaved > 0) {
     const entries = [];
-    for (const photo of photosToOrganize) {
+    for (const photo of batchPhotos) {
       if (missedPhotos.some((p) => normalizePhotoId(p.id) === normalizePhotoId(photo.id))) continue;
       const folder = afterFolders.find((f) =>
         (f.photo_ids || []).some((id) => normalizePhotoId(id) === normalizePhotoId(photo.id)),
@@ -261,11 +267,13 @@ export async function runMediaOrganize({
     ok: true,
     foldersSaved: new Set(allLabels.map((l) => l.folder)).size,
     totalSaved: actuallySaved,
-    totalToOrganize: photosToOrganize.length,
+    totalToOrganize: batchPhotos.length,
     missed: missedPhotos.length,
+    remainingLoose: totalRemainingLoose,
+    partial: totalRemainingLoose > 0,
     afterFolders,
     apiFolders: savedApiFolders,
-    photosToOrganize,
+    photosToOrganize: batchPhotos,
     labelByPhotoNormId,
   };
 }

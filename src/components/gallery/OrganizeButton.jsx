@@ -31,9 +31,12 @@ function truncateProgress(text, max = 22) {
   return `${text.slice(0, max - 1)}…`;
 }
 
-function organizeResultMessage({ totalSaved, totalToOrganize, missed, foldersSaved }) {
+function organizeResultMessage({ totalSaved, totalToOrganize, missed, foldersSaved, remainingLoose }) {
   if (totalSaved <= 0) {
     return "Organize could not save photos into folders. Pull down to refresh, then try again.";
+  }
+  if (remainingLoose > 0) {
+    return `Saved ${totalSaved} photo${totalSaved !== 1 ? "s" : ""} into ${foldersSaved} folder${foldersSaved !== 1 ? "s" : ""}. ${remainingLoose} still loose — tap Organize again to continue.`;
   }
   if (missed > 0) {
     return `Done! ${totalSaved} of ${totalToOrganize} loose photos sorted into ${foldersSaved} folders. Tap Organize again for the ${missed} remaining.`;
@@ -111,6 +114,7 @@ export default function OrganizeButton({ photos, folders: foldersProp, squareSty
           totalToOrganize: result.totalToOrganize,
           missed: result.missed,
           foldersSaved: result.foldersSaved,
+          remainingLoose: result.remainingLoose ?? 0,
         }),
       );
     } catch (error) {
@@ -198,6 +202,12 @@ export default function OrganizeButton({ photos, folders: foldersProp, squareSty
                 autoFocus={false}
               />
             </div>
+
+            {unorganizedCount > 20 && !includeOrganized && (
+              <p className="text-xs text-gray-500 ml-1">
+                Organize processes up to 20 loose photos per run. Tap again to continue until all are sorted.
+              </p>
+            )}
 
             <div className="flex items-center space-x-2">
               <Checkbox
