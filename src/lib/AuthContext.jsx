@@ -269,9 +269,11 @@ export const AuthProvider = ({ children }) => {
 
   const logout = async () => {
     await localLogout();
-    if (isHostedAppOrigin()) {
-      window.location.href = `${getAppOrigin()}/api/apps/auth/logout?from_url=${encodeURIComponent(window.location.href)}`;
-    }
+    if (typeof window === 'undefined') return;
+    if (isNativeShell() && !isHostedAppOrigin()) return;
+
+    const returnUrl = encodeURIComponent(window.location.href);
+    window.location.href = `${getAppOrigin()}/api/apps/auth/logout?from_url=${returnUrl}`;
   };
 
   const loginWithEmailPassword = async ({ email, password }) => {

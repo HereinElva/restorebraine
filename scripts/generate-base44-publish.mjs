@@ -45,6 +45,7 @@ const FILES = [
   'src/components/gallery/DuplicateDetector.jsx',
   'src/components/ui/BrandGradientIcon.jsx',
   'src/Layout.jsx',
+  'src/pages/Account.jsx',
   'src/index.css',
 ];
 

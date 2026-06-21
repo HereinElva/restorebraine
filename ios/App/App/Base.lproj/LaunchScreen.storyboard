@@ -8,7 +8,7 @@
         <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>
     </dependencies>
     <scenes>
-        <!--Restorebraine Launch Screen — title only, no logo-->
+        <!--Restorebraine Launch Screen — logo + white title-->
         <scene sceneID="EHf-IW-A2E">
             <objects>
                 <viewController id="01J-lp-oVM" sceneMemberID="viewController">
@@ -16,18 +16,28 @@
                         <rect key="frame" x="0.0" y="0.0" width="393" height="852"/>
                         <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                         <subviews>
+                            <imageView clipsSubviews="YES" userInteractionEnabled="NO" contentMode="scaleAspectFit" horizontalHuggingPriority="251" verticalHuggingPriority="251" image="LaunchLogo" translatesAutoresizingMaskIntoConstraints="NO" id="rb-launch-logo">
+                                <rect key="frame" x="136.5" y="326" width="120" height="120"/>
+                                <color key="backgroundColor" white="0" alpha="0" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
+                            </imageView>
                             <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="Restorebraine" textAlignment="center" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="rb-launch-title">
-                                <rect key="frame" x="96.5" y="411.5" width="200" height="29"/>
+                                <rect key="frame" x="96.5" y="462" width="200" height="29"/>
                                 <fontDescription key="fontDescription" type="boldSystem" pointSize="24"/>
-                                <color key="textColor" red="0.066666666666666666" green="0.066666666666666666" blue="0.066666666666666666" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+                                <color key="textColor" red="1" green="1" blue="1" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+                                <color key="shadowColor" red="0.2" green="0.25" blue="0.55" alpha="0.45" colorSpace="custom" customColorSpace="sRGB"/>
+                                <size key="shadowOffset" width="0.0" height="1"/>
                                 <nil key="highlightedColor"/>
                             </label>
                         </subviews>
                         <viewLayoutGuide key="safeArea" id="rb-launch-safe"/>
-                        <color key="backgroundColor" red="0.93725490196078445" green="0.96470588235294119" blue="1" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+                        <color key="backgroundColor" red="0.42" green="0.48" blue="0.92" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
                         <constraints>
+                            <constraint firstItem="rb-launch-logo" firstAttribute="centerX" secondItem="rb-launch-root" secondAttribute="centerX" id="rb-logo-cx"/>
+                            <constraint firstItem="rb-launch-logo" firstAttribute="centerY" secondItem="rb-launch-root" secondAttribute="centerY" constant="-40" id="rb-logo-cy"/>
+                            <constraint firstItem="rb-launch-logo" firstAttribute="width" constant="120" id="rb-logo-w"/>
+                            <constraint firstItem="rb-launch-logo" firstAttribute="height" constant="120" id="rb-logo-h"/>
+                            <constraint firstItem="rb-launch-title" firstAttribute="top" secondItem="rb-launch-logo" secondAttribute="bottom" constant="16" id="rb-title-top"/>
                             <constraint firstItem="rb-launch-title" firstAttribute="centerX" secondItem="rb-launch-root" secondAttribute="centerX" id="rb-title-cx"/>
-                            <constraint firstItem="rb-launch-title" firstAttribute="centerY" secondItem="rb-launch-root" secondAttribute="centerY" id="rb-title-cy"/>
                         </constraints>
                     </view>
                 </viewController>
@@ -36,4 +46,7 @@
             <point key="canvasLocation" x="53" y="375"/>
         </scene>
     </scenes>
+    <resources>
+        <image name="LaunchLogo" width="128" height="128"/>
+    </resources>
 </document>

@@ -485,6 +485,7 @@
                   if (isAuthLogoutUrl(targetUrl)) {
                     clearNativeSession();
                     removeNativeSignInOverlay();
+                    window.location.replace(appHome() + (appHome().slice(-1) === '/' ? '' : '/'));
                     return;
                   }
                   if (isPlatformLoginUrl(targetUrl)) {
@@ -526,6 +527,7 @@
                       if (isAuthLogoutUrl(value)) {
                         clearNativeSession();
                         removeNativeSignInOverlay();
+                        window.location.replace(appHome() + (appHome().slice(-1) === '/' ? '' : '/'));
                         return;
                       }
                       if (isPlatformLoginUrl(value)) {

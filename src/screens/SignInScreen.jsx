@@ -21,19 +21,29 @@ export default function SignInScreen({ clearSignedOut = false }) {
 
   useEffect(() => {
     if (isNativeShell()) return;
+    if (clearSignedOut) return;
     if (started.current) return;
     started.current = true;
-    if (clearSignedOut) {
-      try {
-        localStorage.removeItem('b44_signed_out');
-      } catch {
-        /* ignore */
-      }
-    }
     navigateToLogin();
   }, [navigateToLogin, clearSignedOut]);
 
   if (!isNativeShell()) {
+    if (clearSignedOut) {
+      return (
+        <div className="fixed inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 gap-4 px-6">
+          <h1 className="text-2xl font-bold text-gray-900">Restorebraine</h1>
+          <p className="text-sm text-gray-500 text-center">You have been signed out.</p>
+          <button
+            type="button"
+            onClick={navigateToLogin}
+            className="mt-2 px-6 py-3 rounded-xl bg-gradient-to-r from-blue-400 to-purple-500 text-white font-semibold"
+          >
+            Sign in
+          </button>
+        </div>
+      );
+    }
+
     return (
       <div className="fixed inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 gap-4">
         <div className="w-8 h-8 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin" />

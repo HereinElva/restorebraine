@@ -8,6 +8,7 @@ import { useNavigate } from "react-router-dom";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useNavigation } from "@/components/NavigationContext";
 import { navigateToGallery } from "@/lib/gallery-nav";
+import { isHostedAppOrigin, isNativeShell } from "@/lib/native-hosted-redirect";
 
 export default function Account() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -16,7 +17,7 @@ export default function Account() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const { popBack } = useNavigation();
-  const { localLogout, resumeActiveSession } = useAuth();
+  const { logout, localLogout, resumeActiveSession } = useAuth();
 
   const { data: user } = useQuery({
     queryKey: ['user'],
@@ -29,11 +30,24 @@ export default function Account() {
 
   const handleLogout = async () => {
     queryClient.clear();
+    setShowLogoutDialog(false);
+
+    if (isNativeShell() && !isHostedAppOrigin()) {
+      await localLogout();
+      return;
+    }
+
+    if (isHostedAppOrigin()) {
+      await logout();
+      return;
+    }
+
     if (typeof window !== 'undefined' && window.__restorebrainePerformSignOut) {
       window.__restorebrainePerformSignOut();
       return;
     }
-    await localLogout();
+
+    await logout();
   };
 
   const goToGallery = (e) => {
