@@ -1,44 +1,47 @@
 import { base44 } from '@/api/base44Client';
-import { enrichTags } from '@/lib/media-tags';
+import { enrichTags, isWeakMetadata } from '@/lib/media-tags';
+import { invokeLLMWithRetry } from '@/lib/invoke-llm-retry';
 import { runConcurrent } from '@/lib/concurrency';
-import { ANALYSIS_CONCURRENCY } from '@/lib/media-constants';
 
-const ANALYSIS_PROMPT = (isVideo, filename) => `You are a visual analyst for Restorebraine — users search their library by typing words that describe what they SEE.
+const ANALYSIS_PROMPT = (isVideo, filename) => `You are a precise visual analyst for Restorebraine. Users search and organize their library by what they SEE.
 
-Analyze this ${isVideo ? 'VIDEO. Describe 3-5 key visual scenes/moments in order, plus overall content' : 'PHOTO'} (${filename}).
+Analyze this ${isVideo ? 'VIDEO — describe 3-5 key scenes in order, then summarize overall' : 'PHOTO'} (${filename}).
 
-Look carefully and list EVERY visible element:
-• People (count, age, activity, clothing colors)
-• Animals and pets
-• Objects (vehicles, furniture, food, tools, toys)
-• Plants and nature (grass, trees, flowers, water, sky, mountains)
-• Setting/environment (indoor/outdoor, room type, landscape type, weather, time of day)
-• Dominant colors
-• Actions and activities happening
+Inspect the actual pixels carefully. List every visible detail:
+• Main subject(s) and what they are doing
+• People: count, approximate age, clothing colors, expressions, activities
+• Animals/pets: species, breed if visible, activity
+• Objects: food, vehicles, furniture, sports equipment, screens, documents
+• Environment: indoor/outdoor, room type, landscape (grass, beach, forest, city, etc.)
+• Weather, lighting, time of day, dominant colors
+• For videos: note motion/action across scenes
 
 Return JSON:
 {
-  "ai_description": "2-4 sentences. Lead with the main subject and setting. Include specific searchable nouns: colors, objects, materials, environment. Example: A wide green grass field with wildflowers under a blue sky. Distant oak trees on the horizon on a sunny afternoon.",
-  "ai_tags": ["25-35 lowercase keywords and 2-word phrases users would type when searching. Include: main subjects, setting, colors, materials, activities, AND synonyms (grass, field, meadow, lawn; ocean, beach, sea). No dates or filenames."]
+  "ai_description": "3-5 specific sentences. Sentence 1: main subject + setting. Then list visible objects, colors, environment, and activity using concrete nouns users would search (e.g. iced tea, glass mug, kitchen counter, golden retriever, green grass field, birthday cake). No filename. No guessing beyond what is visible.",
+  "ai_tags": ["30-40 lowercase search keywords and 2-word phrases. Include: subjects, objects, materials, colors, setting, activities, AND synonyms (grass/field/meadow, ocean/beach/sea, dog/puppy/pet). Prioritize what is literally visible."]
 }
 
-Be specific and literal — describe what is actually visible, not assumptions.`;
+Be literal and specific — only describe what is actually visible.`;
 
 export async function analyzeMedia(fileUrl, fileType, filename) {
   const isVideo = fileType === 'video';
 
-  const result = await base44.integrations.Core.InvokeLLM({
-    prompt: ANALYSIS_PROMPT(isVideo, filename),
-    file_urls: [fileUrl],
-    response_json_schema: {
-      type: 'object',
-      properties: {
-        ai_description: { type: 'string' },
-        ai_tags: { type: 'array', items: { type: 'string' } },
+  const result = await invokeLLMWithRetry(
+    {
+      prompt: ANALYSIS_PROMPT(isVideo, filename),
+      file_urls: [fileUrl],
+      response_json_schema: {
+        type: 'object',
+        properties: {
+          ai_description: { type: 'string' },
+          ai_tags: { type: 'array', items: { type: 'string' } },
+        },
+        required: ['ai_description', 'ai_tags'],
       },
-      required: ['ai_description', 'ai_tags'],
     },
-  });
+    { maxRetries: 5, baseDelayMs: 5000 },
+  );
 
   const description = (result.ai_description || filename).trim();
   const rawTags = (Array.isArray(result.ai_tags) ? result.ai_tags : [])
@@ -62,12 +65,8 @@ export async function reanalyzePhoto(photo) {
   );
 }
 
-export async function reanalyzeWeakPhotos(photos, { onProgress } = {}) {
-  const weak = photos.filter((p) => {
-    const tagCount = (p.ai_tags || []).length;
-    const descLen = (p.ai_description || '').trim().length;
-    return tagCount < 10 || descLen < 40;
-  });
+export async function reanalyzeWeakPhotos(photos, { onProgress, concurrency = 1, delayMs = 3500, forceAll = false } = {}) {
+  const weak = forceAll ? photos : photos.filter(isWeakMetadata);
 
   if (!weak.length) return photos;
 
@@ -75,6 +74,9 @@ export async function reanalyzeWeakPhotos(photos, { onProgress } = {}) {
   let completed = 0;
 
   const tasks = weak.map((photo) => async () => {
+    if (completed > 0 && delayMs > 0) {
+      await new Promise((r) => setTimeout(r, delayMs));
+    }
     try {
       const analysis = await reanalyzePhoto(photo);
       await base44.entities.Photo.update(photo.id, {
@@ -86,11 +88,11 @@ export async function reanalyzeWeakPhotos(photos, { onProgress } = {}) {
       console.warn('Re-analysis failed for', photo.id, error);
     } finally {
       completed += 1;
-      onProgress?.(`Sharpening visual tags ${completed}/${weak.length}…`);
+      onProgress?.(`Sharpening descriptions ${completed}/${weak.length}…`);
     }
   });
 
-  await runConcurrent(tasks, ANALYSIS_CONCURRENCY);
+  await runConcurrent(tasks, concurrency);
 
   return photos.map((p) => updated.get(p.id) || p);
 }

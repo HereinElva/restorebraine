@@ -81,8 +81,20 @@ export function tokenize(str = '') {
     .filter((w) => w.length >= 2);
 }
 
+/** Generic descriptions that mean the vision pass was weak. */
+const WEAK_DESC_PATTERNS = [
+  /^this is a (real )?(photograph|photo|image|video)/i,
+  /^a photo of/i,
+  /^an image of/i,
+  /^media file/i,
+];
+
 export function isWeakMetadata(photo) {
   const tagCount = (photo.ai_tags || []).length;
-  const descLen = (photo.ai_description || '').trim().length;
-  return tagCount < 10 || descLen < 40;
+  const desc = (photo.ai_description || '').trim();
+  const descLen = desc.length;
+  if (tagCount < 12 || descLen < 55) return true;
+  if (WEAK_DESC_PATTERNS.some((re) => re.test(desc))) return true;
+  if (descLen < 90 && tagCount < 18) return true;
+  return false;
 }

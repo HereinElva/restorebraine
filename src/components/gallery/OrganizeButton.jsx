@@ -32,8 +32,9 @@ export default function OrganizeButton({ photos, folders: foldersProp, squareSty
 
   const snapshot = getGalleryOrganizeSnapshot();
   const folders = foldersProp ?? snapshot.folders;
-  const unorganizedCount = getUnorganizedPhotos(photos, folders).length;
-  const weakCount = photos.filter(isWeakMetadata).length;
+  const unorganized = getUnorganizedPhotos(photos, folders);
+  const unorganizedCount = unorganized.length;
+  const weakInBatch = unorganized.filter(isWeakMetadata).length;
 
   const handleOrganize = async () => {
     if (photos.length < 1) {
@@ -73,6 +74,10 @@ export default function OrganizeButton({ photos, folders: foldersProp, squareSty
       } else if (result.missed > 0) {
         alert(
           `Done! ${result.totalSaved} of ${result.totalToOrganize} loose photos sorted into ${result.foldersSaved} folders. Tap Organize again for any remaining items.`
+        );
+      } else {
+        alert(
+          `Done! ${result.totalSaved} loose photo${result.totalSaved !== 1 ? "s" : ""} sorted into ${result.foldersSaved} folder${result.foldersSaved !== 1 ? "s" : ""}.`
         );
       }
     } catch (error) {
@@ -129,8 +134,13 @@ export default function OrganizeButton({ photos, folders: foldersProp, squareSty
             <DialogTitle>Organize Media</DialogTitle>
             <DialogDescription>
               {unorganizedCount > 0
-                ? `Sort ${unorganizedCount} loose photo${unorganizedCount !== 1 ? "s" : ""} from your gallery into folders based on what they look like (AI reads each photo's description). Photos already in folders are left alone.`
-                : "Sort loose photos from your gallery into folders based on visual descriptions. Photos already in folders are skipped."}
+                ? `Sort ${unorganizedCount} loose photo${unorganizedCount !== 1 ? "s" : ""} and video${unorganizedCount !== 1 ? "s" : ""} from Recents into folders. AI reads each item's visual description to group similar subjects together. Photos already in folders are skipped.`
+                : "Sort loose media from Recents into folders by visual content. Photos already in folders are skipped."}
+              {weakInBatch > 0 && unorganizedCount > 0 && (
+                <span className="block mt-1 text-purple-600">
+                  {weakInBatch} item{weakInBatch !== 1 ? "s have" : " has"} vague descriptions — AI will re-read {weakInBatch === 1 ? "it" : "them"} from the image before sorting.
+                </span>
+              )}
             </DialogDescription>
           </DialogHeader>
 
@@ -151,11 +161,14 @@ export default function OrganizeButton({ photos, folders: foldersProp, squareSty
                   setCustomInstructions(value);
                   const needsOrganized = value
                     .toLowerCase()
-                    .match(/\b(consolidate|merge|combine|take all folders|move folders|reorganize folders)\b/);
+                    .match(/\b(consolidate|merge|combine|take all folders|move folders|reorganize folders|re-organize everything)\b/);
                   if (needsOrganized && !includeOrganized) setIncludeOrganized(true);
                 }}
                 className="min-h-[100px]"
               />
+              <p className="text-xs text-gray-500">
+                Custom instructions override default grouping — e.g. separate vacations, group all pets, sort by date.
+              </p>
             </div>
 
             <div className="flex items-center space-x-2">
@@ -165,10 +178,7 @@ export default function OrganizeButton({ photos, folders: foldersProp, squareSty
                 onCheckedChange={setSharpenTags}
               />
               <Label htmlFor="sharpen-tags" className="text-sm font-normal cursor-pointer">
-                Re-analyze photos with weak tags first (extra AI — slower)
-                {weakCount > 0 && (
-                  <span className="text-gray-500 ml-1">({weakCount} item{weakCount !== 1 ? "s" : ""} need better tags)</span>
-                )}
+                Re-read every loose photo from the image before sorting (most accurate, slowest)
               </Label>
             </div>
 

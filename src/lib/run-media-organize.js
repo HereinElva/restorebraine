@@ -8,6 +8,7 @@ import {
   buildLabelPrompt,
   mergeFolderGroupsLocally,
   normalizeFolderName,
+  parseCustomFolderHints,
   photoDataForOrganize,
 } from "@/lib/media-organize";
 import {
@@ -16,8 +17,8 @@ import {
   normalizePhotoId,
 } from "@/lib/gallery-organize-snapshot";
 
-const CHUNK_SIZE = 25;
-const LLM_DELAY_MS = 4500;
+const CHUNK_SIZE = 12;
+const LLM_DELAY_MS = 5000;
 const MISC_FOLDER = "Miscellaneous";
 
 async function runConcurrent(tasks, concurrency) {
@@ -55,9 +56,9 @@ async function sanitizeFolderMembership(folders, allPhotoIds) {
   return runConcurrent(tasks, 5);
 }
 
-async function labelChunkWithAI(chunk, existingFolderNames, customInstructions) {
+async function labelChunkWithAI(chunk, existingFolderNames, customInstructions, customFolderHints) {
   const photoData = chunk.map(photoDataForOrganize);
-  const folderOptions = buildFolderOptions(existingFolderNames);
+  const folderOptions = buildFolderOptions(existingFolderNames, customFolderHints);
 
   const result = await invokeLLMWithRetry(
     {
@@ -97,9 +98,11 @@ async function buildLabelsFromDescriptions(
   customInstructions,
   validPhotoIds
 ) {
+  const customFolderHints = parseCustomFolderHints(customInstructions);
   const chunks = [];
-  for (let i = 0; i < photosToOrganize.length; i += CHUNK_SIZE) {
-    chunks.push(photosToOrganize.slice(i, i + CHUNK_SIZE));
+  const chunkSize = photosToOrganize.length <= 15 ? photosToOrganize.length : CHUNK_SIZE;
+  for (let i = 0; i < photosToOrganize.length; i += chunkSize) {
+    chunks.push(photosToOrganize.slice(i, i + chunkSize));
   }
 
   const allLabels = [];
@@ -109,7 +112,12 @@ async function buildLabelsFromDescriptions(
     if (i > 0) await sleep(LLM_DELAY_MS);
 
     try {
-      const labels = await labelChunkWithAI(chunk, existingFolderNames, customInstructions);
+      const labels = await labelChunkWithAI(
+        chunk,
+        existingFolderNames,
+        customInstructions,
+        customFolderHints
+      );
       for (const label of labels) {
         const id = normalizePhotoId(label.id);
         if (validPhotoIds.has(id)) {
@@ -227,11 +235,13 @@ export async function runMediaOrganize({
     existingFolders = [];
   }
 
-  if (sharpenTags) {
-    const weakInBatch = photosToOrganize.filter(isWeakMetadata).length;
-    if (weakInBatch > 0) {
-      photosToOrganize = await reanalyzeWeakPhotos(photosToOrganize, {});
-    }
+  const weakInBatch = photosToOrganize.filter(isWeakMetadata);
+  if (weakInBatch.length > 0 || sharpenTags) {
+    photosToOrganize = await reanalyzeWeakPhotos(photosToOrganize, {
+      concurrency: 1,
+      delayMs: 4000,
+      forceAll: sharpenTags,
+    });
   }
 
   const folderNamesForLabel = includeOrganized ? [] : existingFolderNames;
