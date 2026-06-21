@@ -57,6 +57,11 @@ export default function NativeDebugBadge() {
 
   if (!isNativeShell()) return null;
 
+  // Hide debug stamp on login screen — production-clean sign-in UI.
+  if (typeof document !== 'undefined' && document.querySelector('[data-rb-auth="sign-in-v4"]')) {
+    return null;
+  }
+
   return (
     <button
       type="button"

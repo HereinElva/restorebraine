@@ -1,10 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/AuthContext';
-import { NATIVE_BUILD_LABEL, WEB_BUILD_LABEL } from '@/lib/build-info';
 import { openLoginInSystemBrowser } from '@/lib/native-google-oauth';
 import { getGoogleOAuthUrl, getProviderOAuthUrl } from '@/lib/native-platform-guard';
-import { isNativeShell } from '@/lib/native-hosted-redirect';
-import NativeDebugBadge from '@/components/NativeDebugBadge';
+
+const BRAND_GRADIENT = 'linear-gradient(135deg,#60a5fa,#a78bfa)';
 
 const cardStyle = {
   minHeight: '100vh',
@@ -98,7 +97,7 @@ export default function NativeLoginCard({ clearSignedOut = false }) {
     if (openingProvider) return;
     clearSignedOutFlag();
     setErrorMessage('');
-    setNoticeMessage('Tap Continue on the sign-in sheet, pick your account, then you return here.');
+    setNoticeMessage('Complete sign-in in the sheet that opens — you stay in Restorebraine.');
     setOpeningProvider(provider);
     try {
       if (typeof window !== 'undefined') {
@@ -162,7 +161,19 @@ export default function NativeLoginCard({ clearSignedOut = false }) {
   return (
     <div style={cardStyle} data-rb-auth="sign-in-v4">
       <div style={formStyle}>
-        <h1 style={{ fontSize: '24px', fontWeight: '700', color: '#111', margin: '0 0 24px' }}>Restorebraine</h1>
+        <h1
+          style={{
+            fontSize: '24px',
+            fontWeight: '700',
+            margin: '0 0 24px',
+            background: BRAND_GRADIENT,
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            backgroundClip: 'text',
+          }}
+        >
+          Restorebraine
+        </h1>
 
         <ProviderButton provider="google" onClick={() => handleProviderClick('google')} disabled={openingProvider === 'google'}>
           <span style={{ color: '#4285F4', fontWeight: '800', marginRight: '10px' }}>G</span>
@@ -223,7 +234,7 @@ export default function NativeLoginCard({ clearSignedOut = false }) {
           style={{
             width: '100%',
             padding: '14px',
-            background: 'linear-gradient(135deg,#60a5fa,#a78bfa)',
+            background: BRAND_GRADIENT,
             color: 'white',
             border: 'none',
             borderRadius: '14px',
@@ -246,12 +257,8 @@ export default function NativeLoginCard({ clearSignedOut = false }) {
         >
           {mode === 'signup' ? 'Already have an account? Sign in' : "Don't have an account? Sign up"}
         </button>
-        <p style={{ margin: '14px 0 0', color: '#c4b5fd', fontSize: '11px', fontWeight: '600' }}>
-          {isNativeShell() ? NATIVE_BUILD_LABEL : WEB_BUILD_LABEL}
-        </p>
         </form>
       </div>
-      <NativeDebugBadge />
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { isNativeShell } from '@/lib/native-hosted-redirect';
+import { isNativeShell, isHostedAppOrigin } from '@/lib/native-hosted-redirect';
 import { getAuthReturnOrigin } from '@/lib/app-domains';
 import { BASE44_APP_ID, BASE44_PLATFORM_URL, getGoogleOAuthUrl } from '@/lib/native-platform-guard';
 import { openLoginInSystemBrowser } from '@/lib/native-google-oauth';
@@ -28,13 +28,16 @@ export const getRestorebraineLoginUrl = getPlatformLoginUrl;
 export const openRestorebraineLogin = () => {
   if (typeof window === 'undefined') return;
 
-  const url = getPlatformLoginUrl();
-
-  if (isNativeShell()) {
-    return openLoginInSystemBrowser(url, 'google');
+  // Bundled native: OAuth in iOS sign-in sheet — never navigate the WebView to Base44.
+  if (isNativeShell() && !isHostedAppOrigin()) {
+    return openLoginInSystemBrowser(getGoogleOAuthUrl(), 'google');
   }
 
-  window.location.href = url;
+  if (isNativeShell()) {
+    return openLoginInSystemBrowser(getPlatformLoginUrl(), 'google');
+  }
+
+  window.location.href = getPlatformLoginUrl();
 };
 
 /** If the user lands on /login on a custom domain, escape the broken platform page. */

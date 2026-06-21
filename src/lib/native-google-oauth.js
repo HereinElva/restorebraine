@@ -195,6 +195,9 @@ const isHostedOAuthReturn = (url) => {
 };
 
 const openWithBrowserFallback = async (url) => {
+  if (LOCAL_NATIVE_BUNDLE) {
+    throw new Error('Native sign-in sheet unavailable. Tap the button again.');
+  }
   recordOAuthDebug({ stage: 'browser-fallback', url: String(url).slice(0, 120) });
   window.__restorebraineOAuthMode = 'cap-browser';
   const { Browser } = await import('@capacitor/browser');
