@@ -772,6 +772,7 @@
           }
 
           function fixFolderActionButtons() {
+            if (isBundledNativeOrigin()) return;
             try {
               if (!document.getElementById('rb-folder-actions-fix')) {
                 var style = document.createElement('style');
@@ -874,6 +875,7 @@
             document.addEventListener('click', function (event) {
               var target = event.target.closest('button, a, [role="button"], div[role="button"], [data-provider]');
               if (!target) return;
+              if (target.closest('[data-rb-gallery-nav]') || target.getAttribute('data-rb-gallery-nav') != null) return;
               var label = (target.textContent || '').replace(/\s+/g, ' ').trim();
               var href = (target.href || (target.getAttribute && target.getAttribute('href')) || '');
               var isSignInButton = /^sign in$/i.test(label);

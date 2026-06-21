@@ -205,7 +205,15 @@ try {
   /* not a git repo */
 }
 
-// 7. Xcode folder reference note
+// 8. Omega v4-core protected UI (gallery/folders/nav)
+try {
+  const { execSync } = await import('node:child_process');
+  execSync('node scripts/verify-omega-baseline.mjs', { cwd: repo, stdio: 'inherit' });
+} catch {
+  bump();
+}
+
+// 9. Xcode folder reference note
 console.log('\n--- Xcode deploy checklist ---');
 console.log('1. bash scripts/mac-ios-native-rebuild.sh');
 console.log('2. Xcode: delete app -> Clean Build Folder -> Run');
