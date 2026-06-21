@@ -132,7 +132,13 @@ else
 fi
 
 if [ "$FAIL" -eq 0 ]; then
-  echo "OK: App.app matches repo — device should show v4-core updates"
+  echo "OK: App.app on Mac matches repo"
+  echo ""
+  echo "NOTE: This checks DerivedData on your Mac, NOT the iPhone itself."
+  echo "If login on phone still looks old:"
+  echo "  bash scripts/mac-push-to-iphone.sh"
+  echo "  or Xcode: delete app → Clean → Run (Cmd+R)"
+  echo "On phone tap purple badge → must show v4-core · capacitor://localhost · auth: react"
 else
   echo ""
   echo "Fix: delete app -> Clean Build Folder -> Run -> build log must show 'Restorebraine DEPLOY OK'"

@@ -29,6 +29,11 @@ export default function NativeDebugBadge() {
     const bridgeInstalled = typeof window !== 'undefined' && window.__restorebraineSessionBridgeInstalled;
     const stampMismatch = htmlStamp && !htmlStamp.includes(`v${BUILD_NUMBER}`);
     const wrongOrigin = isV4CoreWrongOrigin();
+    const authLayer = typeof document !== 'undefined'
+      ? document.querySelector('[data-rb-v4-auth]')?.getAttribute('data-rb-v4-auth') ?? 'none'
+      : 'none';
+    const oldLoginUi = typeof document !== 'undefined'
+      && /sign in to access your memories/i.test(document.body?.innerText ?? '');
     return {
       mode: getModeLabel(),
       origin,
@@ -39,6 +44,8 @@ export default function NativeDebugBadge() {
       bridgeSource,
       bridgeInstalled,
       stampMismatch,
+      authLayer,
+      oldLoginUi,
     };
   }, []);
 
@@ -91,6 +98,9 @@ export default function NativeDebugBadge() {
               oauth: {String(window.__restorebraineLastOAuthUrl).slice(0, 48)}…
             </div>
           ) : null}
+          <div style={{ opacity: 0.65, marginTop: 2, fontSize: '9px', color: info.authLayer === 'none' ? '#fca5a5' : '#86efac' }}>
+            auth: {info.authLayer}{info.oldLoginUi ? ' · OLD LOGIN UI' : ''}
+          </div>
           {info.htmlStamp ? (
             <div style={{ opacity: 0.65, marginTop: 2, fontSize: '9px', color: info.stampMismatch ? '#fca5a5' : undefined }}>
               html: {info.htmlStamp.slice(0, 40)}{info.stampMismatch ? ' STALE' : ''}
