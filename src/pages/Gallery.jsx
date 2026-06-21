@@ -25,7 +25,7 @@ import { useTabState } from "../components/TabStateContext";
 import MobileGallery from "../components/gallery/MobileGallery";
 import { setGalleryOrganizeSnapshot, toStoredPhotoIds, normalizePhotoId } from "@/lib/gallery-organize-snapshot";
 import { fetchGalleryFoldersWithMembership, mergeApiFoldersWithLocal } from "@/lib/folder-membership";
-import { loadFolderSnapshotCache, loadFolderSnapshotCacheSync } from "@/lib/folder-membership-cache";
+import { loadFullFolderSnapshotAsync, loadFolderSnapshotCacheSync } from "@/lib/folder-membership-cache";
 import "../components/gallery/mobile-gallery-layout.css";
  
 // ---------------------------------------------------------------------------
@@ -191,7 +191,7 @@ export default function Gallery() {
       const photosData =
         queryClient.getQueryData(['photos', me.email]) ??
         (await base44.entities.Photo.filter({ created_by: me.email }, '-created_date'));
-      const snapshot = await loadFolderSnapshotCache(me.email);
+      const snapshot = await loadFullFolderSnapshotAsync(me.email);
       const fetched = await fetchGalleryFoldersWithMembership(me.email, photosData || []);
       return mergeApiFoldersWithLocal(fetched, snapshot);
     },
@@ -210,7 +210,7 @@ export default function Gallery() {
 
   useEffect(() => {
     if (!userEmail || !canFetchData) return;
-    loadFolderSnapshotCache(userEmail).then((snapshot) => {
+    loadFullFolderSnapshotAsync(userEmail).then((snapshot) => {
       if (!snapshot.length) return;
       queryClient.setQueryData(['folders', userEmail], (prev) =>
         mergeApiFoldersWithLocal(prev ?? [], snapshot),

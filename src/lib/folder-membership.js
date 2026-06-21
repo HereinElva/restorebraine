@@ -9,8 +9,10 @@ import {
   applyFolderMembershipCache,
   clearFolderMembershipCache,
   loadFolderMembershipCache,
-  loadFolderSnapshotCache,
+  loadFolderSnapshotCacheSync,
+  loadFullFolderSnapshotAsync,
   persistGalleryFolders,
+  persistGalleryFoldersSync,
   recordBatchFolderMembership,
   recordPhotoFolderMembership,
   saveFolderMembershipCache,
@@ -156,15 +158,18 @@ export async function deleteFoldersWithTimeout(folderIds, { timeoutMs = FOLDER_D
 
 /** Gallery load: Folder.list (with timeout) + merged local snapshot fallback. */
 export async function fetchGalleryFoldersWithMembership(email, photos = []) {
-  const snapshot = email ? await loadFolderSnapshotCache(email) : [];
+  const snapshot = email ? await loadFullFolderSnapshotAsync(email) : [];
   const listed = await listAllFoldersSafe();
 
-  let folderSource =
-    listed.length > 0 ? mergeApiFoldersWithLocal(listed, snapshot) : snapshot;
+  // Always merge API + local snapshot — never drop folders the API hasn't returned yet
+  let folderSource = mergeApiFoldersWithLocal(listed, snapshot);
 
   let cached = await loadFolderMembershipCache(email);
 
-  const validIds = new Set(folderSource.map((f) => f.id));
+  const validIds = new Set([
+    ...folderSource.map((f) => f.id),
+    ...snapshot.map((f) => f.id),
+  ]);
   const pruned = {};
   for (const [photoNorm, folderId] of Object.entries(cached)) {
     if (validIds.has(folderId)) pruned[photoNorm] = folderId;
@@ -178,10 +183,15 @@ export async function fetchGalleryFoldersWithMembership(email, photos = []) {
   let result = applyFolderMembershipCache(folderSource, photos, cached);
   result = mergeApiFoldersWithLocal(result, snapshot);
 
-  if (email && result.length > 0) {
-    await persistGalleryFolders(email, result);
+  // Never shrink local snapshot — merge with what we already had on disk
+  const snapshotOnDisk = email ? loadFolderSnapshotCacheSync(email) : [];
+  const toPersist = mergeApiFoldersWithLocal(result, snapshotOnDisk);
+
+  if (email && toPersist.length > 0) {
+    persistGalleryFoldersSync(email, toPersist);
+    void persistGalleryFolders(email, toPersist);
   }
-  return result;
+  return toPersist;
 }
 async function updateFolderPhotoIds(folderId, photoIds, extra = {}) {
   return updateFolderPhotoIdsWithTimeout(folderId, photoIds, extra);

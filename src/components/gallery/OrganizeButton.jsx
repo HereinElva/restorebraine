@@ -21,7 +21,7 @@ import {
   loosePhotosForOrganize,
   setGalleryOrganizeSnapshot,
 } from "@/lib/gallery-organize-snapshot";
-import { persistGalleryFolders, persistGalleryFoldersFast } from "@/lib/folder-membership-cache";
+import { persistGalleryFolders, persistGalleryFoldersFast, persistGalleryFoldersSync } from "@/lib/folder-membership-cache";
 import { mergeApiFoldersWithLocal } from "@/lib/folder-membership";
 import { getGalleryUserEmail, galleryFoldersKey, galleryPhotosKey } from "@/lib/gallery-query-keys";
 import { runMediaOrganize } from "@/lib/run-media-organize";
@@ -101,7 +101,10 @@ export default function OrganizeButton({ photos, folders: foldersProp, squareSty
           );
           queryClient.setQueryData(galleryFoldersKey(email), verified);
           setGalleryOrganizeSnapshot({ photos, folders: verified });
-          if (email) persistGalleryFoldersFast(email, verified);
+          if (email) {
+            persistGalleryFoldersSync(email, verified);
+            persistGalleryFoldersFast(email, verified);
+          }
         },
         userEmail: email,
       });
@@ -122,6 +125,7 @@ export default function OrganizeButton({ photos, folders: foldersProp, squareSty
       setGalleryOrganizeSnapshot({ photos: syncedPhotos, folders: verifiedFolders });
 
       if (email && verifiedFolders.length > 0) {
+        persistGalleryFoldersSync(email, verifiedFolders);
         await persistGalleryFolders(email, verifiedFolders);
       }
 
