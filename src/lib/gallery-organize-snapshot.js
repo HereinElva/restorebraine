@@ -23,6 +23,28 @@ export function getUnorganizedPhotos(photos = snapshot.photos, folders = snapsho
   return (photos || []).filter((p) => p?.id != null && !organized.has(normalizePhotoId(p.id)));
 }
 
+/** Map IDs to the same type/value stored on Photo entities (fixes Recents not clearing). */
+export function toStoredPhotoIds(ids, photos = snapshot.photos) {
+  const photoByNorm = new Map(
+    (photos || []).map((p) => [normalizePhotoId(p.id), p.id]),
+  );
+  const stored = [];
+  for (const id of ids || []) {
+    const norm = normalizePhotoId(id);
+    if (!norm) continue;
+    const original = photoByNorm.get(norm);
+    if (original != null && !stored.some((s) => normalizePhotoId(s) === norm)) {
+      stored.push(original);
+    }
+  }
+  return stored;
+}
+
+export function countOrganizedPhotos(photos, folders) {
+  const organized = getOrganizedPhotoIds(folders);
+  return (photos || []).filter((p) => organized.has(normalizePhotoId(p.id))).length;
+}
+
 export function getGalleryOrganizeSnapshot() {
   return snapshot;
 }

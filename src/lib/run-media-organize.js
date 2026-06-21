@@ -15,6 +15,7 @@ import {
   getOrganizedPhotoIds,
   getUnorganizedPhotos,
   normalizePhotoId,
+  toStoredPhotoIds,
 } from "@/lib/gallery-organize-snapshot";
 
 const CHUNK_SIZE = 15;
@@ -43,12 +44,15 @@ function filterValidIds(ids, validPhotoIds) {
   return (ids || []).map(normalizePhotoId).filter((id) => validPhotoIds.has(id));
 }
 
-async function sanitizeFolderMembership(folders, allPhotoIds) {
+async function sanitizeFolderMembership(folders, photos, allPhotoIds) {
   const tasks = folders.map((folder) => async () => {
-    const cleaned = [
-      ...new Set((folder.photo_ids || []).map(normalizePhotoId).filter((id) => allPhotoIds.has(id))),
-    ];
-    if (cleaned.length !== (folder.photo_ids || []).length) {
+    const normalized = (folder.photo_ids || [])
+      .map(normalizePhotoId)
+      .filter((id) => allPhotoIds.has(id));
+    const cleaned = toStoredPhotoIds(normalized, photos);
+    const prevNorm = (folder.photo_ids || []).map(normalizePhotoId).sort().join(',');
+    const nextNorm = cleaned.map(normalizePhotoId).sort().join(',');
+    if (prevNorm !== nextNorm) {
       await base44.entities.Folder.update(folder.id, { photo_ids: cleaned });
       return { ...folder, photo_ids: cleaned };
     }
@@ -206,7 +210,7 @@ export async function runMediaOrganize({
   const allPhotoIds = new Set(photos.map((p) => normalizePhotoId(p.id)).filter(Boolean));
 
   let existingFolders = await base44.entities.Folder.list();
-  existingFolders = await sanitizeFolderMembership(existingFolders, allPhotoIds);
+  existingFolders = await sanitizeFolderMembership(existingFolders, photos, allPhotoIds);
   await cleanupEmptyFolders(allPhotoIds);
   existingFolders = await base44.entities.Folder.list();
 
@@ -316,20 +320,24 @@ export async function runMediaOrganize({
   }
 
   const folderTasks = foldersToSave.map((folder) => async () => {
+    const storedPhotoIds = toStoredPhotoIds(folder.photo_ids, photos);
+    if (storedPhotoIds.length === 0) return;
+
     const matchingFolder = currentFolders.find(
       (f) => f.name.toLowerCase() === folder.name.toLowerCase()
     );
 
     if (matchingFolder && !includeOrganized) {
-      const mergedIds = [
-        ...new Set([
+      const mergedIds = toStoredPhotoIds(
+        [
           ...filterValidIds(matchingFolder.photo_ids, allPhotoIds),
-          ...folder.photo_ids,
-        ]),
-      ];
+          ...storedPhotoIds.map(normalizePhotoId),
+        ],
+        photos,
+      );
       const coverPhoto =
         !matchingFolder.cover_photo_url && mergedIds.length > 0
-          ? photos.find((p) => normalizePhotoId(p.id) === mergedIds[0])
+          ? photos.find((p) => normalizePhotoId(p.id) === normalizePhotoId(mergedIds[0]))
           : null;
       await base44.entities.Folder.update(matchingFolder.id, {
         photo_ids: mergedIds,
@@ -337,33 +345,49 @@ export async function runMediaOrganize({
       });
     } else if (matchingFolder && includeOrganized) {
       await base44.entities.Folder.update(matchingFolder.id, {
-        photo_ids: folder.photo_ids,
+        photo_ids: storedPhotoIds,
         cover_photo_url:
-          photos.find((p) => normalizePhotoId(p.id) === folder.photo_ids[0])?.file_url ||
+          photos.find((p) => normalizePhotoId(p.id) === normalizePhotoId(storedPhotoIds[0]))?.file_url ||
           matchingFolder.cover_photo_url ||
           "",
       });
     } else {
-      const coverPhoto = photos.find((p) => normalizePhotoId(p.id) === folder.photo_ids[0]);
+      const coverPhoto = photos.find(
+        (p) => normalizePhotoId(p.id) === normalizePhotoId(storedPhotoIds[0]),
+      );
       await base44.entities.Folder.create({
         name: folder.name,
         description: "",
-        photo_ids: folder.photo_ids,
+        photo_ids: storedPhotoIds,
         cover_photo_url: coverPhoto?.file_url || "",
       });
     }
   });
 
-  await runConcurrent(folderTasks, 3);
+  await runConcurrent(folderTasks, 2);
+
+  const afterFolders = await base44.entities.Folder.list();
+  const organizedAfter = getOrganizedPhotoIds(afterFolders);
+  const actuallySaved = photosToOrganize.filter((p) =>
+    organizedAfter.has(normalizePhotoId(p.id)),
+  ).length;
+
   await cleanupEmptyFolders(allPhotoIds);
 
   const totalSaved = foldersToSave.reduce((sum, f) => sum + f.photo_ids.length, 0);
-  const missed = photosToOrganize.length - totalSaved;
+  const missed = photosToOrganize.length - actuallySaved;
+
+  if (actuallySaved === 0 && photosToOrganize.length > 0) {
+    return {
+      ok: false,
+      reason: "Folders could not be saved. Pull down to refresh and try Organize again.",
+    };
+  }
 
   return {
     ok: true,
     foldersSaved: foldersToSave.length,
-    totalSaved,
+    totalSaved: actuallySaved,
     totalToOrganize: photosToOrganize.length,
     missed,
   };

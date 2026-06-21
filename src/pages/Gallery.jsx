@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useLayoutEffect } from "react";
+import React, { useState, useEffect, useRef, useLayoutEffect, useMemo } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/lib/AuthContext";
@@ -23,7 +23,7 @@ import { DragDropContext } from "@hello-pangea/dnd";
 import { useNavigation } from "../components/NavigationContext";
 import { useTabState } from "../components/TabStateContext";
 import MobileGallery from "../components/gallery/MobileGallery";
-import { setGalleryOrganizeSnapshot } from "@/lib/gallery-organize-snapshot";
+import { setGalleryOrganizeSnapshot, toStoredPhotoIds } from "@/lib/gallery-organize-snapshot";
 import "../components/gallery/mobile-gallery-layout.css";
  
 // ---------------------------------------------------------------------------
@@ -208,6 +208,16 @@ export default function Gallery() {
   useEffect(() => {
     setGalleryOrganizeSnapshot({ photos, folders });
   }, [photos, folders]);
+
+  /** Align folder photo_ids with Photo.id values so Recents clears after organize. */
+  const foldersForGallery = useMemo(
+    () =>
+      folders.map((folder) => ({
+        ...folder,
+        photo_ids: toStoredPhotoIds(folder.photo_ids, photos),
+      })),
+    [folders, photos],
+  );
  
   // Auto-update folders without cover photos
   useEffect(() => {
@@ -379,7 +389,7 @@ export default function Gallery() {
         <div className="rb-mobile-gallery-shell">
         <MobileGallery
           photos={photos}
-          folders={folders}
+          folders={foldersForGallery}
           isLoading={isLoading}
           filteredPhotos={filteredPhotos}
           filteredFolders={filteredFolders}
@@ -423,7 +433,7 @@ export default function Gallery() {
  
           {photos.length >= 2 && (
             <div className="mt-6 flex justify-center gap-3 flex-wrap">
-              <OrganizeButton photos={photos} folders={folders} />
+              <OrganizeButton photos={photos} folders={foldersForGallery} />
               <CustomFolderButton photos={photos} />
               <DuplicateDetector photos={photos} folders={folders} />
               <Button

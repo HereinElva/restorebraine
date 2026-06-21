@@ -18,6 +18,7 @@ import { formatLLMError } from "@/lib/invoke-llm-retry";
 import {
   getGalleryOrganizeSnapshot,
   getUnorganizedPhotos,
+  setGalleryOrganizeSnapshot,
 } from "@/lib/gallery-organize-snapshot";
 import { runMediaOrganize } from "@/lib/run-media-organize";
 import { ORGANIZE_ICON_CLASS, ORGANIZE_LABEL_CLASS, SQUARE_FOLDER_ACTION_CLASS, SQUARE_FOLDER_ACTION_STYLE } from "./folderActionStyles";
@@ -74,8 +75,13 @@ export default function OrganizeButton({ photos, folders: foldersProp, squareSty
         return;
       }
 
-      queryClient.invalidateQueries({ queryKey: ["folders"] });
-      queryClient.invalidateQueries({ queryKey: ["photos"] });
+      await queryClient.refetchQueries({ queryKey: ["folders"] });
+      await queryClient.refetchQueries({ queryKey: ["photos"] });
+
+      const folderEntries = queryClient.getQueriesData({ queryKey: ["folders"] });
+      const freshFolders =
+        folderEntries.map(([, data]) => data).find((data) => Array.isArray(data)) ?? folders;
+      setGalleryOrganizeSnapshot({ photos, folders: freshFolders });
 
       if (result.foldersSaved === 0) {
         alert("Could not create folders for your loose photos. Try again in a minute.");
