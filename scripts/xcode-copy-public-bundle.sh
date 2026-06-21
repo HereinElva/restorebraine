@@ -15,6 +15,13 @@ if [ -z "${CODESIGNING_FOLDER_PATH:-}" ] || [ ! -d "${DEST_APP}" ]; then
   exit 1
 fi
 
+if [ -d "$DEST_PUBLIC" ]; then
+  OLD_COUNT=$(find "$DEST_PUBLIC" -type f 2>/dev/null | wc -l | tr -d ' ')
+  echo "FULL REPLACE: removing ${DEST_PUBLIC} (${OLD_COUNT} old files)"
+else
+  echo "FULL REPLACE: no existing ${DEST_PUBLIC}"
+fi
+
 if [ ! -d "$SRC_PUBLIC" ] || [ ! -f "${SRC_PUBLIC}/index.html" ]; then
   echo "error: ${SRC_PUBLIC}/index.html missing"
   echo "       Run: bash scripts/mac-ios-v4-rebuild.sh"
@@ -30,6 +37,8 @@ fi
 
 rm -rf "$DEST_PUBLIC"
 ditto "$SRC_PUBLIC" "$DEST_PUBLIC"
+NEW_COUNT=$(find "$DEST_PUBLIC" -type f 2>/dev/null | wc -l | tr -d ' ')
+echo "FULL REPLACE: copied ${NEW_COUNT} files into App.app/public"
 
 [ -f "$STAMP" ] && cp "$STAMP" "${DEST_APP}/BUILD_STAMP.txt"
 [ -f "$CONFIG" ] && cp "$CONFIG" "${DEST_APP}/capacitor.config.json"

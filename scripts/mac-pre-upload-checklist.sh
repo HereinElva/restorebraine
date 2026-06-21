@@ -75,11 +75,14 @@ The grid placeholder on the Apps page is normal until a build finishes processin
    - Bottom slot "App Store iOS 1024pt" must show the Restorebraine app logo
      (gradient gallery icon — NOT a brain, NOT a grid placeholder)
 4. Product → Clean Build Folder
-5. Product → Archive
-6. Window → Organizer → select archive → Distribute App
-7. App Store Connect → Upload → wait for success
-8. Wait 15–60 minutes for Apple to process build $BUILD
-9. App Store Connect → TestFlight → build $BUILD should show the app logo icon
+5. Product → Run (Cmd+R) once — build log MUST show:
+     Restorebraine DEPLOY OK: public/ -> App.app
+     FULL REPLACE: copied ... files into App.app/public
+6. Product → Archive
+7. Window → Organizer → select archive → Distribute App
+8. App Store Connect → Upload → wait for success
+9. Wait 15–60 minutes for Apple to process build $BUILD
+10. App Store Connect → TestFlight → build $BUILD should show the app logo icon
 10. Apps list icon updates after build is linked on Distribution tab (see below)
 
 === App Store Connect (after TestFlight shows Complete) ===

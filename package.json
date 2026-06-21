@@ -25,6 +25,7 @@
     "mac:native-webapp": "bash scripts/mac-native-as-webapp.sh",
     "mac:appstore": "bash scripts/mac-appstore-deploy.sh",
     "mac:reconstruct-appstore": "bash scripts/mac-reconstruct-appstore.sh",
+    "mac:xcode-full-replace": "bash scripts/mac-xcode-full-replace.sh",
     "mac:v4-full-reset": "bash scripts/capacitor-v4-full-reset.sh",
     "cap:hosted": "node scripts/use-local-native-bundle.mjs --hosted",
     "lint": "eslint .",

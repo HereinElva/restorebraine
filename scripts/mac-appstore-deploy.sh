@@ -36,12 +36,8 @@ if [ "${SKIP_PUBLISH_CHECK:-}" != "1" ]; then
 fi
 
 echo ""
-echo "=== Step 1: hosted WebView mode (server.url → restorebraine.base44.app) ==="
-node scripts/use-local-native-bundle.mjs --hosted
-
-echo ""
-echo "=== Step 2: build + cap sync ==="
-npm run build
+echo "=== Step 0: full wipe + rebuild (Xcode will replace entire public/ on Archive) ==="
+bash scripts/mac-xcode-full-replace.sh --hosted
 
 URL=$(grep -o '"url": *"[^"]*"' ios/App/App/capacitor.config.json | head -1 || true)
 echo ""
@@ -52,11 +48,11 @@ if [[ "$URL" != *"restorebraine.base44.app"* ]]; then
 fi
 
 echo ""
-echo "=== Step 3: copy config into App.app + verify ==="
+echo "=== Step 1: copy into existing App.app (if any) ==="
 bash scripts/mac-copy-public-into-appapp.sh 2>/dev/null || true
 bash scripts/verify-hosted-app-bundle.sh 2>/dev/null || {
   echo ""
-  echo "No App.app yet — Run once in Xcode, then Archive."
+  echo "No App.app yet — Run or Archive once in Xcode."
 }
 
 BUILD_NUM=$(grep -E '^export const BUILD_NUMBER = ' src/lib/build-info.js | sed 's/.*= //;s/;//')
