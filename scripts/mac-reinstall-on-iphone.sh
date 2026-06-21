@@ -25,7 +25,7 @@ bash scripts/mac-push-to-iphone.sh
 BUILD_NUM=$(grep -E '^export const BUILD_NUMBER = ' src/lib/build-info.js | sed 's/.*= //;s/;//')
 echo ""
 echo "On login screen you MUST see purple text:"
-echo "  Bundled app · build v${BUILD_NUM}"
+echo "  Native bundle · v${BUILD_NUM}"
 echo ""
 echo "If you see 'Sign in to access your memories' instead, you are NOT in the bundled app."
 echo "Tap purple badge → v${BUILD_NUM} · v4-core · capacitor://localhost"
