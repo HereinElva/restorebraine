@@ -33,7 +33,7 @@ bash scripts/mac-reinstall-on-iphone.sh
 
 BUILD_NUM=$(grep -E '^export const BUILD_NUMBER = ' src/lib/build-info.js | sed 's/.*= //;s/;//')
 echo ""
-echo "Login must show: Restorebraine + Continue with Google + Native bundle · v${BUILD_NUM}"
+echo "Login must show: Google + Apple + email + Native bundle · v${BUILD_NUM}"
 echo "Purple badge: v${BUILD_NUM} · v4-core · capacitor://localhost · auth: sign-in-v4"
 echo ""
 echo "Launch screen (title only, no logo): update via Xcode Run after storyboard changes."

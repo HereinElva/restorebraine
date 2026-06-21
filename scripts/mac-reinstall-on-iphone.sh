@@ -24,8 +24,11 @@ bash scripts/mac-push-to-iphone.sh
 
 BUILD_NUM=$(grep -E '^export const BUILD_NUMBER = ' src/lib/build-info.js | sed 's/.*= //;s/;//')
 echo ""
-echo "On login screen you MUST see purple text:"
-echo "  Native bundle · v${BUILD_NUM}"
+echo "Login screen should show:"
+echo "  • Restorebraine + subtitle \"Sign in to access your memories\""
+echo "  • Continue with Google · Continue with Apple · email sign-in"
+echo "  • Native bundle · v${BUILD_NUM} (purple text, bundled app only)"
 echo ""
-echo "If you see 'Sign in to access your memories' instead, you are NOT in the bundled app."
 echo "Tap purple badge → v${BUILD_NUM} · v4-core · capacitor://localhost"
+echo ""
+echo "If you ONLY see one Google button (no Apple/email), the phone has an old build — re-run this script."
