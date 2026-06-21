@@ -23,8 +23,17 @@ else
 fi
 
 if [ ! -d "$SRC_PUBLIC" ] || [ ! -f "${SRC_PUBLIC}/index.html" ]; then
+  echo ""
+  echo "████████████████████████████████████████████████████████████████"
+  echo "██  ERROR: ios/App/App/public/index.html is MISSING            ██"
+  echo "██  Xcode cannot install new UI until you build the bundle.    ██"
+  echo "██  In Terminal on your Mac, run:                              ██"
+  echo "██    cd ~/restorebraine                                       ██"
+  echo "██    bash build-iphone.sh --no-git                            ██"
+  echo "████████████████████████████████████████████████████████████████"
+  echo ""
   echo "error: ${SRC_PUBLIC}/index.html missing"
-  echo "       Run: bash scripts/mac-xcode-full-replace.sh --hosted"
+  echo "       Run: bash build-iphone.sh --no-git"
   exit 1
 fi
 
@@ -68,6 +77,14 @@ if [ ! -f "${SRC_PUBLIC}/AppIcon.png" ]; then
 fi
 
 STAMP_LINE=$(tr -d '\n' < "$STAMP" 2>/dev/null || echo 'unknown')
+echo ""
+echo "████████████████████████████████████████████████████████████████"
+echo "██  Restorebraine DEPLOY OK: public/ -> App.app                  ██"
+echo "██  BUILD_STAMP: ${STAMP_LINE}"
+echo "██  entry: ${ENTRY}"
+echo "██  files: ${NEW_COUNT}"
+echo "████████████████████████████████████████████████████████████████"
+echo ""
 echo "Restorebraine DEPLOY OK: public/ -> App.app"
 echo "  dest: ${DEST_APP}"
 echo "  BUILD_STAMP: ${STAMP_LINE}"
