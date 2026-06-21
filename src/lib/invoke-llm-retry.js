@@ -7,9 +7,9 @@ function isRateLimitError(error) {
 
 export function formatLLMError(error) {
   if (isRateLimitError(error)) {
-    return 'AI requests are temporarily limited — wait about a minute and try again. This is not your 250-photo storage limit.';
+    return 'Organize could not finish — AI is temporarily busy. Wait about a minute and try again. (This is not your 250-photo storage limit.)';
   }
-  return error?.message || 'AI request failed. Please try again.';
+  return error?.message || 'Organize failed. Please try again.';
 }
 
 /** InvokeLLM with backoff when Base44 returns rate-limit errors. */

@@ -23,6 +23,7 @@ import { DragDropContext } from "@hello-pangea/dnd";
 import { useNavigation } from "../components/NavigationContext";
 import { useTabState } from "../components/TabStateContext";
 import MobileGallery from "../components/gallery/MobileGallery";
+import { setGalleryOrganizeSnapshot } from "@/lib/gallery-organize-snapshot";
 import "../components/gallery/mobile-gallery-layout.css";
  
 // ---------------------------------------------------------------------------
@@ -203,6 +204,10 @@ export default function Gallery() {
 
   // Only show the loading spinner on the very first load (no cached data yet)
   const isLoading = photosLoading && photos.length === 0;
+
+  useEffect(() => {
+    setGalleryOrganizeSnapshot({ photos, folders });
+  }, [photos, folders]);
  
   // Auto-update folders without cover photos
   useEffect(() => {
@@ -418,7 +423,7 @@ export default function Gallery() {
  
           {photos.length >= 2 && (
             <div className="mt-6 flex justify-center gap-3 flex-wrap">
-              <OrganizeButton photos={photos} />
+              <OrganizeButton photos={photos} folders={folders} />
               <CustomFolderButton photos={photos} />
               <DuplicateDetector photos={photos} folders={folders} />
               <Button

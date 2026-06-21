@@ -15,10 +15,14 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { isWeakMetadata } from "@/lib/media-tags";
 import { formatLLMError } from "@/lib/invoke-llm-retry";
+import {
+  getGalleryOrganizeSnapshot,
+  getUnorganizedPhotos,
+} from "@/lib/gallery-organize-snapshot";
 import { runMediaOrganize } from "@/lib/run-media-organize";
 import { ORGANIZE_ICON_CLASS, ORGANIZE_LABEL_CLASS, SQUARE_FOLDER_ACTION_CLASS, SQUARE_FOLDER_ACTION_STYLE } from "./folderActionStyles";
 
-export default function OrganizeButton({ photos, squareStyle = false }) {
+export default function OrganizeButton({ photos, folders: foldersProp, squareStyle = false }) {
   const [organizing, setOrganizing] = useState(false);
   const [showDialog, setShowDialog] = useState(false);
   const [customInstructions, setCustomInstructions] = useState("");
@@ -26,11 +30,21 @@ export default function OrganizeButton({ photos, squareStyle = false }) {
   const [sharpenTags, setSharpenTags] = useState(false);
   const queryClient = useQueryClient();
 
+  const snapshot = getGalleryOrganizeSnapshot();
+  const folders = foldersProp ?? snapshot.folders;
+  const unorganizedCount = getUnorganizedPhotos(photos, folders).length;
   const weakCount = photos.filter(isWeakMetadata).length;
 
   const handleOrganize = async () => {
     if (photos.length < 1) {
       alert("Add photos before organizing.");
+      return;
+    }
+
+    if (!includeOrganized && unorganizedCount === 0) {
+      alert(
+        "No loose photos in your gallery right now. Only photos showing in Recents (not already in a folder) get sorted. Check \"Re-organize everything\" to re-sort all media."
+      );
       return;
     }
 
@@ -40,6 +54,7 @@ export default function OrganizeButton({ photos, squareStyle = false }) {
     try {
       const result = await runMediaOrganize({
         photos,
+        folders,
         includeOrganized,
         sharpenTags,
         customInstructions,
@@ -54,10 +69,10 @@ export default function OrganizeButton({ photos, squareStyle = false }) {
       queryClient.invalidateQueries({ queryKey: ["photos"] });
 
       if (result.foldersSaved === 0) {
-        alert("No groups found to organize.");
+        alert("Could not create folders for your loose photos. Try again in a minute.");
       } else if (result.missed > 0) {
         alert(
-          `Done! ${result.totalSaved} of ${result.totalToOrganize} items organized into ${result.foldersSaved} folders. ${result.missed} items had no clear group — press Organize again to retry.`
+          `Done! ${result.totalSaved} of ${result.totalToOrganize} loose photos sorted into ${result.foldersSaved} folders. Tap Organize again for any remaining items.`
         );
       }
     } catch (error) {
@@ -113,7 +128,9 @@ export default function OrganizeButton({ photos, squareStyle = false }) {
           <DialogHeader>
             <DialogTitle>Organize Media</DialogTitle>
             <DialogDescription>
-              Sorts every unsorted photo from Recents into folders using tags already on your photos — no extra AI calls needed.
+              {unorganizedCount > 0
+                ? `Sort ${unorganizedCount} loose photo${unorganizedCount !== 1 ? "s" : ""} from your gallery into folders based on what they look like (AI reads each photo's description). Photos already in folders are left alone.`
+                : "Sort loose photos from your gallery into folders based on visual descriptions. Photos already in folders are skipped."}
             </DialogDescription>
           </DialogHeader>
 
@@ -148,7 +165,7 @@ export default function OrganizeButton({ photos, squareStyle = false }) {
                 onCheckedChange={setSharpenTags}
               />
               <Label htmlFor="sharpen-tags" className="text-sm font-normal cursor-pointer">
-                Re-analyze photos with weak tags first (uses AI — may hit rate limits)
+                Re-analyze photos with weak tags first (extra AI — slower)
                 {weakCount > 0 && (
                   <span className="text-gray-500 ml-1">({weakCount} item{weakCount !== 1 ? "s" : ""} need better tags)</span>
                 )}
@@ -162,7 +179,7 @@ export default function OrganizeButton({ photos, squareStyle = false }) {
                 onCheckedChange={setIncludeOrganized}
               />
               <Label htmlFor="include-organized" className="text-sm font-normal cursor-pointer">
-                Re-organize everything — consolidate all existing folders and re-sort all media from scratch.
+                Re-organize everything — delete existing folders and re-sort all media from scratch.
               </Label>
             </div>
 
