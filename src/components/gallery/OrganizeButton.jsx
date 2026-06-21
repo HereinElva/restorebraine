@@ -113,7 +113,7 @@ export default function OrganizeButton({ photos, squareStyle = false }) {
           <DialogHeader>
             <DialogTitle>Organize Media</DialogTitle>
             <DialogDescription>
-              Sorts every unsorted photo and video from Recents into folders. Items already in folders are left in place.
+              Sorts every unsorted photo from Recents into folders using tags already on your photos — no extra AI calls needed.
             </DialogDescription>
           </DialogHeader>
 
@@ -148,7 +148,7 @@ export default function OrganizeButton({ photos, squareStyle = false }) {
                 onCheckedChange={setSharpenTags}
               />
               <Label htmlFor="sharpen-tags" className="text-sm font-normal cursor-pointer">
-                Sharpen visual tags before organizing (slower, uses more AI requests)
+                Re-analyze photos with weak tags first (uses AI — may hit rate limits)
                 {weakCount > 0 && (
                   <span className="text-gray-500 ml-1">({weakCount} item{weakCount !== 1 ? "s" : ""} need better tags)</span>
                 )}

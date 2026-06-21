@@ -1,18 +1,12 @@
 import { base44 } from "@/api/base44Client";
 import { reanalyzeWeakPhotos } from "@/lib/media-analysis";
 import { isWeakMetadata } from "@/lib/media-tags";
-import { invokeLLMWithRetry } from "@/lib/invoke-llm-retry";
 import {
-  buildFolderOptions,
-  buildLabelPrompt,
-  buildMergePrompt,
-  photoDataForOrganize,
+  assignFolderLocally,
+  mergeFolderGroupsLocally,
+  normalizeFolderName,
 } from "@/lib/media-organize";
 
-const CHUNK_SIZE = 40;
-/** Serial LLM calls — parallel batches hit Base44 rate limits quickly. */
-const LLM_CONCURRENCY = 1;
-const MERGE_CHUNK = 25;
 const MISC_FOLDER = "Miscellaneous";
 
 async function runConcurrent(tasks, concurrency) {
@@ -45,116 +39,22 @@ async function sanitizeFolderMembership(folders, allPhotoIds) {
   return runConcurrent(tasks, 5);
 }
 
-async function labelChunk(chunk, existingFolderNames, customInstructions) {
-  const photoData = chunk.map(photoDataForOrganize);
-  const folderOptions = buildFolderOptions(existingFolderNames);
+function buildGroupsFromLocalTags(photosToOrganize, existingFolderNames, validPhotoIds) {
+  const groupMap = new Map();
 
-  const result = await invokeLLMWithRetry({
-    prompt: buildLabelPrompt({ photoData, folderOptions, customInstructions }),
-    response_json_schema: {
-      type: "object",
-      properties: {
-        labels: {
-          type: "array",
-          items: {
-            type: "object",
-            properties: {
-              id: { type: "string" },
-              folder: { type: "string" },
-            },
-          },
-        },
-      },
-    },
-  });
+  for (const photo of photosToOrganize) {
+    if (!validPhotoIds.has(photo.id)) continue;
+    const folder = assignFolderLocally(photo);
+    const display = normalizeFolderName(folder, existingFolderNames);
+    const key = display.toLowerCase();
+    if (!groupMap.has(key)) groupMap.set(key, { name: display, ids: new Set() });
+    groupMap.get(key).ids.add(photo.id);
+  }
 
-  return result.labels || [];
-}
-
-async function mergeGroupBatch(groups, existingFolderNames, customInstructions, validPhotoIds) {
-  const result = await invokeLLMWithRetry({
-    prompt: buildMergePrompt({ groups, existingFolderNames, customInstructions }),
-    response_json_schema: {
-      type: "object",
-      properties: {
-        folders: {
-          type: "array",
-          items: {
-            type: "object",
-            properties: {
-              name: { type: "string" },
-              ids: { type: "array", items: { type: "string" } },
-            },
-          },
-        },
-      },
-    },
-  });
-
-  return (result.folders || []).map((f) => ({
-    name: f.name,
-    ids: filterValidIds(f.ids, validPhotoIds),
+  return Array.from(groupMap.values()).map((g) => ({
+    name: g.name,
+    ids: [...g.ids],
   }));
-}
-
-async function consolidateGroups(initialGroups, existingFolderNames, customInstructions, validPhotoIds, onProgress) {
-  let groups = initialGroups
-    .map((g) => ({
-      name: g.name,
-      ids: filterValidIds(g.ids, validPhotoIds),
-    }))
-    .filter((g) => g.ids.length > 0);
-
-  if (groups.length <= 1) {
-    return groups.map((g) => ({ name: g.name, photo_ids: g.ids }));
-  }
-
-  let pass = 1;
-
-  while (groups.length > MERGE_CHUNK) {
-    onProgress?.(`Merging ${groups.length} groups…`);
-    const batches = [];
-    for (let i = 0; i < groups.length; i += MERGE_CHUNK) {
-      batches.push(groups.slice(i, i + MERGE_CHUNK));
-    }
-    const batchResults = await runConcurrent(
-      batches.map((batch) => () => mergeGroupBatch(batch, existingFolderNames, customInstructions, validPhotoIds)),
-      LLM_CONCURRENCY
-    );
-    const merged = new Map();
-    for (const batch of batchResults) {
-      for (const { name, ids } of batch) {
-        const key = name.toLowerCase().trim();
-        if (!merged.has(key)) merged.set(key, { name, ids: new Set(ids) });
-        else ids.forEach((id) => merged.get(key).ids.add(id));
-      }
-    }
-    groups = Array.from(merged.values())
-      .map((g) => ({ name: g.name, ids: filterValidIds([...g.ids], validPhotoIds) }))
-      .filter((g) => g.ids.length > 0);
-    pass++;
-  }
-
-  if (groups.length > 1) {
-    onProgress?.(`Final merge of ${groups.length} groups…`);
-    const finalGroups = await mergeGroupBatch(groups, existingFolderNames, customInstructions, validPhotoIds);
-
-    const finalMap = new Map();
-    for (const { name, ids } of finalGroups) {
-      const key = name.toLowerCase().trim();
-      if (!finalMap.has(key)) finalMap.set(key, { name, ids: new Set(ids) });
-      else ids.forEach((id) => finalMap.get(key).ids.add(id));
-    }
-
-    return Array.from(finalMap.values())
-      .map((g) => ({
-        name: g.name,
-        photo_ids: filterValidIds([...g.ids], validPhotoIds),
-      }))
-      .filter((f) => f.photo_ids.length > 0);
-  }
-
-  return groups.map((g) => ({ name: g.name, photo_ids: g.ids }));
 }
 
 function assignRemainingPhotos(folders, photosToOrganize, validPhotoIds) {
@@ -195,7 +95,7 @@ export async function runMediaOrganize({
   photos,
   includeOrganized,
   sharpenTags,
-  customInstructions,
+  customInstructions: _customInstructions,
   onProgress,
 }) {
   const allPhotoIds = new Set(photos.map((p) => p.id));
@@ -240,55 +140,17 @@ export async function runMediaOrganize({
     }
   }
 
-  const chunks = [];
-  for (let i = 0; i < photosToOrganize.length; i += CHUNK_SIZE) {
-    chunks.push(photosToOrganize.slice(i, i + CHUNK_SIZE));
-  }
-
-  const totalChunks = chunks.length;
-  let completedChunks = 0;
   onProgress?.(`Sorting ${photosToOrganize.length} unsorted item${photosToOrganize.length !== 1 ? "s" : ""}…`);
 
-  const labelTasks = chunks.map((chunk) => async () => {
-    const labels = await labelChunk(
-      chunk,
-      includeOrganized ? [] : existingFolderNames,
-      customInstructions
-    );
-    completedChunks++;
-    onProgress?.(`Sorted batch ${completedChunks}/${totalChunks}…`);
-    return labels.filter((l) => validPhotoIds.has(l.id));
-  });
-
-  const labelResults = await runConcurrent(labelTasks, LLM_CONCURRENCY);
-  const allLabels = labelResults.flat();
-
-  const labelledIds = new Set(allLabels.map((l) => l.id));
-  for (const photo of photosToOrganize) {
-    if (!labelledIds.has(photo.id)) {
-      allLabels.push({ id: photo.id, folder: MISC_FOLDER });
-    }
-  }
-
-  const groupMap = new Map();
-  for (const { id, folder } of allLabels) {
-    if (!validPhotoIds.has(id)) continue;
-    const display = (folder || MISC_FOLDER).trim();
-    const key = display.toLowerCase();
-    if (!groupMap.has(key)) groupMap.set(key, { name: display, ids: new Set() });
-    groupMap.get(key).ids.add(id);
-  }
-  const initialGroups = Array.from(groupMap.values()).map((g) => ({
-    name: g.name,
-    ids: [...g.ids],
-  }));
-
-  let finalFolders = await consolidateGroups(
-    initialGroups,
+  const initialGroups = buildGroupsFromLocalTags(
+    photosToOrganize,
     includeOrganized ? [] : existingFolderNames,
-    customInstructions,
-    validPhotoIds,
-    onProgress
+    validPhotoIds
+  );
+
+  let finalFolders = mergeFolderGroupsLocally(
+    initialGroups,
+    includeOrganized ? [] : existingFolderNames
   );
 
   finalFolders = assignRemainingPhotos(finalFolders, photosToOrganize, validPhotoIds);
