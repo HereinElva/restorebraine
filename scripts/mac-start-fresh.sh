@@ -60,6 +60,10 @@ node scripts/verify-omega-baseline.mjs
 node scripts/verify-auth-flow.mjs
 echo ""
 
+echo "=== Step 2b: check Base44 live site vs git (drift detector) ==="
+node scripts/verify-base44-live.mjs || true
+echo ""
+
 echo "=== Step 3: full wipe + hosted rebuild (complete replacement) ==="
 bash scripts/mac-xcode-full-replace.sh --hosted
 echo ""

@@ -6,8 +6,6 @@ import NativeLoginCard from '@/components/NativeLoginCard';
  * Hosted App Store builds load live Base44 — same card after Publish.
  */
 export default function SignInScreen({ clearSignedOut = false }) {
-  const { navigateToLogin } = useAuth();
-
   useEffect(() => {
     document.documentElement.setAttribute('data-rb-screen', 'sign-in');
     return () => document.documentElement.removeAttribute('data-rb-screen');

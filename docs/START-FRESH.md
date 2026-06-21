@@ -19,6 +19,26 @@ One terminal workflow to reset Restorebraine to the **Omega hosted architecture*
 | Folder tab buttons | `omega-v4-core` gallery files |
 | NativeLoginCard (Google / Apple / email) | `SignInScreen.jsx`, Base44 publish |
 
+## Why things broke (GitHub vs Base44 vs Capacitor)
+
+Three copies of the app existed:
+
+| Copy | What happened |
+|------|----------------|
+| **GitHub** | Updated every commit (now v178+) |
+| **Base44 live site** | Stuck at **v162** — Publish never completed |
+| **Capacitor iPhone** | Bundled localhost builds — third copy, broken OAuth |
+
+Safari and hosted iPhone both load **Base44 live** — so they showed v162 old login (single Google button) while git had NativeLoginCard.
+
+**Rule:** GitHub is the source of truth. Base44 only updates via **one full publish pack** — not piecemeal edits in the Base44 editor.
+
+Check drift anytime:
+
+```bash
+node scripts/verify-base44-live.mjs
+```
+
 ## One command (Terminal)
 
 ```bash
