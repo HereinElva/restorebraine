@@ -30,7 +30,6 @@ const readSyncToken = () => {
 const isNativeLocalShell = () => LOCAL_NATIVE_BUNDLE || (isNativeShell() && !isHostedAppOrigin());
 
 const shouldSkipInitialAuthLoading = () => {
-  if (!LOCAL_NATIVE_BUNDLE) return false;
   try {
     if (localStorage.getItem('b44_signed_out') === '1') return true;
     return !(localStorage.getItem('base44_access_token') || localStorage.getItem('token'));

@@ -23,6 +23,7 @@ const FILES = [
   'src/lib/AuthContext.jsx',
   'src/api/base44Client.js',
   'src/App.jsx',
+  'src/components/LoginPage.jsx',
   'src/components/LoginLogo.jsx',
   'src/lib/login-logo-data.js',
   'src/lib/native-hosted-redirect.js',

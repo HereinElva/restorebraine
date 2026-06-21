@@ -47,6 +47,6 @@ export const redirectBrokenCustomDomainLogin = () => {
   if (!params.get('from_url')) params.set('from_url', getAuthReturnOrigin());
   if (!params.get('prompt')) params.set('prompt', 'select_account');
 
-  window.location.replace(`${BASE44_PLATFORM_URL}/login?${params.toString()}`);
+  window.location.replace(getGoogleOAuthUrl());
   return true;
 };
