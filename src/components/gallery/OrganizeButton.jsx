@@ -88,7 +88,6 @@ export default function OrganizeButton({ photos, folders: foldersProp, squareSty
         return;
       }
 
-      const email = getGalleryUserEmail(queryClient, authUser?.email);
       const syncedPhotos = queryClient.getQueryData(galleryPhotosKey(email)) ?? photos;
 
       const verifiedFolders = foldersForGalleryView(result.afterFolders || [], syncedPhotos);

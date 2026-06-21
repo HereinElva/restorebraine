@@ -1,4 +1,4 @@
 export const BASE44_APP_ID = '68fdc5f42768c4d045fe1bac';
-export const BUILD_NUMBER = 239;
-export const NATIVE_BUILD_LABEL = 'kbrown v4-core v239 · 2026-06-21 22:07';
-export const WEB_BUILD_LABEL = 'restorebraine web v239';
+export const BUILD_NUMBER = 241;
+export const NATIVE_BUILD_LABEL = 'kbrown v4-core v241 · 2026-06-21 22:09';
+export const WEB_BUILD_LABEL = 'restorebraine web v241';
