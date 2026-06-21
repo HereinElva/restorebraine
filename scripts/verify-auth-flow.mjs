@@ -52,6 +52,11 @@ if (oauthJs.includes('RestorebraineOAuth') && oauthJs.includes('Browser.open')) 
 } else {
   bad('native-google-oauth missing registerPlugin or Browser fallback');
 }
+if (oauthJs.includes('LOCAL_NATIVE_BUNDLE') && oauthJs.includes('openOAuthInSystemBrowser(oauthUrl, provider)')) {
+  ok('Bundled native uses InAppBrowser system browser for OAuth (captures HTTPS token redirect)');
+} else {
+  bad('Bundled native must open OAuth via InAppBrowser system browser');
+}
 
 const account = read('src/pages/Account.jsx');
 if (!account.includes('data-rb-gallery-nav')) bad('Account Back to Gallery missing data-rb-gallery-nav');

@@ -56,20 +56,7 @@ public class RestorebraineOAuthPlugin: CAPPlugin, CAPBridgedPlugin, ASWebAuthent
         DispatchQueue.main.async {
             self.authSession?.cancel()
 
-            // Prefer restorebraine:// — works without universal-link timing; hosted page redirects via native-oauth-return.js.
-            let schemeSession = ASWebAuthenticationSession(url: url, callbackURLScheme: "restorebraine") { [weak self] callbackURL, error in
-                guard let self else { return }
-                let token = callbackURL.flatMap { self.tokenFromCallbackURL($0) }
-                self.resolveCall(call, token: token, callbackURL: callbackURL, error: error)
-            }
-            schemeSession.presentationContextProvider = self
-            schemeSession.prefersEphemeralWebBrowserSession = false
-            self.authSession = schemeSession
-            if schemeSession.start() { return }
-
-            self.authSession = nil
-
-            // iOS 17.4+: catch https://restorebraine.base44.app/?access_token= directly when configured.
+            // iOS 17.4+: catch https://restorebraine.base44.app/?access_token= directly (no Base44 publish needed).
             if #available(iOS 17.4, *) {
                 let httpsSession = ASWebAuthenticationSession(
                     url: url,
@@ -86,6 +73,18 @@ public class RestorebraineOAuthPlugin: CAPPlugin, CAPBridgedPlugin, ASWebAuthent
                 self.authSession = nil
             }
 
+            // Fallback: restorebraine://oauth/callback (requires native-oauth-return.js on hosted site).
+            let schemeSession = ASWebAuthenticationSession(url: url, callbackURLScheme: "restorebraine") { [weak self] callbackURL, error in
+                guard let self else { return }
+                let token = callbackURL.flatMap { self.tokenFromCallbackURL($0) }
+                self.resolveCall(call, token: token, callbackURL: callbackURL, error: error)
+            }
+            schemeSession.presentationContextProvider = self
+            schemeSession.prefersEphemeralWebBrowserSession = false
+            self.authSession = schemeSession
+            if schemeSession.start() { return }
+
+            self.authSession = nil
             call.reject("Could not start OAuth session")
         }
     }

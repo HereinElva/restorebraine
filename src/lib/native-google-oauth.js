@@ -243,6 +243,11 @@ const handleOAuthBrowserNavigation = async (url) => {
       await redirectToNativeBundleHome(url);
       return true;
     }
+    if (isAppHost(parsed.hostname) && parsed.searchParams.has('access_token')) {
+      await persistSessionToNativeStorage(parsed.searchParams.get('access_token'));
+      await finishOAuthLogin();
+      return true;
+    }
     if (isAuthNavigationUrl(url)) {
       return false;
     }
@@ -321,23 +326,8 @@ export const openLoginInSystemBrowser = async (url = getGoogleOAuthUrl(), provid
 
   // ASWebAuthenticationSession via native plugin — wait for user to finish (no short timeout).
   if (LOCAL_NATIVE_BUNDLE) {
-    await waitForNativeOAuthPlugin(15);
-    recordOAuthDebug({
-      stage: 'pre-open',
-      plugin: hasRegisteredNativeOAuthPlugin(),
-      inAppBrowser: Boolean(window.Capacitor?.Plugins?.InAppBrowser?.openInSystemBrowser),
-    });
-    if (hasRegisteredNativeOAuthPlugin()) {
-      try {
-        await startNativeOAuthSession(oauthUrl, provider);
-        return;
-      } catch (error) {
-        window.__restorebraineOAuthInProgress = false;
-        const message = recordOAuthError(error, 'asweb-auth');
-        if (error?.code === 'CANCELED' || /^oauth canceled$/i.test(message)) return;
-        console.warn('Native ASWebAuthenticationSession failed — opening system browser:', error);
-      }
-    }
+    // InAppBrowser listens for access_token on HTTPS redirect (restorebraine.base44.app).
+    // Native ASWeb with restorebraine:// scheme stalls if Base44 has not published native-oauth-return.js.
     await openOAuthInSystemBrowser(oauthUrl, provider);
     return;
   }

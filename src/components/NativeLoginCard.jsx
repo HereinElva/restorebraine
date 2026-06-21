@@ -66,8 +66,19 @@ export default function NativeLoginCard({ clearSignedOut = false }) {
 
   useEffect(() => {
     const resetOpening = () => setOpeningProvider(null);
+    const recoverAfterOAuth = async () => {
+      try {
+        const { tryRestoreSessionAfterOAuth } = await import('@/lib/native-google-oauth');
+        if (await tryRestoreSessionAfterOAuth()) resetOpening();
+      } catch {
+        /* ignore */
+      }
+    };
     window.addEventListener('restorebraine-native-oauth-complete', resetOpening);
     window.addEventListener('restorebraine-session-updated', resetOpening);
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') recoverAfterOAuth();
+    });
     return () => {
       window.removeEventListener('restorebraine-native-oauth-complete', resetOpening);
       window.removeEventListener('restorebraine-session-updated', resetOpening);
@@ -87,7 +98,7 @@ export default function NativeLoginCard({ clearSignedOut = false }) {
     if (openingProvider) return;
     clearSignedOutFlag();
     setErrorMessage('');
-    setNoticeMessage('Tap Continue on the next screen, then sign in with your account.');
+    setNoticeMessage('A sign-in sheet will open — tap Continue, pick your account, then you return here.');
     setOpeningProvider(provider);
     try {
       if (typeof window !== 'undefined') {
