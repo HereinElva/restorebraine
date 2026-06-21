@@ -65,3 +65,11 @@ export function countOrganizedPhotos(photos, folders) {
 export function getGalleryOrganizeSnapshot() {
   return snapshot;
 }
+
+/** Folder list with photo_ids aligned to Photo.id — same shape Gallery passes to MobileGallery. */
+export function foldersForGalleryView(folders, photos) {
+  return (folders || []).map((folder) => ({
+    ...folder,
+    photo_ids: toStoredPhotoIds(folder.photo_ids, photos),
+  }));
+}

@@ -15,6 +15,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { formatLLMError } from "@/lib/invoke-llm-retry";
 import {
+  foldersForGalleryView,
   getGalleryOrganizeSnapshot,
   getUnorganizedPhotos,
   setGalleryOrganizeSnapshot,
@@ -25,6 +26,21 @@ import { ORGANIZE_ICON_CLASS, ORGANIZE_LABEL_CLASS, SQUARE_FOLDER_ACTION_CLASS, 
 function truncateProgress(text, max = 22) {
   if (!text || text.length <= max) return text || "Organizing...";
   return `${text.slice(0, max - 1)}…`;
+}
+
+function countLooseInGallery(photos, folders) {
+  return getUnorganizedPhotos(photos, foldersForGalleryView(folders, photos)).length;
+}
+
+function organizeResultMessage({ totalToOrganize, foldersSaved, remainingLoose }) {
+  const cleared = totalToOrganize - remainingLoose;
+  if (cleared <= 0) {
+    return "Organize finished but photos are still in Recents. Pull down to refresh, then try again.";
+  }
+  if (remainingLoose > 0) {
+    return `Done! ${cleared} of ${totalToOrganize} loose photos sorted into ${foldersSaved} folders. Tap Organize again for the ${remainingLoose} remaining.`;
+  }
+  return `Done! ${cleared} loose photo${cleared !== 1 ? "s" : ""} sorted into ${foldersSaved} folder${foldersSaved !== 1 ? "s" : ""}.`;
 }
 
 export default function OrganizeButton({ photos, folders: foldersProp, squareStyle = false }) {
@@ -70,32 +86,41 @@ export default function OrganizeButton({ photos, folders: foldersProp, squareSty
         return;
       }
 
-      await queryClient.refetchQueries({ queryKey: ["folders"] });
-      await queryClient.refetchQueries({ queryKey: ["photos"] });
-
       const user = queryClient.getQueryData(["current-user"]);
       const email = user?.email ?? "pending";
+
+      if (result.afterFolders?.length) {
+        queryClient.setQueryData(["folders", email], result.afterFolders);
+      }
+
+      await queryClient.invalidateQueries({ queryKey: ["folders", email] });
       await queryClient.refetchQueries({ queryKey: ["folders", email] });
       await queryClient.refetchQueries({ queryKey: ["photos", email] });
 
-      const folderEntries = queryClient.getQueriesData({ queryKey: ["folders"] });
-      const freshFolders =
-        folderEntries.map(([, data]) => data).find((data) => Array.isArray(data)) ?? folders;
-      const freshPhotos =
-        queryClient.getQueryData(["photos", email]) ??
-        queryClient.getQueriesData({ queryKey: ["photos"] }).map(([, data]) => data).find(Array.isArray) ??
-        photos;
-      setGalleryOrganizeSnapshot({ photos: freshPhotos, folders: freshFolders });
+      let freshPhotos = queryClient.getQueryData(["photos", email]) ?? photos;
+      let freshFolders =
+        queryClient.getQueryData(["folders", email]) ?? result.afterFolders ?? folders;
+
+      let remainingLoose = countLooseInGallery(freshPhotos, freshFolders);
+      if (remainingLoose > 0 && result.missed === 0) {
+        await new Promise((resolve) => setTimeout(resolve, 800));
+        await queryClient.refetchQueries({ queryKey: ["folders", email] });
+        freshFolders = queryClient.getQueryData(["folders", email]) ?? freshFolders;
+        remainingLoose = countLooseInGallery(freshPhotos, freshFolders);
+      }
+
+      const galleryFolders = foldersForGalleryView(freshFolders, freshPhotos);
+      setGalleryOrganizeSnapshot({ photos: freshPhotos, folders: galleryFolders });
 
       if (result.foldersSaved === 0) {
         alert("Could not create folders for your loose photos. Try again in a minute.");
-      } else if (result.missed > 0) {
-        alert(
-          `Done! ${result.totalSaved} of ${result.totalToOrganize} loose photos sorted into ${result.foldersSaved} folders. Tap Organize again for any remaining items.`
-        );
       } else {
         alert(
-          `Done! ${result.totalSaved} loose photo${result.totalSaved !== 1 ? "s" : ""} sorted into ${result.foldersSaved} folder${result.foldersSaved !== 1 ? "s" : ""}.`
+          organizeResultMessage({
+            totalToOrganize: result.totalToOrganize,
+            foldersSaved: result.foldersSaved,
+            remainingLoose,
+          }),
         );
       }
     } catch (error) {
@@ -148,7 +173,10 @@ export default function OrganizeButton({ photos, folders: foldersProp, squareSty
       )}
 
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
-        <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
+        <DialogContent
+          className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto"
+          onOpenAutoFocus={(event) => event.preventDefault()}
+        >
           <DialogHeader>
             <DialogTitle>Organize Media</DialogTitle>
             <DialogDescription className="sr-only">
@@ -177,6 +205,7 @@ export default function OrganizeButton({ photos, folders: foldersProp, squareSty
                   if (needsOrganized && !includeOrganized) setIncludeOrganized(true);
                 }}
                 className="min-h-[100px]"
+                autoFocus={false}
               />
             </div>
 

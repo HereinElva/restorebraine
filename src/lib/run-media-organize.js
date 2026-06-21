@@ -286,15 +286,14 @@ async function saveMissedPhotos({
   let folders = await base44.entities.Folder.list();
 
   for (const photo of missedPhotos) {
+    if (photo?.id == null) continue;
     const norm = normalizePhotoId(photo.id);
     const label = allLabels.find((l) => l.id === norm);
     const folderName = normalizeFolderName(label?.folder || MISC_FOLDER, existingFolderNames);
     let target = findExistingFolder(folders, folderName, folders.map((f) => f.name));
-    const storedId = toStoredPhotoIds([norm], photos);
-    if (storedId.length === 0) continue;
 
     if (target) {
-      const mergedIds = mergeStoredPhotoIds(target.photo_ids, storedId, photos);
+      const mergedIds = mergeStoredPhotoIds(target.photo_ids, [photo.id], photos);
       await base44.entities.Folder.update(target.id, { photo_ids: mergedIds });
       folders = folders.map((f) =>
         f.id === target.id ? { ...f, photo_ids: mergedIds } : f,
@@ -303,8 +302,8 @@ async function saveMissedPhotos({
       const created = await base44.entities.Folder.create({
         name: folderName,
         description: "",
-        photo_ids: storedId,
-        cover_photo_url: coverPhotoForIds(storedId, photos, ""),
+        photo_ids: [photo.id],
+        cover_photo_url: coverPhotoForIds([photo.id], photos, ""),
       });
       folders.push(created);
     }
@@ -463,5 +462,6 @@ export async function runMediaOrganize({
     totalSaved: actuallySaved,
     totalToOrganize: photosToOrganize.length,
     missed,
+    afterFolders,
   };
 }
