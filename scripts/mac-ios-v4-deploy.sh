@@ -77,4 +77,14 @@ echo "    5. Build log MUST show: Restorebraine DEPLOY OK"
 echo ""
 echo "On device login: v${BUILD_NUM} · ${ENTRY} · origin capacitor://localhost"
 echo "Verify: bash scripts/verify-xcode-app-bundle.sh"
+echo ""
+echo "Quick open Xcode + status:"
+echo "  bash scripts/mac-open-xcode-run.sh"
+echo ""
+if bash scripts/verify-xcode-app-bundle.sh 2>/dev/null; then
+  echo "DerivedData App.app already matches repo — Run in Xcode to install to iPhone."
+else
+  echo "DerivedData App.app is STALE vs repo (normal after terminal-only build)."
+  echo "Xcode Run is required — npm/mac-ios-v4-deploy does NOT update App.app without xcodebuild."
+fi
 exit 2
