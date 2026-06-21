@@ -134,10 +134,10 @@ if (existsSync(distAssets)) {
       ok(`${label} ${file} has LOCAL_NATIVE_BUNDLE=true`);
     }
     if (isLocal && label === 'App chunk') {
-      if (/Continue with Google|rb-login-page/.test(content)) {
-        ok(`${label} ${file} has rebuilt LoginPage (Continue with Google)`);
+      if (/Continue with Google|restorebraine-signin-shell|data-rb-v4-auth/.test(content)) {
+        ok(`${label} ${file} has rebuilt sign-in screen (Continue with Google)`);
       } else {
-        fail(`${label} ${file} missing LoginPage — old login bundle?`);
+        fail(`${label} ${file} missing sign-in screen — old login bundle?`);
         bump();
       }
       if (/data:image\/png;base64,/.test(content)) {

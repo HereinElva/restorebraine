@@ -23,8 +23,9 @@
 
           function isBundledNativeOrigin() {
             try {
+              var proto = window.location.protocol;
               var host = window.location.hostname;
-              return host === 'localhost' || host === '127.0.0.1';
+              return proto === 'capacitor:' || proto === 'ionic:' || host === 'localhost' || host === '127.0.0.1';
             } catch (e) { return false; }
           }
 

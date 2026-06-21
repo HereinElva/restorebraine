@@ -1,6 +1,5 @@
 /**
- * v4-core native boot — runs before React. Blocks hosted login + wires Google OAuth button.
- * Survives even if React fails to mount (wrong bundle diagnosis).
+ * Native v4 preboot — sign-in shell before React, Google OAuth via native plugin or InAppBrowser.
  */
 (function () {
   var APP_ID = '68fdc5f42768c4d045fe1bac';
@@ -12,7 +11,7 @@
     encodeURIComponent(FROM_URL) +
     '&prompt=select_account';
 
-  function isBundledOrigin() {
+  function isBundledShell() {
     try {
       var proto = location.protocol;
       var host = location.hostname;
@@ -31,7 +30,7 @@
     }
   }
 
-  function showHostedModeError() {
+  function showWrongOriginScreen() {
     var stamp =
       (document.querySelector('meta[name="restorebraine-build-stamp"]') || {}).content || 'unknown build';
     document.body.innerHTML =
@@ -49,12 +48,12 @@
       '</div></div>';
   }
 
-  if (!isBundledOrigin() && isHostedWrongOrigin()) {
-    showHostedModeError();
+  if (!isBundledShell() && isHostedWrongOrigin()) {
+    showWrongOriginScreen();
     return;
   }
 
-  function saveToken(token) {
+  function persistToken(token) {
     if (!token) return;
     try {
       localStorage.removeItem('b44_signed_out');
@@ -74,16 +73,16 @@
     location.replace(location.origin + '/');
   }
 
-  function tryNativeGoogleOAuth() {
+  function tryNativePluginOAuth() {
     try {
       var plugin = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.RestorebraineOAuth;
       if (!plugin || !plugin.startGoogleOAuth) return false;
-      window.__restorebraineOAuthMode = 'v4-native-boot';
+      window.__restorebraineOAuthMode = 'v4-native-preboot';
       window.__restorebraineLastOAuthUrl = GOOGLE_OAUTH;
       plugin
         .startGoogleOAuth({ url: GOOGLE_OAUTH })
         .then(function (result) {
-          if (result && result.token) saveToken(result.token);
+          if (result && result.token) persistToken(result.token);
         })
         .catch(function () {});
       return true;
@@ -92,29 +91,31 @@
     }
   }
 
-  function wireLoginButton() {
-    var btn = document.getElementById('rb-v4-google-btn');
-    if (!btn || btn.__restorebraineWired) return;
-    btn.__restorebraineWired = true;
-    btn.addEventListener('click', function () {
-      if (btn.disabled) return;
-      btn.disabled = true;
-      btn.textContent = 'Opening sign in…';
+  function wireGoogleButton() {
+    var button = document.getElementById('restorebraine-google-btn');
+    if (!button || button.__rbSignInWired) return;
+    button.__rbSignInWired = true;
+
+    button.addEventListener('click', function () {
+      if (button.disabled) return;
+      button.disabled = true;
+      button.textContent = 'Opening sign in…';
       try {
         localStorage.removeItem('b44_signed_out');
       } catch (e) {}
-      if (tryNativeGoogleOAuth()) return;
+      if (tryNativePluginOAuth()) return;
+
       var attempts = 0;
       var timer = setInterval(function () {
         attempts += 1;
-        if (tryNativeGoogleOAuth()) {
+        if (tryNativePluginOAuth()) {
           clearInterval(timer);
           return;
         }
         if (attempts >= 60) {
           clearInterval(timer);
-          btn.disabled = false;
-          btn.textContent = 'Continue with Google';
+          button.disabled = false;
+          button.textContent = 'Continue with Google';
           alert('Could not open sign in. Delete app, run mac-ios-v4-deploy.sh --sync, Xcode Run.');
         }
       }, 100);
@@ -122,8 +123,8 @@
   }
 
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', wireLoginButton);
+    document.addEventListener('DOMContentLoaded', wireGoogleButton);
   } else {
-    wireLoginButton();
+    wireGoogleButton();
   }
 })();

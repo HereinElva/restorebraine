@@ -11,7 +11,7 @@ import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import NativeDebugBadge from '@/components/NativeDebugBadge';
-import LoginPage, { hasStoredSessionToken } from '@/components/LoginPage';
+import RestorebraineSignIn, { hasStoredSessionToken } from '@/auth/RestorebraineSignIn';
 import V4CoreWrongOrigin from '@/components/V4CoreWrongOrigin';
 import { isNativeShell } from '@/lib/native-hosted-redirect';
 import { isV4CoreWrongOrigin } from '@/lib/v4-core-guard';
@@ -32,11 +32,11 @@ const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, isAuthenticated, manuallyLoggedOut } = useAuth();
 
   if (manuallyLoggedOut) {
-    return <LoginPage clearSignedOut />;
+    return <RestorebraineSignIn clearSignedOut />;
   }
 
   if (!isAuthenticated && !hasStoredSessionToken()) {
-    return <LoginPage />;
+    return <RestorebraineSignIn />;
   }
 
   if ((isLoadingPublicSettings || isLoadingAuth) && hasStoredSessionToken()) {
@@ -56,7 +56,7 @@ const AuthenticatedApp = () => {
   }
 
   if (authError || !isAuthenticated) {
-    return <LoginPage clearSignedOut />;
+    return <RestorebraineSignIn clearSignedOut />;
   }
 
   return (

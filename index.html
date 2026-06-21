@@ -6,8 +6,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <meta name="restorebraine-deploy" content="v153" />
+    <meta name="restorebraine-deploy" content="v155" />
     <title>Restorebraine</title>
+    <link rel="stylesheet" href="/signin-preboot.css" />
     <script src="/native-oauth-return.js"></script>
     <script>
 (function(){var host=location.hostname,proto=location.protocol;if(proto==='capacitor:'||host==='localhost'||host==='127.0.0.1')return;var APP_ID='68fdc5f42768c4d045fe1bac',PLATFORM='https://app.base44.com',APP_ORIGIN=location.protocol+'//'+location.host,path=location.pathname.replace(/\/$/,'')||'/';function googleOAuth(fromUrl){var params=new URLSearchParams({app_id:APP_ID,from_url:fromUrl||'https://restorebraine.com',prompt:'select_account'});location.replace(PLATFORM+'/api/apps/auth/login?'+params.toString());}if(host==='base44.app'&&path==='/login'){googleOAuth('https://restorebraine.com');return;}if((host==='restorebraine.com'||host==='www.restorebraine.com')&&path==='/login'){googleOAuth(APP_ORIGIN);return;}var originalAssign=Location.prototype.assign,originalReplace=Location.prototype.replace;function guard(url){var value=String(url||'');if(/^https:\/\/base44\.app\/login/i.test(value)){googleOAuth('https://restorebraine.com');return true;}if(/^https:\/\/restorebraine\.com\/login/i.test(value)||/^https:\/\/www\.restorebraine\.com\/login/i.test(value)){googleOAuth('https://restorebraine.com');return true;}if(/^https:\/\/app\.base44\.com\/login/i.test(value)){googleOAuth('https://restorebraine.com');return true;}return false;}Location.prototype.assign=function(url){if(guard(url))return;return originalAssign.call(this,url);};Location.prototype.replace=function(url){if(guard(url))return;return originalReplace.call(this,url);};})();
@@ -24,12 +25,12 @@
       </defs>
     </svg>
     <div id="root">
-      <div style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#eff6ff,#f5f3ff,#fdf2f8);padding:max(16px,env(safe-area-inset-top)) max(20px,env(safe-area-inset-right)) max(16px,env(safe-area-inset-bottom)) max(20px,env(safe-area-inset-left));box-sizing:border-box;font-family:system-ui,sans-serif;">
-        <div style="background:#fff;border-radius:24px;padding:36px 28px;box-shadow:0 10px 40px rgba(0,0,0,0.1);max-width:360px;width:100%;text-align:center;">
-          <h1 style="font-size:24px;font-weight:700;color:#111;margin:0 0 28px;">Restorebraine</h1>
-          <button type="button" id="rb-web-google-btn" style="width:100%;padding:14px;background:linear-gradient(135deg,#60a5fa,#a78bfa);color:#fff;border:none;border-radius:14px;font-size:16px;font-weight:600;cursor:pointer;touch-action:manipulation;">Continue with Google</button>
+      <main id="restorebraine-signin-shell" class="rb-signin-shell" data-rb-v4-auth="preboot" aria-label="Sign in to Restorebraine">
+        <div class="rb-signin-card">
+          <h1 class="rb-signin-title">Restorebraine</h1>
+          <button type="button" id="restorebraine-google-btn" class="rb-signin-google">Continue with Google</button>
         </div>
-      </div>
+      </main>
     </div>
     <script src="/web-login-boot.js"></script>
     <script>

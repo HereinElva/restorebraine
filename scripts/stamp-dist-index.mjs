@@ -1,5 +1,5 @@
 /**
- * Bakes BUILD_STAMP into dist/index.html, injects v4 login shell + v4-native-boot.js.
+ * Bakes BUILD_STAMP into dist/index.html, injects v4 sign-in shell + v4-native-boot.js.
  */
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -19,13 +19,13 @@ const stamp = existsSync(stampPath)
   : 'unknown';
 const buildNum = readFileSync(buildInfoPath, 'utf8').match(/BUILD_NUMBER = (\d+)/)?.[1] ?? '?';
 
-const v4LoginShell = `
-      <div id="rb-v4-login-shell" style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#eff6ff,#f5f3ff,#fdf2f8);padding:max(16px,env(safe-area-inset-top)) max(20px,env(safe-area-inset-right)) max(16px,env(safe-area-inset-bottom)) max(20px,env(safe-area-inset-left));box-sizing:border-box;font-family:system-ui,sans-serif;">
-        <div style="background:#fff;border-radius:24px;padding:36px 28px;box-shadow:0 10px 40px rgba(0,0,0,0.1);max-width:360px;width:100%;text-align:center;">
-          <h1 style="font-size:24px;font-weight:700;color:#111;margin:0 0 28px;">Restorebraine</h1>
-          <button type="button" id="rb-v4-google-btn" style="width:100%;padding:14px;background:linear-gradient(135deg,#60a5fa,#a78bfa);color:#fff;border:none;border-radius:14px;font-size:16px;font-weight:600;cursor:pointer;touch-action:manipulation;">Continue with Google</button>
+const v4SignInShell = `
+      <main id="restorebraine-signin-shell" class="rb-signin-shell" data-rb-v4-auth="preboot" aria-label="Sign in to Restorebraine">
+        <div class="rb-signin-card">
+          <h1 class="rb-signin-title">Restorebraine</h1>
+          <button type="button" id="restorebraine-google-btn" class="rb-signin-google">Continue with Google</button>
         </div>
-      </div>`;
+      </main>`;
 
 let html = readFileSync(distIndex, 'utf8');
 html = html.replace(/<meta name="restorebraine-build-stamp"[^>]*>/, '');
@@ -34,10 +34,13 @@ html = html.replace(
   `<meta name="restorebraine-build-stamp" content="${stamp.replace(/"/g, '')}" />\n    <meta name="restorebraine-deploy"`,
 );
 
-// Replace pre-React spinner with v4 login card (visible before React mounts).
+if (!html.includes('signin-preboot.css')) {
+  html = html.replace('</head>', '    <link rel="stylesheet" href="./signin-preboot.css" />\n  </head>');
+}
+
 html = html.replace(
   /<div id="root">[\s\S]*?<\/div>\s*(?=\n\s*<script>\s*\n\(function\(\)\{)/,
-  `<div id="root">${v4LoginShell}\n    </div>\n`,
+  `<div id="root">${v4SignInShell}\n    </div>\n`,
 );
 
 if (!html.includes('v4-native-boot.js')) {
@@ -45,7 +48,7 @@ if (!html.includes('v4-native-boot.js')) {
 }
 
 writeFileSync(distIndex, html);
-console.log(`OK: stamped dist/index.html with v4 login shell (v${buildNum})`);
+console.log(`OK: stamped dist/index.html with v4 sign-in shell (v${buildNum})`);
 
 if (html.includes('restorebraine-v4-bridge.js')) {
   console.error('FAIL: index.html must not include sync restorebraine-v4-bridge.js — use main.jsx async load');

@@ -1,18 +1,11 @@
 /**
- * Web login boot — shows Restorebraine login card before React mounts.
- * Wires Continue with Google to direct OAuth (not app.base44.com/login).
+ * Web preboot — wires Continue with Google before React mounts.
+ * Skipped on capacitor://localhost (native uses v4-native-boot.js after build stamp).
  */
 (function () {
   var APP_ID = '68fdc5f42768c4d045fe1bac';
-  var FROM_URL = location.protocol + '//' + location.host;
-  var GOOGLE_OAUTH =
-    'https://app.base44.com/api/apps/auth/login?app_id=' +
-    APP_ID +
-    '&from_url=' +
-    encodeURIComponent(FROM_URL) +
-    '&prompt=select_account';
 
-  function isBundledNative() {
+  function isBundledNativeShell() {
     try {
       var proto = location.protocol;
       var host = location.hostname;
@@ -22,26 +15,33 @@
     }
   }
 
-  if (isBundledNative()) return;
+  if (isBundledNativeShell()) return;
 
-  function wireLoginButton() {
-    var btn = document.getElementById('rb-web-google-btn');
-    if (!btn || btn.__restorebraineWired) return;
-    btn.__restorebraineWired = true;
-    btn.addEventListener('click', function () {
-      if (btn.disabled) return;
-      btn.disabled = true;
-      btn.textContent = 'Opening sign in…';
+  function buildOAuthUrl() {
+    var fromUrl = location.protocol + '//' + location.host;
+    var params = 'app_id=' + APP_ID + '&from_url=' + encodeURIComponent(fromUrl) + '&prompt=select_account';
+    return 'https://app.base44.com/api/apps/auth/login?' + params;
+  }
+
+  function wireGoogleButton() {
+    var button = document.getElementById('restorebraine-google-btn');
+    if (!button || button.__rbSignInWired) return;
+    button.__rbSignInWired = true;
+
+    button.addEventListener('click', function () {
+      if (button.disabled) return;
+      button.disabled = true;
+      button.textContent = 'Opening sign in…';
       try {
         localStorage.removeItem('b44_signed_out');
       } catch (e) {}
-      location.href = GOOGLE_OAUTH;
+      location.href = buildOAuthUrl();
     });
   }
 
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', wireLoginButton);
+    document.addEventListener('DOMContentLoaded', wireGoogleButton);
   } else {
-    wireLoginButton();
+    wireGoogleButton();
   }
 })();
