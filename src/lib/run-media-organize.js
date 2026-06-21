@@ -1,4 +1,3 @@
-import { base44 } from "@/api/base44Client";
 import { invokeLLMWithRetry } from "@/lib/invoke-llm-retry";
 import {
   assignFolderLocally,
@@ -15,6 +14,7 @@ import {
 } from "@/lib/gallery-organize-snapshot";
 import {
   assignLoosePhotosOneByOne,
+  deleteFoldersWithTimeout,
   listAllFolders,
   reconcileOrganizeBatch,
 } from "@/lib/folder-membership";
@@ -142,21 +142,22 @@ export async function runMediaOrganize({
 
   const allPhotoIds = new Set(photos.map((p) => normalizePhotoId(p.id)).filter(Boolean));
   const uiFolders = foldersSnapshot ?? [];
+  const uiShowsNoFolders = uiFolders.length === 0;
 
-  let existingFolders = await listAllFolders();
-  existingFolders = sanitizeFoldersLocally(existingFolders, photos, allPhotoIds);
+  let apiFolders = sanitizeFoldersLocally(await listAllFolders(), photos, allPhotoIds);
 
-  // UI shows 0 folders but API still has ghost records — clear them so organize can proceed.
-  if (uiFolders.length === 0 && existingFolders.length > 0 && !includeOrganized) {
-    onProgress?.("Clearing stale folders…");
-    for (const folder of existingFolders) {
-      await base44.entities.Folder.delete(folder.id);
-    }
+  // Ghost folders on API but UI shows none — don't block on slow/hanging deletes.
+  const ghostFolderIds =
+    uiShowsNoFolders && !includeOrganized && apiFolders.length > 0
+      ? apiFolders.map((f) => f.id)
+      : [];
+
+  if (ghostFolderIds.length > 0) {
     if (userEmail) await clearFolderMembershipCache(userEmail);
-    existingFolders = [];
+    void deleteFoldersWithTimeout(ghostFolderIds);
   }
 
-  const liveFolderSource = uiFolders.length ? uiFolders : existingFolders;
+  const liveFolderSource = uiShowsNoFolders ? [] : uiFolders.length ? uiFolders : apiFolders;
   const existingFolderNames = liveFolderSource.map((f) => f.name);
 
   const photosToOrganize = includeOrganized
@@ -172,18 +173,17 @@ export async function runMediaOrganize({
     };
   }
 
-  if (includeOrganized && existingFolders.length > 0) {
+  if (includeOrganized && apiFolders.length > 0) {
     const confirmed = typeof window !== 'undefined' && window.confirm(
-      `Delete all ${existingFolders.length} existing folders and re-sort every photo? Your photos will not be deleted.`,
+      `Delete all ${apiFolders.length} existing folders and re-sort every photo? Your photos will not be deleted.`,
     );
     if (!confirmed) {
       return { ok: false, reason: 'Re-organize cancelled.' };
     }
     onProgress?.("Clearing folders…");
-    for (const folder of existingFolders) {
-      await base44.entities.Folder.delete(folder.id);
-    }
-    existingFolders = [];
+    await deleteFoldersWithTimeout(apiFolders.map((f) => f.id));
+    if (userEmail) await clearFolderMembershipCache(userEmail);
+    apiFolders = [];
   }
 
   onProgress?.(`Sorting ${photosToOrganize.length} loose item${photosToOrganize.length !== 1 ? "s" : ""}…`);
@@ -222,10 +222,20 @@ export async function runMediaOrganize({
     userEmail,
   });
 
-  const apiFolders = reconciled.apiFolders || [];
+  let savedApiFolders = reconciled.apiFolders || [];
   afterFolders = reconciled.folders;
 
-  const missedPhotos = getUnorganizedPhotos(photosToOrganize, apiFolders);
+  if (ghostFolderIds.length > 0) {
+    const savedIds = new Set(afterFolders.map((f) => f.id));
+    const remainingGhosts = ghostFolderIds.filter((id) => !savedIds.has(id));
+    if (remainingGhosts.length > 0) {
+      onProgress?.("Cleaning up…");
+      await deleteFoldersWithTimeout(remainingGhosts);
+    }
+    savedApiFolders = savedApiFolders.filter((f) => !ghostFolderIds.includes(f.id));
+  }
+
+  const missedPhotos = getUnorganizedPhotos(photosToOrganize, afterFolders);
   const actuallySaved = photosToOrganize.length - missedPhotos.length;
 
   if (actuallySaved === 0 && photosToOrganize.length > 0) {
@@ -254,7 +264,7 @@ export async function runMediaOrganize({
     totalToOrganize: photosToOrganize.length,
     missed: missedPhotos.length,
     afterFolders,
-    apiFolders,
+    apiFolders: savedApiFolders,
     photosToOrganize,
     labelByPhotoNormId,
   };

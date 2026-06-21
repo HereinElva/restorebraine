@@ -68,6 +68,34 @@ export async function listAllFolders() {
   return (result || []).map(normalizeFolderRecord);
 }
 
+const FOLDER_DELETE_TIMEOUT_MS = 8000;
+
+/** Delete folders in parallel; each call times out so organize never hangs indefinitely. */
+export async function deleteFoldersWithTimeout(folderIds, { timeoutMs = FOLDER_DELETE_TIMEOUT_MS } = {}) {
+  const ids = [...new Set((folderIds || []).filter(Boolean))];
+  if (!ids.length) return { deleted: 0, failed: 0 };
+
+  let deleted = 0;
+  let failed = 0;
+  await Promise.all(
+    ids.map(async (id) => {
+      try {
+        await Promise.race([
+          base44.entities.Folder.delete(id),
+          sleep(timeoutMs).then(() => {
+            throw new Error(`Folder delete timed out: ${id}`);
+          }),
+        ]);
+        deleted += 1;
+      } catch (error) {
+        console.warn('Folder delete failed:', id, error);
+        failed += 1;
+      }
+    }),
+  );
+  return { deleted, failed };
+}
+
 /** Gallery load: Folder.list + pruned local membership cache. */
 export async function fetchGalleryFoldersWithMembership(email, photos = []) {
   const listed = await listAllFolders();
