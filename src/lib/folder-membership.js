@@ -67,6 +67,7 @@ function photoIdsPersisted(persistedIds, expectedIds) {
 
 const FOLDER_DELETE_TIMEOUT_MS = 8000;
 const FOLDER_API_TIMEOUT_MS = 25000;
+const ORGANIZE_SAVE_TIMEOUT_MS = 12000;
 
 function withFolderApiTimeout(promise, label, timeoutMs = FOLDER_API_TIMEOUT_MS) {
   return Promise.race([
@@ -103,18 +104,25 @@ async function getFolderOnServer(folderId) {
   return normalizeFolderRecord(folder);
 }
 
-async function createFolderOnServer(payload) {
+async function createFolderOnServer(payload, timeoutMs = FOLDER_API_TIMEOUT_MS) {
   const folder = await withFolderApiTimeout(
     base44.entities.Folder.create(payload),
     'Folder.create',
+    timeoutMs,
   );
   return normalizeFolderRecord(folder);
 }
 
-async function updateFolderPhotoIdsWithTimeout(folderId, photoIds, extra = {}) {
+async function updateFolderPhotoIdsWithTimeout(
+  folderId,
+  photoIds,
+  extra = {},
+  timeoutMs = FOLDER_API_TIMEOUT_MS,
+) {
   const updated = await withFolderApiTimeout(
     base44.entities.Folder.update(folderId, { photo_ids: photoIds, ...extra }),
     `Folder.update ${folderId}`,
+    timeoutMs,
   );
   return normalizeFolderRecord(updated);
 }
@@ -145,16 +153,12 @@ export async function deleteFoldersWithTimeout(folderIds, { timeoutMs = FOLDER_D
   return { deleted, failed };
 }
 
-/** Gallery load: Folder.list (with timeout) + local snapshot/membership fallback. */
+/** Gallery load: Folder.list (with timeout) + merged local snapshot fallback. */
 export async function fetchGalleryFoldersWithMembership(email, photos = []) {
   const listed = await listAllFoldersSafe();
+  const snapshot = email ? await loadFolderSnapshotCache(email) : [];
+  let folderSource = mergeApiFoldersWithLocal(listed, snapshot);
   let cached = await loadFolderMembershipCache(email);
-
-  let folderSource = listed;
-  if (listed.length === 0 && email) {
-    const snapshot = await loadFolderSnapshotCache(email);
-    if (snapshot.length > 0) folderSource = snapshot;
-  }
 
   const validIds = new Set(folderSource.map((f) => f.id));
   const pruned = {};
@@ -169,7 +173,7 @@ export async function fetchGalleryFoldersWithMembership(email, photos = []) {
 
   const result = applyFolderMembershipCache(folderSource, photos, cached);
   if (email && result.length > 0) {
-    await saveFolderSnapshotCache(email, result);
+    void saveFolderSnapshotCache(email, result);
   }
   return result;
 }
@@ -226,6 +230,7 @@ export async function assignLoosePhotosByFolder({
   labelByPhotoNormId,
   liveFolders,
   onProgress,
+  onPartialSave,
   userEmail,
 }) {
   let folders = [...(liveFolders || [])];
@@ -255,49 +260,74 @@ export async function assignLoosePhotosByFolder({
     processed += groupPhotos.length;
     onProgress?.(`Saving folder ${groupIndex}/${groupCount} (${processed}/${total})…`);
 
+    const photoIds = groupPhotos.map((p) => p.id);
+    let folderId = null;
+
     try {
       const target = findFolderByDisplayName(folders, folderName, names());
 
       if (target) {
-        const verified = await appendPhotosToFolderOnServer(target.id, groupPhotos, userEmail);
-        folders = folders.map((f) =>
-          f.id === target.id
-            ? { ...f, ...verified, photo_ids: verified?.photo_ids || f.photo_ids }
-            : f,
-        );
-        for (const photo of groupPhotos) {
-          cacheEntries.push({ photoId: photo.id, folderId: target.id });
+        const updatedIds = mergePhotoIdsLikeManualMove(target.photo_ids, photoIds);
+        const coverUrl = target.cover_photo_url || groupPhotos[0]?.file_url || '';
+        let saved = {
+          ...target,
+          photo_ids: updatedIds,
+          cover_photo_url: coverUrl || target.cover_photo_url,
+        };
+        try {
+          const api = await updateFolderPhotoIdsWithTimeout(
+            target.id,
+            updatedIds,
+            {
+              ...(!target.cover_photo_url && coverUrl ? { cover_photo_url: coverUrl } : {}),
+            },
+            ORGANIZE_SAVE_TIMEOUT_MS,
+          );
+          saved = { ...target, ...api, photo_ids: api.photo_ids || updatedIds };
+        } catch (error) {
+          console.warn('Folder.update failed, using local state:', error);
         }
+        folderId = target.id;
+        folders = folders.map((f) => (f.id === target.id ? saved : f));
       } else {
-        const photoIds = groupPhotos.map((p) => p.id);
-        const created = await createFolderOnServer({
-          name: folderName,
-          description: '',
-          photo_ids: photoIds,
-          cover_photo_url: groupPhotos[0]?.file_url || '',
-        });
-        let verified = created;
-        if (!photoIdsPersisted(created?.photo_ids, photoIds)) {
-          verified = await appendPhotosToFolderOnServer(created.id, groupPhotos, userEmail);
+        let created;
+        try {
+          created = await createFolderOnServer(
+            {
+              name: folderName,
+              description: '',
+              photo_ids: photoIds,
+              cover_photo_url: groupPhotos[0]?.file_url || '',
+            },
+            ORGANIZE_SAVE_TIMEOUT_MS,
+          );
+        } catch (error) {
+          console.warn('Folder.create failed:', error);
+          failedPhotoIds.push(...photoIds);
+          continue;
         }
+        folderId = created.id;
         folders.push({
           ...created,
-          ...verified,
           name: folderName,
-          photo_ids: verified?.photo_ids || photoIds,
+          photo_ids: created.photo_ids || photoIds,
         });
-        for (const photo of groupPhotos) {
-          cacheEntries.push({ photoId: photo.id, folderId: created.id });
-        }
       }
+
+      for (const photo of groupPhotos) {
+        cacheEntries.push({ photoId: photo.id, folderId });
+      }
+
+      onPartialSave?.(folders);
+      if (userEmail) void saveFolderSnapshotCache(userEmail, folders);
     } catch (error) {
       console.warn('Folder group save failed:', folderName, error);
-      failedPhotoIds.push(...groupPhotos.map((p) => p.id));
+      failedPhotoIds.push(...photoIds);
     }
   }
 
   if (userEmail && cacheEntries.length) {
-    await recordBatchFolderMembership(userEmail, cacheEntries);
+    void recordBatchFolderMembership(userEmail, cacheEntries);
   }
 
   return { folders, failedPhotoIds };

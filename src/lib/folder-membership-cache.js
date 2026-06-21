@@ -63,15 +63,42 @@ export async function loadFolderSnapshotCache(email) {
 
 export async function saveFolderSnapshotCache(email, folders) {
   if (!email || !folders?.length) return;
-  const slim = folders.map((f) => ({
-    id: f.id,
-    name: f.name,
-    description: f.description || '',
-    photo_ids: f.photo_ids || [],
-    cover_photo_url: f.cover_photo_url || '',
-    created_by: f.created_by,
-  }));
-  await persistentStorage.set(snapshotKey(email), JSON.stringify(slim));
+  const existing = await loadFolderSnapshotCache(email);
+  const byId = new Map(existing.map((f) => [f.id, { ...f }]));
+  for (const folder of folders) {
+    const slim = {
+      id: folder.id,
+      name: folder.name,
+      description: folder.description || '',
+      photo_ids: folder.photo_ids || [],
+      cover_photo_url: folder.cover_photo_url || '',
+      created_by: folder.created_by,
+    };
+    const prev = byId.get(slim.id);
+    if (prev) {
+      byId.set(slim.id, {
+        ...prev,
+        ...slim,
+        photo_ids: mergeIds(prev.photo_ids, slim.photo_ids),
+      });
+    } else {
+      byId.set(slim.id, slim);
+    }
+  }
+  await persistentStorage.set(snapshotKey(email), JSON.stringify([...byId.values()]));
+}
+
+/** Instant read from localStorage mirror — for showing cached folders before API responds. */
+export function loadFolderSnapshotCacheSync(email) {
+  if (!email) return [];
+  try {
+    const raw = persistentStorage.getSync(snapshotKey(email));
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
 }
 
 export async function clearFolderSnapshotCache(email) {

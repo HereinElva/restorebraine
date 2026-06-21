@@ -83,10 +83,17 @@ export default function OrganizeButton({ photos, folders: foldersProp, squareSty
         includeOrganized,
         customInstructions,
         onProgress: setProgressLabel,
+        onPartialSave: (partialFolders) => {
+          const verified = foldersForGalleryView(partialFolders, photos);
+          queryClient.setQueryData(galleryFoldersKey(email), verified);
+          setGalleryOrganizeSnapshot({ photos, folders: verified });
+        },
         userEmail: email,
       });
 
       if (!result.ok) {
+        setOrganizing(false);
+        setProgressLabel("");
         alert(result.reason);
         return;
       }
@@ -98,8 +105,11 @@ export default function OrganizeButton({ photos, folders: foldersProp, squareSty
       setGalleryOrganizeSnapshot({ photos: syncedPhotos, folders: verifiedFolders });
 
       if (email && verifiedFolders.length > 0) {
-        await saveFolderSnapshotCache(email, verifiedFolders);
+        void saveFolderSnapshotCache(email, verifiedFolders);
       }
+
+      setOrganizing(false);
+      setProgressLabel("");
 
       void queryClient.invalidateQueries({ queryKey: galleryFoldersKey(email) });
 
@@ -115,7 +125,6 @@ export default function OrganizeButton({ photos, folders: foldersProp, squareSty
     } catch (error) {
       console.error("Error organizing:", error);
       alert(formatLLMError(error));
-    } finally {
       setOrganizing(false);
       setProgressLabel("");
     }

@@ -23,8 +23,9 @@ import { DragDropContext } from "@hello-pangea/dnd";
 import { useNavigation } from "../components/NavigationContext";
 import { useTabState } from "../components/TabStateContext";
 import MobileGallery from "../components/gallery/MobileGallery";
-import { setGalleryOrganizeSnapshot, toStoredPhotoIds, normalizePhotoId } from "@/lib/gallery-organize-snapshot";
+import { setGalleryOrganizeSnapshot, toStoredPhotoIds, normalizePhotoId, foldersForGalleryView } from "@/lib/gallery-organize-snapshot";
 import { fetchGalleryFoldersWithMembership } from "@/lib/folder-membership";
+import { loadFolderSnapshotCacheSync } from "@/lib/folder-membership-cache";
 import "../components/gallery/mobile-gallery-layout.css";
  
 // ---------------------------------------------------------------------------
@@ -198,6 +199,18 @@ export default function Gallery() {
     retry: 2,
     refetchOnMount: 'always',
   });
+
+  useEffect(() => {
+    if (!userEmail || !canFetchData) return;
+    const snapshot = loadFolderSnapshotCacheSync(userEmail);
+    if (snapshot.length > 0) {
+      const cached = foldersForGalleryView(snapshot, photos);
+      queryClient.setQueryData(['folders', userEmail], (prev) =>
+        prev?.length ? prev : cached,
+      );
+      setGalleryOrganizeSnapshot({ photos, folders: cached });
+    }
+  }, [userEmail, canFetchData, photos, queryClient]);
 
   useEffect(() => {
     if (!userEmail || !canFetchData) return;

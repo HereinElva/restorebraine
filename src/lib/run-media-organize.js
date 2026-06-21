@@ -136,6 +136,7 @@ export async function runMediaOrganize({
   includeOrganized,
   customInstructions,
   onProgress,
+  onPartialSave,
   userEmail,
 }) {
   onProgress?.("Preparing…");
@@ -213,14 +214,17 @@ export async function runMediaOrganize({
     labelByPhotoNormId,
     liveFolders,
     onProgress,
+    onPartialSave,
     userEmail,
   });
 
   let afterFolders = saveResult.folders;
   const failedNormIds = new Set((saveResult.failedPhotoIds || []).map(normalizePhotoId));
 
+  onProgress?.("Finishing…");
+
   if (userEmail && afterFolders.length > 0) {
-    await saveFolderSnapshotCache(userEmail, afterFolders);
+    void saveFolderSnapshotCache(userEmail, afterFolders);
   }
 
   const savedApiFolders = afterFolders;
@@ -249,7 +253,7 @@ export async function runMediaOrganize({
       );
       if (folder) entries.push({ photoId: photo.id, folderId: folder.id });
     }
-    if (entries.length) await recordBatchFolderMembership(userEmail, entries);
+    if (entries.length) void recordBatchFolderMembership(userEmail, entries);
   }
 
   return {
