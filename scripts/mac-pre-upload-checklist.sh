@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Run before archiving — confirms brain icon is ready for App Store Connect.
+# Run before archiving — confirms app icon + hosted mode for App Store Connect.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -37,11 +37,11 @@ fi
 
 BYTES=$(wc -c < "$ICON" | tr -d ' ')
 if [ "$BYTES" -lt 500000 ]; then
-  echo "FAIL: AppIcon-1024.png is only ${BYTES} bytes (placeholder magnifying glass)"
+  echo "FAIL: AppIcon-1024.png is only ${BYTES} bytes (placeholder — not the official icon)"
   echo "      Run: npm run ios:icons"
   FAIL=1
 else
-  echo "OK: AppIcon-1024.png is ${BYTES} bytes (official brain icon)"
+  echo "OK: AppIcon-1024.png is ${BYTES} bytes (official Restorebraine app icon)"
 fi
 
 if grep -q 'ios-marketing' ios/App/App/Assets.xcassets/AppIcon.appiconset/Contents.json; then
@@ -72,29 +72,29 @@ The grid placeholder on the Apps page is normal until a build finishes processin
 1. killall Xcode   (optional, if icons look wrong)
 2. open ios/App/App.xcworkspace
 3. In Xcode: App → Assets.xcassets → AppIcon
-   - Bottom slot "App Store iOS 1024pt" must show the BRAIN icon
+   - Bottom slot "App Store iOS 1024pt" must show the Restorebraine app logo
+     (gradient gallery icon — NOT a brain, NOT a grid placeholder)
 4. Product → Clean Build Folder
 5. Product → Archive
 6. Window → Organizer → select archive → Distribute App
 7. App Store Connect → Upload → wait for success
 8. Wait 15–60 minutes for Apple to process build $BUILD
-9. App Store Connect → TestFlight → build $BUILD should show brain icon
+9. App Store Connect → TestFlight → build $BUILD should show the app logo icon
 10. Apps list icon updates after build is linked on Distribution tab (see below)
 
 === App Store Connect (after TestFlight shows Complete) ===
 
-Uploads ARE working if you see builds 15/16/17 Complete in TestFlight.
-The Apps page grid icon updates separately:
+The Apps page grid placeholder is normal until a build finishes processing.
 
 1. App Store Connect → Restorebraine
 2. Click **Distribution** tab (not TestFlight)
 3. iOS App → **1.0.1 Prepare for Submission**
-4. Under **Build**, click **+** and select your newest build (17 or 18)
+4. Under **Build**, click **+** and select your newest build ($BUILD or latest)
 5. Click **Save**
 6. Wait up to 24 hours — Apps list + store listing icon pull from linked build
 
-Check TestFlight build icon: open build 17 — does it show brain or grid?
-- Brain icon on build → linking on Distribution tab fixes Apps page
-- Grid on build → re-archive build 18 and upload again
+Check TestFlight build icon: open your build — does it show the app logo or a grid?
+- App logo on build → linking on Distribution tab fixes Apps page
+- Grid on build → re-run npm run ios:icons, Clean, Archive, upload again
 
 EOF

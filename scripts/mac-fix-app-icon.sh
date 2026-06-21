@@ -58,7 +58,7 @@ git checkout origin/main -- \
   ios/App/App/Info.plist \
   ios/App/App.xcodeproj/project.pbxproj
 
-echo "==> Fetching official Restorebraine brain icon + regenerating all sizes"
+echo "==> Fetching official Restorebraine app icon + regenerating all sizes"
 npm run ios:icons
 node scripts/verify-ios-icons.mjs
 
