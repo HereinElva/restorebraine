@@ -10,33 +10,30 @@ ICON="$ROOT/ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png"
 BUILD=$(grep -m1 'CURRENT_PROJECT_VERSION' ios/App/App.xcodeproj/project.pbxproj | sed 's/[^0-9]*//g')
 
 cat <<EOF
-=== Restorebraine Pre-Upload Checklist ===
-=== CRITICAL: use HOSTED mode before Archive (Omega-style) ===
+=== Restorebraine 1.0.1 Pre-Upload Checklist ===
 
-DO NOT upload after mac-ios-v4-deploy or mac-capacitor-web-sync — those bundle
-capacitor://localhost and login buttons break on TestFlight.
+Build with:
+  bash scripts/mac-build.sh
 
-Before Archive run:
-  bash scripts/mac-resync-omega.sh --native-only
-
-Or the equivalent:
-  bash scripts/mac-appstore-deploy.sh
-
-That sets server.url → https://restorebraine.base44.app (same login as Safari).
+Bundled (default): full app on iPhone — no Base44 needed.
+Hosted (--hosted): Omega shell → restorebraine.base44.app
 
 EOF
 
 echo "=== Icon + version checks ==="
 echo
 
+BUNDLED=0
+HOSTED=0
 REPO_URL=$(grep -o '"url": *"[^"]*"' ios/App/App/capacitor.config.json 2>/dev/null | head -1 | sed 's/.*"url": *"\([^"]*\)".*/\1/' || echo missing)
 if [[ "$REPO_URL" == *"restorebraine.base44.app"* ]]; then
-  echo "OK: capacitor.config.json is HOSTED (App Store / TestFlight ready)"
+  HOSTED=1
+  echo "OK: capacitor.config.json is HOSTED (Omega shell)"
+elif [ ! -f ios/App/App/capacitor.config.json ] || ! grep -q '"url"' ios/App/App/capacitor.config.json 2>/dev/null; then
+  BUNDLED=1
+  echo "OK: capacitor.config.json is BUNDLED (full 1.0.1 app — recommended)"
 else
-  echo "FAIL: Repo is bundled localhost — login breaks on TestFlight"
-  echo "      Run: bash scripts/mac-resync-omega.sh --native-only"
-  echo "      Or:  bash scripts/mac-appstore-deploy.sh"
-  FAIL=1
+  echo "WARN: unexpected capacitor.config.json server.url: $REPO_URL"
 fi
 
 BYTES=$(wc -c < "$ICON" | tr -d ' ')

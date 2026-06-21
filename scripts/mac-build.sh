@@ -1,35 +1,45 @@
 #!/usr/bin/env bash
-# ONE COMMAND — full iOS rebuild + replace entire Xcode bundle. No Base44 paste.
+# Restorebraine 1.0.1 — ONE command: sync GitHub + rebuild + COMPLETE Xcode replace.
 #
-# Omega App Store build 1.0.1 (3) used --hosted (thin shell → live website).
-# Default --bundled ships the FULL app from git (v178 login, gallery, etc.) — works
-# even when Base44 live site is stuck on v162. No paste, no wizard, no Safari checks.
+# Recreates Omega App Store 1.0.1 (3) architecture WITH all post-build-3 fixes:
+#   • Back to Gallery (no sign-out)
+#   • Sign out only via Sign Out button
+#   • Stay logged in (native session persistence)
+#   • Launch screen (logo + gradient)
+#   • Folders tab: Organize, Custom, Duplicates, Select
+#   • Login: Google, Apple, Microsoft, email
 #
 # Usage:
-#   bash scripts/mac-build.sh              # bundled — recommended (self-contained)
-#   bash scripts/mac-build.sh --hosted     # Omega thin shell (login = live Base44)
-#   bash scripts/mac-build.sh --no-git     # skip git pull
+#   bash scripts/mac-build.sh              # bundled — full app on iPhone (default)
+#   bash scripts/mac-build.sh --hosted     # Omega thin shell → Base44 live
+#   bash scripts/mac-build.sh --omega      # same as default bundled 1.0.1
+#   bash scripts/mac-build.sh --nuclear    # extra cache wipe (when device shows stale app)
+#   bash scripts/mac-build.sh --no-git     # skip git sync (already synced)
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 
 BRANCH="${RESTOREBRAINE_BRANCH:-cursor/fix-native-localhost-oauth-bacf}"
 MODE=bundled
 SKIP_GIT=0
+NUCLEAR=0
 
 for arg in "$@"; do
   case "$arg" in
     --hosted) MODE=hosted ;;
-    --bundled) MODE=bundled ;;
+    --bundled|--omega) MODE=bundled ;;
+    --nuclear) NUCLEAR=1 ;;
     --no-git) SKIP_GIT=1 ;;
     -h|--help)
       cat <<HELP
-Usage: bash scripts/mac-build.sh [--bundled|--hosted] [--no-git]
+Restorebraine 1.0.1 — one-shot build
 
-  --bundled   DEFAULT. Full v178 app inside the iPhone build. No Base44 needed.
-  --hosted    Omega / App Store 1.0.1 (3) — loads restorebraine.base44.app
-  --no-git    Skip git pull
+  bash scripts/mac-build.sh              bundled full app (recommended)
+  bash scripts/mac-build.sh --hosted     Omega shell → restorebraine.base44.app
+  bash scripts/mac-build.sh --nuclear    extra wipe when iPhone shows old app
+  bash scripts/mac-build.sh --no-git     skip git fetch
 
-Then in Xcode: Clean Build Folder → Run → Archive
+Xcode after build: Clean → Run → Archive
+Build log MUST show: FULL REPLACE + Restorebraine DEPLOY OK
 HELP
       exit 0
       ;;
@@ -37,32 +47,45 @@ HELP
 done
 
 echo "╔══════════════════════════════════════════════════════════════╗"
-echo "║  RESTOREBRAINE — one-shot full Xcode replace                 ║"
+echo "║  RESTOREBRAINE 1.0.1 — complete Xcode app replace            ║"
 echo "╚══════════════════════════════════════════════════════════════╝"
 echo ""
-echo "Mode: ${MODE}"
+echo "Mode: ${MODE} · Marketing version 1.0.1"
 if [ "$MODE" = "bundled" ]; then
-  echo "  Full app from git — login + gallery built in. No Base44 paste."
+  echo "  Full app from GitHub — no Base44 paste required"
 else
-  echo "  Omega thin shell — app loads live restorebraine.base44.app"
+  echo "  Omega shell — loads live restorebraine.base44.app"
 fi
 echo ""
 
 if [ "$SKIP_GIT" = "0" ]; then
-  echo "=== Step 1: sync git ==="
+  echo "=== Step 1: sync Mac ← GitHub ==="
   git fetch origin "$BRANCH"
+  git fetch origin --tags 2>/dev/null || true
   git reset --hard "origin/$BRANCH"
   bash scripts/mac-ensure-development-team.sh 2>/dev/null || true
   echo "At: $(git log -1 --oneline)"
   echo ""
 fi
 
-echo "=== Step 2: verify Omega gallery + auth ==="
+echo "=== Step 2: verify 1.0.1 features + Omega baseline ==="
+node scripts/verify-restorebraine-1.0.1.mjs
 node scripts/verify-omega-baseline.mjs
 node scripts/verify-auth-flow.mjs
 echo ""
 
-echo "=== Step 3: wipe + full rebuild + replace entire ios/public ==="
+if [ "$NUCLEAR" = "1" ]; then
+  echo "=== Nuclear wipe (extra caches) ==="
+  if pgrep -x Xcode >/dev/null 2>&1; then
+    osascript -e 'quit app "Xcode"' 2>/dev/null || killall Xcode 2>/dev/null || true
+    sleep 2
+  fi
+  rm -rf ~/Library/Developer/Xcode/DerivedData/* 2>/dev/null || true
+  rm -rf ~/Library/Caches/com.apple.dt.Xcode 2>/dev/null || true
+  echo ""
+fi
+
+echo "=== Step 3: wipe + rebuild entire ios/public (complete replace) ==="
 if [ "$MODE" = "hosted" ]; then
   bash scripts/mac-xcode-full-replace.sh --hosted
 else
@@ -78,34 +101,31 @@ STAMP=$(tr -d '\n' < ios/App/App/BUILD_STAMP.txt 2>/dev/null || echo unknown)
 if [ "$MODE" = "hosted" ]; then
   MODE_URL=$(grep -o '"url": *"[^"]*"' ios/App/App/capacitor.config.json | head -1 || echo "no server.url")
 else
-  MODE_URL="capacitor://localhost (bundled)"
+  MODE_URL="bundled (capacitor://localhost)"
 fi
 
 echo ""
 echo "════════════════════════════════════════════════════════════════"
-echo "  BUILD READY — v${BUILD_NUM} · deploy v${DEPLOY}"
+echo "  1.0.1 BUILD READY — Apple build ${BUILD_NUM} · deploy v${DEPLOY}"
 echo "  ${FILE_COUNT} files · ${ENTRY}"
 echo "  ${MODE_URL}"
-echo "  BUILD_STAMP: ${STAMP}"
+echo "  ${STAMP}"
 echo "════════════════════════════════════════════════════════════════"
 echo ""
-echo "=== Step 4: open Xcode ==="
+echo "=== Step 4: Xcode — COMPLETE APP REPLACE ==="
 echo ""
-echo "  In Xcode do these 3 things ONLY:"
+echo "  Delete Restorebraine from iPhone first (long-press → Remove App)"
 echo ""
-echo "    1. Product → Clean Build Folder  (Shift+Cmd+K)"
-echo "    2. Product → Run on your iPhone  (Cmd+R)"
-echo "       Build log MUST show:"
-echo "         FULL REPLACE: copied ${FILE_COUNT} files into App.app/public"
-echo "         Restorebraine DEPLOY OK"
-echo "    3. Product → Archive → Upload"
+echo "  1. open ios/App/App.xcworkspace"
+echo "  2. Product → Clean Build Folder  (Shift+Cmd+K)"
+echo "  3. Product → Run on iPhone  (Cmd+R)"
+echo "     Log MUST show:"
+echo "       COMPLETE APP REPLACE"
+echo "       FULL REPLACE: copied ${FILE_COUNT} files"
+echo "       Restorebraine DEPLOY OK"
+echo "  4. Product → Archive → Upload"
 echo ""
-echo "  Verify after Run:"
-if [ "$MODE" = "hosted" ]; then
-  echo "    bash scripts/verify-hosted-app-bundle.sh"
-else
-  echo "    bash scripts/verify-xcode-app-bundle.sh"
-fi
+echo "  Verify: bash scripts/verify-xcode-app-bundle.sh"
 echo ""
 
-open ios/App/App.xcworkspace 2>/dev/null || echo "  open ios/App/App.xcworkspace"
+open ios/App/App.xcworkspace 2>/dev/null || true

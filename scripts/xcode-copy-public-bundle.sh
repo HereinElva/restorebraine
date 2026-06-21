@@ -38,6 +38,7 @@ fi
 rm -rf "$DEST_PUBLIC"
 ditto "$SRC_PUBLIC" "$DEST_PUBLIC"
 NEW_COUNT=$(find "$DEST_PUBLIC" -type f 2>/dev/null | wc -l | tr -d ' ')
+echo "COMPLETE APP REPLACE: entire public/ tree replaced in App.app"
 echo "FULL REPLACE: copied ${NEW_COUNT} files into App.app/public"
 
 [ -f "$STAMP" ] && cp "$STAMP" "${DEST_APP}/BUILD_STAMP.txt"

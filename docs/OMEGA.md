@@ -4,6 +4,8 @@ Known-good Restorebraine builds. **Use this baseline so login/auth experiments d
 
 ## Current Omega (v4-core) — use this
 
+**→ For iPhone builds use [OMEGA-1.0.1.md](./OMEGA-1.0.1.md) and `bash scripts/mac-build.sh`**
+
 | Item | Value |
 |------|--------|
 | **Git tag** | `omega-v4-core` |
