@@ -1,4 +1,4 @@
-import { InAppBrowser, DefaultWebViewOptions } from '@capacitor/inappbrowser';
+import { InAppBrowser } from '@capacitor/inappbrowser';
 import { Capacitor } from '@capacitor/core';
 import { isAppHost, NATIVE_OAUTH_RETURN_URL, getAuthReturnOrigin } from '@/lib/app-domains';
 import {
@@ -110,19 +110,7 @@ const openInAppBrowserOAuth = async (oauthUrl, provider) => {
     await InAppBrowser.openInSystemBrowser({ url: oauthUrl, options: SYSTEM_BROWSER_OPTIONS });
     return;
   } catch (systemError) {
-    console.warn('InAppBrowser system browser failed, trying WebView:', systemError);
-  }
-
-  if (LOCAL_NATIVE_BUNDLE) {
-    throw new Error('Could not open sign in. Try again.');
-  }
-
-  window.__restorebraineOAuthMode = provider === 'google' ? 'webview-google' : 'webview';
-  try {
-    await InAppBrowser.openInWebView({ url: oauthUrl, options: DefaultWebViewOptions });
-    return;
-  } catch (webviewError) {
-    console.warn('InAppBrowser WebView failed:', webviewError);
+    console.warn('InAppBrowser system browser failed:', systemError);
   }
 
   throw new Error('Could not open sign in. Rebuild in Xcode and try again.');
@@ -301,17 +289,17 @@ export const openLoginInSystemBrowser = async (url = getGoogleOAuthUrl(), provid
     : normalizeAuthUrl(url || getCanonicalOAuthUrl(provider), provider);
   window.__restorebraineLastOAuthUrl = oauthUrl;
 
-  // Build v4: WebView OAuth plugin first (reliable on device), then system browser.
+  // ASWebAuthenticationSession via native plugin (never WKWebView — Google blocks embedded WebViews).
   if (LOCAL_NATIVE_BUNDLE) {
     await waitForNativeOAuthPlugin(60);
-    if (hasRegisteredNativeOAuthPlugin()) {
+    if (provider === 'google' && hasRegisteredNativeOAuthPlugin()) {
       try {
         await startGoogleOAuthNative();
         return;
       } catch (error) {
         window.__restorebraineOAuthInProgress = false;
         if (error?.code === 'CANCELED' || /cancel/i.test(error?.message || '')) return;
-        console.warn('Native Google OAuth failed — opening system browser:', error);
+        console.warn('Native ASWebAuthenticationSession failed — opening system browser:', error);
       }
     }
     oauthListenerAttached = false;
