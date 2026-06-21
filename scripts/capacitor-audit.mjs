@@ -180,9 +180,9 @@ const loginLogoPath = resolve('ios/App/App/public/login-logo.png');
 const appIconPath = resolve('ios/App/App/public/AppIcon.png');
 if (existsSync(loginLogoPath)) {
   const bytes = readFileSync(loginLogoPath).length;
-  ok(`login-logo.png in ios/public (${bytes} bytes — login card icon)`);
+  ok(`login-logo.png in ios/public (${bytes} bytes — optional legacy asset)`);
 } else {
-  fail('login-logo.png missing from ios/public — login shows brain emoji');
+  ok('login-logo.png not in ios/public (OK — login has no logo)');
   bump();
 }
 if (existsSync(appIconPath)) {
