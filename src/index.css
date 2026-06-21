@@ -162,10 +162,14 @@ button:focus-visible {
   body {
     @apply bg-background text-foreground;
     min-height: 100dvh;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
   }
   #root {
     min-height: 100dvh;
   }
+  .safe-top { padding-top: env(safe-area-inset-top, 0px); }
+  .safe-bottom { padding-bottom: env(safe-area-inset-bottom, 0px); }
 }
 
 /* Folders tab: compact tiles — fill is the button, no outer border rim */

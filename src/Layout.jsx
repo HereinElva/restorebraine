@@ -36,6 +36,12 @@ function LayoutInner({ children, currentPageName }) {
     prevIndexRef.current = activeIndex;
   }, [activeIndex]);
 
+  useEffect(() => {
+    window.scrollTo(0, 0);
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+  }, [location.pathname]);
+
   // Dark mode detection
   useEffect(() => {
     const mq = window.matchMedia("(prefers-color-scheme: dark)");
@@ -95,7 +101,7 @@ function LayoutInner({ children, currentPageName }) {
       `}</style>
 
       {/* Top brand header */}
-      <header className="fixed top-0 left-0 right-0 z-50 bg-white/70 backdrop-blur-xl border-b border-purple-100 shadow-sm safe-top select-none">
+      <header className="fixed top-0 left-0 right-0 z-50 bg-white/70 backdrop-blur-xl border-b border-purple-100 shadow-sm select-none pt-[env(safe-area-inset-top,0px)]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center h-14 relative">
             {/* Back button — shown on child routes */}
@@ -130,7 +136,7 @@ function LayoutInner({ children, currentPageName }) {
       </header>
 
       {/* Main Content with slide transition */}
-      <main className="pt-14 pb-20 safe-bottom overflow-hidden">
+      <main className="pt-[calc(3.5rem+env(safe-area-inset-top,0px))] pb-[calc(5rem+env(safe-area-inset-bottom,0px))] min-h-[100dvh] box-border">
         <AnimatePresence custom={direction} mode="wait">
           <motion.div
             key={location.pathname}

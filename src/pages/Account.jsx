@@ -29,23 +29,20 @@ export default function Account() {
   }, [popBack]);
 
   const handleLogout = async () => {
-    queryClient.clear();
     setShowLogoutDialog(false);
-
-    if (isNativeShell() && !isHostedAppOrigin()) {
-      await localLogout();
-      return;
+    queryClient.clear();
+    try {
+      if (isNativeShell() && !isHostedAppOrigin()) {
+        await localLogout();
+      } else {
+        await logout();
+      }
+    } catch (error) {
+      console.error('Sign out failed:', error);
     }
-
-    await logout();
   };
 
-  const goToGallery = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.nativeEvent?.stopImmediatePropagation) {
-      e.nativeEvent.stopImmediatePropagation();
-    }
+  const goToGallery = () => {
     navigateToGallery(navigate, { popBack, resumeActiveSession });
   };
 
@@ -69,10 +66,9 @@ export default function Account() {
         <Button
           type="button"
           variant="ghost"
-          className="mb-6"
-          data-rb-gallery-nav
+          className="mb-6 relative z-10"
+          data-rb-gallery-nav="back"
           onClick={goToGallery}
-          onTouchEnd={(e) => e.stopPropagation()}
         >
           <ArrowLeft className="w-4 h-4 mr-2" />
           Back to Gallery
@@ -92,12 +88,16 @@ export default function Account() {
             </div>
             <Button
               type="button"
-              onClick={(e) => {
-                e.stopPropagation();
+              data-rb-sign-out
+              onClick={() => {
+                if (isNativeShell() && !isHostedAppOrigin()) {
+                  void handleLogout();
+                  return;
+                }
                 setShowLogoutDialog(true);
               }}
               variant="outline"
-              className="gap-2 border-gray-300 flex-shrink-0"
+              className="gap-2 border-gray-300 flex-shrink-0 relative z-10"
             >
               <LogOut className="w-4 h-4" />
               Sign Out

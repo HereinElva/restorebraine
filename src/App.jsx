@@ -10,7 +10,6 @@ import { setupIframeMessaging } from './lib/iframe-messaging';
 import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
-import NativeDebugBadge from '@/components/NativeDebugBadge';
 import SignInScreen, { hasStoredSessionToken } from '@/screens/SignInScreen';
 import V4CoreWrongOrigin from '@/components/V4CoreWrongOrigin';
 import { isNativeShell } from '@/lib/native-hosted-redirect';
@@ -29,47 +28,37 @@ const LayoutWrapper = ({ children, currentPageName }) => Layout ?
   : <>{children}</>;
 
 const AuthenticatedApp = () => {
-  const { isLoadingAuth, isLoadingPublicSettings, authError, isAuthenticated, manuallyLoggedOut, navigateToLogin } = useAuth();
+  const { isLoadingAuth, isLoadingPublicSettings, authError, isAuthenticated, manuallyLoggedOut } = useAuth();
 
   if (manuallyLoggedOut) {
     return <SignInScreen clearSignedOut />;
   }
 
-  if (!isAuthenticated && !hasStoredSessionToken()) {
-    return <SignInScreen />;
-  }
+  const hasToken = hasStoredSessionToken();
 
-  if ((isLoadingPublicSettings || isLoadingAuth) && hasStoredSessionToken()) {
-    return (
-      <>
-        <div className="fixed inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 gap-4">
-          <div className="w-8 h-8 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin" />
-          <p className="text-sm text-gray-500">Loading Restorebraine…</p>
-          {isNativeShell() ? (
-            <button
-              type="button"
-              onClick={navigateToLogin}
-              className="mt-2 text-sm font-semibold text-purple-600 underline"
-            >
-              Sign in instead
-            </button>
-          ) : null}
-        </div>
-        {isNativeShell() ? <NativeDebugBadge /> : null}
-      </>
-    );
+  if (!hasToken && !isAuthenticated) {
+    return <SignInScreen />;
   }
 
   if (authError?.type === 'user_not_registered') {
     return <UserNotRegisteredError />;
   }
 
-  if (!isAuthenticated) {
+  if (!isAuthenticated && !hasToken) {
     return <SignInScreen clearSignedOut={manuallyLoggedOut} />;
   }
 
+  // Token or session present — render app immediately; auth/settings finish in background.
+  const showBootSpinner = (isLoadingPublicSettings || isLoadingAuth) && !hasToken && !isAuthenticated;
+
   return (
     <>
+      {showBootSpinner ? (
+        <div className="fixed inset-0 z-[200] flex flex-col items-center justify-center bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 gap-4 safe-top safe-bottom">
+          <div className="w-8 h-8 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin" />
+          <p className="text-sm text-gray-500">Loading Restorebraine…</p>
+        </div>
+      ) : null}
       <LayoutWrapper currentPageName={mainPageKey}>
         <Routes>
           <Route path="/" element={<MainPage />} />
@@ -79,7 +68,6 @@ const AuthenticatedApp = () => {
           <Route path="*" element={<PageNotFound />} />
         </Routes>
       </LayoutWrapper>
-      {isNativeShell() ? <NativeDebugBadge /> : null}
     </>
   );
 };

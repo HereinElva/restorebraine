@@ -41,11 +41,12 @@ const shouldSkipInitialAuthLoading = () => {
 const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
+  const initialToken = readSyncToken();
   const skipInitialLoad = shouldSkipInitialAuthLoading();
   const [user, setUser] = useState(null);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [isLoadingAuth, setIsLoadingAuth] = useState(!skipInitialLoad);
-  const [isLoadingPublicSettings, setIsLoadingPublicSettings] = useState(!skipInitialLoad);
+  const [isAuthenticated, setIsAuthenticated] = useState(Boolean(initialToken));
+  const [isLoadingAuth, setIsLoadingAuth] = useState(!skipInitialLoad && !initialToken);
+  const [isLoadingPublicSettings, setIsLoadingPublicSettings] = useState(!skipInitialLoad && !initialToken);
   const [authError, setAuthError] = useState(null);
   const [appPublicSettings, setAppPublicSettings] = useState(null);
   const [manuallyLoggedOut, setManuallyLoggedOut] = useState(false);
@@ -106,6 +107,25 @@ export const AuthProvider = ({ children }) => {
     };
   }, []);
 
+  const fetchPublicSettingsInBackground = async () => {
+    try {
+      const appClient = createAxiosClient({
+        baseURL: `${appParams.serverUrl}/api/apps/public`,
+        headers: { 'X-App-Id': appParams.appId },
+        token: appParams.token,
+        interceptResponses: true,
+      });
+      const publicSettings = await withTimeout(
+        appClient.get(`/prod/public-settings/by-id/${appParams.appId}`),
+        isNativeLocalShell() ? NATIVE_AUTH_TIMEOUT_MS : AUTH_TIMEOUT_MS,
+        'Public settings',
+      );
+      setAppPublicSettings(publicSettings);
+    } catch (appError) {
+      console.warn('Public settings fetch failed:', appError);
+    }
+  };
+
   const checkAppState = async () => {
     try {
       const syncToken = readSyncToken();
@@ -144,6 +164,20 @@ export const AuthProvider = ({ children }) => {
         return;
       }
 
+      if (tokenAfterRestore) {
+        appParams.token = tokenAfterRestore;
+        base44.auth.setToken(tokenAfterRestore, false);
+        setIsAuthenticated(true);
+        setIsLoadingAuth(false);
+        void checkUserAuth({ ignoreManualLogout: true });
+
+        if (isNativeLocalShell()) {
+          setIsLoadingPublicSettings(false);
+          void fetchPublicSettingsInBackground();
+          return;
+        }
+      }
+
       const appClient = createAxiosClient({
         baseURL: `${appParams.serverUrl}/api/apps/public`,
         headers: { 'X-App-Id': appParams.appId },
@@ -159,9 +193,7 @@ export const AuthProvider = ({ children }) => {
         );
         setAppPublicSettings(publicSettings);
 
-        if (appParams.token) {
-          await checkUserAuth();
-        } else {
+        if (!appParams.token) {
           setIsLoadingAuth(false);
           setIsAuthenticated(false);
         }

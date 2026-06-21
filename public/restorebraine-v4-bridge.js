@@ -884,6 +884,7 @@
               var target = event.target.closest('button, a, [role="button"], div[role="button"], [data-provider]');
               if (!target) return;
               if (target.closest('[data-rb-gallery-nav]') || target.getAttribute('data-rb-gallery-nav') != null) return;
+              if (target.closest('[data-rb-sign-out]') || target.getAttribute('data-rb-sign-out') != null) return;
               var label = (target.textContent || '').replace(/\s+/g, ' ').trim();
               var href = (target.href || (target.getAttribute && target.getAttribute('href')) || '');
               var isSignInButton = /^sign in$/i.test(label);

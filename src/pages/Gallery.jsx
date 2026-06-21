@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/lib/AuthContext";
+import { hasStoredSessionToken } from "@/screens/SignInScreen";
 import { Search, Image as ImageIcon, Sparkles, MousePointer2 } from "lucide-react";
 import PullToRefresh from "../components/gallery/PullToRefresh";
 import { Input } from "@/components/ui/input";
@@ -82,6 +84,8 @@ const CACHE = {
 export default function Gallery() {
   const { pushBack, popBack } = useNavigation();
   const { getTabState, setTabState } = useTabState();
+  const { isAuthenticated, user: authUser } = useAuth();
+  const canFetchData = isAuthenticated || hasStoredSessionToken();
   const isIOS = true;
  
   const saved = getTabState("Gallery") ?? {};
@@ -118,30 +122,37 @@ export default function Gallery() {
   const { data: currentUser } = useQuery({
     queryKey: ['current-user'],
     queryFn: () => base44.auth.me(),
+    enabled: canFetchData,
     staleTime: CACHE.user.staleTime,
     gcTime: CACHE.user.gcTime,
-    // Show stale data immediately while re-fetching in background
-    placeholderData: (prev) => prev,
+    placeholderData: (prev) => prev ?? authUser ?? undefined,
   });
- 
+
+  const userEmail = currentUser?.email || authUser?.email;
+
   const { data: photos = [], isLoading: photosLoading } = useQuery({
-    queryKey: ['photos', currentUser?.email],
-    queryFn: () => base44.entities.Photo.filter({ created_by: currentUser.email }, '-created_date'),
-    enabled: !!currentUser?.email,
+    queryKey: ['photos', userEmail],
+    queryFn: async () => {
+      const me = userEmail ? { email: userEmail } : await base44.auth.me();
+      if (!me?.email) return [];
+      return base44.entities.Photo.filter({ created_by: me.email }, '-created_date');
+    },
+    enabled: canFetchData,
     staleTime: CACHE.photos.staleTime,
     gcTime: CACHE.photos.gcTime,
-    // Keep showing previous data while new data loads — no blank flash
     placeholderData: (prev) => prev,
     initialData: [],
   });
- 
+
   const { data: folders = [] } = useQuery({
-    queryKey: ['folders', currentUser?.email],
+    queryKey: ['folders', userEmail],
     queryFn: async () => {
+      const me = userEmail ? { email: userEmail } : await base44.auth.me();
+      if (!me?.email) return [];
       const result = await base44.entities.Folder.list('-created_date', 200);
-      return (result || []).filter(f => !f.created_by || f.created_by === currentUser.email);
+      return (result || []).filter(f => !f.created_by || f.created_by === me.email);
     },
-    enabled: !!currentUser?.email,
+    enabled: canFetchData,
     staleTime: CACHE.folders.staleTime,
     gcTime: CACHE.folders.gcTime,
     placeholderData: (prev) => prev,
