@@ -17,6 +17,9 @@ echo "╔═══════════════════════�
 echo "║  App Store / TestFlight — HOSTED native (Omega-style)        ║"
 echo "╚══════════════════════════════════════════════════════════════╝"
 echo ""
+echo "Reference: App Store 1.0.1 (3) — docs/APPSTORE-BUILD-1.0.1-3.md"
+echo "  bash scripts/mac-reconstruct-appstore.sh  (same hosted mode, with build-3 context)"
+echo ""
 echo "This is the correct path before Product → Archive."
 echo "Bundled capacitor://localhost (mac-ios-v4-deploy) is DEV ONLY — login breaks on TestFlight."
 echo ""
@@ -49,10 +52,11 @@ if [[ "$URL" != *"restorebraine.base44.app"* ]]; then
 fi
 
 echo ""
-echo "=== Step 3: verify hosted config ==="
+echo "=== Step 3: copy config into App.app + verify ==="
+bash scripts/mac-copy-public-into-appapp.sh 2>/dev/null || true
 bash scripts/verify-hosted-app-bundle.sh 2>/dev/null || {
   echo ""
-  echo "No App.app yet — continue in Xcode (Run once, then Archive)."
+  echo "No App.app yet — Run once in Xcode, then Archive."
 }
 
 BUILD_NUM=$(grep -E '^export const BUILD_NUMBER = ' src/lib/build-info.js | sed 's/.*= //;s/;//')

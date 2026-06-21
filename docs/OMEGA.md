@@ -65,6 +65,8 @@ bash scripts/mac-pre-upload-checklist.sh
 
 Do **not** run `mac-ios-v4-deploy.sh` or `mac-capacitor-web-sync.sh` before App Store upload — those bundle `capacitor://localhost` and break login on TestFlight.
 
+**Reference build:** App Store Connect **1.0.1 (3)** — see [APPSTORE-BUILD-1.0.1-3.md](./APPSTORE-BUILD-1.0.1-3.md). Reconstruct with `bash scripts/mac-reconstruct-appstore.sh`.
+
 ---
 
 ## Legacy Omega (hosted WebView — pre v4-core)
