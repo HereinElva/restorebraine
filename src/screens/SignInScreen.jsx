@@ -124,7 +124,6 @@ export default function SignInScreen({ clearSignedOut = false }) {
     >
       <section className="rb-signin-card">
         <h1 className="rb-signin-title">Restorebraine</h1>
-        <p className="rb-signin-subtitle">Sign in to access your memories</p>
         {showNativeTag ? (
           <p className="rb-signin-tag">Native bundle · v{BUILD_NUMBER}</p>
         ) : null}

@@ -25,8 +25,7 @@ bash scripts/mac-push-to-iphone.sh
 BUILD_NUM=$(grep -E '^export const BUILD_NUMBER = ' src/lib/build-info.js | sed 's/.*= //;s/;//')
 echo ""
 echo "Login screen should show:"
-echo "  • Restorebraine + subtitle \"Sign in to access your memories\""
-echo "  • Continue with Google · Continue with Apple · email sign-in"
+echo "  • Restorebraine + Continue with Google / Apple / email"
 echo "  • Native bundle · v${BUILD_NUM} (purple text, bundled app only)"
 echo ""
 echo "Tap purple badge → v${BUILD_NUM} · v4-core · capacitor://localhost"
