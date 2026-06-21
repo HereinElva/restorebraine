@@ -19,7 +19,7 @@ list_xcode_account_teams() {
     fi
   done
 
-  # Scan other UserData plists (some Xcode versions store teams elsewhere)
+  # Xcode 15+ account bundles
   if [ -d "$HOME/Library/Developer/Xcode/UserData" ]; then
     while IFS= read -r file; do
       [ -f "$file" ] || continue
@@ -28,8 +28,15 @@ list_xcode_account_teams() {
         | sed -E 's/.*"teamID" => "([^"]+)".*/\1/' \
         | sort -u)
       found+=$'\n'
-    done < <(find "$HOME/Library/Developer/Xcode/UserData" -maxdepth 2 -name '*.plist' 2>/dev/null)
+    done < <(find "$HOME/Library/Developer/Xcode/UserData" -name '*.plist' 2>/dev/null)
   fi
+
+  # Fallback: keychain Apple Development teams (Xcode GUI signing uses these)
+  found+=$(security find-identity -v -p codesigning 2>/dev/null \
+    | grep -E 'Apple Development|Apple Distribution' \
+    | sed -n 's/.*(\([A-Z0-9]\{10\}\)).*/\1/p' \
+    | sort -u)
+  found+=$'\n'
 
   echo "$found" | grep -E '^[A-Z0-9]{10}$' | sort -u
 }
