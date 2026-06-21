@@ -36,5 +36,8 @@ White screen fix:
 
 After Publish: hard refresh Safari or use Private tab, then check Sign In URL.
 
-iOS without Base44: npm run build:native-local → Xcode Run (do NOT run cap:hosted)
+iOS App Store / TestFlight (hosted — same as Omega):
+  bash scripts/mac-start-fresh.sh
+  Then Xcode Clean → Run → Archive
+  Do NOT use npm run build:native-local for App Store uploads
 `);

@@ -49,7 +49,17 @@ git checkout omega-v4-core -- \
 # Account.jsx / Layout.jsx: merge manually — logout and header logo may differ from v80
 ```
 
-Then rebuild: `bash scripts/mac-capacitor-web-sync.sh` and **Xcode → Run**.
+Then rebuild: `bash scripts/mac-start-fresh.sh` and **Xcode → Run**.
+
+### Start fresh (recommended — Omega hosted + kept fixes)
+
+See [START-FRESH.md](./START-FRESH.md).
+
+```bash
+bash scripts/mac-start-fresh.sh
+```
+
+Syncs repo, verifies Omega gallery baseline, full hosted rebuild, generates Base44 publish pack, full Xcode replace on next Run/Archive.
 
 ### App Store / TestFlight (use hosted — NOT bundled)
 
@@ -58,14 +68,14 @@ Old Omega (`omega` tag, v58) loaded live `restorebraine.base44.app` — login wo
 **Before every Archive:**
 
 ```bash
-bash scripts/mac-appstore-deploy.sh
-bash scripts/mac-pre-upload-checklist.sh
-# Xcode → Clean → Archive → Upload
+bash scripts/mac-start-fresh.sh
+# Paste base44-publish-v*.txt → Base44 Publish
+# Xcode → Clean → Run → Archive → Upload
 ```
 
 Do **not** run `mac-ios-v4-deploy.sh` or `mac-capacitor-web-sync.sh` before App Store upload — those bundle `capacitor://localhost` and break login on TestFlight.
 
-**Reference build:** App Store Connect **1.0.1 (3)** — see [APPSTORE-BUILD-1.0.1-3.md](./APPSTORE-BUILD-1.0.1-3.md). Reconstruct with `bash scripts/mac-reconstruct-appstore.sh`.
+**Reference build:** App Store Connect **1.0.1 (3)** — see [APPSTORE-BUILD-1.0.1-3.md](./APPSTORE-BUILD-1.0.1-3.md).
 
 ---
 
