@@ -79,7 +79,6 @@ echo "=== Step 2: verify 1.0.1 features + Omega baseline ==="
 node scripts/verify-restorebraine-1.0.1.mjs
 node scripts/verify-omega-baseline.mjs
 node scripts/verify-auth-flow.mjs
-node scripts/verify-ios-bundle-version.mjs
 echo ""
 
 if [ "$NUCLEAR" = "1" ]; then
@@ -99,6 +98,8 @@ if [ "$MODE" = "hosted" ]; then
 else
   bash scripts/mac-xcode-full-replace.sh --bundled
 fi
+
+node scripts/verify-ios-bundle-version.mjs
 
 BUILD_NUM=$(grep -E '^export const BUILD_NUMBER = ' src/lib/build-info.js | sed 's/.*= //;s/;//')
 DEPLOY=$(grep -E '^export const DEPLOY_BUILD = ' src/deploy-marker.js | sed 's/.*= //;s/;//')
