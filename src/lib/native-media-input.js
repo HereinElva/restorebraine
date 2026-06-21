@@ -1,0 +1,96 @@
+import { useCallback, useEffect, useRef } from 'react';
+
+export function isNativeMediaShell() {
+  if (typeof window === 'undefined') return false;
+  return (
+    window.Capacitor?.isNativePlatform?.() ||
+    window.location.protocol === 'capacitor:' ||
+    window.location.protocol === 'ionic:'
+  );
+}
+
+/**
+ * iOS WKWebView often fails to fire change on <input type="file"> after PHPicker.
+ * Poll input.files on focus / app resume and keep the input mounted.
+ */
+export function useNativeMediaInput(onFilesSelected) {
+  const inputRef = useRef(null);
+  const pendingPollRef = useRef(false);
+  const onFilesRef = useRef(onFilesSelected);
+  onFilesRef.current = onFilesSelected;
+
+  const deliverFiles = useCallback((fileList) => {
+    if (!fileList?.length) return false;
+    onFilesRef.current?.(fileList);
+    return true;
+  }, []);
+
+  const drainInput = useCallback(() => {
+    const input = inputRef.current;
+    if (!input?.files?.length) return false;
+    const files = input.files;
+    input.value = '';
+    return deliverFiles(files);
+  }, [deliverFiles]);
+
+  const openPicker = useCallback(() => {
+    const input = inputRef.current;
+    if (!input) return;
+    input.value = '';
+    pendingPollRef.current = true;
+    input.click();
+  }, []);
+
+  const pollAfterPicker = useCallback(() => {
+    if (!pendingPollRef.current) return;
+    [100, 350, 700, 1200].forEach((delay) => {
+      window.setTimeout(() => {
+        if (!pendingPollRef.current) return;
+        if (drainInput()) pendingPollRef.current = false;
+      }, delay);
+    });
+    window.setTimeout(() => {
+      pendingPollRef.current = false;
+    }, 2500);
+  }, [drainInput]);
+
+  useEffect(() => {
+    if (!isNativeMediaShell()) return;
+
+    const onResume = () => pollAfterPicker();
+
+    window.addEventListener('focus', onResume);
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') onResume();
+    });
+
+    let appListener;
+    import('@capacitor/app')
+      .then(({ App }) =>
+        App.addListener('appStateChange', ({ isActive }) => {
+          if (isActive) onResume();
+        }),
+      )
+      .then((handle) => {
+        appListener = handle;
+      })
+      .catch(() => {});
+
+    return () => {
+      window.removeEventListener('focus', onResume);
+      appListener?.remove?.();
+    };
+  }, [pollAfterPicker]);
+
+  const handleInput = useCallback(
+    (event) => {
+      pendingPollRef.current = false;
+      const files = event.target.files;
+      if (files?.length) deliverFiles(files);
+      event.target.value = '';
+    },
+    [deliverFiles],
+  );
+
+  return { inputRef, openPicker, handleInput };
+}

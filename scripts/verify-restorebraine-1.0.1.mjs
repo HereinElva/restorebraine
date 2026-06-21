@@ -78,6 +78,12 @@ for (const f of [
   else failMsg(`Missing ${f}`);
 }
 
+const plist = read('ios/App/App/Info.plist');
+if (plist.includes('NSPhotoLibraryUsageDescription')) ok('Info.plist NSPhotoLibraryUsageDescription');
+else failMsg('Info.plist missing NSPhotoLibraryUsageDescription (iOS upload)');
+if (plist.includes('NSMicrophoneUsageDescription')) ok('Info.plist NSMicrophoneUsageDescription');
+else failMsg('Info.plist missing NSMicrophoneUsageDescription (iOS video upload)');
+
 // Xcode full replace
 mustInclude('scripts/xcode-copy-public-bundle.sh', 'rm -rf "$DEST_PUBLIC"', 'Xcode rm -rf public replace');
 mustInclude('scripts/xcode-copy-public-bundle.sh', 'ditto', 'Xcode ditto full copy');

@@ -18,22 +18,40 @@ export {
 } from '@/lib/media-constants';
 
 export function getFileType(file) {
-  return file.type.startsWith('video/') ? 'video' : 'image';
+  const type = file?.type || '';
+  if (type.startsWith('video/')) return 'video';
+  if (type.startsWith('image/')) return 'image';
+  const name = (file?.name || '').toLowerCase();
+  if (/\.(mp4|mov|m4v|avi|webm|mkv)$/.test(name)) return 'video';
+  return 'image';
 }
 
 export function validateFiles(files) {
-  const list = Array.from(files || []);
-  if (!list.length) return { valid: [], error: null };
+  const list = Array.from(files || []).filter((f) => f && (f.size > 0 || f.name));
+  if (!list.length) {
+    return {
+      valid: [],
+      error: 'No files received from picker. Try again or allow full photo access in Settings.',
+    };
+  }
 
-  if (list.length > MAX_BATCH_SIZE) {
+  const readable = list.filter((f) => f.size > 0);
+  if (!readable.length) {
+    return {
+      valid: [],
+      error: 'Selected files could not be read. In Settings → Restorebraine → Photos, try Full Access.',
+    };
+  }
+
+  if (readable.length > MAX_BATCH_SIZE) {
     return {
       valid: [],
       error: `Please select up to ${MAX_BATCH_SIZE} files at a time. You can add more after this batch starts.`,
     };
   }
 
-  const oversized = list.find(
-    (f) => f.type.startsWith('video/') && f.size > MAX_VIDEO_BYTES,
+  const oversized = readable.find(
+    (f) => getFileType(f) === 'video' && f.size > MAX_VIDEO_BYTES,
   );
   if (oversized) {
     return {
@@ -42,7 +60,7 @@ export function validateFiles(files) {
     };
   }
 
-  return { valid: list, error: null };
+  return { valid: readable, error: null };
 }
 
 async function uploadFile(file) {

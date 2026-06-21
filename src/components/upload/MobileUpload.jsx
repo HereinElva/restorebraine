@@ -1,9 +1,10 @@
-import React, { useRef } from "react";
+import React from "react";
 import { motion } from "framer-motion";
 import { Camera, Image, Video, CheckCircle2, Sparkles, ChevronRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import ProcessingList from "./ProcessingList";
+import { useNativeMediaInput } from "@/lib/native-media-input";
 import { MAX_BATCH_SIZE } from "@/lib/media-upload";
 
 export default function MobileUpload({
@@ -17,8 +18,8 @@ export default function MobileUpload({
   removeFile,
   retryFile,
 }) {
-  const fileInputRef = useRef(null);
   const navigate = useNavigate();
+  const { inputRef, openPicker, handleInput } = useNativeMediaInput(handleFileSelection);
 
   const pendingCount = files.filter(f => f.status === 'pending').length;
   const successCount = files.filter(f => f.status === 'success').length;
@@ -26,6 +27,19 @@ export default function MobileUpload({
 
   return (
     <div className="min-h-screen pb-24 px-4 pt-4">
+      {/* Always mounted — iOS loses picker result if input unmounts */}
+      <input
+        ref={inputRef}
+        type="file"
+        multiple
+        accept="image/*,video/*,.mp4,.mov,.m4v"
+        onChange={handleInput}
+        onInput={handleInput}
+        className="hidden"
+        aria-hidden="true"
+        tabIndex={-1}
+      />
+
       {/* Header */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Add Memories</h1>
@@ -37,18 +51,10 @@ export default function MobileUpload({
       {/* Big tap-to-upload button (native feel) */}
       {!processing && (
         <>
-          <input
-            ref={fileInputRef}
-            type="file"
-            multiple
-            accept="image/*,video/*"
-            onChange={(e) => handleFileSelection(e.target.files)}
-            className="hidden"
-          />
-
           <motion.button
+            type="button"
             whileTap={{ scale: 0.97 }}
-            onClick={() => fileInputRef.current?.click()}
+            onClick={openPicker}
             className="w-full bg-gradient-to-br from-purple-500 to-blue-500 rounded-3xl p-8 flex flex-col items-center gap-3 shadow-lg shadow-purple-200 mb-4"
           >
             <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center">
@@ -56,7 +62,7 @@ export default function MobileUpload({
             </div>
             <div className="text-center">
               <p className="text-white font-semibold text-lg">Add from Camera Roll</p>
-              <p className="text-white/70 text-sm mt-1">Photos & Videos • Up to 5 min</p>
+              <p className="text-white/70 text-sm mt-1">Photos & Videos • Up to {MAX_BATCH_SIZE} at a time</p>
             </div>
           </motion.button>
 
@@ -96,7 +102,6 @@ export default function MobileUpload({
       {/* Processing state */}
       {files.length > 0 && (
         <div className="mt-4">
-          {/* Progress ring summary */}
           {processing && (
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 mb-4 flex items-center gap-4">
               <div className="relative w-14 h-14 flex-shrink-0">
