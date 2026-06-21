@@ -2,7 +2,27 @@
 
 Known-good Restorebraine builds. **Use this baseline so login/auth experiments do not interfere** with gallery navigation, folder tiles, or account UI.
 
-## Current Omega (v4-core) — use this
+## Omega 2 — current bundled iPhone snapshot (v217)
+
+**→ Before rebuilding on Mac, you can restore this exact build with tag `omega-2`**
+
+See [OMEGA-2.md](./OMEGA-2.md) for full details.
+
+| Item | Value |
+|------|--------|
+| **Git tag** | `omega-2` |
+| **Build** | v217 |
+| **Branch** | `cursor/fix-native-localhost-oauth-bacf` |
+
+```bash
+git fetch origin --tags
+git reset --hard omega-2
+bash build-iphone.sh --no-git
+```
+
+---
+
+## Current Omega (v4-core) — gallery UI baseline
 
 **→ For iPhone builds use [OMEGA-1.0.1.md](./OMEGA-1.0.1.md) and `bash scripts/mac-build.sh`**
 
