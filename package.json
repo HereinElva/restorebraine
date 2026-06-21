@@ -28,6 +28,7 @@
     "mac:reconstruct-appstore": "bash scripts/mac-reconstruct-appstore.sh",
     "mac:xcode-full-replace": "bash scripts/mac-xcode-full-replace.sh",
     "mac:start-fresh": "bash scripts/mac-start-fresh.sh",
+    "mac:resync-omega": "bash scripts/mac-resync-omega.sh",
     "mac:v4-full-reset": "bash scripts/capacitor-v4-full-reset.sh",
     "cap:hosted": "node scripts/use-local-native-bundle.mjs --hosted",
     "lint": "eslint .",

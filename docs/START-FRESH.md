@@ -1,5 +1,19 @@
 # Start fresh — Omega reference + kept fixes
 
+**Use this command** (Base44 first, then Capacitor):
+
+```bash
+cd ~/restorebraine
+bash scripts/mac-resync-omega.sh
+```
+
+| Phase | Command | What it does |
+|-------|---------|--------------|
+| **1 — Base44** | `--base44-only` | Omega verify + generate `base44-publish-v*.txt` → you Publish |
+| **2 — Native** | `--native-only` | Hosted Capacitor + full Xcode replace (after Phase 1 passes) |
+
+Check Base44 drift: `node scripts/verify-base44-live.mjs`
+
 One terminal workflow to reset Restorebraine to the **Omega hosted architecture** (login worked), while **keeping** launch screen, Back to Gallery, and folder-tab button fixes.
 
 ## What this restores
@@ -39,39 +53,20 @@ Check drift anytime:
 node scripts/verify-base44-live.mjs
 ```
 
-## One command (Terminal)
+## After Phase 1 — Publish Base44
 
 ```bash
-bash scripts/mac-start-fresh.sh
+open base44-publish-v178.txt   # or latest deploy number
 ```
 
-Already synced? Skip git reset:
+Paste every `BASE44 PATH` block → **Publish once** → then:
 
 ```bash
-bash scripts/mac-start-fresh.sh --no-git
+node scripts/verify-base44-live.mjs
+bash scripts/mac-resync-omega.sh --native-only
 ```
 
-This runs:
-
-1. Sync to latest branch  
-2. `verify-omega-baseline` + `verify-auth`  
-3. Full wipe + **hosted** rebuild (`mac-xcode-full-replace.sh`)  
-4. Generate `base44-publish-v{N}.txt`  
-5. Pre-upload checklist  
-
-## After the script — you do two things
-
-### A. Base44 (web must match Capacitor)
-
-```bash
-bash scripts/base44-publish-copy-commands.sh
-```
-
-Paste every file → **Publish once**.
-
-Verify in Safari: https://restorebraine.base44.app
-
-### B. Xcode (full replace into App.app)
+## After Phase 2 — Xcode
 
 ```bash
 open ios/App/App.xcworkspace
