@@ -48,6 +48,12 @@ if [ -z "$APP" ]; then
   if [ "$REPO_STAMP" != missing ] && [ "$REPO_ENTRY" != missing ]; then
     echo "Repo bundle is READY ($REPO_STAMP) — do NOT rebuild in Terminal."
     echo "Xcode has not Run to your iPhone yet (only opened/indexed the project)."
+  elif [ "$REPO_ENTRY" = missing ] && [ -f ios/App/App/BUILD_STAMP.txt ]; then
+    echo "Repo ios/App/App/public/ is empty (wiped by mac-unblock-pull) — rebuild:"
+    echo "  bash scripts/mac-ios-v4-deploy.sh --no-sync"
+    echo ""
+    echo "If Xcode already shows 'Finished running App on iPhone', the phone may still"
+    echo "have the last good build — check the purple badge for v154 + index-CB3CwJ4f.js"
   fi
   echo ""
   echo "You only have an Index.noindex build (empty shell — NOT installed on device)."
@@ -100,7 +106,13 @@ echo ""
 
 FAIL=0
 [ "$REPO_STAMP" = "$APP_STAMP" ] || { echo "FAIL: BUILD_STAMP mismatch — re-run: bash scripts/mac-ios-v4-rebuild.sh then Xcode Run"; FAIL=1; }
-[ "$REPO_ENTRY" = "$APP_ENTRY" ] || { echo "FAIL: entry JS mismatch"; FAIL=1; }
+if [ "$REPO_ENTRY" = missing ] && [ "$APP_ENTRY" != missing ]; then
+  echo "NOTE: repo public/ empty (run mac-ios-v4-deploy.sh --no-sync to rebuild)"
+  echo "OK: App.app has entry $APP_ENTRY — iPhone likely has this build if Run succeeded"
+elif [ "$REPO_ENTRY" != "$APP_ENTRY" ]; then
+  echo "FAIL: entry JS mismatch (repo=$REPO_ENTRY app=$APP_ENTRY)"
+  FAIL=1
+fi
 [ "$URL_IN_CONFIG" = "0" ] || { echo "FAIL: server.url set — app loads hosted site not bundle"; FAIL=1; }
 [ -f "$APP/public/assets/$APP_ENTRY" ] || { echo "FAIL: entry file missing inside App.app"; FAIL=1; }
 [ -f "$APP/public/restorebraine-v4-bridge.js" ] || { echo "FAIL: restorebraine-v4-bridge.js missing from App.app/public — OAuth will not work"; FAIL=1; }
