@@ -11,8 +11,8 @@ const OMEGA_COMMIT = 'ec86e42';
 
 const PROTECTED = [
   'src/components/gallery/folderActionStyles.js',
-  'src/components/gallery/OrganizeButton.jsx',
   'src/components/gallery/CustomFolderButton.jsx',
+  // OrganizeButton: pipeline in run-media-organize.js; UI actively maintained.
   // gallery-nav.js: Back-to-Gallery iOS fixes live in gallery-back-nav.js; 1.0.1 check covers nav.
 ];
 
