@@ -35,3 +35,6 @@ BUILD_NUM=$(grep -E '^export const BUILD_NUMBER = ' src/lib/build-info.js | sed 
 echo ""
 echo "Login must show: Restorebraine + Continue with Google + Native bundle · v${BUILD_NUM}"
 echo "Purple badge: v${BUILD_NUM} · v4-core · capacitor://localhost · auth: sign-in-v4"
+echo ""
+echo "Launch screen (brain logo): NOT updated by this script — only by Xcode Run."
+echo "  open ios/App/App.xcworkspace → Product → Clean Build Folder → Run (Cmd+R)"
