@@ -202,7 +202,6 @@ const openWithBrowserFallback = async (url) => {
 };
 
 const openOAuthInSystemBrowser = async (url, providerHint) => {
-  // Build v4 fallback: hosted from_url so OAuth sheet can return via restorebraine:// deep link.
   const normalizedUrl = normalizeAuthUrl(
     url || getWebViewOAuthUrl(providerHint || 'google'),
     providerHint,
@@ -217,14 +216,38 @@ const openOAuthInSystemBrowser = async (url, providerHint) => {
   oauthListenerAttached = false;
   try {
     await attachOAuthCompletionListener();
-    const ib = await getInAppBrowserPluginAsync();
-    await ib.openInSystemBrowser({ url: normalizedUrl, options: SYSTEM_BROWSER_OPTIONS });
-    return;
+    const ib = await getInAppBrowserPluginAsync(20);
+    await withTimeout(
+      ib.openInSystemBrowser({ url: normalizedUrl, options: SYSTEM_BROWSER_OPTIONS }),
+      8000,
+      'InAppBrowser open',
+    );
   } catch (error) {
     recordOAuthError(error, 'inappbrowser');
     console.warn('InAppBrowser system browser failed — trying Capacitor Browser:', error);
     await openWithBrowserFallback(normalizedUrl);
   }
+};
+
+/** Bundled native: ASWebAuthenticationSession (shows iOS sheet) → InAppBrowser → Safari. */
+const openBundledNativeOAuth = async (oauthUrl, provider) => {
+  recordOAuthDebug({ stage: 'bundled-oauth-start', url: oauthUrl.slice(0, 120) });
+  await waitForNativeOAuthPlugin(30);
+  if (hasRegisteredNativeOAuthPlugin()) {
+    try {
+      recordOAuthDebug({ stage: 'bundled-asweb-auth' });
+      await startNativeOAuthSession(oauthUrl, provider);
+      return;
+    } catch (error) {
+      window.__restorebraineOAuthInProgress = false;
+      const message = recordOAuthError(error, 'asweb-auth');
+      if (error?.code === 'CANCELED' || /^oauth canceled$/i.test(message)) return;
+      console.warn('Native ASWebAuthenticationSession failed — trying InAppBrowser:', error);
+    }
+  } else {
+    recordOAuthError(new Error('RestorebraineOAuth plugin not ready'), 'plugin-missing');
+  }
+  await openOAuthInSystemBrowser(oauthUrl, provider);
 };
 
 const handleOAuthBrowserNavigation = async (url) => {
@@ -324,11 +347,9 @@ export const openLoginInSystemBrowser = async (url = getGoogleOAuthUrl(), provid
     : normalizeAuthUrl(url || getCanonicalOAuthUrl(provider), provider);
   window.__restorebraineLastOAuthUrl = oauthUrl;
 
-  // ASWebAuthenticationSession via native plugin — wait for user to finish (no short timeout).
+  // Bundled: native iOS sign-in sheet first (proven on device), then InAppBrowser/Safari fallbacks.
   if (LOCAL_NATIVE_BUNDLE) {
-    // InAppBrowser listens for access_token on HTTPS redirect (restorebraine.base44.app).
-    // Native ASWeb with restorebraine:// scheme stalls if Base44 has not published native-oauth-return.js.
-    await openOAuthInSystemBrowser(oauthUrl, provider);
+    await openBundledNativeOAuth(oauthUrl, provider);
     return;
   }
 

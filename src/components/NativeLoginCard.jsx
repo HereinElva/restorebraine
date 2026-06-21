@@ -98,7 +98,7 @@ export default function NativeLoginCard({ clearSignedOut = false }) {
     if (openingProvider) return;
     clearSignedOutFlag();
     setErrorMessage('');
-    setNoticeMessage('A sign-in sheet will open — tap Continue, pick your account, then you return here.');
+    setNoticeMessage('Tap Continue on the sign-in sheet, pick your account, then you return here.');
     setOpeningProvider(provider);
     try {
       if (typeof window !== 'undefined') {
@@ -112,11 +112,13 @@ export default function NativeLoginCard({ clearSignedOut = false }) {
       const detail = typeof window !== 'undefined' ? window.__restorebraineLastOAuthError : '';
       const canceled = error?.code === 'CANCELED' || /cancel/i.test(error?.message || detail || '');
       if (!canceled) {
-        setErrorMessage(detail || error?.message || 'Could not open sign in. Try again or use email.');
+        setErrorMessage(detail || error?.message || 'Could not open sign in. Tap again or use email.');
       }
       setNoticeMessage('');
     } finally {
-      setOpeningProvider(null);
+      if (typeof window === 'undefined' || !window.__restorebraineOAuthInProgress) {
+        setOpeningProvider(null);
+      }
     }
   };
 
