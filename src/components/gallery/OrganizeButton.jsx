@@ -19,9 +19,9 @@ import {
   foldersForGalleryView,
   getGalleryOrganizeSnapshot,
   getUnorganizedPhotos,
-  normalizePhotoId,
   setGalleryOrganizeSnapshot,
 } from "@/lib/gallery-organize-snapshot";
+import { mergeApiFoldersWithLocal } from "@/lib/folder-membership";
 import { getGalleryUserEmail, galleryFoldersKey, galleryPhotosKey } from "@/lib/gallery-query-keys";
 import { runMediaOrganize } from "@/lib/run-media-organize";
 import { ORGANIZE_ICON_CLASS, ORGANIZE_LABEL_CLASS, SQUARE_FOLDER_ACTION_CLASS, SQUARE_FOLDER_ACTION_STYLE } from "./folderActionStyles";
@@ -88,28 +88,26 @@ export default function OrganizeButton({ photos, folders: foldersProp, squareSty
       const email = getGalleryUserEmail(queryClient, authUser?.email);
       const syncedPhotos = queryClient.getQueryData(galleryPhotosKey(email)) ?? photos;
 
-      // Refetch folders from server — same pattern as manual move (invalidateQueries)
+      const verifiedFolders = foldersForGalleryView(result.afterFolders || [], syncedPhotos);
+      queryClient.setQueryData(galleryFoldersKey(email), verifiedFolders);
+      setGalleryOrganizeSnapshot({ photos: syncedPhotos, folders: verifiedFolders });
+
       await queryClient.invalidateQueries({ queryKey: galleryFoldersKey(email) });
       await queryClient.refetchQueries({ queryKey: galleryFoldersKey(email) });
 
-      const apiFolders = queryClient.getQueryData(galleryFoldersKey(email)) ?? result.apiFolders ?? [];
-      const finalFolders = foldersForGalleryView(apiFolders, syncedPhotos);
-
-      queryClient.setQueryData(galleryFoldersKey(email), finalFolders);
-      setGalleryOrganizeSnapshot({ photos: syncedPhotos, folders: finalFolders });
-
-      const batchNormIds = new Set(
-        (result.photosToOrganize || []).map((p) => normalizePhotoId(p.id)).filter(Boolean),
+      const refetched = queryClient.getQueryData(galleryFoldersKey(email)) ?? [];
+      const merged = foldersForGalleryView(
+        mergeApiFoldersWithLocal(refetched, verifiedFolders),
+        syncedPhotos,
       );
-      const remainingLoose = getUnorganizedPhotos(syncedPhotos, apiFolders).filter((p) =>
-        batchNormIds.has(normalizePhotoId(p.id)),
-      ).length;
+      queryClient.setQueryData(galleryFoldersKey(email), merged);
+      setGalleryOrganizeSnapshot({ photos: syncedPhotos, folders: merged });
 
       alert(
         organizeResultMessage({
-          totalSaved: result.totalToOrganize - remainingLoose,
+          totalSaved: result.totalSaved,
           totalToOrganize: result.totalToOrganize,
-          missed: remainingLoose,
+          missed: result.missed,
           foldersSaved: result.foldersSaved,
         }),
       );

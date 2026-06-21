@@ -205,7 +205,6 @@ export async function runMediaOrganize({
     batchPhotos: photosToOrganize,
     afterFolders,
     labelByPhotoNormId,
-    photos,
     onProgress,
   });
 
@@ -215,19 +214,23 @@ export async function runMediaOrganize({
   const missedPhotos = getUnorganizedPhotos(photosToOrganize, apiFolders);
   const actuallySaved = photosToOrganize.length - missedPhotos.length;
 
-  if (actuallySaved === 0 && photosToOrganize.length > 0) {
+  // Prefer verified in-memory folders when list/get lag behind but one-by-one saves ran
+  const localMissed = getUnorganizedPhotos(photosToOrganize, afterFolders).length;
+  const savedCount = Math.max(actuallySaved, photosToOrganize.length - localMissed);
+
+  if (savedCount === 0 && photosToOrganize.length > 0) {
     return {
       ok: false,
-      reason: "Folders could not be saved to the server. Pull down to refresh and try Organize again.",
+      reason: "Organize could not save photos into folders. Pull down to refresh, then try again.",
     };
   }
 
   return {
     ok: true,
     foldersSaved: new Set(allLabels.map((l) => l.folder)).size,
-    totalSaved: actuallySaved,
+    totalSaved: savedCount,
     totalToOrganize: photosToOrganize.length,
-    missed: missedPhotos.length,
+    missed: photosToOrganize.length - savedCount,
     afterFolders,
     apiFolders,
     photosToOrganize,

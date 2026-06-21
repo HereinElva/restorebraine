@@ -36,34 +36,96 @@ function photoIdsPersisted(persistedIds, expectedIds) {
   return (expectedIds || []).every((id) => persistedNorm.has(normalizePhotoId(id)));
 }
 
-/** Update folder membership and verify with Folder.get before continuing. */
-export async function updateFolderPhotoIdsVerified(folderId, photoIds, extra = {}) {
-  const payload = { photo_ids: photoIds, ...extra };
+/** Read full folder records — list() can lag behind or omit photo_ids. */
+export async function fetchFoldersWithFullMembership(folderIds = null) {
+  const listed = await listAllFolders();
+  const refreshIds = folderIds ? new Set(folderIds) : null;
 
-  for (let attempt = 0; attempt < 4; attempt++) {
-    await base44.entities.Folder.update(folderId, payload);
-    if (attempt > 0) await sleep(250 * attempt);
-
-    try {
-      const fetched = await base44.entities.Folder.get(folderId);
-      if (photoIdsPersisted(fetched?.photo_ids, photoIds)) {
-        return fetched;
+  return Promise.all(
+    listed.map(async (folder) => {
+      if (!refreshIds || refreshIds.has(folder.id)) {
+        try {
+          const full = await base44.entities.Folder.get(folder.id);
+          return full || folder;
+        } catch {
+          return folder;
+        }
       }
-    } catch (error) {
-      console.warn('Folder.get verify failed:', error);
-    }
-  }
+      return folder;
+    }),
+  );
+}
 
-  try {
-    return await base44.entities.Folder.get(folderId);
-  } catch {
-    return null;
-  }
+/** Same pattern as MobilePhotoModal.handleMoveToFolder — one photo, one update. */
+async function appendPhotoToFolder(folder, photo) {
+  const updatedIds = mergePhotoIdsLikeManualMove(folder.photo_ids, [photo.id]);
+  const coverUrl = folder.cover_photo_url || photo.file_url || '';
+  const updated = await base44.entities.Folder.update(folder.id, {
+    photo_ids: updatedIds,
+    ...(!folder.cover_photo_url && coverUrl ? { cover_photo_url: coverUrl } : {}),
+  });
+  return {
+    ...folder,
+    ...updated,
+    photo_ids: updated?.photo_ids || updatedIds,
+    cover_photo_url: coverUrl || updated?.cover_photo_url || folder.cover_photo_url,
+  };
 }
 
 /**
- * Assign loose photos to folders — one verified Folder.update per target folder.
- * Returns the updated in-memory folder list.
+ * Assign loose photos one at a time — most reliable save path (matches manual move).
+ */
+export async function assignLoosePhotosOneByOne({
+  photosToAssign,
+  labelByPhotoNormId,
+  liveFolders,
+  includeOrganized,
+  onProgress,
+}) {
+  let folders = [...liveFolders];
+  const names = () => folders.map((f) => f.name);
+  const total = photosToAssign.filter((p) => p?.id != null).length;
+  let saved = 0;
+
+  for (const photo of photosToAssign) {
+    if (photo?.id == null) continue;
+    saved += 1;
+    onProgress?.(`Saving ${saved}/${total}…`);
+
+    const norm = normalizePhotoId(photo.id);
+    const folderName = normalizeFolderName(
+      labelByPhotoNormId.get(norm) || 'Miscellaneous',
+      names(),
+    );
+    let target = findFolderByDisplayName(folders, folderName, names());
+
+    if (target && !includeOrganized) {
+      const updated = await appendPhotoToFolder(target, photo);
+      folders = folders.map((f) => (f.id === target.id ? updated : f));
+    } else if (target && includeOrganized) {
+      const updated = await appendPhotoToFolder(target, photo);
+      folders = folders.map((f) => (f.id === target.id ? updated : f));
+    } else {
+      const created = await base44.entities.Folder.create({
+        name: folderName,
+        description: '',
+        photo_ids: [photo.id],
+        cover_photo_url: photo.file_url || '',
+      });
+      folders.push({
+        ...created,
+        name: folderName,
+        photo_ids: created?.photo_ids || [photo.id],
+        cover_photo_url: photo.file_url || created?.cover_photo_url || '',
+      });
+    }
+  }
+
+  return folders;
+}
+
+/**
+ * Assign loose photos to folders — batch by folder, fall back to one-by-one for any missed.
  */
 export async function assignLoosePhotosToFolders({
   photosToAssign,
@@ -71,7 +133,6 @@ export async function assignLoosePhotosToFolders({
   liveFolders,
   existingFolderNames,
   includeOrganized,
-  photos,
   onProgress,
 }) {
   let folders = [...liveFolders];
@@ -93,35 +154,21 @@ export async function assignLoosePhotosToFolders({
 
   for (const [folderName, groupPhotos] of groups) {
     let target = findFolderByDisplayName(folders, folderName, names());
-    const photoIds = toStoredPhotoIds(
-      groupPhotos.map((p) => p.id),
-      photos || groupPhotos,
-    );
+    const photoIds = groupPhotos.map((p) => p.id);
     const coverUrl =
       target?.cover_photo_url || groupPhotos.find((p) => p.file_url)?.file_url || '';
 
-    if (target && !includeOrganized) {
+    if (target) {
       const updatedIds = mergePhotoIdsLikeManualMove(target.photo_ids, photoIds);
       saved += groupPhotos.length;
       onProgress?.(`Saving ${saved}/${total}…`);
-      const verified = await updateFolderPhotoIdsVerified(target.id, updatedIds, {
+      const updated = await base44.entities.Folder.update(target.id, {
+        photo_ids: updatedIds,
         ...(!target.cover_photo_url && coverUrl ? { cover_photo_url: coverUrl } : {}),
       });
       folders = folders.map((f) =>
         f.id === target.id
-          ? { ...f, photo_ids: verified?.photo_ids || updatedIds }
-          : f,
-      );
-    } else if (target && includeOrganized) {
-      const updatedIds = mergePhotoIdsLikeManualMove(target.photo_ids, photoIds);
-      saved += groupPhotos.length;
-      onProgress?.(`Saving ${saved}/${total}…`);
-      const verified = await updateFolderPhotoIdsVerified(target.id, updatedIds, {
-        cover_photo_url: target.cover_photo_url || coverUrl,
-      });
-      folders = folders.map((f) =>
-        f.id === target.id
-          ? { ...f, photo_ids: verified?.photo_ids || updatedIds }
+          ? { ...f, ...updated, photo_ids: updated?.photo_ids || updatedIds }
           : f,
       );
     } else {
@@ -133,56 +180,16 @@ export async function assignLoosePhotosToFolders({
         photo_ids: photoIds,
         cover_photo_url: coverUrl,
       });
-      let verified = created;
-      if (!photoIdsPersisted(created?.photo_ids, photoIds)) {
-        verified = await updateFolderPhotoIdsVerified(created.id, photoIds, {
-          cover_photo_url: coverUrl || created.cover_photo_url || '',
-        });
-      }
       folders.push({
         ...created,
-        ...verified,
         name: folderName,
-        photo_ids: verified?.photo_ids || photoIds,
-        cover_photo_url: coverUrl || verified?.cover_photo_url || created.cover_photo_url || '',
+        photo_ids: created?.photo_ids || photoIds,
+        cover_photo_url: coverUrl || created?.cover_photo_url || '',
       });
     }
   }
 
   return folders;
-}
-
-/**
- * Push folder membership to the API when the server list is behind local saves.
- * Uses Folder.get to verify each write.
- */
-export async function persistFolderMembershipToApi(desiredFolders, photos, onProgress) {
-  let wrote = 0;
-
-  for (const desired of desiredFolders || []) {
-    const desiredIds = toStoredPhotoIds(desired.photo_ids, photos);
-    if (!desiredIds.length) continue;
-
-    let apiFolder;
-    try {
-      apiFolder = await base44.entities.Folder.get(desired.id);
-    } catch {
-      continue;
-    }
-
-    const merged = mergePhotoIdsLikeManualMove(apiFolder?.photo_ids, desiredIds);
-    const apiNorm = new Set((apiFolder?.photo_ids || []).map(normalizePhotoId));
-    const needsUpdate = merged.some((id) => !apiNorm.has(normalizePhotoId(id)));
-
-    if (needsUpdate) {
-      onProgress?.(`Syncing "${desired.name}"…`);
-      await updateFolderPhotoIdsVerified(desired.id, merged);
-      wrote += 1;
-    }
-  }
-
-  if (wrote > 0) await sleep(300);
-  return listAllFolders();
 }
 
 export async function listAllFolders() {
@@ -221,7 +228,8 @@ export async function mergeFoldersIntoTarget({
   );
   const coverUrl = targetFolder.cover_photo_url || coverPhoto?.file_url || '';
 
-  const verified = await updateFolderPhotoIdsVerified(targetFolderId, mergedIds, {
+  const updated = await base44.entities.Folder.update(targetFolderId, {
+    photo_ids: mergedIds,
     ...(!targetFolder.cover_photo_url && coverUrl ? { cover_photo_url: coverUrl } : {}),
   });
 
@@ -231,7 +239,8 @@ export async function mergeFoldersIntoTarget({
 
   const updatedTarget = {
     ...targetFolder,
-    photo_ids: verified?.photo_ids || mergedIds,
+    ...updated,
+    photo_ids: updated?.photo_ids || mergedIds,
     cover_photo_url: coverUrl || targetFolder.cover_photo_url,
   };
 
@@ -240,9 +249,7 @@ export async function mergeFoldersIntoTarget({
     .map((f) => (f.id === targetFolderId ? updatedTarget : f));
 }
 
-/**
- * Merge API folder list with in-memory saves from organize / manual moves.
- */
+/** Merge API folder list with in-memory saves from organize / manual moves. */
 export function mergeApiFoldersWithLocal(apiFolders, localFolders) {
   const apiById = new Map((apiFolders || []).map((f) => [f.id, f]));
   const localById = new Map((localFolders || []).map((f) => [f.id, f]));
@@ -268,23 +275,23 @@ export function mergeApiFoldersWithLocal(apiFolders, localFolders) {
 }
 
 /**
- * Re-save batch photos still missing from the API after organize.
- * Uses Folder.get / Folder.list (server truth) — never merged cache alone.
+ * Confirm batch photos on server; retry one-by-one for any still loose.
  */
 export async function reconcileOrganizeBatch({
   batchPhotos,
   afterFolders,
   labelByPhotoNormId,
-  photos,
   onProgress,
 }) {
   let desiredFolders = afterFolders || [];
+  const touchedIds = desiredFolders.map((f) => f.id);
 
   for (let attempt = 0; attempt < 3; attempt++) {
-    const apiFolders = await persistFolderMembershipToApi(desiredFolders, photos, onProgress);
+    await sleep(attempt === 0 ? 200 : 400 * attempt);
+    let apiFolders = await fetchFoldersWithFullMembership(touchedIds);
     desiredFolders = mergeApiFoldersWithLocal(apiFolders, desiredFolders);
 
-    const missedPhotos = getUnorganizedPhotos(batchPhotos, apiFolders);
+    let missedPhotos = getUnorganizedPhotos(batchPhotos, apiFolders);
     if (missedPhotos.length === 0) {
       return {
         folders: desiredFolders,
@@ -294,19 +301,18 @@ export async function reconcileOrganizeBatch({
       };
     }
 
-    onProgress?.(`Retrying ${missedPhotos.length} on server… (${attempt + 1}/3)`);
-    desiredFolders = await assignLoosePhotosToFolders({
+    onProgress?.(`Retrying ${missedPhotos.length}… (${attempt + 1}/3)`);
+    desiredFolders = await assignLoosePhotosOneByOne({
       photosToAssign: missedPhotos,
       labelByPhotoNormId,
       liveFolders: desiredFolders,
-      existingFolderNames: desiredFolders.map((f) => f.name),
       includeOrganized: false,
-      photos,
       onProgress,
     });
+    touchedIds.splice(0, touchedIds.length, ...desiredFolders.map((f) => f.id));
   }
 
-  const apiFolders = await persistFolderMembershipToApi(desiredFolders, photos, onProgress);
+  const apiFolders = await fetchFoldersWithFullMembership(touchedIds);
   desiredFolders = mergeApiFoldersWithLocal(apiFolders, desiredFolders);
   const missedPhotos = getUnorganizedPhotos(batchPhotos, apiFolders);
 
