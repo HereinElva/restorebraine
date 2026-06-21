@@ -33,8 +33,24 @@ const card = read('src/components/NativeLoginCard.jsx');
 for (const label of ['Continue With Google', 'Continue With Apple', 'Sign In With Email']) {
   if (!card.includes(label)) bad(`NativeLoginCard missing "${label}"`);
 }
+if (!card.includes('data-rb-provider')) bad('NativeLoginCard missing data-rb-provider on OAuth buttons');
+else ok('NativeLoginCard OAuth buttons have data-rb-provider');
 if (fail === 0 || card.includes('Continue With Google')) {
   ok('NativeLoginCard has Google, Apple, email options');
+}
+
+const v4oauth = existsSync('public/v4-native-oauth.js') ? read('public/v4-native-oauth.js') : '';
+if (v4oauth.includes('data-rb-provider') && v4oauth.includes('__restorebraineNativeOAuthTapBackup')) {
+  ok('v4-native-oauth.js has capture-phase OAuth tap backup');
+} else if (v4oauth) {
+  bad('v4-native-oauth.js missing OAuth tap backup wiring');
+}
+
+const oauthJs = read('src/lib/native-google-oauth.js');
+if (oauthJs.includes('RestorebraineOAuth') && oauthJs.includes('Browser.open')) {
+  ok('native-google-oauth uses registerPlugin + Browser fallback');
+} else {
+  bad('native-google-oauth missing registerPlugin or Browser fallback');
 }
 
 const account = read('src/pages/Account.jsx');

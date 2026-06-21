@@ -78,4 +78,36 @@
     appId: APP_ID,
     persistToken: persistToken,
   };
+
+  function openProviderFromBackup(provider) {
+    try {
+      if (window.__restorebraineOAuthInProgress) return;
+      var fn = window.__restorebraineOpenProviderLogin;
+      if (typeof fn === 'function') {
+        fn(provider);
+        return;
+      }
+      var openLogin = window.__restorebraineOpenLogin;
+      if (typeof openLogin === 'function' && provider === 'google') {
+        openLogin();
+      }
+    } catch (e) {}
+  }
+
+  if (!window.__restorebraineNativeOAuthTapBackup) {
+    window.__restorebraineNativeOAuthTapBackup = true;
+    document.addEventListener(
+      'click',
+      function (event) {
+        var target = event.target && event.target.closest
+          ? event.target.closest('[data-rb-provider]')
+          : null;
+        if (!target) return;
+        var provider = target.getAttribute('data-rb-provider');
+        if (!provider) return;
+        openProviderFromBackup(provider);
+      },
+      true
+    );
+  }
 })();

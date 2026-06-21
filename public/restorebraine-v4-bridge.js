@@ -402,7 +402,10 @@
                 if (!plugin || !plugin.startGoogleOAuth) return false;
                 plugin.startGoogleOAuth({ url: url }).then(function (result) {
                   var token = result && result.token;
-                  if (!token) return;
+                  if (!token) {
+                    launchSystemBrowserForOAuth(url);
+                    return;
+                  }
                   saveToken(token);
                   finishOAuthLogin();
                 }).catch(function (err) {

@@ -25,9 +25,10 @@ const formStyle = {
   textAlign: 'center',
 };
 
-const ProviderButton = ({ children, onClick, dark = false, disabled = false }) => (
+const ProviderButton = ({ children, onClick, provider, dark = false, disabled = false }) => (
   <button
     type="button"
+    data-rb-provider={provider}
     onClick={onClick}
     disabled={disabled}
     style={{
@@ -77,11 +78,15 @@ export default function NativeLoginCard({ clearSignedOut = false }) {
     setNoticeMessage('');
     setOpeningProvider(provider);
     try {
+      if (typeof window !== 'undefined') {
+        window.__restorebraineLastOAuthError = '';
+      }
       const url = provider === 'google' ? getGoogleOAuthUrl() : getProviderOAuthUrl(provider);
       await openLoginInSystemBrowser(url, provider);
     } catch (error) {
       console.error(`${provider} sign-in failed to open`, error);
-      setErrorMessage('Could not open sign in. Try again or use email.');
+      const detail = typeof window !== 'undefined' ? window.__restorebraineLastOAuthError : '';
+      setErrorMessage(detail || error?.message || 'Could not open sign in. Try again or use email.');
     } finally {
       setOpeningProvider(null);
     }
@@ -126,17 +131,17 @@ export default function NativeLoginCard({ clearSignedOut = false }) {
 
   return (
     <div style={cardStyle} data-rb-auth="sign-in-v4">
-      <form onSubmit={handleSubmit} noValidate style={formStyle}>
+      <div style={formStyle}>
         <h1 style={{ fontSize: '24px', fontWeight: '700', color: '#111', margin: '0 0 24px' }}>Restorebraine</h1>
 
-        <ProviderButton onClick={() => handleProviderClick('google')} disabled={!!openingProvider}>
+        <ProviderButton provider="google" onClick={() => handleProviderClick('google')} disabled={!!openingProvider}>
           <span style={{ color: '#4285F4', fontWeight: '800', marginRight: '10px' }}>G</span>
           {openingProvider === 'google' ? 'Opening Google…' : 'Continue With Google'}
         </ProviderButton>
-        <ProviderButton dark onClick={() => handleProviderClick('apple')} disabled={!!openingProvider}>
+        <ProviderButton provider="apple" dark onClick={() => handleProviderClick('apple')} disabled={!!openingProvider}>
           {openingProvider === 'apple' ? 'Opening Apple…' : 'Continue With Apple'}
         </ProviderButton>
-        <ProviderButton onClick={() => handleProviderClick('microsoft')} disabled={!!openingProvider}>
+        <ProviderButton provider="microsoft" onClick={() => handleProviderClick('microsoft')} disabled={!!openingProvider}>
           <span style={{ color: '#0078d4', fontWeight: '800', marginRight: '10px' }}>M</span>
           {openingProvider === 'microsoft' ? 'Opening Microsoft…' : 'Continue With Microsoft'}
         </ProviderButton>
@@ -147,6 +152,7 @@ export default function NativeLoginCard({ clearSignedOut = false }) {
           <div style={{ height: '1px', background: '#e5e7eb', flex: 1 }} />
         </div>
 
+        <form onSubmit={handleSubmit} noValidate>
         {mode === 'signup' ? (
           <>
             <label style={{ display: 'block', textAlign: 'left', fontSize: '13px', fontWeight: '600', color: '#374151', marginBottom: '6px' }}>Name</label>
@@ -213,7 +219,8 @@ export default function NativeLoginCard({ clearSignedOut = false }) {
         <p style={{ margin: '14px 0 0', color: '#c4b5fd', fontSize: '11px', fontWeight: '600' }}>
           {isNativeShell() ? NATIVE_BUILD_LABEL : WEB_BUILD_LABEL}
         </p>
-      </form>
+        </form>
+      </div>
       <NativeDebugBadge />
     </div>
   );

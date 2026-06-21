@@ -34,6 +34,10 @@ export default function NativeDebugBadge() {
       : 'none';
     const oldLoginUi = typeof document !== 'undefined'
       && /sign in to access your memories/i.test(document.body?.innerText ?? '');
+    const oauthPlugin = typeof window !== 'undefined'
+      && (typeof window.Capacitor?.Plugins?.RestorebraineOAuth?.startGoogleOAuth === 'function'
+        || typeof window.RestorebraineOAuth?.startGoogleOAuth === 'function');
+    const lastOAuthError = typeof window !== 'undefined' ? window.__restorebraineLastOAuthError : '';
     return {
       mode: getModeLabel(),
       origin,
@@ -46,6 +50,8 @@ export default function NativeDebugBadge() {
       stampMismatch,
       authLayer,
       oldLoginUi,
+      oauthPlugin,
+      lastOAuthError,
     };
   }, []);
 
@@ -97,6 +103,14 @@ export default function NativeDebugBadge() {
           {typeof window !== 'undefined' && window.__restorebraineLastOAuthUrl ? (
             <div style={{ opacity: 0.65, marginTop: 2, fontSize: '9px', wordBreak: 'break-all' }}>
               oauth: {String(window.__restorebraineLastOAuthUrl).slice(0, 48)}…
+            </div>
+          ) : null}
+          <div style={{ opacity: 0.65, marginTop: 2, fontSize: '9px', color: info.oauthPlugin ? '#86efac' : '#fca5a5' }}>
+            oauth-plugin: {info.oauthPlugin ? 'yes' : 'missing'}
+          </div>
+          {info.lastOAuthError ? (
+            <div style={{ opacity: 0.65, marginTop: 2, fontSize: '9px', color: '#fca5a5', wordBreak: 'break-all' }}>
+              err: {String(info.lastOAuthError).slice(0, 80)}
             </div>
           ) : null}
           <div style={{ opacity: 0.65, marginTop: 2, fontSize: '9px', color: info.authLayer === 'none' ? '#fca5a5' : '#86efac' }}>

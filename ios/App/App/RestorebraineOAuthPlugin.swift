@@ -56,9 +56,22 @@ public class RestorebraineOAuthPlugin: CAPPlugin, CAPBridgedPlugin, ASWebAuthent
         DispatchQueue.main.async {
             self.authSession?.cancel()
 
-            // iOS 17.4+: catch https://restorebraine.base44.app/?access_token= directly.
+            // Prefer restorebraine:// — works without universal-link timing; hosted page redirects via native-oauth-return.js.
+            let schemeSession = ASWebAuthenticationSession(url: url, callbackURLScheme: "restorebraine") { [weak self] callbackURL, error in
+                guard let self else { return }
+                let token = callbackURL.flatMap { self.tokenFromCallbackURL($0) }
+                self.resolveCall(call, token: token, callbackURL: callbackURL, error: error)
+            }
+            schemeSession.presentationContextProvider = self
+            schemeSession.prefersEphemeralWebBrowserSession = false
+            self.authSession = schemeSession
+            if schemeSession.start() { return }
+
+            self.authSession = nil
+
+            // iOS 17.4+: catch https://restorebraine.base44.app/?access_token= directly when configured.
             if #available(iOS 17.4, *) {
-                let session = ASWebAuthenticationSession(
+                let httpsSession = ASWebAuthenticationSession(
                     url: url,
                     callback: .https(host: "restorebraine.base44.app", path: "/")
                 ) { [weak self] callbackURL, error in
@@ -66,27 +79,14 @@ public class RestorebraineOAuthPlugin: CAPPlugin, CAPBridgedPlugin, ASWebAuthent
                     let token = callbackURL.flatMap { self.tokenFromCallbackURL($0) }
                     self.resolveCall(call, token: token, callbackURL: callbackURL, error: error)
                 }
-                session.presentationContextProvider = self
-                session.prefersEphemeralWebBrowserSession = false
-                self.authSession = session
-                if session.start() { return }
+                httpsSession.presentationContextProvider = self
+                httpsSession.prefersEphemeralWebBrowserSession = false
+                self.authSession = httpsSession
+                if httpsSession.start() { return }
                 self.authSession = nil
             }
 
-            // All iOS: restorebraine://oauth/callback?access_token= (hosted page runs native-oauth-return.js).
-            let session = ASWebAuthenticationSession(url: url, callbackURLScheme: "restorebraine") { [weak self] callbackURL, error in
-                guard let self else { return }
-                let token = callbackURL.flatMap { self.tokenFromCallbackURL($0) }
-                self.resolveCall(call, token: token, callbackURL: callbackURL, error: error)
-            }
-            session.presentationContextProvider = self
-            session.prefersEphemeralWebBrowserSession = false
-            self.authSession = session
-
-            if !session.start() {
-                self.authSession = nil
-                call.reject("Could not start OAuth session")
-            }
+            call.reject("Could not start OAuth session")
         }
     }
 
