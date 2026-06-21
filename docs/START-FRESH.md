@@ -57,11 +57,17 @@ node scripts/verify-base44-live.mjs
 
 ## After Phase 1 — Publish Base44
 
+**Use the wizard** (do not open the giant txt file):
+
 ```bash
-open base44-publish-v178.txt   # or latest deploy number
+bash scripts/base44-publish-wizard.sh
 ```
 
-Paste every `BASE44 PATH` block → **Publish once** → then:
+One file at a time: Terminal copies → you Paste in Base44 → Save → Enter.
+
+Guide: `docs/BASE44-PUBLISH.md`
+
+Then verify:
 
 ```bash
 node scripts/verify-base44-live.mjs

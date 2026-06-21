@@ -1,14 +1,18 @@
 Restorebraine Base44 Publish Pack — deploy v178
 
-HOW TO USE:
-1. Open Base44 Code editor for app Restorebraine
-2. For each block below, open the BASE44 PATH file in the editor
-3. Select all existing code in that file → delete → paste the code below the divider
-4. Save each file before moving to the next
-5. After ALL files in Part 1, 2, and 3 are saved → click Publish once
+HOW TO USE (recommended — do NOT scroll this file):
 
-Mac shortcut (copies one file at a time — paste into Base44, NOT Terminal):
-  pbcopy < src/Layout.jsx
+  bash scripts/base44-publish-wizard.sh
+
+The wizard copies ONE file at a time to your clipboard and tells you
+which Base44 path to open. Select All → Paste → Save → Enter for next.
+After all 35 files → Publish once.
+
+Short guide: docs/BASE44-PUBLISH.md
+
+This file is a backup reference only. Use the wizard instead.
+
+Manual one-file copy:  pbcopy < src/Layout.jsx
 
 
 ╔════════════════════════════════════════════════════════════╗
@@ -1155,8 +1159,6 @@ import NativeLoginCard from '@/components/NativeLoginCard';
  * Hosted App Store builds load live Base44 — same card after Publish.
  */
 export default function SignInScreen({ clearSignedOut = false }) {
-  const { navigateToLogin } = useAuth();
-
   useEffect(() => {
     document.documentElement.setAttribute('data-rb-screen', 'sign-in');
     return () => document.documentElement.removeAttribute('data-rb-screen');

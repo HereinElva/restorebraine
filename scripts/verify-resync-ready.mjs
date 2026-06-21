@@ -48,8 +48,8 @@ try {
 console.log('');
 if (fail) {
   console.error('=== Next on Mac ===');
-  console.error('  bash scripts/mac-resync-omega.sh --base44-only');
-  console.error(`  open base44-publish-v${deploy}.txt → paste all paths → Publish once`);
+  console.error('  bash scripts/base44-publish-wizard.sh');
+  console.error('  docs/BASE44-PUBLISH.md');
   console.error('  node scripts/verify-base44-live.mjs');
   console.error('  bash scripts/mac-resync-omega.sh --native-only');
   process.exit(1);

@@ -55,11 +55,9 @@ if (hasOldSingleGoogle) {
 
 console.log('');
 if (fail) {
-  console.error('=== Fix: ONE full publish from git (do not edit Base44 piecemeal) ===');
-  console.error('  bash scripts/mac-resync-omega.sh --base44-only');
-  console.error('  open base44-publish-v' + localDeploy + '.txt → paste all paths → Publish');
-  console.error('  node scripts/verify-base44-live.mjs');
-  console.error('  bash scripts/mac-resync-omega.sh --native-only');
+  console.error('=== Fix: run the Base44 wizard (one file at a time) ===');
+  console.error('  bash scripts/base44-publish-wizard.sh');
+  console.error('  docs/BASE44-PUBLISH.md');
   process.exit(1);
 }
 console.log('=== Base44 live matches git ===');

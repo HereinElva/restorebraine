@@ -81,31 +81,27 @@ phase_base44() {
 
   cat <<EOF
 ════════════════════════════════════════════════════════════════
-  PHASE 1 — BASE44: paste publish pack, then Publish ONCE
+  PHASE 1 — BASE44 (use the wizard — NOT the giant txt file)
 ════════════════════════════════════════════════════════════════
 
-  Publish pack: ${PUBLISH} (${BLOCKS} files)
+  bash scripts/base44-publish-wizard.sh
 
-  open ${PUBLISH}
+  • Keeps Base44 Code editor open
+  • Each step: Terminal copies 1 file → you Paste into that path → Save → Enter
+  • ${BLOCKS} files total — Publish ONCE at the end
+  • Guide: docs/BASE44-PUBLISH.md
 
-  For EACH "BASE44 PATH:" block:
-    1. Open that exact path in Base44 Code editor
-    2. Select All → Paste → Save
-  After ALL blocks saved → click Publish ONCE
+  Resume if interrupted:
+    bash scripts/base44-publish-wizard.sh 12
 
-  Or: bash scripts/base44-publish-copy-commands.sh  (pbcopy per file)
-
-  Verify in Terminal:
+  Verify:
     node scripts/verify-base44-live.mjs
 
-  Verify in Safari (private tab):
-    https://restorebraine.base44.app
+  Safari: https://restorebraine.base44.app
     • Google + Apple + Microsoft + email login
-    • Folders tab buttons
-    • Account → Back to Gallery (no sign-out)
     • View Source: restorebraine-deploy content="v${DEPLOY}"
 
-  When verify-base44-live shows OK → run Phase 2:
+  When verify-base44-live shows OK → Phase 2:
     bash scripts/mac-resync-omega.sh --native-only
 
 EOF

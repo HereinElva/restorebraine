@@ -19,6 +19,8 @@
     "verify:auth": "node scripts/verify-auth-flow.mjs",
     "verify:base44": "node scripts/verify-base44-live.mjs",
     "verify:resync": "node scripts/verify-resync-ready.mjs",
+    "base44:wizard": "bash scripts/base44-publish-wizard.sh",
+    "base44:checklist": "bash scripts/base44-publish-wizard.sh --list",
     "mac:nuclear-scrub": "bash scripts/mac-nuclear-scrub.sh",
     "mac:v4-build": "bash scripts/mac-ios-v4-build.sh",
     "mac:v4-install": "bash scripts/mac-ios-v4-install.sh",
