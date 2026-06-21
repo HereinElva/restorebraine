@@ -371,6 +371,8 @@
           function openLoginInWebView(url, providerHint) {
             url = normalizeAuthUrl(url || getCanonicalOAuthUrl(providerHint || 'google'), providerHint);
             window.__restorebraineOAuthMode = 'v4-webview';
+            window.__restorebraineOAuthInProgress = true;
+            window.__restorebraineLastOAuthUrl = url;
             function launchWebView() {
               try {
                 var ib = getInAppBrowserPlugin();

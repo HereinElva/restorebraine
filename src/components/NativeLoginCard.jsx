@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/AuthContext';
-import { openLoginInSystemBrowser } from '@/lib/native-google-oauth';
-import { getGoogleOAuthUrl, getProviderOAuthUrl } from '@/lib/native-platform-guard';
+import { launchProviderOAuth } from '@/lib/native-google-oauth';
 
 const BRAND_GRADIENT = 'linear-gradient(135deg,#60a5fa,#a78bfa)';
 
@@ -88,22 +87,8 @@ export default function NativeLoginCard({ clearSignedOut = false }) {
     clearSignedOutFlag();
     setErrorMessage('');
     setOpeningProvider(provider);
-    if (typeof window !== 'undefined') {
-      window.__restorebraineLastOAuthError = '';
-    }
-    const url = provider === 'google' ? getGoogleOAuthUrl() : getProviderOAuthUrl(provider);
-    openLoginInSystemBrowser(url, provider)
-      .catch((error) => {
-        console.error(`${provider} sign-in failed to open`, error);
-        const detail = typeof window !== 'undefined' ? window.__restorebraineLastOAuthError : '';
-        const canceled = error?.code === 'CANCELED' || /cancel/i.test(error?.message || detail || '');
-        if (!canceled) {
-          setErrorMessage(detail || error?.message || 'Could not open sign in. Tap again or use email.');
-        }
-      })
-      .finally(() => {
-        setOpeningProvider(null);
-      });
+    window.setTimeout(() => setOpeningProvider(null), 900);
+    launchProviderOAuth(provider);
   };
 
   const handleSubmit = async (event) => {

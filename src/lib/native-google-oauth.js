@@ -78,7 +78,6 @@ export const captureOAuthTokenFromUrl = async (url) => {
 };
 
 let oauthListenerAttached = false;
-let oauthListenerAttachPromise = null;
 let oauthTokenPollTimer = null;
 
 const waitForCapacitorBridge = async (maxAttempts = 100) => {
@@ -280,7 +279,7 @@ const waitForOAuthBrowserClose = async (ib) => {
   });
 };
 
-/** Bundled native: in-app WebView modal — captures HTTPS ?access_token= without leaving Restorebraine. */
+/** Bundled native: in-app WebView modal — must return quickly so login button does not stick. */
 const openOAuthInWebView = async (url, providerHint) => {
   const normalizedUrl = normalizeAuthUrl(
     url || getWebViewOAuthUrl(providerHint || 'google'),
@@ -294,25 +293,22 @@ const openOAuthInWebView = async (url, providerHint) => {
   }
   recordOAuthDebug({ stage: 'inapp-webview', url: normalizedUrl.slice(0, 120) });
 
-  await waitForCapacitorBridge(80);
-  await attachOAuthCompletionListener();
+  void attachOAuthCompletionListener().catch((error) => {
+    console.warn('OAuth listeners attach failed:', error);
+  });
   startOAuthTokenPoll();
 
-  const ib = await getInAppBrowserPluginAsync(80);
+  const ib = await withTimeout(getInAppBrowserPluginAsync(25), 2500, 'InAppBrowser plugin');
   if (!ib?.openInWebView) {
     signalOAuthEnded();
     throw new Error('InAppBrowser openInWebView not available — rebuild in Xcode.');
   }
 
-  // Do NOT await openInWebView — on iOS the promise may not resolve until the sheet closes,
-  // which leaves the login button stuck on "Opening Google…".
   ib.openInWebView({ url: normalizedUrl, options: WEBVIEW_OPTIONS }).catch((error) => {
     if (!window.__restorebraineOAuthInProgress) return;
     signalOAuthEnded();
     recordOAuthError(error, 'inappbrowser-webview-open');
   });
-
-  await new Promise((resolve) => setTimeout(resolve, 350));
 };
 
 const openOAuthInSystemBrowser = async (url, providerHint) => {
@@ -346,7 +342,7 @@ const openOAuthInSystemBrowser = async (url, providerHint) => {
 const openBundledNativeOAuth = async (oauthUrl, provider) => {
   recordOAuthDebug({ stage: 'bundled-oauth-start', url: oauthUrl.slice(0, 120) });
   try {
-    await openOAuthInWebView(oauthUrl, provider);
+    await withTimeout(openOAuthInWebView(oauthUrl, provider), 3000, 'OAuth sheet launch');
   } catch (error) {
     window.__restorebraineOAuthInProgress = false;
     recordOAuthError(error, 'inappbrowser-webview');
@@ -354,6 +350,29 @@ const openBundledNativeOAuth = async (oauthUrl, provider) => {
     if (error?.code === 'CANCELED' || /^oauth canceled$/i.test(message)) return;
     throw error;
   }
+};
+
+/** Fire-and-forget OAuth launch for UI handlers — never block the login button. */
+export const launchProviderOAuth = (provider = 'google') => {
+  const url = provider === 'google' ? getGoogleOAuthUrl() : getProviderOAuthUrl(provider);
+  if (typeof window !== 'undefined') {
+    window.__restorebraineLastOAuthError = '';
+    window.__restorebraineOAuthInProgress = true;
+  }
+  recordOAuthDebug({ stage: 'launch-provider', provider });
+
+  if (typeof window !== 'undefined' && typeof window.__restorebraineOpenProviderLogin === 'function') {
+    try {
+      window.__restorebraineOpenProviderLogin(provider);
+      return;
+    } catch (error) {
+      recordOAuthError(error, 'bridge-oauth-launch');
+    }
+  }
+
+  void openLoginInSystemBrowser(url, provider).catch((error) => {
+    recordOAuthError(error, 'esm-oauth-launch');
+  });
 };
 
 const handleOAuthBrowserNavigation = async (url) => {
@@ -384,45 +403,43 @@ const handleOAuthBrowserNavigation = async (url) => {
 
 const attachOAuthCompletionListener = async () => {
   if (oauthListenerAttached) return;
-  if (oauthListenerAttachPromise) return oauthListenerAttachPromise;
 
-  oauthListenerAttachPromise = (async () => {
-    try {
-      await waitForCapacitorBridge(80);
-      const ib = await getInAppBrowserPluginAsync(80);
-      await ib.addListener('browserPageNavigationCompleted', async (data) => {
-        await handleOAuthBrowserNavigation(data?.url);
-      });
-      await ib.addListener('browserPageLoaded', async (data) => {
-        await handleOAuthBrowserNavigation(data?.url);
-      });
-      await ib.addListener('browserClosed', async () => {
-        if (await tryRestoreSessionAfterOAuth()) {
-          stopOAuthTokenPoll();
-          window.__restorebraineOAuthInProgress = false;
-          return;
-        }
-        try {
-          const { App } = await import('@capacitor/app');
-          const launch = await App.getLaunchUrl();
-          if (launch?.url && (await handleNativeOAuthCallback(launch.url))) return;
-        } catch {}
-        if (localStorage.getItem('b44_signed_out') !== '1') {
-          await tryRestoreSessionAfterOAuth();
-        }
-        signalOAuthEnded();
-      });
-      oauthListenerAttached = true;
-    } catch (error) {
-      oauthListenerAttached = false;
-      recordOAuthError(error, 'oauth-listeners');
-      throw error;
-    } finally {
-      oauthListenerAttachPromise = null;
-    }
-  })();
+  try {
+    await withTimeout(waitForCapacitorBridge(30), 3000, 'Capacitor bridge');
+    const ib = await withTimeout(getInAppBrowserPluginAsync(30), 3000, 'InAppBrowser plugin');
 
-  return oauthListenerAttachPromise;
+    // Do NOT await addListener — on some iOS builds the promise never resolves and blocks the login button.
+    ib.addListener('browserPageNavigationCompleted', async (data) => {
+      await handleOAuthBrowserNavigation(data?.url);
+    }).catch((error) => recordOAuthError(error, 'oauth-nav-listener'));
+
+    ib.addListener('browserPageLoaded', async (data) => {
+      await handleOAuthBrowserNavigation(data?.url);
+    }).catch((error) => recordOAuthError(error, 'oauth-load-listener'));
+
+    ib.addListener('browserClosed', async () => {
+      if (await tryRestoreSessionAfterOAuth()) {
+        stopOAuthTokenPoll();
+        window.__restorebraineOAuthInProgress = false;
+        return;
+      }
+      try {
+        const { App } = await import('@capacitor/app');
+        const launch = await App.getLaunchUrl();
+        if (launch?.url && (await handleNativeOAuthCallback(launch.url))) return;
+      } catch {}
+      if (localStorage.getItem('b44_signed_out') !== '1') {
+        await tryRestoreSessionAfterOAuth();
+      }
+      signalOAuthEnded();
+    }).catch((error) => recordOAuthError(error, 'oauth-close-listener'));
+
+    oauthListenerAttached = true;
+  } catch (error) {
+    oauthListenerAttached = false;
+    recordOAuthError(error, 'oauth-listeners');
+    throw error;
+  }
 };
 
 /** OAuth via native ASWebAuthenticationSession — all providers (URL-driven, not Google-only). */
@@ -467,7 +484,7 @@ export const openLoginInSystemBrowser = async (url = getGoogleOAuthUrl(), provid
     : normalizeAuthUrl(url || getCanonicalOAuthUrl(provider), provider);
   window.__restorebraineLastOAuthUrl = oauthUrl;
 
-  // Bundled: native iOS sign-in sheet first (proven on device), then InAppBrowser/Safari fallbacks.
+  // Bundled: in-app WebView sheet (returns within ~3s — OAuth completion is async).
   if (LOCAL_NATIVE_BUNDLE) {
     await openBundledNativeOAuth(oauthUrl, provider);
     return;

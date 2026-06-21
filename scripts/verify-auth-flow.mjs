@@ -52,10 +52,12 @@ if (oauthJs.includes('RestorebraineOAuth') && oauthJs.includes('Browser.open')) 
 } else {
   bad('native-google-oauth missing registerPlugin or Browser fallback');
 }
-if (oauthJs.includes('oauthListenerAttachPromise') && !/oauthListenerAttached = true;\s*\n\s*const ib = await getInAppBrowserPluginAsync/.test(oauthJs)) {
+if (!oauthJs.includes('oauthListenerAttachPromise') && /getInAppBrowserPluginAsync[\s\S]*oauthListenerAttached = true/.test(oauthJs)) {
   ok('OAuth listeners attach after InAppBrowser ready (no poisoned flag)');
+} else if (oauthJs.includes('oauthListenerAttachPromise')) {
+  bad('oauthListenerAttachPromise deadlock pattern still present');
 } else {
-  bad('OAuth listener attach may poison oauthListenerAttached before plugin ready');
+  bad('OAuth listener attach order unclear');
 }
 if (oauthJs.includes('openInWebView({ url: normalizedUrl') && !oauthJs.includes('await ib.openInWebView({ url: normalizedUrl')) {
   ok('Bundled WebView open is non-blocking (button resets after sheet opens)');
@@ -75,6 +77,22 @@ if (rootCap.includes('InAppBrowserPlugin')) {
   ok('Root capacitor.config.json registers InAppBrowserPlugin');
 } else {
   bad('Root capacitor.config.json missing InAppBrowserPlugin');
+}
+
+if (oauthJs.includes('launchProviderOAuth') && oauthJs.includes('withTimeout(openOAuthInWebView')) {
+  ok('Bundled OAuth launch is time-bounded and non-blocking for login button');
+} else {
+  bad('Bundled OAuth launch may block login button');
+}
+if (oauthJs.includes('oauthListenerAttachPromise')) {
+  bad('oauthListenerAttachPromise deadlock pattern still present');
+} else {
+  ok('OAuth listeners do not use hanging attach promise');
+}
+if (card.includes('launchProviderOAuth')) {
+  ok('NativeLoginCard uses launchProviderOAuth with hard button reset timer');
+} else {
+  bad('NativeLoginCard still awaits blocking openLoginInSystemBrowser');
 }
 
 if (oauthJs.includes('LOCAL_NATIVE_BUNDLE') && oauthJs.includes('openOAuthInWebView')) {
