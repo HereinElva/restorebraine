@@ -27,10 +27,13 @@ function git(args) {
 
 function resolveRef() {
   try {
-    git(`rev-parse ${OMEGA_TAG}^{commit}`);
-    return git(`rev-parse ${OMEGA_TAG}^{commit}`);
+    return execSync(`git rev-parse ${OMEGA_TAG}^{commit}`, { cwd: repo, encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'] }).trim();
   } catch {
-    return git(`rev-parse ${OMEGA_COMMIT}^{commit}`);
+    try {
+      return execSync(`git rev-parse ${OMEGA_COMMIT}^{commit}`, { cwd: repo, encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'] }).trim();
+    } catch {
+      return OMEGA_COMMIT;
+    }
   }
 }
 

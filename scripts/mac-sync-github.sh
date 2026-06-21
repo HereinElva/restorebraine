@@ -33,6 +33,7 @@ echo "Mac was at:  $BEFORE"
 
 echo "Fetching from GitHub..."
 git fetch "$REMOTE" "$BRANCH"
+git fetch "$REMOTE" --tags 2>/dev/null || true
 
 git checkout -B "$BRANCH" "FETCH_HEAD"
 git reset --hard "FETCH_HEAD"
