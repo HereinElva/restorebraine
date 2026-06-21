@@ -220,7 +220,7 @@ export async function runMediaOrganize({
   let afterFolders = saveResult.folders;
   const failedNormIds = new Set((saveResult.failedPhotoIds || []).map(normalizePhotoId));
 
-  onProgress?.("Finishing…");
+  onProgress?.("Done");
 
   const savedApiFolders = afterFolders;
 

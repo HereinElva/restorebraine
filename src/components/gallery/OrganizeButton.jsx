@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { FolderPlus, Loader2, Sparkles } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -21,7 +21,7 @@ import {
   loosePhotosForOrganize,
   setGalleryOrganizeSnapshot,
 } from "@/lib/gallery-organize-snapshot";
-import { persistGalleryFolders, persistGalleryFoldersFast, persistGalleryFoldersSync } from "@/lib/folder-membership-cache";
+import { persistGalleryFoldersFast, persistGalleryFoldersSync } from "@/lib/folder-membership-cache";
 import { mergeApiFoldersWithLocal } from "@/lib/folder-membership";
 import { getGalleryUserEmail, galleryFoldersKey, galleryPhotosKey } from "@/lib/gallery-query-keys";
 import { runMediaOrganize } from "@/lib/run-media-organize";
@@ -53,6 +53,7 @@ export default function OrganizeButton({ photos, folders: foldersProp, squareSty
   const [includeOrganized, setIncludeOrganized] = useState(false);
   const queryClient = useQueryClient();
   const { user: authUser } = useAuth();
+  const organizeInFlight = useRef(false);
 
   const snapshot = getGalleryOrganizeSnapshot();
   const folders = foldersProp ?? snapshot.folders;
@@ -60,14 +61,20 @@ export default function OrganizeButton({ photos, folders: foldersProp, squareSty
 
   useEffect(() => {
     const resetOrganizing = () => {
+      organizeInFlight.current = false;
       setOrganizing(false);
       setProgressLabel("");
     };
     window.addEventListener("restorebraine-gallery-refresh", resetOrganizing);
-    return () => window.removeEventListener("restorebraine-gallery-refresh", resetOrganizing);
+    return () => {
+      window.removeEventListener("restorebraine-gallery-refresh", resetOrganizing);
+      organizeInFlight.current = false;
+    };
   }, []);
 
   const handleOrganize = async () => {
+    if (organizeInFlight.current) return;
+
     if (photos.length < 1) {
       alert("Add photos before organizing.");
       return;
@@ -81,6 +88,7 @@ export default function OrganizeButton({ photos, folders: foldersProp, squareSty
     }
 
     setShowDialog(false);
+    organizeInFlight.current = true;
     setOrganizing(true);
     setProgressLabel("Starting…");
 
@@ -126,7 +134,7 @@ export default function OrganizeButton({ photos, folders: foldersProp, squareSty
 
       if (email && verifiedFolders.length > 0) {
         persistGalleryFoldersSync(email, verifiedFolders);
-        await persistGalleryFolders(email, verifiedFolders);
+        persistGalleryFoldersFast(email, verifiedFolders);
       }
 
       setOrganizing(false);
@@ -145,6 +153,7 @@ export default function OrganizeButton({ photos, folders: foldersProp, squareSty
       console.error("Error organizing:", error);
       alert(formatLLMError(error));
     } finally {
+      organizeInFlight.current = false;
       setOrganizing(false);
       setProgressLabel("");
     }

@@ -253,11 +253,14 @@ export function persistGalleryFoldersSync(email, folders) {
   mirrorMembershipToLocalStorage(email, { ...existingMap, ...fromFolders });
 }
 
-/** Await Preferences backup (localStorage already written synchronously). */
-export async function persistGalleryFolders(email, folders) {
+/** Await Preferences backup (localStorage already written synchronously). Times out so UI never hangs. */
+export async function persistGalleryFolders(email, folders, { maxWaitMs = 4000 } = {}) {
   if (!email || !folders?.length) return;
   persistGalleryFoldersSync(email, folders);
-  await enqueuePersist(() => persistGalleryFoldersCore(email, folders));
+  await Promise.race([
+    enqueuePersist(() => persistGalleryFoldersCore(email, folders)),
+    new Promise((resolve) => setTimeout(resolve, maxWaitMs)),
+  ]);
 }
 
 /** Queued Preferences backup during organize — sync mirror happens immediately. */
