@@ -26,6 +26,8 @@ function showBootstrapError(message) {
 
 function markAppMounted() {
   window.__restorebraineAppMounted = true;
+  document.getElementById('rb-native-stamp')?.remove();
+  document.querySelectorAll('[id*="native-stamp"]').forEach((node) => node.remove());
 }
 
 function loadV4BridgeScript() {

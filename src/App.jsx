@@ -28,7 +28,7 @@ const LayoutWrapper = ({ children, currentPageName }) => Layout ?
   : <>{children}</>;
 
 const AuthenticatedApp = () => {
-  const { isLoadingAuth, isLoadingPublicSettings, authError, isAuthenticated, manuallyLoggedOut } = useAuth();
+  const { authError, isAuthenticated, manuallyLoggedOut } = useAuth();
 
   if (manuallyLoggedOut) {
     return <SignInScreen clearSignedOut />;
@@ -49,26 +49,16 @@ const AuthenticatedApp = () => {
   }
 
   // Token or session present — render app immediately; auth/settings finish in background.
-  const showBootSpinner = (isLoadingPublicSettings || isLoadingAuth) && !hasToken && !isAuthenticated;
-
   return (
-    <>
-      {showBootSpinner ? (
-        <div className="fixed inset-0 z-[200] flex flex-col items-center justify-center bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 gap-4 safe-top safe-bottom">
-          <div className="w-8 h-8 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin" />
-          <p className="text-sm text-gray-500">Loading Restorebraine…</p>
-        </div>
-      ) : null}
-      <LayoutWrapper currentPageName={mainPageKey}>
-        <Routes>
-          <Route path="/" element={<MainPage />} />
-          {Object.entries(Pages).map(([path, Page]) => (
-            <Route key={path} path={`/${path.toLowerCase()}`} element={<Page />} />
-          ))}
-          <Route path="*" element={<PageNotFound />} />
-        </Routes>
-      </LayoutWrapper>
-    </>
+    <LayoutWrapper currentPageName={mainPageKey}>
+      <Routes>
+        <Route path="/" element={<MainPage />} />
+        {Object.entries(Pages).map(([path, Page]) => (
+          <Route key={path} path={`/${path.toLowerCase()}`} element={<Page />} />
+        ))}
+        <Route path="*" element={<PageNotFound />} />
+      </Routes>
+    </LayoutWrapper>
   );
 };
 

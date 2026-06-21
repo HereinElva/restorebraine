@@ -103,7 +103,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         guard let webView = bridge.webView else { return }
         webView.allowsBackForwardNavigationGestures = false
         webView.allowsLinkPreview = false
-        webView.scrollView.contentInsetAdjustmentBehavior = .automatic
+        webView.scrollView.contentInsetAdjustmentBehavior = .never
         webView.scrollView.bounces = false
     }
 

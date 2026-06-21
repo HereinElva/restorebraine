@@ -147,7 +147,10 @@ export const AuthProvider = ({ children }) => {
         return;
       }
 
-      setIsLoadingPublicSettings(true);
+      const existingToken = syncToken || appParams.token;
+      if (!existingToken) {
+        setIsLoadingPublicSettings(true);
+      }
       setAuthError(null);
 
       const restoredToken = await restoreSessionFromNativeStorage();

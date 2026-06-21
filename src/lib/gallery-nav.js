@@ -28,7 +28,7 @@ export async function persistActiveSession() {
 
 export function navigateToGallery(navigate, { popBack, resumeActiveSession } = {}) {
   popBack?.();
-  navigate(GALLERY_PATH, { replace: true });
+  navigate('/', { replace: true });
   void persistActiveSession();
   void resumeActiveSession?.();
 }

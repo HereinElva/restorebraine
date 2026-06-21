@@ -731,6 +731,24 @@
             } catch (e) {}
           }
 
+          function scrubLegacyDebugUi() {
+            try {
+              var stamp = document.getElementById('rb-native-stamp');
+              if (stamp) stamp.remove();
+              document.querySelectorAll('[id*="native-stamp"]').forEach(function (n) { n.remove(); });
+              document.querySelectorAll('button, a').forEach(function (el) {
+                var text = (el.textContent || '').replace(/\s+/g, ' ').trim();
+                if (/^sign in instead$/i.test(text)) el.remove();
+              });
+            } catch (e) {}
+          }
+
+          scrubLegacyDebugUi();
+          if (!window.__rbLegacyUiScrubber) {
+            window.__rbLegacyUiScrubber = new MutationObserver(scrubLegacyDebugUi);
+            window.__rbLegacyUiScrubber.observe(document.documentElement, { childList: true, subtree: true });
+          }
+
           function fixRestorebraineBranding() {
             try {
               // v4-core React login card owns the UI on capacitor://localhost — never mutate DOM here.

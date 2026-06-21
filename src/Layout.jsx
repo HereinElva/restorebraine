@@ -14,7 +14,16 @@ import { AnimatePresence, motion } from "framer-motion";
 import { NavigationProvider, useNavigation } from "./components/NavigationContext";
 import { TabStateProvider } from "./components/TabStateContext";
 import { BrandGradientDefs } from "@/components/ui/BrandGradientIcon";
+
 const TAB_ORDER = ["Gallery", "Upload", "Account"];
+/** Header bar height excluding safe-area (matches Tailwind h-11). */
+const HEADER_BAR_PX = 44;
+
+function resetScrollPosition() {
+  window.scrollTo(0, 0);
+  document.documentElement.scrollTop = 0;
+  document.body.scrollTop = 0;
+}
 
 function LayoutInner({ children, currentPageName }) {
   const location = useLocation();
@@ -37,10 +46,13 @@ function LayoutInner({ children, currentPageName }) {
   }, [activeIndex]);
 
   useEffect(() => {
-    window.scrollTo(0, 0);
-    document.documentElement.scrollTop = 0;
-    document.body.scrollTop = 0;
+    resetScrollPosition();
+    requestAnimationFrame(resetScrollPosition);
   }, [location.pathname]);
+
+  useEffect(() => {
+    resetScrollPosition();
+  }, []);
 
   // Dark mode detection
   useEffect(() => {
@@ -87,46 +99,48 @@ function LayoutInner({ children, currentPageName }) {
   }, [location.pathname, popBack]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
+    <div className="min-h-[100dvh] bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
       <BrandGradientDefs />
       <style>{`
         :root {
           --primary: 250 70% 75%;
           --primary-dark: 250 65% 65%;
+          --rb-header-bar: ${HEADER_BAR_PX}px;
+          --rb-header-total: calc(var(--rb-header-bar) + env(safe-area-inset-top, 0px));
+          --rb-tab-bar: calc(3.25rem + env(safe-area-inset-bottom, 0px));
         }
-        .safe-top { padding-top: env(safe-area-inset-top); }
-        .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
         * { -webkit-tap-highlight-color: transparent; }
         button, a, [role="button"] { user-select: none; -webkit-user-select: none; }
       `}</style>
 
-      {/* Top brand header */}
-      <header className="fixed top-0 left-0 right-0 z-50 bg-white/70 backdrop-blur-xl border-b border-purple-100 shadow-sm select-none pt-[env(safe-area-inset-top,0px)]">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center h-14 relative">
-            {/* Back button — shown on child routes */}
+      {/* Compact top header — safe-area once, inside fixed bar */}
+      <header
+        className="fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-xl border-b border-purple-100 shadow-sm select-none"
+        style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
+      >
+        <div className="max-w-7xl mx-auto px-3 sm:px-4">
+          <div className="flex items-center h-11 relative">
             {backState ? (
               <button
                 type="button"
-                data-rb-gallery-nav
+                data-rb-gallery-nav="header-back"
                 onClick={handleBack}
-                className="flex items-center gap-1 text-purple-600 font-medium select-none absolute left-0"
+                className="flex items-center gap-1 text-purple-600 font-medium select-none absolute left-0 z-10 min-h-[44px]"
               >
                 <ChevronLeft className="w-5 h-5" />
                 <span className="text-sm">{backState.label}</span>
               </button>
             ) : null}
 
-            {/* Centered brand logo — hide when back button is shown to avoid overlap */}
             <div className={`flex-1 flex justify-center ${backState ? 'invisible' : ''}`}>
-              <Link to={createPageUrl("Gallery")} className="flex items-center gap-2 select-none group">
+              <Link to="/" replace className="flex items-center gap-1.5 select-none group min-h-[44px]">
                 <img
                   src={RESTOREBRAINE_APP_LOGO}
                   alt="Restorebraine"
                   data-rb-logo="1"
-                  className="w-8 h-8 rounded-xl object-cover shadow-md transform group-hover:scale-105 transition-transform duration-200"
+                  className="w-7 h-7 rounded-lg object-cover shadow-sm"
                 />
-                <span className="text-lg font-semibold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent select-none">
+                <span className="text-base font-semibold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent select-none">
                   Restorebraine
                 </span>
               </Link>
@@ -135,8 +149,13 @@ function LayoutInner({ children, currentPageName }) {
         </div>
       </header>
 
-      {/* Main Content with slide transition */}
-      <main className="pt-[calc(3.5rem+env(safe-area-inset-top,0px))] pb-[calc(5rem+env(safe-area-inset-bottom,0px))] min-h-[100dvh] box-border">
+      <main
+        className="box-border min-h-[100dvh]"
+        style={{
+          paddingTop: 'var(--rb-header-total)',
+          paddingBottom: 'var(--rb-tab-bar)',
+        }}
+      >
         <AnimatePresence custom={direction} mode="wait">
           <motion.div
             key={location.pathname}
@@ -152,45 +171,45 @@ function LayoutInner({ children, currentPageName }) {
         </AnimatePresence>
       </main>
 
-      {/* Bottom Tab Bar — always visible (hide toggle removed; broken on iOS) */}
       <nav
-        className="fixed bottom-0 left-0 right-0 z-[100] select-none"
+        className="fixed bottom-0 left-0 right-0 z-[100] select-none bg-white/90 backdrop-blur-xl border-t border-purple-100 shadow-lg"
+        style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
         aria-label="App navigation"
       >
-        <div className="bg-white/90 backdrop-blur-xl border-t border-purple-100 shadow-lg safe-bottom">
-          <div className="flex items-stretch max-w-lg mx-auto">
-            {tabs.map(({ name, icon: Icon, label }) => {
-              const isActive = isTabActive(name);
-              return (
-                <Link
-                  key={name}
-                  to={name === 'Gallery' ? createPageUrl('Gallery') : createPageUrl(name)}
-                  replace={isActive}
-                  data-rb-gallery-nav={name === 'Gallery' ? 'tab' : undefined}
-                  onClick={name === 'Gallery' ? () => {
-                    persistActiveSession().then(() => resumeActiveSession?.());
-                  } : undefined}
-                  className="flex-1 flex flex-col items-center justify-center py-3 gap-0.5 select-none relative"
+        <div className="flex items-stretch max-w-lg mx-auto">
+          {tabs.map(({ name, icon: Icon, label }) => {
+            const isActive = isTabActive(name);
+            const galleryTarget = name === 'Gallery' ? '/' : createPageUrl(name);
+            return (
+              <Link
+                key={name}
+                to={galleryTarget}
+                replace={isActive}
+                data-rb-gallery-nav={name === 'Gallery' ? 'tab' : undefined}
+                onClick={name === 'Gallery' ? () => {
+                  popBack();
+                  void persistActiveSession().then(() => resumeActiveSession?.());
+                } : undefined}
+                className="flex-1 flex flex-col items-center justify-center py-2.5 gap-0.5 select-none relative min-h-[52px]"
+              >
+                <Icon
+                  className={`w-5 h-5 transition-colors select-none ${
+                    isActive ? "text-purple-600" : "text-gray-400"
+                  }`}
+                />
+                <span
+                  className={`text-xs font-medium transition-colors select-none ${
+                    isActive ? "text-purple-600" : "text-gray-400"
+                  }`}
                 >
-                  <Icon
-                    className={`w-5 h-5 transition-colors select-none ${
-                      isActive ? "text-purple-600" : "text-gray-400"
-                    }`}
-                  />
-                  <span
-                    className={`text-xs font-medium transition-colors select-none ${
-                      isActive ? "text-purple-600" : "text-gray-400"
-                    }`}
-                  >
-                    {label}
-                  </span>
-                  {isActive && (
-                    <span className="absolute bottom-0 w-8 h-0.5 bg-purple-500 rounded-full" />
-                  )}
-                </Link>
-              );
-            })}
-          </div>
+                  {label}
+                </span>
+                {isActive && (
+                  <span className="absolute bottom-0 w-8 h-0.5 bg-purple-500 rounded-full" />
+                )}
+              </Link>
+            );
+          })}
         </div>
       </nav>
     </div>
