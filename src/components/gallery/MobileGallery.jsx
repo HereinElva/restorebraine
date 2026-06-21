@@ -267,7 +267,7 @@ export default function MobileGallery({
   return (
     <div className="min-h-screen pb-24" data-rb-deploy={`v${DEPLOY_BUILD}`}>
       {/* Hero Title */}
-      <div className="px-4 pt-4 pb-2">
+      <div className="px-4 pt-5 pb-2">
         <h1 className="text-2xl font-bold text-gray-900">
           Find Your{" "}
           <span className="bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
@@ -306,28 +306,23 @@ export default function MobileGallery({
         )}
       </div>
 
-      {/* Tabs — centered in white bar with equal vertical padding */}
+      {/* Tabs */}
       {!debouncedQuery && (
-        <div
-          className="sticky z-20 bg-white/95 backdrop-blur-md py-3 px-4 flex justify-center"
-          style={{ top: 'var(--rb-header-total, 3.5rem)' }}
-        >
-          <div className="flex gap-2 w-full max-w-sm">
-            <button
-              onClick={() => { setActiveTab("all"); exitSelection(); }}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-sm font-medium transition-colors ${activeTab === "all" ? "bg-purple-100 text-purple-700" : "text-gray-500"}`}
-            >
-              <Grid3x3 className="w-3.5 h-3.5" />
-              All ({photos.length})
-            </button>
-            <button
-              onClick={() => setActiveTab("folders")}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-sm font-medium transition-colors ${activeTab === "folders" ? "bg-purple-100 text-purple-700" : "text-gray-500"}`}
-            >
-              <Layers className="w-3.5 h-3.5" />
-              Folders ({folders.length})
-            </button>
-          </div>
+        <div className="flex px-4 gap-1 mb-1 sticky top-14 z-20 bg-white/95 backdrop-blur-md pb-2">
+          <button
+            onClick={() => { setActiveTab("all"); exitSelection(); }}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-sm font-medium transition-colors ${activeTab === "all" ? "bg-purple-100 text-purple-700" : "text-gray-500"}`}
+          >
+            <Grid3x3 className="w-3.5 h-3.5" />
+            All ({photos.length})
+          </button>
+          <button
+            onClick={() => setActiveTab("folders")}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-sm font-medium transition-colors ${activeTab === "folders" ? "bg-purple-100 text-purple-700" : "text-gray-500"}`}
+          >
+            <Layers className="w-3.5 h-3.5" />
+            Folders ({folders.length})
+          </button>
         </div>
       )}
 

@@ -23,6 +23,7 @@ import { DragDropContext } from "@hello-pangea/dnd";
 import { useNavigation } from "../components/NavigationContext";
 import { useTabState } from "../components/TabStateContext";
 import MobileGallery from "../components/gallery/MobileGallery";
+import "../components/gallery/mobile-gallery-layout.css";
  
 // ---------------------------------------------------------------------------
 // Search helpers
@@ -370,6 +371,7 @@ export default function Gallery() {
   if (isIOS) {
     return (
       <PullToRefresh onRefresh={handleRefresh}>
+        <div className="rb-mobile-gallery-shell">
         <MobileGallery
           photos={photos}
           folders={folders}
@@ -395,6 +397,7 @@ export default function Gallery() {
           onDeletePhotos={handleDeletePhotos}
           onMoveToFolder={handleMoveToFolder}
         />
+        </div>
       </PullToRefresh>
     );
   }

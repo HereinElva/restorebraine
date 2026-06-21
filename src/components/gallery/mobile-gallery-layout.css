@@ -1,0 +1,22 @@
+/* Gallery shell layout — overrides without editing Omega-protected MobileGallery.jsx */
+
+.rb-mobile-gallery-shell .min-h-screen > div:first-of-type {
+  padding-top: 1.5rem !important;
+}
+
+.rb-mobile-gallery-shell .sticky.top-14 {
+  top: var(--rb-header-total, 3.5rem) !important;
+  justify-content: center !important;
+  gap: 0.5rem !important;
+  padding-top: 0.75rem !important;
+  padding-bottom: 0.75rem !important;
+  margin-bottom: 0 !important;
+}
+
+.rb-mobile-gallery-shell .sticky.top-14 > button {
+  flex: 0 1 11rem !important;
+  max-width: 11rem;
+  min-width: 8rem;
+  padding-top: 0.625rem !important;
+  padding-bottom: 0.625rem !important;
+}
