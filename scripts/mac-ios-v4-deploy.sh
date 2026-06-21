@@ -27,6 +27,9 @@ echo "╔═══════════════════════�
 echo "║  Restorebraine v4 DEPLOY — build + install (not npm-only)    ║"
 echo "╚══════════════════════════════════════════════════════════════╝"
 echo ""
+echo "Tip: Do not run 'git pull' manually — npm build changes index.html"
+echo "     and build-info.js. This script resets those automatically."
+echo ""
 
 bash scripts/explain-deploy-targets.sh || true
 echo ""
