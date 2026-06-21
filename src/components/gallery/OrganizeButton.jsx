@@ -19,9 +19,10 @@ import {
   foldersForGalleryView,
   getGalleryOrganizeSnapshot,
   getUnorganizedPhotos,
+  normalizePhotoId,
   setGalleryOrganizeSnapshot,
 } from "@/lib/gallery-organize-snapshot";
-import { mergeApiFoldersWithLocal } from "@/lib/folder-membership";
+import { mergeApiFoldersWithLocal, reconcileOrganizeBatch } from "@/lib/folder-membership";
 import { getGalleryUserEmail, galleryFoldersKey, galleryPhotosKey } from "@/lib/gallery-query-keys";
 import { loadGalleryData } from "@/lib/gallery-data";
 import { runMediaOrganize } from "@/lib/run-media-organize";
@@ -98,21 +99,38 @@ export default function OrganizeButton({ photos, folders: foldersProp, squareSty
       // Sync from server; merge so a slow API response does not undo Recents clearing
       await loadGalleryData(queryClient);
       const syncedPhotos = queryClient.getQueryData(galleryPhotosKey(email)) ?? freshPhotos;
-      const syncedFolders = queryClient.getQueryData(galleryFoldersKey(email)) ?? [];
-      if (result.afterFolders?.length) {
-        const merged = foldersForGalleryView(
-          mergeApiFoldersWithLocal(syncedFolders, result.afterFolders),
-          syncedPhotos,
-        );
-        queryClient.setQueryData(galleryFoldersKey(email), merged);
-        setGalleryOrganizeSnapshot({ photos: syncedPhotos, folders: merged });
-      }
+      let syncedFolders = queryClient.getQueryData(galleryFoldersKey(email)) ?? [];
+      let merged = foldersForGalleryView(
+        mergeApiFoldersWithLocal(syncedFolders, result.afterFolders || []),
+        syncedPhotos,
+      );
+
+      const reconciled = await reconcileOrganizeBatch({
+        batchPhotos: result.photosToOrganize || [],
+        afterFolders: merged,
+        labelByPhotoNormId: result.labelByPhotoNormId,
+        onProgress: setProgressLabel,
+      });
+      merged = foldersForGalleryView(reconciled.folders, syncedPhotos);
+
+      queryClient.setQueryData(galleryFoldersKey(email), merged);
+      setGalleryOrganizeSnapshot({ photos: syncedPhotos, folders: merged });
+
+      const batchNormIds = new Set(
+        (result.photosToOrganize || []).map((p) => normalizePhotoId(p.id)).filter(Boolean),
+      );
+      const remainingLoose = getUnorganizedPhotos(syncedPhotos, merged).filter((p) =>
+        batchNormIds.has(normalizePhotoId(p.id)),
+      ).length;
+      const totalToOrganize = result.totalToOrganize;
+      const totalSaved = totalToOrganize - remainingLoose;
+      const missed = remainingLoose;
 
       alert(
         organizeResultMessage({
-          totalSaved: result.totalSaved,
-          totalToOrganize: result.totalToOrganize,
-          missed: result.missed,
+          totalSaved,
+          totalToOrganize,
+          missed,
           foldersSaved: result.foldersSaved,
         }),
       );

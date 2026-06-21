@@ -280,5 +280,7 @@ export async function runMediaOrganize({
     totalToOrganize: photosToOrganize.length,
     missed,
     afterFolders,
+    photosToOrganize,
+    labelByPhotoNormId,
   };
 }

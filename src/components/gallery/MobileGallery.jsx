@@ -493,7 +493,7 @@ export default function MobileGallery({
                   className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-purple-600 text-white text-sm font-semibold disabled:opacity-50"
                 >
                   {merging ? <Loader2 className="w-4 h-4 animate-spin" /> : <FolderInput className="w-4 h-4" />}
-                  {selectedFolderIds.length === 1 ? "Move into Folder" : "Merge Folders"}
+                  {selectedFolderIds.length === 1 ? "Move to Folder" : "Merge Folders"}
                 </button>
               )}
 
