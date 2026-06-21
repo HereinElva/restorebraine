@@ -14,12 +14,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { formatLLMError } from "@/lib/invoke-llm-retry";
+import { useAuth } from "@/lib/AuthContext";
 import {
   foldersForGalleryView,
   getGalleryOrganizeSnapshot,
   getUnorganizedPhotos,
   setGalleryOrganizeSnapshot,
 } from "@/lib/gallery-organize-snapshot";
+import { getGalleryUserEmail, galleryFoldersKey, galleryPhotosKey } from "@/lib/gallery-query-keys";
 import { runMediaOrganize } from "@/lib/run-media-organize";
 import { ORGANIZE_ICON_CLASS, ORGANIZE_LABEL_CLASS, SQUARE_FOLDER_ACTION_CLASS, SQUARE_FOLDER_ACTION_STYLE } from "./folderActionStyles";
 
@@ -45,6 +47,7 @@ export default function OrganizeButton({ photos, folders: foldersProp, squareSty
   const [customInstructions, setCustomInstructions] = useState("");
   const [includeOrganized, setIncludeOrganized] = useState(false);
   const queryClient = useQueryClient();
+  const { user: authUser } = useAuth();
 
   const snapshot = getGalleryOrganizeSnapshot();
   const folders = foldersProp ?? snapshot.folders;
@@ -81,17 +84,14 @@ export default function OrganizeButton({ photos, folders: foldersProp, squareSty
         return;
       }
 
-      const user = queryClient.getQueryData(["current-user"]);
-      const email = user?.email ?? "pending";
-      const freshPhotos = queryClient.getQueryData(["photos", email]) ?? photos;
+      const email = getGalleryUserEmail(queryClient, authUser?.email);
+      const freshPhotos = queryClient.getQueryData(galleryPhotosKey(email)) ?? photos;
 
-      // Apply saved folders to cache immediately — do not refetch right away (server can lag).
       if (result.afterFolders?.length) {
-        queryClient.setQueryData(["folders", email], result.afterFolders);
+        const normalizedFolders = foldersForGalleryView(result.afterFolders, freshPhotos);
+        queryClient.setQueryData(galleryFoldersKey(email), normalizedFolders);
+        setGalleryOrganizeSnapshot({ photos: freshPhotos, folders: normalizedFolders });
       }
-
-      const galleryFolders = foldersForGalleryView(result.afterFolders ?? folders, freshPhotos);
-      setGalleryOrganizeSnapshot({ photos: freshPhotos, folders: galleryFolders });
 
       alert(
         organizeResultMessage({
@@ -101,11 +101,6 @@ export default function OrganizeButton({ photos, folders: foldersProp, squareSty
           foldersSaved: result.foldersSaved,
         }),
       );
-
-      // Sync with server in the background after a short delay.
-      window.setTimeout(() => {
-        void queryClient.invalidateQueries({ queryKey: ["folders", email] });
-      }, 2500);
     } catch (error) {
       console.error("Error organizing:", error);
       alert(formatLLMError(error));
