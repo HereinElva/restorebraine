@@ -27,6 +27,7 @@ const FILES = [
   'src/App.jsx',
   'src/screens/SignInScreen.jsx',
   'src/screens/sign-in.css',
+  'src/components/NativeLoginCard.jsx',
   'src/components/LoginPage.jsx',
   'src/components/LoginLogo.jsx',
   'src/lib/login-logo-data.js',
@@ -49,8 +50,8 @@ const FILES = [
 
 const PARTS = [
   { label: 'PART 1 — Boot + auth (paste first)', files: FILES.slice(0, 12) },
-  { label: 'PART 2 — Native OAuth + session', files: FILES.slice(12, 19) },
-  { label: 'PART 3 — Gallery UI + Layout + CSS (paste last, then Publish)', files: FILES.slice(19) },
+  { label: 'PART 2 — Native OAuth + session', files: FILES.slice(12, 20) },
+  { label: 'PART 3 — Gallery UI + Layout + CSS (paste last, then Publish)', files: FILES.slice(20) },
 ];
 
 function readPublishContent(path) {

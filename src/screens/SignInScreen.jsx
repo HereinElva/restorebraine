@@ -1,50 +1,28 @@
-import { useEffect, useState } from 'react';
-import { BUILD_NUMBER } from '@/lib/build-info';
+import { useEffect, useRef } from 'react';
+import { useAuth } from '@/lib/AuthContext';
 import { LOCAL_NATIVE_BUNDLE } from '@/lib/native-bundle-mode';
 import { isHostedAppOrigin, isNativeShell } from '@/lib/native-hosted-redirect';
-import { signInWithGoogle, signInWithApple } from '@/lib/sign-in-with-provider';
-import { useAuth } from '@/lib/AuthContext';
+import NativeLoginCard from '@/components/NativeLoginCard';
 import NativeDebugBadge from '@/components/NativeDebugBadge';
-import './sign-in.css';
 
-function OAuthButton({ id, label, className, onSignIn, clearSignedOut, busy, setBusy, setError }) {
-  return (
-    <button
-      type="button"
-      id={id}
-      className={className}
-      disabled={busy}
-      onClick={async () => {
-        if (busy) return;
-        setBusy(true);
-        setError('');
-        try {
-          await onSignIn({ clearSignedOut });
-        } catch (err) {
-          setError(err?.message || 'Could not open sign in.');
-        } finally {
-          setBusy(false);
-        }
-      }}
-    >
-      {busy ? 'Opening sign in…' : label}
-    </button>
-  );
-}
+/**
+ * Web → Base44 platform login (Google / Apple / email on one page).
+ * Native bundled → NativeLoginCard with all options in-app.
+ * Native hosted → simple Sign in button → platform login.
+ */
+export default function SignInScreen({ clearSignedOut = false }) {
+  const { navigateToLogin } = useAuth();
+  const started = useRef(false);
 
-function EmailSignIn({ clearSignedOut }) {
-  const { loginWithEmailPassword, registerWithEmailPassword } = useAuth();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [mode, setMode] = useState('signin');
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
+  useEffect(() => {
+    document.documentElement.setAttribute('data-rb-screen', 'sign-in');
+    return () => document.documentElement.removeAttribute('data-rb-screen');
+  }, []);
 
-  const handleSubmit = async (event) => {
-    event.preventDefault();
-    if (busy) return;
-    setBusy(true);
-    setError('');
+  useEffect(() => {
+    if (isNativeShell()) return;
+    if (started.current) return;
+    started.current = true;
     if (clearSignedOut) {
       try {
         localStorage.removeItem('b44_signed_out');
@@ -52,111 +30,48 @@ function EmailSignIn({ clearSignedOut }) {
         /* ignore */
       }
     }
-    try {
-      if (mode === 'register') {
-        await registerWithEmailPassword({ email, password, fullName: email.split('@')[0] || 'User' });
-      } else {
-        await loginWithEmailPassword({ email, password });
-      }
-    } catch (err) {
-      setError(err?.message || 'Sign in failed.');
-    } finally {
-      setBusy(false);
-    }
-  };
+    navigateToLogin();
+  }, [navigateToLogin, clearSignedOut]);
 
-  return (
-    <form className="rb-signin-email" onSubmit={handleSubmit}>
-      <input
-        type="email"
-        className="rb-signin-input"
-        placeholder="Email"
-        autoComplete="email"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        required
-      />
-      <input
-        type="password"
-        className="rb-signin-input"
-        placeholder="Password"
-        autoComplete={mode === 'register' ? 'new-password' : 'current-password'}
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-        required
-      />
-      {error ? <p className="rb-signin-error">{error}</p> : null}
-      <button type="submit" className="rb-signin-email-btn" disabled={busy}>
-        {busy ? 'Please wait…' : mode === 'register' ? 'Create account' : 'Sign in with email'}
-      </button>
-      <button
-        type="button"
-        className="rb-signin-link"
-        onClick={() => {
-          setMode(mode === 'register' ? 'signin' : 'register');
-          setError('');
-        }}
-      >
-        {mode === 'register' ? 'Already have an account? Sign in' : 'Need an account? Create one'}
-      </button>
-    </form>
-  );
-}
+  if (!isNativeShell()) {
+    return (
+      <div className="fixed inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 gap-4">
+        <div className="w-8 h-8 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin" />
+        <p className="text-sm text-gray-500">Loading sign in…</p>
+      </div>
+    );
+  }
 
-/** Login card — Google, Apple, and email (web + native). No logo. */
-export default function SignInScreen({ clearSignedOut = false }) {
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
-
-  useEffect(() => {
-    document.documentElement.setAttribute('data-rb-screen', 'sign-in');
-    return () => document.documentElement.removeAttribute('data-rb-screen');
-  }, []);
-
-  const showNativeTag = isNativeShell() && LOCAL_NATIVE_BUNDLE && !isHostedAppOrigin();
+  if (LOCAL_NATIVE_BUNDLE && !isHostedAppOrigin()) {
+    return <NativeLoginCard clearSignedOut={clearSignedOut} />;
+  }
 
   return (
     <main
       id="restorebraine-signin"
       className="rb-signin"
       data-rb-auth="sign-in-v4"
-      data-rb-build={BUILD_NUMBER}
     >
       <section className="rb-signin-card">
         <h1 className="rb-signin-title">Restorebraine</h1>
-        {showNativeTag ? (
-          <p className="rb-signin-tag">Native bundle · v{BUILD_NUMBER}</p>
-        ) : null}
-
-        {error ? <p className="rb-signin-error">{error}</p> : null}
-
-        <div className="rb-signin-actions">
-          <OAuthButton
-            id="restorebraine-google-btn"
-            label="Continue with Google"
-            className="rb-signin-google"
-            onSignIn={signInWithGoogle}
-            clearSignedOut={clearSignedOut}
-            busy={busy}
-            setBusy={setBusy}
-            setError={setError}
-          />
-          <OAuthButton
-            id="restorebraine-apple-btn"
-            label="Continue with Apple"
-            className="rb-signin-apple"
-            onSignIn={signInWithApple}
-            clearSignedOut={clearSignedOut}
-            busy={busy}
-            setBusy={setBusy}
-            setError={setError}
-          />
-        </div>
-
-        <p className="rb-signin-divider">or</p>
-        <EmailSignIn clearSignedOut={clearSignedOut} />
+        <button
+          type="button"
+          className="rb-signin-google"
+          onClick={() => {
+            if (clearSignedOut) {
+              try {
+                localStorage.removeItem('b44_signed_out');
+              } catch {
+                /* ignore */
+              }
+            }
+            navigateToLogin();
+          }}
+        >
+          Sign in
+        </button>
       </section>
-      {isNativeShell() ? <NativeDebugBadge /> : null}
+      <NativeDebugBadge />
     </main>
   );
 }

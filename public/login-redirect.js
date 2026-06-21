@@ -43,10 +43,6 @@
       googleOAuth('https://restorebraine.com');
       return true;
     }
-    if (/^https:\/\/app\.base44\.com\/login/i.test(value)) {
-      googleOAuth('https://restorebraine.com');
-      return true;
-    }
     return false;
   }
 

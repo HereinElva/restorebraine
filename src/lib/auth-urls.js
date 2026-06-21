@@ -23,16 +23,18 @@ export const getPlatformLoginUrl = (fromUrl) => {
 export const getRestorebraineLoginUrl = getPlatformLoginUrl;
 
 /**
- * Open sign-in — web and native both use direct Google OAuth (not Base44 multi-provider login page).
+ * Open Base44 platform login — Google, Apple, Microsoft, and email on one page.
  */
 export const openRestorebraineLogin = () => {
   if (typeof window === 'undefined') return;
 
+  const url = getPlatformLoginUrl();
+
   if (isNativeShell()) {
-    return openLoginInSystemBrowser(getGoogleOAuthUrl(), 'google');
+    return openLoginInSystemBrowser(url, 'google');
   }
 
-  window.location.href = getGoogleOAuthUrl();
+  window.location.href = url;
 };
 
 /** If the user lands on /login on a custom domain, escape the broken platform page. */
