@@ -26,6 +26,7 @@ FILES=(
   "src/lib/app-params.js"
   "src/lib/app-domains.js"
   "src/lib/auth-urls.js"
+  "src/lib/sign-in-with-google.js"
   "src/lib/AuthContext.jsx"
   "src/api/base44Client.js"
   "src/App.jsx"

@@ -1,19 +1,19 @@
 /**
- * Restorebraine iOS launch screen assets — brain logo + soft background (not Capacitor default).
+ * Restorebraine iOS launch screen — brain logo with rounded corners, no white square.
  */
-import { copyFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import sharp from 'sharp';
 
 const logoSourceCandidates = [
-  resolve('public/login-logo.png'),
   resolve('ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png'),
   resolve('public/AppIcon.png'),
+  resolve('public/login-logo.png'),
 ];
 
 const logoSource = logoSourceCandidates.find((p) => existsSync(p));
 if (!logoSource) {
-  console.error('FAIL: no logo source for launch screen — run npm run ios:icons first');
+  console.error('FAIL: no logo source — run npm run ios:icons first');
   process.exit(1);
 }
 
@@ -23,6 +23,22 @@ const splashDir = resolve('ios/App/App/Assets.xcassets/Splash.imageset');
 mkdirSync(launchLogoDir, { recursive: true });
 mkdirSync(splashDir, { recursive: true });
 
+/** Rounded-rect PNG with transparent corners (no white box on gradient background). */
+async function roundedLaunchLogo(size) {
+  const radius = Math.round(size * 0.22);
+  const mask = Buffer.from(
+    `<svg width="${size}" height="${size}" xmlns="http://www.w3.org/2000/svg">
+      <rect width="${size}" height="${size}" rx="${radius}" ry="${radius}" fill="white"/>
+    </svg>`,
+  );
+  return sharp(logoSource)
+    .resize(size, size, { fit: 'cover' })
+    .ensureAlpha()
+    .composite([{ input: mask, blend: 'dest-in' }])
+    .png({ compressionLevel: 9 })
+    .toBuffer();
+}
+
 const launchSizes = [
   { filename: 'launch-logo.png', size: 128 },
   { filename: 'launch-logo@2x.png', size: 256 },
@@ -30,10 +46,8 @@ const launchSizes = [
 ];
 
 for (const { filename, size } of launchSizes) {
-  await sharp(logoSource)
-    .resize(size, size, { fit: 'cover' })
-    .png({ compressionLevel: 9 })
-    .toFile(resolve(launchLogoDir, filename));
+  const buffer = await roundedLaunchLogo(size);
+  writeFileSync(resolve(launchLogoDir, filename), buffer);
 }
 
 writeFileSync(
@@ -52,13 +66,9 @@ writeFileSync(
   )}\n`,
 );
 
-// Full-screen splash fallback: login gradient + centered logo (replaces Capacitor X icon).
 const splashSize = 2732;
 const logoOnSplash = 320;
-const logoBuffer = await sharp(logoSource)
-  .resize(logoOnSplash, logoOnSplash, { fit: 'cover' })
-  .png()
-  .toBuffer();
+const logoBuffer = await roundedLaunchLogo(logoOnSplash);
 
 const gradientSvg = `
 <svg width="${splashSize}" height="${splashSize}" xmlns="http://www.w3.org/2000/svg">
@@ -101,4 +111,4 @@ writeFileSync(
   )}\n`,
 );
 
-console.log(`OK: LaunchLogo.imageset + branded Splash.imageset from ${logoSource}`);
+console.log(`OK: LaunchLogo (rounded, transparent corners) + Splash from ${logoSource}`);

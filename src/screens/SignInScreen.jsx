@@ -1,28 +1,10 @@
 import { useEffect, useState } from 'react';
 import { BUILD_NUMBER } from '@/lib/build-info';
 import { LOCAL_NATIVE_BUNDLE } from '@/lib/native-bundle-mode';
-import { getGoogleOAuthUrl } from '@/lib/auth-urls';
-import { isNativeShell } from '@/lib/native-hosted-redirect';
-import { openLoginInSystemBrowser } from '@/lib/native-google-oauth';
+import { isHostedAppOrigin, isNativeShell } from '@/lib/native-hosted-redirect';
+import { signInWithGoogle } from '@/lib/sign-in-with-google';
 import NativeDebugBadge from '@/components/NativeDebugBadge';
 import './sign-in.css';
-
-async function startGoogleSignIn({ clearSignedOut = false } = {}) {
-  if (clearSignedOut) {
-    try {
-      localStorage.removeItem('b44_signed_out');
-    } catch {
-      /* ignore */
-    }
-  }
-
-  const oauthUrl = getGoogleOAuthUrl();
-  if (isNativeShell()) {
-    await openLoginInSystemBrowser(oauthUrl, 'google');
-    return;
-  }
-  window.location.href = oauthUrl;
-}
 
 function GoogleButton({ clearSignedOut }) {
   const [busy, setBusy] = useState(false);
@@ -41,7 +23,7 @@ function GoogleButton({ clearSignedOut }) {
           setBusy(true);
           setError('');
           try {
-            await startGoogleSignIn({ clearSignedOut });
+            await signInWithGoogle({ clearSignedOut });
           } catch (err) {
             setError(err?.message || 'Could not open sign in.');
           } finally {
@@ -55,17 +37,14 @@ function GoogleButton({ clearSignedOut }) {
   );
 }
 
-/**
- * Single login screen for web + Capacitor bundled native.
- * No logo. No Base44 multi-provider page. Google OAuth only.
- */
+/** Single login for web + native (hosted WebView and bundled). No logo. Google only. */
 export default function SignInScreen({ clearSignedOut = false }) {
   useEffect(() => {
     document.documentElement.setAttribute('data-rb-screen', 'sign-in');
     return () => document.documentElement.removeAttribute('data-rb-screen');
   }, []);
 
-  const showBuildTag = LOCAL_NATIVE_BUNDLE && isNativeShell();
+  const showNativeTag = isNativeShell() && LOCAL_NATIVE_BUNDLE && !isHostedAppOrigin();
 
   return (
     <main
@@ -76,7 +55,7 @@ export default function SignInScreen({ clearSignedOut = false }) {
     >
       <section className="rb-signin-card">
         <h1 className="rb-signin-title">Restorebraine</h1>
-        {showBuildTag ? (
+        {showNativeTag ? (
           <p className="rb-signin-tag">Native bundle · v{BUILD_NUMBER}</p>
         ) : null}
         <GoogleButton clearSignedOut={clearSignedOut} />

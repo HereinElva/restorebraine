@@ -15,17 +15,16 @@ echo ""
 echo "This stops fighting capacitor://localhost bundled sync."
 echo "Your iPhone WebView opens the SAME site as the working web app."
 echo ""
-echo "PREREQ — Base44 Publish (one time per code change):"
+echo "PREREQ — Base44 Publish (updates web + hosted native login):"
 echo "  Paste base44-publish-v${DEPLOY}.txt into Base44 Code editor → Publish"
-echo "  Verify in Safari: https://restorebraine.base44.app shows new login"
+echo "  Then open Safari: https://restorebraine.base44.app — login must match app"
 echo ""
-
-read -r -p "Have you Published to Base44? (y/N) " PUBLISHED
-if [[ ! "$PUBLISHED" =~ ^[Yy]$ ]]; then
-  echo ""
-  echo "Publish first, then re-run: bash scripts/mac-native-as-webapp.sh"
-  echo "  node scripts/list-base44-publish-files.mjs"
-  exit 1
+if [ "${SKIP_PUBLISH_CHECK:-}" != "1" ]; then
+  read -r -p "Published to Base44 already? (y/N) " PUBLISHED
+  if [[ ! "$PUBLISHED" =~ ^[Yy]$ ]]; then
+    echo "Publish first, then: SKIP_PUBLISH_CHECK=1 bash scripts/mac-native-as-webapp.sh"
+    exit 1
+  fi
 fi
 
 echo ""

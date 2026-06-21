@@ -26,10 +26,10 @@ echo "=== Copy ios/public → DerivedData App.app ==="
 bash scripts/mac-copy-public-into-appapp.sh
 echo ""
 
-if ! bash scripts/verify-xcode-app-bundle.sh; then
-  echo ""
-  echo "FAIL: App.app still does not match repo after copy."
-  exit 1
+if [ "$HOSTED" != "0" ]; then
+  bash scripts/verify-hosted-app-bundle.sh || exit 1
+else
+  bash scripts/verify-xcode-app-bundle.sh || exit 1
 fi
 
 find_deployed_app() {
