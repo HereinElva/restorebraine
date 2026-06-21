@@ -73,10 +73,19 @@ export default function OrganizeButton({ photos, folders: foldersProp, squareSty
       await queryClient.refetchQueries({ queryKey: ["folders"] });
       await queryClient.refetchQueries({ queryKey: ["photos"] });
 
+      const user = queryClient.getQueryData(["current-user"]);
+      const email = user?.email ?? "pending";
+      await queryClient.refetchQueries({ queryKey: ["folders", email] });
+      await queryClient.refetchQueries({ queryKey: ["photos", email] });
+
       const folderEntries = queryClient.getQueriesData({ queryKey: ["folders"] });
       const freshFolders =
         folderEntries.map(([, data]) => data).find((data) => Array.isArray(data)) ?? folders;
-      setGalleryOrganizeSnapshot({ photos, folders: freshFolders });
+      const freshPhotos =
+        queryClient.getQueryData(["photos", email]) ??
+        queryClient.getQueriesData({ queryKey: ["photos"] }).map(([, data]) => data).find(Array.isArray) ??
+        photos;
+      setGalleryOrganizeSnapshot({ photos: freshPhotos, folders: freshFolders });
 
       if (result.foldersSaved === 0) {
         alert("Could not create folders for your loose photos. Try again in a minute.");

@@ -40,6 +40,23 @@ export function toStoredPhotoIds(ids, photos = snapshot.photos) {
   return stored;
 }
 
+/** Merge folder photo_ids preserving canonical Photo.id values (deduped by normalized id). */
+export function mergeStoredPhotoIds(existingIds = [], newIds = [], photos = snapshot.photos) {
+  const byNorm = new Map();
+  for (const id of [...existingIds, ...newIds]) {
+    const norm = normalizePhotoId(id);
+    if (!norm) continue;
+    const stored = toStoredPhotoIds([id], photos)[0];
+    if (stored != null) byNorm.set(norm, stored);
+  }
+  return [...byNorm.values()];
+}
+
+/** Normalized Set of every photo id assigned to a folder (for Recents membership). */
+export function getOrganizedPhotoIdSet(folders = snapshot.folders) {
+  return getOrganizedPhotoIds(folders);
+}
+
 export function countOrganizedPhotos(photos, folders) {
   const organized = getOrganizedPhotoIds(folders);
   return (photos || []).filter((p) => organized.has(normalizePhotoId(p.id))).length;

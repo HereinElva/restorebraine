@@ -12,6 +12,7 @@ import {
 import {
   getOrganizedPhotoIds,
   getUnorganizedPhotos,
+  mergeStoredPhotoIds,
   normalizePhotoId,
   toStoredPhotoIds,
 } from "@/lib/gallery-organize-snapshot";
@@ -39,6 +40,21 @@ function sleep(ms) {
 
 function filterValidIds(ids, validPhotoIds) {
   return (ids || []).map(normalizePhotoId).filter((id) => validPhotoIds.has(id));
+}
+
+function findExistingFolder(liveFolders, folderName, existingFolderNames) {
+  const targetKey = normalizeFolderName(folderName, existingFolderNames).toLowerCase();
+  return liveFolders.find(
+    (f) => normalizeFolderName(f.name, existingFolderNames).toLowerCase() === targetKey,
+  );
+}
+
+function coverPhotoForIds(storedIds, photos, fallbackUrl = "") {
+  if (!storedIds.length) return fallbackUrl;
+  const photo = photos.find(
+    (p) => normalizePhotoId(p.id) === normalizePhotoId(storedIds[0]),
+  );
+  return photo?.file_url || fallbackUrl;
 }
 
 async function sanitizeFolderMembership(folders, photos, allPhotoIds) {
@@ -194,6 +210,107 @@ async function cleanupEmptyFolders(allPhotoIds) {
   }
 }
 
+async function saveFolderGroups({
+  foldersToSave,
+  photos,
+  allPhotoIds,
+  includeOrganized,
+  existingFolderNames,
+  liveFolders,
+  onProgress,
+}) {
+  let folders = [...liveFolders];
+  const folderNames = () => folders.map((f) => f.name);
+
+  for (let i = 0; i < foldersToSave.length; i++) {
+    const folder = foldersToSave[i];
+    onProgress?.(`Saving folders… (${i + 1}/${foldersToSave.length})`);
+
+    const storedNewIds = toStoredPhotoIds(folder.photo_ids, photos);
+    if (storedNewIds.length === 0) continue;
+
+    const displayName = normalizeFolderName(folder.name, existingFolderNames);
+    const matchingFolder = findExistingFolder(folders, displayName, folderNames());
+
+    if (matchingFolder && !includeOrganized) {
+      const mergedIds = mergeStoredPhotoIds(matchingFolder.photo_ids, storedNewIds, photos);
+      const coverPhotoUrl = coverPhotoForIds(
+        mergedIds,
+        photos,
+        matchingFolder.cover_photo_url || "",
+      );
+      await base44.entities.Folder.update(matchingFolder.id, {
+        photo_ids: mergedIds,
+        ...(!matchingFolder.cover_photo_url && coverPhotoUrl
+          ? { cover_photo_url: coverPhotoUrl }
+          : {}),
+      });
+      folders = folders.map((f) =>
+        f.id === matchingFolder.id ? { ...f, photo_ids: mergedIds, name: f.name } : f,
+      );
+    } else if (matchingFolder && includeOrganized) {
+      const coverPhotoUrl = coverPhotoForIds(storedNewIds, photos, matchingFolder.cover_photo_url || "");
+      await base44.entities.Folder.update(matchingFolder.id, {
+        photo_ids: storedNewIds,
+        cover_photo_url: coverPhotoUrl,
+      });
+      folders = folders.map((f) =>
+        f.id === matchingFolder.id ? { ...f, photo_ids: storedNewIds } : f,
+      );
+    } else {
+      const coverPhotoUrl = coverPhotoForIds(storedNewIds, photos, "");
+      const created = await base44.entities.Folder.create({
+        name: displayName,
+        description: "",
+        photo_ids: storedNewIds,
+        cover_photo_url: coverPhotoUrl,
+      });
+      folders.push(created);
+    }
+  }
+
+  return folders;
+}
+
+async function saveMissedPhotos({
+  missedPhotos,
+  allLabels,
+  photos,
+  existingFolderNames,
+  onProgress,
+}) {
+  if (missedPhotos.length === 0) return;
+
+  onProgress?.(`Saving ${missedPhotos.length} remaining…`);
+
+  let folders = await base44.entities.Folder.list();
+
+  for (const photo of missedPhotos) {
+    const norm = normalizePhotoId(photo.id);
+    const label = allLabels.find((l) => l.id === norm);
+    const folderName = normalizeFolderName(label?.folder || MISC_FOLDER, existingFolderNames);
+    let target = findExistingFolder(folders, folderName, folders.map((f) => f.name));
+    const storedId = toStoredPhotoIds([norm], photos);
+    if (storedId.length === 0) continue;
+
+    if (target) {
+      const mergedIds = mergeStoredPhotoIds(target.photo_ids, storedId, photos);
+      await base44.entities.Folder.update(target.id, { photo_ids: mergedIds });
+      folders = folders.map((f) =>
+        f.id === target.id ? { ...f, photo_ids: mergedIds } : f,
+      );
+    } else {
+      const created = await base44.entities.Folder.create({
+        name: folderName,
+        description: "",
+        photo_ids: storedId,
+        cover_photo_url: coverPhotoForIds(storedId, photos, ""),
+      });
+      folders.push(created);
+    }
+  }
+}
+
 export async function runMediaOrganize({
   photos,
   folders: foldersSnapshot,
@@ -261,7 +378,7 @@ export async function runMediaOrganize({
 
   onProgress?.("Saving folders…");
 
-  const currentFolders = includeOrganized ? [] : existingFolders;
+  const liveFolders = includeOrganized ? [] : existingFolders;
 
   const seenThisRun = new Set();
   const foldersToSave = [];
@@ -295,62 +412,42 @@ export async function runMediaOrganize({
     }
   }
 
-  const folderTasks = foldersToSave.map((folder) => async () => {
-    const storedPhotoIds = toStoredPhotoIds(folder.photo_ids, photos);
-    if (storedPhotoIds.length === 0) return;
-
-    const matchingFolder = currentFolders.find(
-      (f) => f.name.toLowerCase() === folder.name.toLowerCase()
-    );
-
-    if (matchingFolder && !includeOrganized) {
-      const mergedIds = toStoredPhotoIds(
-        [
-          ...filterValidIds(matchingFolder.photo_ids, allPhotoIds),
-          ...storedPhotoIds.map(normalizePhotoId),
-        ],
-        photos,
-      );
-      const coverPhoto =
-        !matchingFolder.cover_photo_url && mergedIds.length > 0
-          ? photos.find((p) => normalizePhotoId(p.id) === normalizePhotoId(mergedIds[0]))
-          : null;
-      await base44.entities.Folder.update(matchingFolder.id, {
-        photo_ids: mergedIds,
-        ...(coverPhoto && { cover_photo_url: coverPhoto.file_url }),
-      });
-    } else if (matchingFolder && includeOrganized) {
-      await base44.entities.Folder.update(matchingFolder.id, {
-        photo_ids: storedPhotoIds,
-        cover_photo_url:
-          photos.find((p) => normalizePhotoId(p.id) === normalizePhotoId(storedPhotoIds[0]))?.file_url ||
-          matchingFolder.cover_photo_url ||
-          "",
-      });
-    } else {
-      const coverPhoto = photos.find(
-        (p) => normalizePhotoId(p.id) === normalizePhotoId(storedPhotoIds[0]),
-      );
-      await base44.entities.Folder.create({
-        name: folder.name,
-        description: "",
-        photo_ids: storedPhotoIds,
-        cover_photo_url: coverPhoto?.file_url || "",
-      });
-    }
+  await saveFolderGroups({
+    foldersToSave,
+    photos,
+    allPhotoIds,
+    includeOrganized,
+    existingFolderNames: folderNamesForLabel.length ? folderNamesForLabel : existingFolderNames,
+    liveFolders,
+    onProgress,
   });
 
-  await runConcurrent(folderTasks, 2);
+  let afterFolders = await base44.entities.Folder.list();
+  let organizedAfter = getOrganizedPhotoIds(afterFolders);
+  let missedPhotos = photosToOrganize.filter(
+    (p) => !organizedAfter.has(normalizePhotoId(p.id)),
+  );
 
-  const afterFolders = await base44.entities.Folder.list();
-  const organizedAfter = getOrganizedPhotoIds(afterFolders);
-  const actuallySaved = photosToOrganize.filter((p) =>
-    organizedAfter.has(normalizePhotoId(p.id)),
-  ).length;
+  if (missedPhotos.length > 0) {
+    await saveMissedPhotos({
+      missedPhotos,
+      allLabels,
+      photos,
+      existingFolderNames: afterFolders.map((f) => f.name),
+      onProgress,
+    });
+    afterFolders = await base44.entities.Folder.list();
+    organizedAfter = getOrganizedPhotoIds(afterFolders);
+    missedPhotos = photosToOrganize.filter(
+      (p) => !organizedAfter.has(normalizePhotoId(p.id)),
+    );
+  }
 
   await cleanupEmptyFolders(allPhotoIds);
 
-  const totalSaved = foldersToSave.reduce((sum, f) => sum + f.photo_ids.length, 0);
+  const actuallySaved = photosToOrganize.filter((p) =>
+    organizedAfter.has(normalizePhotoId(p.id)),
+  ).length;
   const missed = photosToOrganize.length - actuallySaved;
 
   if (actuallySaved === 0 && photosToOrganize.length > 0) {

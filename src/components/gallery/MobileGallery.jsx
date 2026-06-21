@@ -12,6 +12,7 @@ import MobileFolderCard from "./MobileFolderCard";
 import MobileDrawerMenu from "./MobileDrawerMenu";
 import { base44 } from "@/api/base44Client";
 import { DEPLOY_BUILD } from "@/deploy-marker";
+import { normalizePhotoId } from "@/lib/gallery-organize-snapshot";
 
 export default function MobileGallery({
   photos,
@@ -49,8 +50,12 @@ export default function MobileGallery({
   const [folderMoveDrawerOpen, setFolderMoveDrawerOpen] = useState(false);
   const inputRef = useRef(null);
 
-  const photosInFolders = new Set(folders.flatMap(f => f.photo_ids || []));
-  const unorganizedPhotos = photos.filter(p => !photosInFolders.has(p.id));
+  const photosInFolders = new Set(
+    folders.flatMap((f) => (f.photo_ids || []).map(normalizePhotoId)),
+  );
+  const unorganizedPhotos = photos.filter(
+    (p) => p?.id != null && !photosInFolders.has(normalizePhotoId(p.id)),
+  );
 
   const exitSelection = () => {
     setSelectionMode(false);
@@ -353,7 +358,7 @@ export default function MobileGallery({
           <div>
             {/* Action buttons — direct grid cells, no wrapper rim */}
             <div className="grid grid-cols-2 gap-1.5 mb-5">
-              <OrganizeButton photos={photos} squareStyle />
+              <OrganizeButton photos={photos} folders={folders} squareStyle />
               <CustomFolderButton photos={photos} squareStyle />
               <DuplicateDetector photos={photos} folders={folders} squareStyle />
               <button

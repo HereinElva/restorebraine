@@ -20,7 +20,7 @@ export function formatLLMError(error) {
     return 'Organize could not finish — AI is temporarily busy. Wait about a minute and try again. (This is not your 250-photo storage limit.)';
   }
   if (/timed out/i.test(msg)) {
-    return 'Organize took too long — try again with fewer loose photos, or skip re-read from image.';
+    return 'Organize took too long — try again with fewer loose photos.';
   }
   return error?.message || 'Organize failed. Please try again.';
 }
