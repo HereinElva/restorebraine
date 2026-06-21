@@ -26,6 +26,19 @@ const SYSTEM_BROWSER_OPTIONS = {
   android: { showTitle: false, hideToolbarOnScroll: false, viewStyle: 0, startAnimation: 0, exitAnimation: 1 },
 };
 
+/** In-app modal WebView — no iOS "use app.base44.com" system popup, no external Safari sheet. */
+const WEBVIEW_OPTIONS = {
+  showURL: false,
+  showToolbar: true,
+  clearCache: false,
+  clearSessionCache: false,
+  closeButtonText: 'Cancel',
+  toolbarPosition: 0,
+  showNavigationButtons: false,
+  iOS: { viewStyle: 2, animationEffect: 2, allowsBackForwardNavigationGestures: false },
+  android: { allowZoom: false, hardwareBack: true },
+};
+
 export const isGoogleOAuthUrl = (url) => {
   if (!url || typeof url !== 'string') return false;
   try {
@@ -91,8 +104,8 @@ const waitForCapacitor = async () => isNativeCapacitorShell();
 const getInAppBrowserPluginAsync = async (maxAttempts = 60) => {
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     const plugin = window.Capacitor?.Plugins?.InAppBrowser;
-    if (plugin?.openInSystemBrowser) return plugin;
-    if (InAppBrowser?.openInSystemBrowser) return InAppBrowser;
+    if (plugin?.openInWebView || plugin?.openInSystemBrowser) return plugin;
+    if (InAppBrowser?.openInWebView || InAppBrowser?.openInSystemBrowser) return InAppBrowser;
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
   throw new Error('InAppBrowser plugin not available — rebuild in Xcode and try again.');
@@ -204,6 +217,52 @@ const openWithBrowserFallback = async (url) => {
   await Browser.open({ url });
 };
 
+const waitForOAuthBrowserClose = async (ib) => {
+  await new Promise((resolve) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      window.removeEventListener('restorebraine-native-oauth-complete', onComplete);
+      resolve();
+    };
+    const onComplete = () => finish();
+    window.addEventListener('restorebraine-native-oauth-complete', onComplete);
+    ib.addListener('browserClosed', () => finish()).catch(() => finish());
+    setTimeout(finish, 180000);
+  });
+};
+
+/** Bundled native: in-app WebView modal — captures HTTPS ?access_token= without leaving Restorebraine. */
+const openOAuthInWebView = async (url, providerHint) => {
+  const normalizedUrl = normalizeAuthUrl(
+    url || getWebViewOAuthUrl(providerHint || 'google'),
+    providerHint,
+    { forWebView: true },
+  );
+  if (typeof window !== 'undefined') {
+    window.__restorebraineLastOAuthUrl = normalizedUrl;
+    window.__restorebraineOAuthMode = 'v4-webview';
+    window.__restorebraineOAuthInProgress = true;
+  }
+  recordOAuthDebug({ stage: 'inapp-webview', url: normalizedUrl.slice(0, 120) });
+  oauthListenerAttached = false;
+  await attachOAuthCompletionListener();
+  const ib = await getInAppBrowserPluginAsync(30);
+  if (!ib?.openInWebView) {
+    window.__restorebraineOAuthInProgress = false;
+    throw new Error('InAppBrowser openInWebView not available — rebuild in Xcode.');
+  }
+  try {
+    await ib.openInWebView({ url: normalizedUrl, options: WEBVIEW_OPTIONS });
+  } catch (error) {
+    window.__restorebraineOAuthInProgress = false;
+    recordOAuthError(error, 'inappbrowser-webview-open');
+    throw error;
+  }
+  await waitForOAuthBrowserClose(ib);
+};
+
 const openOAuthInSystemBrowser = async (url, providerHint) => {
   const normalizedUrl = normalizeAuthUrl(
     url || getWebViewOAuthUrl(providerHint || 'google'),
@@ -228,69 +287,21 @@ const openOAuthInSystemBrowser = async (url, providerHint) => {
   }
 
   // Wait until OAuth completes or the user closes the browser sheet.
-  await new Promise((resolve) => {
-    let settled = false;
-    const finish = () => {
-      if (settled) return;
-      settled = true;
-      window.removeEventListener('restorebraine-native-oauth-complete', onComplete);
-      resolve();
-    };
-    const onComplete = () => finish();
-    window.addEventListener('restorebraine-native-oauth-complete', onComplete);
-    ib.addListener('browserClosed', () => finish()).catch(() => finish());
-    setTimeout(finish, 180000);
-  });
+  await waitForOAuthBrowserClose(ib);
 };
 
-/** Poll native storage / localStorage while ASWeb session may still be open. */
-const pollForOAuthCompletion = async (maxMs = 120000) => {
-  const started = Date.now();
-  while (Date.now() - started < maxMs) {
-    if (await tryRestoreSessionAfterOAuth()) return true;
-    await new Promise((resolve) => setTimeout(resolve, 400));
-  }
-  return false;
-};
-
-/** Bundled native: InAppBrowser first (captures HTTPS ?access_token= redirect). */
+/** Bundled native: in-app WebView only — never ASWeb / system browser (no Base44 redirect popup). */
 const openBundledNativeOAuth = async (oauthUrl, provider) => {
   recordOAuthDebug({ stage: 'bundled-oauth-start', url: oauthUrl.slice(0, 120) });
-  let lastError = null;
-
   try {
-    recordOAuthDebug({ stage: 'bundled-inappbrowser' });
-    await openOAuthInSystemBrowser(oauthUrl, provider);
-    return;
+    await openOAuthInWebView(oauthUrl, provider);
   } catch (error) {
-    lastError = error;
     window.__restorebraineOAuthInProgress = false;
-    recordOAuthError(error, 'inappbrowser');
-    console.warn('InAppBrowser OAuth ended — trying native ASWeb sheet:', error);
+    recordOAuthError(error, 'inappbrowser-webview');
+    const message = error?.message || error?.errorMessage || String(error || '');
+    if (error?.code === 'CANCELED' || /^oauth canceled$/i.test(message)) return;
+    throw error;
   }
-
-  await waitForNativeOAuthPlugin(60);
-  if (hasRegisteredNativeOAuthPlugin()) {
-    try {
-      recordOAuthDebug({ stage: 'bundled-asweb-fallback' });
-      await startNativeOAuthSession(oauthUrl, provider);
-      return;
-    } catch (error) {
-      lastError = error;
-      window.__restorebraineOAuthInProgress = false;
-      recordOAuthError(error, 'asweb-auth');
-      console.warn('Native ASWebAuthenticationSession ended:', error);
-    }
-  } else {
-    lastError = lastError || new Error('RestorebraineOAuth plugin not ready');
-    recordOAuthError(lastError, 'plugin-missing');
-  }
-
-  const message = lastError?.message || lastError?.errorMessage || String(lastError || '');
-  if (lastError?.code === 'CANCELED' || /^oauth canceled$/i.test(message)) {
-    return;
-  }
-  throw lastError || new Error('Could not open sign-in sheet. Tap again or use email.');
 };
 
 const handleOAuthBrowserNavigation = async (url) => {
@@ -363,17 +374,7 @@ const startNativeOAuthSession = async (oauthUrl, provider = 'google') => {
   const plugin = getNativeOAuthPlugin();
   if (!plugin?.startGoogleOAuth) throw new Error('RestorebraineOAuth plugin not registered');
 
-  const pluginPromise = plugin.startGoogleOAuth({ url: pluginUrl });
-  const pollPromise = pollForOAuthCompletion(120000).then((ok) => {
-    if (!ok) throw new Error('OAuth timed out');
-    const token = localStorage.getItem('base44_access_token') || localStorage.getItem('token');
-    return { token };
-  });
-
-  const result = await Promise.race([
-    pluginPromise,
-    pollPromise,
-  ]);
+  const result = await plugin.startGoogleOAuth({ url: pluginUrl });
   const token = result?.token;
   if (!token) throw new Error('Native OAuth returned no token');
   await persistSessionToNativeStorage(token);

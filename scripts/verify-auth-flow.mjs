@@ -52,10 +52,8 @@ if (oauthJs.includes('RestorebraineOAuth') && oauthJs.includes('Browser.open')) 
 } else {
   bad('native-google-oauth missing registerPlugin or Browser fallback');
 }
-if (oauthJs.includes('LOCAL_NATIVE_BUNDLE') && /bundled-inappbrowser[\s\S]*bundled-asweb/.test(oauthJs)) {
-  ok('Bundled native uses InAppBrowser first (captures HTTPS token redirect), ASWeb fallback');
-} else if (oauthJs.includes('LOCAL_NATIVE_BUNDLE') && oauthJs.includes('openOAuthInSystemBrowser(oauthUrl, provider)')) {
-  ok('Bundled native uses InAppBrowser system browser for OAuth (captures HTTPS token redirect)');
+if (oauthJs.includes('LOCAL_NATIVE_BUNDLE') && oauthJs.includes('openOAuthInWebView')) {
+  ok('Bundled native uses in-app WebView for OAuth (no Base44 system popup)');
 } else if (oauthJs.includes('LOCAL_NATIVE_BUNDLE') && oauthJs.includes('openBundledNativeOAuth')) {
   ok('Bundled native has openBundledNativeOAuth entry path');
 } else {
@@ -80,10 +78,10 @@ if (!auth.includes('setManuallyLoggedOut(false)') || !auth.includes('restorebrai
 }
 
 const bridge = existsSync('public/restorebraine-v4-bridge.js') ? read('public/restorebraine-v4-bridge.js') : '';
-if (bridge.includes('launchSystemBrowserForOAuth') && bridge.includes('isBundledNativeOrigin()')) {
-  ok('Bridge uses system browser fallback on bundled native (not WebView)');
+if (bridge.includes('openLoginInWebView') && bridge.includes('isBundledNativeOrigin()')) {
+  ok('Bridge uses in-app WebView for bundled OAuth (no Base44 system popup)');
 } else if (bridge) {
-  bad('Bridge missing system-browser fallback for bundled OAuth');
+  bad('Bridge missing in-app WebView path for bundled OAuth');
 }
 
 console.log('');

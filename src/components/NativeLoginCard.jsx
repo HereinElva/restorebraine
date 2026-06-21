@@ -100,7 +100,7 @@ export default function NativeLoginCard({ clearSignedOut = false }) {
     if (openingProvider) return;
     clearSignedOutFlag();
     setErrorMessage('');
-    setNoticeMessage('Complete sign-in in the sheet that opens — you stay in Restorebraine.');
+    setNoticeMessage('Sign in using the in-app sheet — you stay in Restorebraine.');
     setOpeningProvider(provider);
     try {
       if (typeof window !== 'undefined') {

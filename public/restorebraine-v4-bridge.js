@@ -459,8 +459,7 @@
             url = normalizeAuthUrl(url || getCanonicalOAuthUrl(providerHint), providerHint);
             window.__restorebraineLastOAuthUrl = url;
             if (isBundledNativeOrigin()) {
-              // InAppBrowser captures HTTPS ?access_token= — ASWeb restorebraine:// hangs without hosted redirect script.
-              launchSystemBrowserForOAuth(url);
+              openLoginInWebView(url, providerHint);
               return;
             }
             window.__restorebraineOAuthMode = 'v4-system-browser';
