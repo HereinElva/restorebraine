@@ -1,7 +1,13 @@
 /* Gallery shell layout — overrides without editing Omega-protected MobileGallery.jsx */
 
 .rb-mobile-gallery-shell .min-h-screen > div:first-of-type {
-  padding-top: 1.5rem !important;
+  padding-top: 0.75rem !important;
+  padding-bottom: 0.125rem !important;
+}
+
+/* Tighter gap between search bar and All/Folders tabs */
+.rb-mobile-gallery-shell .min-h-screen > .px-4.pb-2:nth-of-type(2) {
+  padding-bottom: 0.25rem !important;
 }
 
 /* Tabs scroll with content — sticky caused bar to float separated while scrolling */
@@ -11,8 +17,8 @@
   z-index: auto !important;
   justify-content: center !important;
   gap: 0.5rem !important;
-  padding-top: 0.75rem !important;
-  padding-bottom: 0.75rem !important;
+  padding-top: 0.25rem !important;
+  padding-bottom: 0.25rem !important;
   margin-bottom: 0 !important;
 }
 
@@ -20,31 +26,11 @@
   flex: 0 1 11rem !important;
   max-width: 11rem;
   min-width: 8rem;
-  padding-top: 0.625rem !important;
-  padding-bottom: 0.625rem !important;
+  padding-top: 0.5rem !important;
+  padding-bottom: 0.5rem !important;
 }
 
-/* Organize progress — fixed above tab bar, not floating over action grid */
-.rb-organize-progress-bar {
-  position: fixed;
-  left: 0.75rem;
-  right: 0.75rem;
-  bottom: 4.5rem;
-  z-index: 30;
-  padding: 0.625rem 0.875rem;
-  background: white;
-  border-radius: 0.75rem;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
-  border: 1px solid #fed7aa;
-}
-
-.rb-organize-progress-bar .rb-organize-progress-text {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.8125rem;
-  color: #ea580c;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+/* Content area closer to tabs */
+.rb-mobile-gallery-shell .min-h-screen > .px-3.pt-1 {
+  padding-top: 0.25rem !important;
 }

@@ -1,6 +1,7 @@
 import { base44 } from "@/api/base44Client";
 import { reanalyzeWeakPhotos } from "@/lib/media-analysis";
 import { isWeakMetadata } from "@/lib/media-tags";
+import { invokeLLMWithRetry } from "@/lib/invoke-llm-retry";
 import {
   buildFolderOptions,
   buildLabelPrompt,
@@ -9,7 +10,8 @@ import {
 } from "@/lib/media-organize";
 
 const CHUNK_SIZE = 40;
-const CONCURRENCY = 4;
+/** Serial LLM calls — parallel batches hit Base44 rate limits quickly. */
+const LLM_CONCURRENCY = 1;
 const MERGE_CHUNK = 25;
 const MISC_FOLDER = "Miscellaneous";
 
@@ -30,11 +32,24 @@ function filterValidIds(ids, validPhotoIds) {
   return (ids || []).filter((id) => validPhotoIds.has(id));
 }
 
+/** Drop stale IDs from folders so Recents matches what Organize will process. */
+async function sanitizeFolderMembership(folders, allPhotoIds) {
+  const tasks = folders.map((folder) => async () => {
+    const cleaned = [...new Set((folder.photo_ids || []).filter((id) => allPhotoIds.has(id)))];
+    if (cleaned.length !== (folder.photo_ids || []).length) {
+      await base44.entities.Folder.update(folder.id, { photo_ids: cleaned });
+      return { ...folder, photo_ids: cleaned };
+    }
+    return folder;
+  });
+  return runConcurrent(tasks, 5);
+}
+
 async function labelChunk(chunk, existingFolderNames, customInstructions) {
   const photoData = chunk.map(photoDataForOrganize);
   const folderOptions = buildFolderOptions(existingFolderNames);
 
-  const result = await base44.integrations.Core.InvokeLLM({
+  const result = await invokeLLMWithRetry({
     prompt: buildLabelPrompt({ photoData, folderOptions, customInstructions }),
     response_json_schema: {
       type: "object",
@@ -57,7 +72,7 @@ async function labelChunk(chunk, existingFolderNames, customInstructions) {
 }
 
 async function mergeGroupBatch(groups, existingFolderNames, customInstructions, validPhotoIds) {
-  const result = await base44.integrations.Core.InvokeLLM({
+  const result = await invokeLLMWithRetry({
     prompt: buildMergePrompt({ groups, existingFolderNames, customInstructions }),
     response_json_schema: {
       type: "object",
@@ -83,22 +98,28 @@ async function mergeGroupBatch(groups, existingFolderNames, customInstructions, 
 }
 
 async function consolidateGroups(initialGroups, existingFolderNames, customInstructions, validPhotoIds, onProgress) {
-  let groups = initialGroups.map((g) => ({
-    name: g.name,
-    ids: filterValidIds(g.ids, validPhotoIds),
-  })).filter((g) => g.ids.length > 0);
+  let groups = initialGroups
+    .map((g) => ({
+      name: g.name,
+      ids: filterValidIds(g.ids, validPhotoIds),
+    }))
+    .filter((g) => g.ids.length > 0);
+
+  if (groups.length <= 1) {
+    return groups.map((g) => ({ name: g.name, photo_ids: g.ids }));
+  }
 
   let pass = 1;
 
   while (groups.length > MERGE_CHUNK) {
-    onProgress(`Phase 2 (pass ${pass}): merging ${groups.length} groups…`);
+    onProgress?.(`Merging ${groups.length} groups…`);
     const batches = [];
     for (let i = 0; i < groups.length; i += MERGE_CHUNK) {
       batches.push(groups.slice(i, i + MERGE_CHUNK));
     }
     const batchResults = await runConcurrent(
       batches.map((batch) => () => mergeGroupBatch(batch, existingFolderNames, customInstructions, validPhotoIds)),
-      CONCURRENCY
+      LLM_CONCURRENCY
     );
     const merged = new Map();
     for (const batch of batchResults) {
@@ -114,22 +135,26 @@ async function consolidateGroups(initialGroups, existingFolderNames, customInstr
     pass++;
   }
 
-  onProgress(`Phase 2: final consolidation of ${groups.length} groups…`);
-  const finalGroups = await mergeGroupBatch(groups, existingFolderNames, customInstructions, validPhotoIds);
+  if (groups.length > 1) {
+    onProgress?.(`Final merge of ${groups.length} groups…`);
+    const finalGroups = await mergeGroupBatch(groups, existingFolderNames, customInstructions, validPhotoIds);
 
-  const finalMap = new Map();
-  for (const { name, ids } of finalGroups) {
-    const key = name.toLowerCase().trim();
-    if (!finalMap.has(key)) finalMap.set(key, { name, ids: new Set(ids) });
-    else ids.forEach((id) => finalMap.get(key).ids.add(id));
+    const finalMap = new Map();
+    for (const { name, ids } of finalGroups) {
+      const key = name.toLowerCase().trim();
+      if (!finalMap.has(key)) finalMap.set(key, { name, ids: new Set(ids) });
+      else ids.forEach((id) => finalMap.get(key).ids.add(id));
+    }
+
+    return Array.from(finalMap.values())
+      .map((g) => ({
+        name: g.name,
+        photo_ids: filterValidIds([...g.ids], validPhotoIds),
+      }))
+      .filter((f) => f.photo_ids.length > 0);
   }
 
-  return Array.from(finalMap.values())
-    .map((g) => ({
-      name: g.name,
-      photo_ids: filterValidIds([...g.ids], validPhotoIds),
-    }))
-    .filter((f) => f.photo_ids.length > 0);
+  return groups.map((g) => ({ name: g.name, photo_ids: g.ids }));
 }
 
 function assignRemainingPhotos(folders, photosToOrganize, validPhotoIds) {
@@ -173,7 +198,13 @@ export async function runMediaOrganize({
   customInstructions,
   onProgress,
 }) {
-  const existingFolders = await base44.entities.Folder.list();
+  const allPhotoIds = new Set(photos.map((p) => p.id));
+
+  let existingFolders = await base44.entities.Folder.list();
+  existingFolders = await sanitizeFolderMembership(existingFolders, allPhotoIds);
+  await cleanupEmptyFolders(allPhotoIds);
+  existingFolders = await base44.entities.Folder.list();
+
   const organizedPhotoIds = new Set(existingFolders.flatMap((f) => f.photo_ids || []));
   const existingFolderNames = existingFolders.map((f) => f.name);
 
@@ -181,31 +212,30 @@ export async function runMediaOrganize({
     ? photos
     : photos.filter((p) => !organizedPhotoIds.has(p.id));
 
-  if (photosToOrganize.length < 2) {
+  if (photosToOrganize.length === 0) {
     return {
       ok: false,
-      reason:
-        photosToOrganize.length === 0
-          ? "All photos are already in folders. Check 'Re-organize everything' to re-sort."
-          : "Only 1 loose photo found — need at least 2 to organize.",
+      reason: includeOrganized
+        ? "No photos to organize."
+        : "All photos are already in folders. Check 'Re-organize everything' to re-sort.",
     };
   }
 
   const validPhotoIds = new Set(photosToOrganize.map((p) => p.id));
-  const allPhotoIds = new Set(photos.map((p) => p.id));
 
   if (includeOrganized && existingFolders.length > 0) {
-    onProgress(`Clearing ${existingFolders.length} existing folders for re-organization…`);
+    onProgress?.(`Clearing ${existingFolders.length} existing folders…`);
     await runConcurrent(
       existingFolders.map((f) => () => base44.entities.Folder.delete(f.id)),
       5
     );
+    existingFolders = [];
   }
 
   if (sharpenTags) {
     const weakInBatch = photosToOrganize.filter(isWeakMetadata).length;
     if (weakInBatch > 0) {
-      onProgress(`Sharpening visual tags for ${weakInBatch} item${weakInBatch !== 1 ? "s" : ""}…`);
+      onProgress?.(`Sharpening tags for ${weakInBatch} item${weakInBatch !== 1 ? "s" : ""}…`);
       photosToOrganize = await reanalyzeWeakPhotos(photosToOrganize, { onProgress });
     }
   }
@@ -217,9 +247,7 @@ export async function runMediaOrganize({
 
   const totalChunks = chunks.length;
   let completedChunks = 0;
-  onProgress(
-    `Phase 1: labelling ${photosToOrganize.length} item${photosToOrganize.length !== 1 ? "s" : ""} (${totalChunks} batch${totalChunks !== 1 ? "es" : ""})…`
-  );
+  onProgress?.(`Sorting ${photosToOrganize.length} unsorted item${photosToOrganize.length !== 1 ? "s" : ""}…`);
 
   const labelTasks = chunks.map((chunk) => async () => {
     const labels = await labelChunk(
@@ -228,11 +256,11 @@ export async function runMediaOrganize({
       customInstructions
     );
     completedChunks++;
-    onProgress(`Phase 1: ${completedChunks}/${totalChunks} batches done…`);
+    onProgress?.(`Sorted batch ${completedChunks}/${totalChunks}…`);
     return labels.filter((l) => validPhotoIds.has(l.id));
   });
 
-  const labelResults = await runConcurrent(labelTasks, CONCURRENCY);
+  const labelResults = await runConcurrent(labelTasks, LLM_CONCURRENCY);
   const allLabels = labelResults.flat();
 
   const labelledIds = new Set(allLabels.map((l) => l.id));
@@ -265,7 +293,7 @@ export async function runMediaOrganize({
 
   finalFolders = assignRemainingPhotos(finalFolders, photosToOrganize, validPhotoIds);
 
-  onProgress(`Saving ${finalFolders.length} folders…`);
+  onProgress?.(`Saving ${finalFolders.length} folder${finalFolders.length !== 1 ? "s" : ""}…`);
 
   const currentFolders = includeOrganized ? [] : existingFolders;
 
@@ -333,7 +361,7 @@ export async function runMediaOrganize({
     }
   });
 
-  await runConcurrent(folderTasks, 5);
+  await runConcurrent(folderTasks, 3);
   await cleanupEmptyFolders(allPhotoIds);
 
   const totalSaved = foldersToSave.reduce((sum, f) => sum + f.photo_ids.length, 0);

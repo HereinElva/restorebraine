@@ -14,35 +14,23 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { isWeakMetadata } from "@/lib/media-tags";
+import { formatLLMError } from "@/lib/invoke-llm-retry";
 import { runMediaOrganize } from "@/lib/run-media-organize";
 import { ORGANIZE_ICON_CLASS, ORGANIZE_LABEL_CLASS, SQUARE_FOLDER_ACTION_CLASS, SQUARE_FOLDER_ACTION_STYLE } from "./folderActionStyles";
 
-function OrganizeProgressBar({ progress }) {
-  if (!progress) return null;
-  return (
-    <div className="rb-organize-progress-bar" role="status" aria-live="polite">
-      <div className="rb-organize-progress-text">
-        <Sparkles className="w-3.5 h-3.5 flex-shrink-0 animate-pulse" />
-        <span>{progress}</span>
-      </div>
-    </div>
-  );
-}
-
 export default function OrganizeButton({ photos, squareStyle = false }) {
   const [organizing, setOrganizing] = useState(false);
-  const [progress, setProgress] = useState("");
   const [showDialog, setShowDialog] = useState(false);
   const [customInstructions, setCustomInstructions] = useState("");
   const [includeOrganized, setIncludeOrganized] = useState(false);
-  const [sharpenTags, setSharpenTags] = useState(true);
+  const [sharpenTags, setSharpenTags] = useState(false);
   const queryClient = useQueryClient();
 
   const weakCount = photos.filter(isWeakMetadata).length;
 
   const handleOrganize = async () => {
-    if (photos.length < 2) {
-      alert("You need at least 2 photos to organize.");
+    if (photos.length < 1) {
+      alert("Add photos before organizing.");
       return;
     }
 
@@ -55,7 +43,6 @@ export default function OrganizeButton({ photos, squareStyle = false }) {
         includeOrganized,
         sharpenTags,
         customInstructions,
-        onProgress: setProgress,
       });
 
       if (!result.ok) {
@@ -63,7 +50,6 @@ export default function OrganizeButton({ photos, squareStyle = false }) {
         return;
       }
 
-      setProgress("");
       queryClient.invalidateQueries({ queryKey: ["folders"] });
       queryClient.invalidateQueries({ queryKey: ["photos"] });
 
@@ -76,8 +62,7 @@ export default function OrganizeButton({ photos, squareStyle = false }) {
       }
     } catch (error) {
       console.error("Error organizing:", error);
-      alert(error?.message || "Failed to organize photos. Please try again.");
-      setProgress("");
+      alert(formatLLMError(error));
     } finally {
       setOrganizing(false);
     }
@@ -90,7 +75,7 @@ export default function OrganizeButton({ photos, squareStyle = false }) {
           type="button"
           data-rb-folder-action="organize"
           onClick={() => setShowDialog(true)}
-          disabled={organizing || photos.length < 2}
+          disabled={organizing || photos.length < 1}
           className={`relative ${SQUARE_FOLDER_ACTION_CLASS}`}
           style={SQUARE_FOLDER_ACTION_STYLE}
         >
@@ -106,7 +91,7 @@ export default function OrganizeButton({ photos, squareStyle = false }) {
       ) : (
         <Button
           onClick={() => setShowDialog(true)}
-          disabled={organizing || photos.length < 2}
+          disabled={organizing || photos.length < 1}
           className="bg-gradient-to-r from-blue-400 to-purple-500 hover:from-blue-500 hover:to-purple-600 text-white gap-2"
         >
           {organizing ? (
@@ -123,14 +108,12 @@ export default function OrganizeButton({ photos, squareStyle = false }) {
         </Button>
       )}
 
-      <OrganizeProgressBar progress={organizing ? progress : ""} />
-
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
         <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Organize Media</DialogTitle>
             <DialogDescription>
-              AI groups photos and videos by what they look like — grass fields, beaches, pets, food, and more
+              Sorts every unsorted photo and video from Recents into folders. Items already in folders are left in place.
             </DialogDescription>
           </DialogHeader>
 
@@ -165,7 +148,7 @@ export default function OrganizeButton({ photos, squareStyle = false }) {
                 onCheckedChange={setSharpenTags}
               />
               <Label htmlFor="sharpen-tags" className="text-sm font-normal cursor-pointer">
-                Sharpen visual tags before organizing
+                Sharpen visual tags before organizing (slower, uses more AI requests)
                 {weakCount > 0 && (
                   <span className="text-gray-500 ml-1">({weakCount} item{weakCount !== 1 ? "s" : ""} need better tags)</span>
                 )}
