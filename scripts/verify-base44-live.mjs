@@ -20,8 +20,8 @@ try {
   process.exit(1);
 }
 
-const liveDeploy = html.match(/restorebraine-deploy" content="v(\d+)"/)?.[1]
-  ?? html.match(/name="restorebraine-deploy" content="v(\d+)"/)?.[1]
+const liveDeploy = html.match(/restorebraine-deploy[^>]*content="v(\d+)"/)?.[1]
+  ?? html.match(/content="v(\d+)"[^>]*restorebraine-deploy/)?.[1]
   ?? '?';
 const liveBundle = html.match(/assets\/(index-[^"]+\.js)/)?.[1] ?? 'unknown';
 const hasMultiProvider = /Continue With Apple|Continue With Microsoft|Sign In With Email/i.test(html);
