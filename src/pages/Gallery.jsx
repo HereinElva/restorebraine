@@ -3,6 +3,7 @@ import { base44 } from "@/api/base44Client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/lib/AuthContext";
 import { hasStoredSessionToken } from "@/screens/SignInScreen";
+import { ensureClientSessionToken } from "@/lib/session-bootstrap";
 import { Search, Image as ImageIcon, Sparkles, MousePointer2 } from "lucide-react";
 import PullToRefresh from "../components/gallery/PullToRefresh";
 import { Input } from "@/components/ui/input";
@@ -103,7 +104,24 @@ export default function Gallery() {
   useEffect(() => {
     setTabState("Gallery", { searchQuery, debouncedQuery, selectedFolder });
   }, [searchQuery, debouncedQuery, selectedFolder]);
- 
+
+  useEffect(() => {
+    if (!canFetchData) return;
+    ensureClientSessionToken();
+    const refreshGallery = () => {
+      ensureClientSessionToken();
+      queryClient.invalidateQueries({ queryKey: ['photos'] });
+      queryClient.invalidateQueries({ queryKey: ['folders'] });
+      queryClient.invalidateQueries({ queryKey: ['current-user'] });
+    };
+    window.addEventListener('restorebraine-session-updated', refreshGallery);
+    window.addEventListener('restorebraine-native-oauth-complete', refreshGallery);
+    return () => {
+      window.removeEventListener('restorebraine-session-updated', refreshGallery);
+      window.removeEventListener('restorebraine-native-oauth-complete', refreshGallery);
+    };
+  }, [canFetchData, queryClient]);
+
   useEffect(() => {
     if (selectedFolder) {
       pushBack(selectedFolder.name, () => {
@@ -121,44 +139,57 @@ export default function Gallery() {
   // currentUser is fetched once and cached — no blocking on re-opens
   const { data: currentUser } = useQuery({
     queryKey: ['current-user'],
-    queryFn: () => base44.auth.me(),
+    queryFn: () => {
+      ensureClientSessionToken();
+      return base44.auth.me();
+    },
     enabled: canFetchData,
     staleTime: CACHE.user.staleTime,
     gcTime: CACHE.user.gcTime,
     placeholderData: (prev) => prev ?? authUser ?? undefined,
+    retry: 2,
+    refetchOnMount: 'always',
   });
 
   const userEmail = currentUser?.email || authUser?.email;
 
   const { data: photos = [], isLoading: photosLoading } = useQuery({
-    queryKey: ['photos', userEmail],
+    queryKey: ['photos', userEmail ?? 'pending'],
     queryFn: async () => {
+      ensureClientSessionToken();
       const me = userEmail ? { email: userEmail } : await base44.auth.me();
-      if (!me?.email) return [];
+      if (!me?.email) throw new Error('Gallery requires signed-in user');
       return base44.entities.Photo.filter({ created_by: me.email }, '-created_date');
     },
     enabled: canFetchData,
     staleTime: CACHE.photos.staleTime,
     gcTime: CACHE.photos.gcTime,
-    placeholderData: (prev) => prev,
-    initialData: [],
+    retry: 2,
+    refetchOnMount: 'always',
   });
 
   const { data: folders = [] } = useQuery({
-    queryKey: ['folders', userEmail],
+    queryKey: ['folders', userEmail ?? 'pending'],
     queryFn: async () => {
+      ensureClientSessionToken();
       const me = userEmail ? { email: userEmail } : await base44.auth.me();
-      if (!me?.email) return [];
+      if (!me?.email) throw new Error('Gallery requires signed-in user');
       const result = await base44.entities.Folder.list('-created_date', 200);
       return (result || []).filter(f => !f.created_by || f.created_by === me.email);
     },
     enabled: canFetchData,
     staleTime: CACHE.folders.staleTime,
     gcTime: CACHE.folders.gcTime,
-    placeholderData: (prev) => prev,
-    initialData: [],
+    retry: 2,
+    refetchOnMount: 'always',
   });
- 
+
+  useEffect(() => {
+    if (!userEmail || !canFetchData) return;
+    queryClient.invalidateQueries({ queryKey: ['photos', userEmail] });
+    queryClient.invalidateQueries({ queryKey: ['folders', userEmail] });
+  }, [userEmail, canFetchData, queryClient]);
+
   // Only show the loading spinner on the very first load (no cached data yet)
   const isLoading = photosLoading && photos.length === 0;
  

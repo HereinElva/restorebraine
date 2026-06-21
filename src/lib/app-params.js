@@ -51,10 +51,12 @@ const getAppParamValueSync = (paramName, { defaultValue = undefined, removeFromU
 };
 
 const getAppParams = () => {
+  const tokenFromAccessKey = getAppParamValueSync('access_token', { removeFromUrl: true });
+  const tokenFallback = isNode ? null : persistentStorage.getSync('token');
   return {
     appId: getAppParamValueSync('app_id', { defaultValue: BASE44_APP_ID }),
     serverUrl: getAppParamValueSync('server_url', { defaultValue: BASE44_API_URL }),
-    token: getAppParamValueSync('access_token', { removeFromUrl: true }),
+    token: tokenFromAccessKey || tokenFallback || null,
     fromUrl: getAppParamValueSync('from_url', { defaultValue: isNode ? '' : window.location.href }),
     functionsVersion: getAppParamValueSync('functions_version'),
   };

@@ -16,6 +16,32 @@ const readSyncToken = () => {
   }
 };
 
+/** Apply stored token to base44 client synchronously — must run before API queries. */
+export function ensureClientSessionToken() {
+  if (typeof window === 'undefined') return null;
+  try {
+    if (localStorage.getItem(SIGNED_OUT_KEY) === '1') return null;
+  } catch {}
+
+  let token = readSyncToken();
+  const injected = window.__RESTOREBRAINE_NATIVE_SYNC_TOKEN__;
+  if (
+    !token
+    && injected
+    && injected !== 'SYNC_TOKEN_PLACEHOLDER'
+    && !String(injected).includes('PLACEHOLDER')
+  ) {
+    token = injected;
+    persistentStorage._mirror('base44_access_token', token);
+    persistentStorage._mirror('token', token);
+  }
+
+  if (!token) return null;
+  appParams.token = token;
+  base44.auth.setToken(token, false);
+  return token;
+}
+
 const withTimeout = (promise, ms) =>
   Promise.race([
     promise,

@@ -3,7 +3,7 @@ import { base44 } from '@/api/base44Client';
 import { appParams, getAppOrigin } from '@/lib/app-params';
 import { createAxiosClient } from '@base44/sdk/dist/utils/axios-client';
 import { openRestorebraineLogin } from '@/lib/auth-urls';
-import { clearNativeSession, persistSessionToNativeStorage, restoreSessionFromNativeStorage } from '@/lib/session-bootstrap';
+import { clearNativeSession, persistSessionToNativeStorage, restoreSessionFromNativeStorage, ensureClientSessionToken } from '@/lib/session-bootstrap';
 import { isHostedAppOrigin, isNativeShell } from '@/lib/native-hosted-redirect';
 import { LOCAL_NATIVE_BUNDLE } from '@/lib/native-bundle-mode';
 
@@ -52,6 +52,7 @@ export const AuthProvider = ({ children }) => {
   const [manuallyLoggedOut, setManuallyLoggedOut] = useState(false);
 
   useEffect(() => {
+    ensureClientSessionToken();
     checkAppState();
   }, []);
 
@@ -237,6 +238,7 @@ export const AuthProvider = ({ children }) => {
 
     try {
       setIsLoadingAuth(true);
+      ensureClientSessionToken();
       const currentUser = await withTimeout(
         base44.auth.me(),
         isNativeLocalShell() ? NATIVE_AUTH_TIMEOUT_MS : AUTH_TIMEOUT_MS,

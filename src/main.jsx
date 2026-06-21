@@ -7,6 +7,7 @@ import { NATIVE_BUILD_LABEL } from '@/lib/build-info';
 import { redirectNativeToHostedApp } from '@/lib/native-hosted-redirect';
 import { installNativeOAuthFix } from '@/lib/native-oauth-fix';
 import { redirectBrokenCustomDomainLogin } from '@/lib/auth-urls';
+import { ensureClientSessionToken } from '@/lib/session-bootstrap';
 
 function showBootstrapError(message) {
   const root = document.getElementById('root');
@@ -54,6 +55,7 @@ function loadV4BridgeScript() {
 
 function bootstrapNativeLocal() {
   window.__RESTOREBRAINE_NATIVE_BUILD__ = NATIVE_BUILD_LABEL;
+  ensureClientSessionToken();
 
   const { protocol, hostname } = window.location;
   const bundledOrigin =
@@ -112,6 +114,7 @@ function bootstrapNativeLocal() {
 }
 
 function bootstrapWeb() {
+  ensureClientSessionToken();
   installNativeOAuthFix();
 
   if (redirectNativeToHostedApp()) {
