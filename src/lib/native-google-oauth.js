@@ -217,40 +217,69 @@ const openOAuthInSystemBrowser = async (url, providerHint) => {
   }
   recordOAuthDebug({ stage: 'system-browser', url: normalizedUrl.slice(0, 120) });
   oauthListenerAttached = false;
+  await attachOAuthCompletionListener();
+  const ib = await getInAppBrowserPluginAsync(30);
   try {
-    await attachOAuthCompletionListener();
-    const ib = await getInAppBrowserPluginAsync(20);
-    await withTimeout(
-      ib.openInSystemBrowser({ url: normalizedUrl, options: SYSTEM_BROWSER_OPTIONS }),
-      8000,
-      'InAppBrowser open',
-    );
+    await ib.openInSystemBrowser({ url: normalizedUrl, options: SYSTEM_BROWSER_OPTIONS });
   } catch (error) {
-    recordOAuthError(error, 'inappbrowser');
-    console.warn('InAppBrowser system browser failed — trying Capacitor Browser:', error);
-    await openWithBrowserFallback(normalizedUrl);
+    window.__restorebraineOAuthInProgress = false;
+    recordOAuthError(error, 'inappbrowser-open');
+    throw error;
   }
+
+  // Wait until OAuth completes or the user closes the browser sheet.
+  await new Promise((resolve) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      window.removeEventListener('restorebraine-native-oauth-complete', onComplete);
+      resolve();
+    };
+    const onComplete = () => finish();
+    window.addEventListener('restorebraine-native-oauth-complete', onComplete);
+    ib.addListener('browserClosed', () => finish()).catch(() => finish());
+    setTimeout(finish, 180000);
+  });
 };
 
-/** Bundled native: ASWebAuthenticationSession (shows iOS sheet) → InAppBrowser → Safari. */
+/** Bundled native: ASWebAuthenticationSession → InAppBrowser (never bail on first CANCELED). */
 const openBundledNativeOAuth = async (oauthUrl, provider) => {
   recordOAuthDebug({ stage: 'bundled-oauth-start', url: oauthUrl.slice(0, 120) });
-  await waitForNativeOAuthPlugin(30);
+  let lastError = null;
+
+  await waitForNativeOAuthPlugin(60);
   if (hasRegisteredNativeOAuthPlugin()) {
     try {
       recordOAuthDebug({ stage: 'bundled-asweb-auth' });
       await startNativeOAuthSession(oauthUrl, provider);
       return;
     } catch (error) {
+      lastError = error;
       window.__restorebraineOAuthInProgress = false;
-      const message = recordOAuthError(error, 'asweb-auth');
-      if (error?.code === 'CANCELED' || /^oauth canceled$/i.test(message)) return;
-      console.warn('Native ASWebAuthenticationSession failed — trying InAppBrowser:', error);
+      recordOAuthError(error, 'asweb-auth');
+      console.warn('Native ASWebAuthenticationSession ended — trying InAppBrowser:', error);
     }
   } else {
-    recordOAuthError(new Error('RestorebraineOAuth plugin not ready'), 'plugin-missing');
+    lastError = new Error('RestorebraineOAuth plugin not ready');
+    recordOAuthError(lastError, 'plugin-missing');
   }
-  await openOAuthInSystemBrowser(oauthUrl, provider);
+
+  try {
+    recordOAuthDebug({ stage: 'bundled-inappbrowser-fallback' });
+    await openOAuthInSystemBrowser(oauthUrl, provider);
+    return;
+  } catch (error) {
+    lastError = error;
+    window.__restorebraineOAuthInProgress = false;
+    recordOAuthError(error, 'inappbrowser');
+  }
+
+  const message = lastError?.message || lastError?.errorMessage || String(lastError || '');
+  if (lastError?.code === 'CANCELED' || /^oauth canceled$/i.test(message)) {
+    return;
+  }
+  throw lastError || new Error('Could not open sign-in sheet. Tap again or use email.');
 };
 
 const handleOAuthBrowserNavigation = async (url) => {

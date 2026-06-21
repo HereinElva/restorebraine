@@ -53,10 +53,12 @@ public class RestorebraineOAuthPlugin: CAPPlugin, CAPBridgedPlugin, ASWebAuthent
             return
         }
 
-        DispatchQueue.main.async {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
             self.authSession?.cancel()
 
-            // iOS 17.4+: catch https://restorebraine.base44.app/?access_token= directly (no Base44 publish needed).
+            let started = false
+
+            // iOS 17.4+: catch https://restorebraine.base44.app/?access_token= directly.
             if #available(iOS 17.4, *) {
                 let httpsSession = ASWebAuthenticationSession(
                     url: url,
@@ -69,11 +71,14 @@ public class RestorebraineOAuthPlugin: CAPPlugin, CAPBridgedPlugin, ASWebAuthent
                 httpsSession.presentationContextProvider = self
                 httpsSession.prefersEphemeralWebBrowserSession = false
                 self.authSession = httpsSession
-                if httpsSession.start() { return }
+                if httpsSession.start() {
+                    started = true
+                    return
+                }
                 self.authSession = nil
             }
 
-            // Fallback: restorebraine://oauth/callback (requires native-oauth-return.js on hosted site).
+            // Fallback: restorebraine://oauth/callback
             let schemeSession = ASWebAuthenticationSession(url: url, callbackURLScheme: "restorebraine") { [weak self] callbackURL, error in
                 guard let self else { return }
                 let token = callbackURL.flatMap { self.tokenFromCallbackURL($0) }
@@ -82,10 +87,15 @@ public class RestorebraineOAuthPlugin: CAPPlugin, CAPBridgedPlugin, ASWebAuthent
             schemeSession.presentationContextProvider = self
             schemeSession.prefersEphemeralWebBrowserSession = false
             self.authSession = schemeSession
-            if schemeSession.start() { return }
+            if schemeSession.start() {
+                started = true
+                return
+            }
 
             self.authSession = nil
-            call.reject("Could not start OAuth session")
+            if !started {
+                call.reject("Could not start OAuth session")
+            }
         }
     }
 
