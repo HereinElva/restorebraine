@@ -125,7 +125,7 @@ export default function NativeLoginCard({ clearSignedOut = false }) {
   };
 
   return (
-    <div style={cardStyle}>
+    <div style={cardStyle} data-rb-auth="sign-in-v4">
       <form onSubmit={handleSubmit} noValidate style={formStyle}>
         <h1 style={{ fontSize: '24px', fontWeight: '700', color: '#111', margin: '0 0 24px' }}>Restorebraine</h1>
 

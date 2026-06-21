@@ -51,6 +51,20 @@ git checkout omega-v4-core -- \
 
 Then rebuild: `bash scripts/mac-capacitor-web-sync.sh` and **Xcode → Run**.
 
+### App Store / TestFlight (use hosted — NOT bundled)
+
+Old Omega (`omega` tag, v58) loaded live `restorebraine.base44.app` — login worked without Base44 paste marathons.
+
+**Before every Archive:**
+
+```bash
+bash scripts/mac-appstore-deploy.sh
+bash scripts/mac-pre-upload-checklist.sh
+# Xcode → Clean → Archive → Upload
+```
+
+Do **not** run `mac-ios-v4-deploy.sh` or `mac-capacitor-web-sync.sh` before App Store upload — those bundle `capacitor://localhost` and break login on TestFlight.
+
 ---
 
 ## Legacy Omega (hosted WebView — pre v4-core)

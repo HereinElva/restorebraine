@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
-# v4-core full deploy: build bundle + install to connected iPhone.
+# v4-core DEV deploy: bundled capacitor://localhost — for local UI experiments only.
+#
+# For App Store / TestFlight use HOSTED mode instead (login works like old Omega):
+#   bash scripts/mac-appstore-deploy.sh
 #
 # Default builds the CURRENT checkout (no git reset — avoids wiping local fixes).
 # Pass --sync to pull origin branch first (git reset --hard).
@@ -24,8 +27,11 @@ done
 cd "$(git rev-parse --show-toplevel)"
 
 echo "╔══════════════════════════════════════════════════════════════╗"
-echo "║  Restorebraine v4 DEPLOY — build + install (not npm-only)    ║"
+echo "║  Restorebraine v4 DEV — bundled localhost (NOT App Store)    ║"
 echo "╚══════════════════════════════════════════════════════════════╝"
+echo ""
+echo "⚠️  For TestFlight / App Store use: bash scripts/mac-appstore-deploy.sh"
+echo "    (hosted WebView — login works like Omega / Safari)"
 echo ""
 echo "Tip: Do not run 'git pull' manually — npm build changes index.html"
 echo "     and build-info.js. This script resets those automatically."

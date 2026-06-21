@@ -391,8 +391,9 @@
             }, 100);
           }
 
-          function openGoogleOAuthWithNativeSession(url) {
-            url = normalizeAuthUrl(url || getCanonicalOAuthUrl('google'), 'google');
+          function openGoogleOAuthWithNativeSession(url, providerHint) {
+            providerHint = providerHint || 'google';
+            url = normalizeAuthUrl(url || getCanonicalOAuthUrl(providerHint), providerHint);
             window.__restorebraineOAuthMode = 'asweb-auth';
             window.__restorebraineLastOAuthUrl = url;
             function tryNativeOAuth() {
@@ -407,12 +408,33 @@
                 }).catch(function (err) {
                   var msg = (err && (err.message || err.errorMessage || String(err))) || '';
                   if (/cancel/i.test(msg)) return;
-                  openLoginInWebView(url, 'google');
+                  launchSystemBrowserForOAuth(url);
                 });
                 return true;
               } catch (e) {
                 return false;
               }
+            }
+            function launchSystemBrowserForOAuth(oauthUrl) {
+              window.__restorebraineOAuthMode = 'v4-system-browser';
+              function launch() {
+                try {
+                  var ib = getInAppBrowserPlugin();
+                  if (!ib) return false;
+                  oauthBrowserListenerAttached = false;
+                  attachOAuthBrowserListeners(ib);
+                  ib.openInSystemBrowser({ url: oauthUrl, options: SYSTEM_BROWSER_OPTIONS });
+                  return true;
+                } catch (e) {
+                  return false;
+                }
+              }
+              if (launch()) return;
+              var attempts = 0;
+              var timer = setInterval(function () {
+                attempts += 1;
+                if (launch() || attempts >= 60) clearInterval(timer);
+              }, 100);
             }
             if (tryNativeOAuth()) return;
             var tries = 0;
@@ -424,7 +446,7 @@
               }
               if (tries >= 30) {
                 clearInterval(wait);
-                openLoginInWebView(url, 'google');
+                launchSystemBrowserForOAuth(url);
               }
             }, 100);
           }
@@ -434,7 +456,7 @@
             url = normalizeAuthUrl(url || getCanonicalOAuthUrl(providerHint), providerHint);
             window.__restorebraineLastOAuthUrl = url;
             if (isBundledNativeOrigin()) {
-              openGoogleOAuthWithNativeSession(url);
+              openGoogleOAuthWithNativeSession(url, providerHint);
               return;
             }
             window.__restorebraineOAuthMode = 'v4-system-browser';

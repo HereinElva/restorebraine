@@ -32,6 +32,12 @@ cat <<EOF
 3) CAPACITOR HOSTED NATIVE (WebView loads restorebraine.base44.app)
    • npm run build  (sets server.url)
    • Shows whatever is live on Base44 — NOT your local src/ unless published
+   • USE THIS for TestFlight / App Store (Omega-style — login works):
+       bash scripts/mac-appstore-deploy.sh
+
+4) DEV ONLY — CAPACITOR BUNDLED (capacitor://localhost)
+   • bash scripts/mac-capacitor-web-sync.sh
+   • Login OAuth is fragile — do NOT upload to App Store from this mode
 
 ──────────────────────────────────────────────────────────────────
 Current repo state:

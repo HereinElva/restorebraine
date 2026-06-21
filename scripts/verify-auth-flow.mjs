@@ -55,10 +55,10 @@ if (!auth.includes('setManuallyLoggedOut(false)') || !auth.includes('restorebrai
 }
 
 const bridge = existsSync('public/restorebraine-v4-bridge.js') ? read('public/restorebraine-v4-bridge.js') : '';
-if (bridge.includes('data-rb-gallery-nav') && bridge.includes('isBundledNativeOrigin()')) {
-  ok('Bridge skips sign-in interceptor on gallery nav + bundled native');
+if (bridge.includes('launchSystemBrowserForOAuth') && bridge.includes('isBundledNativeOrigin()')) {
+  ok('Bridge uses system browser fallback on bundled native (not WebView)');
 } else if (bridge) {
-  bad('Bridge missing gallery-nav or bundled-native guards');
+  bad('Bridge missing system-browser fallback for bundled OAuth');
 }
 
 console.log('');

@@ -5,8 +5,10 @@ set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 
 echo "╔══════════════════════════════════════════════════════════════╗"
-echo "║  Capacitor web sync — src → dist → ios/public → iPhone       ║"
+echo "║  Capacitor web sync — DEV bundled localhost (NOT App Store)  ║"
 echo "╚══════════════════════════════════════════════════════════════╝"
+echo ""
+echo "⚠️  TestFlight / App Store: bash scripts/mac-appstore-deploy.sh (hosted Omega-style)"
 echo ""
 echo "Login is React-only (SignInScreen). Gallery/folders locked to Omega v4-core baseline."
 echo "server.url must stay 0 — bundled capacitor://localhost mode."

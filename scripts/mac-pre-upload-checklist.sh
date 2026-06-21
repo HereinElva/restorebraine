@@ -4,13 +4,36 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
+FAIL=0
+
 ICON="$ROOT/ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png"
 BUILD=$(grep -m1 'CURRENT_PROJECT_VERSION' ios/App/App.xcodeproj/project.pbxproj | sed 's/[^0-9]*//g')
 
-echo "=== Restorebraine Pre-Upload Checklist ==="
+cat <<EOF
+=== Restorebraine Pre-Upload Checklist ===
+=== CRITICAL: use HOSTED mode before Archive (Omega-style) ===
+
+DO NOT upload after mac-ios-v4-deploy or mac-capacitor-web-sync — those bundle
+capacitor://localhost and login buttons break on TestFlight.
+
+Before Archive run:
+  bash scripts/mac-appstore-deploy.sh
+
+That sets server.url → https://restorebraine.base44.app (same login as Safari).
+
+EOF
+
+echo "=== Icon + version checks ==="
 echo
 
-FAIL=0
+REPO_URL=$(grep -o '"url": *"[^"]*"' ios/App/App/capacitor.config.json 2>/dev/null | head -1 | sed 's/.*"url": *"\([^"]*\)".*/\1/' || echo missing)
+if [[ "$REPO_URL" == *"restorebraine.base44.app"* ]]; then
+  echo "OK: capacitor.config.json is HOSTED (App Store / TestFlight ready)"
+else
+  echo "FAIL: Repo is bundled localhost — login breaks on TestFlight"
+  echo "      Run: bash scripts/mac-appstore-deploy.sh"
+  FAIL=1
+fi
 
 BYTES=$(wc -c < "$ICON" | tr -d ' ')
 if [ "$BYTES" -lt 500000 ]; then
