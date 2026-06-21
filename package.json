@@ -21,6 +21,8 @@
     "verify:resync": "node scripts/verify-resync-ready.mjs",
     "base44:wizard": "bash scripts/base44-publish-wizard.sh",
     "base44:checklist": "bash scripts/base44-publish-wizard.sh --list",
+    "base44:one": "bash scripts/base44-copy-one.sh",
+    "base44:check": "bash scripts/base44-check-live.sh",
     "mac:nuclear-scrub": "bash scripts/mac-nuclear-scrub.sh",
     "mac:v4-build": "bash scripts/mac-ios-v4-build.sh",
     "mac:v4-install": "bash scripts/mac-ios-v4-install.sh",

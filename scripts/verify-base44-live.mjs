@@ -55,9 +55,11 @@ if (hasOldSingleGoogle) {
 
 console.log('');
 if (fail) {
-  console.error('=== Fix: run the Base44 wizard (one file at a time) ===');
-  console.error('  bash scripts/base44-publish-wizard.sh');
-  console.error('  docs/BASE44-PUBLISH.md');
+  console.error('=== Fix (Terminal only) ===');
+  console.error('  bash scripts/base44-copy-one.sh --reset');
+  console.error('  bash scripts/base44-copy-one.sh   (repeat 35x, paste+save in Base44)');
+  console.error('  Click Publish in Base44');
+  console.error('  bash scripts/base44-check-live.sh');
   process.exit(1);
 }
 console.log('=== Base44 live matches git ===');
