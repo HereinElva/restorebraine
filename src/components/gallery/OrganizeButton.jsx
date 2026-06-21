@@ -13,7 +13,6 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { isWeakMetadata } from "@/lib/media-tags";
 import { formatLLMError } from "@/lib/invoke-llm-retry";
 import {
   getGalleryOrganizeSnapshot,
@@ -34,14 +33,11 @@ export default function OrganizeButton({ photos, folders: foldersProp, squareSty
   const [showDialog, setShowDialog] = useState(false);
   const [customInstructions, setCustomInstructions] = useState("");
   const [includeOrganized, setIncludeOrganized] = useState(false);
-  const [sharpenTags, setSharpenTags] = useState(false);
   const queryClient = useQueryClient();
 
   const snapshot = getGalleryOrganizeSnapshot();
   const folders = foldersProp ?? snapshot.folders;
-  const unorganized = getUnorganizedPhotos(photos, folders);
-  const unorganizedCount = unorganized.length;
-  const weakInBatch = unorganized.filter(isWeakMetadata).length;
+  const unorganizedCount = getUnorganizedPhotos(photos, folders).length;
 
   const handleOrganize = async () => {
     if (photos.length < 1) {
@@ -51,7 +47,7 @@ export default function OrganizeButton({ photos, folders: foldersProp, squareSty
 
     if (!includeOrganized && unorganizedCount === 0) {
       alert(
-        "No loose photos in your gallery right now. Only photos showing in Recents (not already in a folder) get sorted. Check \"Re-organize everything\" to re-sort all media."
+        "No loose photos in your gallery right now. Check \"Re-organize everything\" to re-sort all media."
       );
       return;
     }
@@ -65,7 +61,6 @@ export default function OrganizeButton({ photos, folders: foldersProp, squareSty
         photos,
         folders,
         includeOrganized,
-        sharpenTags,
         customInstructions,
         onProgress: setProgressLabel,
       });
@@ -147,19 +142,12 @@ export default function OrganizeButton({ photos, folders: foldersProp, squareSty
         <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Organize Media</DialogTitle>
-            <DialogDescription>
-              {unorganizedCount > 0
-                ? `Sort ${unorganizedCount} loose photo${unorganizedCount !== 1 ? "s" : ""} and video${unorganizedCount !== 1 ? "s" : ""} from Recents into folders. AI reads each item's visual description to group similar subjects together. Photos already in folders are skipped.`
-                : "Sort loose media from Recents into folders by visual content. Photos already in folders are skipped."}
-              {weakInBatch > 0 && unorganizedCount > 0 && !sharpenTags && (
-                <span className="block mt-1 text-gray-500 text-xs">
-                  Tip: check re-read from image for better grouping on vague items.
-                </span>
-              )}
+            <DialogDescription className="sr-only">
+              Sort loose photos and videos from Recents into folders
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4 py-4">
+          <div className="space-y-4 py-2">
             <div className="space-y-2">
               <Label htmlFor="instructions">
                 Custom Instructions (Optional)
@@ -181,20 +169,6 @@ export default function OrganizeButton({ photos, folders: foldersProp, squareSty
                 }}
                 className="min-h-[100px]"
               />
-              <p className="text-xs text-gray-500">
-                Custom instructions override default grouping — e.g. separate vacations, group all pets, sort by date.
-              </p>
-            </div>
-
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="sharpen-tags"
-                checked={sharpenTags}
-                onCheckedChange={setSharpenTags}
-              />
-              <Label htmlFor="sharpen-tags" className="text-sm font-normal cursor-pointer">
-                Re-read every loose photo from the image before sorting (most accurate, slowest)
-              </Label>
             </div>
 
             <div className="flex items-center space-x-2">

@@ -1,6 +1,4 @@
 import { base44 } from "@/api/base44Client";
-import { reanalyzeWeakPhotos } from "@/lib/media-analysis";
-import { isWeakMetadata } from "@/lib/media-tags";
 import { invokeLLMWithRetry } from "@/lib/invoke-llm-retry";
 import {
   assignFolderLocally,
@@ -21,7 +19,6 @@ import {
 const CHUNK_SIZE = 15;
 const LLM_DELAY_MS = 1500;
 const MISC_FOLDER = "Miscellaneous";
-const MAX_SHARPEN_PER_RUN = 4;
 
 async function runConcurrent(tasks, concurrency) {
   const results = new Array(tasks.length);
@@ -201,7 +198,6 @@ export async function runMediaOrganize({
   photos,
   folders: foldersSnapshot,
   includeOrganized,
-  sharpenTags,
   customInstructions,
   onProgress,
 }) {
@@ -244,26 +240,6 @@ export async function runMediaOrganize({
       5
     );
     existingFolders = [];
-  }
-
-  if (sharpenTags) {
-    const toSharpen = photosToOrganize.slice(0, MAX_SHARPEN_PER_RUN);
-    const rest = photosToOrganize.slice(MAX_SHARPEN_PER_RUN);
-    if (toSharpen.length > 0) {
-      onProgress?.(`Re-reading ${toSharpen.length}…`);
-      const sharpened = await reanalyzeWeakPhotos(toSharpen, {
-        concurrency: 1,
-        delayMs: 1500,
-        forceAll: true,
-        timeoutMs: 55000,
-        onProgress,
-      });
-      const sharpenedMap = new Map(sharpened.map((p) => [normalizePhotoId(p.id), p]));
-      photosToOrganize = [
-        ...toSharpen.map((p) => sharpenedMap.get(normalizePhotoId(p.id)) || p),
-        ...rest,
-      ];
-    }
   }
 
   onProgress?.(`Sorting ${photosToOrganize.length} loose item${photosToOrganize.length !== 1 ? "s" : ""}…`);
