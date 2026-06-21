@@ -21,7 +21,9 @@ import {
   getUnorganizedPhotos,
   setGalleryOrganizeSnapshot,
 } from "@/lib/gallery-organize-snapshot";
+import { mergeApiFoldersWithLocal } from "@/lib/folder-membership";
 import { getGalleryUserEmail, galleryFoldersKey, galleryPhotosKey } from "@/lib/gallery-query-keys";
+import { loadGalleryData } from "@/lib/gallery-data";
 import { runMediaOrganize } from "@/lib/run-media-organize";
 import { ORGANIZE_ICON_CLASS, ORGANIZE_LABEL_CLASS, SQUARE_FOLDER_ACTION_CLASS, SQUARE_FOLDER_ACTION_STYLE } from "./folderActionStyles";
 
@@ -91,6 +93,19 @@ export default function OrganizeButton({ photos, folders: foldersProp, squareSty
         const normalizedFolders = foldersForGalleryView(result.afterFolders, freshPhotos);
         queryClient.setQueryData(galleryFoldersKey(email), normalizedFolders);
         setGalleryOrganizeSnapshot({ photos: freshPhotos, folders: normalizedFolders });
+      }
+
+      // Sync from server; merge so a slow API response does not undo Recents clearing
+      await loadGalleryData(queryClient);
+      const syncedPhotos = queryClient.getQueryData(galleryPhotosKey(email)) ?? freshPhotos;
+      const syncedFolders = queryClient.getQueryData(galleryFoldersKey(email)) ?? [];
+      if (result.afterFolders?.length) {
+        const merged = foldersForGalleryView(
+          mergeApiFoldersWithLocal(syncedFolders, result.afterFolders),
+          syncedPhotos,
+        );
+        queryClient.setQueryData(galleryFoldersKey(email), merged);
+        setGalleryOrganizeSnapshot({ photos: syncedPhotos, folders: merged });
       }
 
       alert(

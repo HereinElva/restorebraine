@@ -50,3 +50,14 @@
   padding-right: 1rem !important;
   padding-top: 0.25rem !important;
 }
+
+/* Selection toolbar — sit above bottom tab bar (nav is z-100, ~4.75rem tall) */
+[data-rb-selection-toolbar] {
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 4.75rem) !important;
+  z-index: 110 !important;
+}
+
+/* Extra scroll room when folder/photo selection bar is open */
+.rb-mobile-gallery-shell .min-h-screen:has([data-rb-selection-toolbar]) {
+  padding-bottom: 11rem !important;
+}

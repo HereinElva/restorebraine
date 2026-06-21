@@ -140,3 +140,15 @@ export async function mergeFoldersIntoTarget({
     .filter((f) => !sources.includes(f.id))
     .map((f) => (f.id === targetFolderId ? updatedTarget : f));
 }
+
+/** Prefer local photo_ids when API folder list lags behind a fresh save. */
+export function mergeApiFoldersWithLocal(apiFolders, localFolders) {
+  const localById = new Map((localFolders || []).map((f) => [f.id, f]));
+  return (apiFolders || []).map((folder) => {
+    const local = localById.get(folder.id);
+    if (!local?.photo_ids?.length) return folder;
+    const merged = mergePhotoIdsLikeManualMove(folder.photo_ids, local.photo_ids);
+    if (merged.length <= (folder.photo_ids || []).length) return folder;
+    return { ...folder, photo_ids: merged };
+  });
+}

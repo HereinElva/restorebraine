@@ -13,7 +13,7 @@ import {
   normalizePhotoId,
   toStoredPhotoIds,
 } from "@/lib/gallery-organize-snapshot";
-import { assignLoosePhotosToFolders } from "@/lib/folder-membership";
+import { assignLoosePhotosToFolders, mergeApiFoldersWithLocal } from "@/lib/folder-membership";
 
 const CHUNK_SIZE = 15;
 const LLM_DELAY_MS = 1500;
@@ -230,23 +230,35 @@ export async function runMediaOrganize({
     onProgress,
   });
 
-  let organizedAfter = getOrganizedPhotoIds(afterFolders);
-  let missedPhotos = photosToOrganize.filter(
-    (p) => !organizedAfter.has(normalizePhotoId(p.id)),
-  );
+  for (let attempt = 0; attempt < 3; attempt++) {
+    let organizedAfter = getOrganizedPhotoIds(afterFolders);
+    let missedPhotos = photosToOrganize.filter(
+      (p) => !organizedAfter.has(normalizePhotoId(p.id)),
+    );
 
-  if (missedPhotos.length > 0) {
+    if (missedPhotos.length === 0) break;
+
+    onProgress?.(
+      attempt === 0
+        ? `Confirming ${missedPhotos.length} remaining…`
+        : `Retrying ${missedPhotos.length}… (${attempt + 1}/3)`,
+    );
+
+    const apiFolders = await base44.entities.Folder.list();
     afterFolders = await assignLoosePhotosToFolders({
       photosToAssign: missedPhotos,
       labelByPhotoNormId,
-      liveFolders: afterFolders,
-      existingFolderNames: afterFolders.map((f) => f.name),
+      liveFolders: apiFolders.length ? apiFolders : afterFolders,
+      existingFolderNames: (apiFolders.length ? apiFolders : afterFolders).map((f) => f.name),
       includeOrganized: false,
       onProgress,
     });
-    organizedAfter = getOrganizedPhotoIds(afterFolders);
   }
 
+  const apiFolders = await base44.entities.Folder.list();
+  afterFolders = mergeApiFoldersWithLocal(apiFolders, afterFolders);
+
+  const organizedAfter = getOrganizedPhotoIds(afterFolders);
   const actuallySaved = photosToOrganize.filter((p) =>
     organizedAfter.has(normalizePhotoId(p.id)),
   ).length;

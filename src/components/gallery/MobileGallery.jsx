@@ -198,7 +198,10 @@ export default function MobileGallery({
 
         {/* Selection toolbar for folder view */}
         {selectionMode && selectedIds.length > 0 && (
-          <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 w-[calc(100vw-2rem)]">
+          <div
+            data-rb-selection-toolbar
+            className="fixed bottom-20 left-1/2 -translate-x-1/2 z-[110] w-[calc(100vw-2rem)]"
+          >
             <div className="bg-white rounded-2xl shadow-2xl border border-purple-200 px-4 py-3 flex flex-col gap-3">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-semibold text-purple-700">
@@ -452,7 +455,10 @@ export default function MobileGallery({
 
       {/* Folder selection toolbar */}
       {selectionMode && (selectedFolderIds.length > 0 || selectedIds.length > 0) && (
-        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 w-[calc(100vw-2rem)]">
+        <div
+          data-rb-selection-toolbar
+          className="fixed bottom-20 left-1/2 -translate-x-1/2 z-[110] w-[calc(100vw-2rem)]"
+        >
           <div className="bg-white rounded-2xl shadow-2xl border border-purple-200 px-4 py-3 flex flex-col gap-3">
             {/* Status row */}
             <div className="flex items-center justify-between">
