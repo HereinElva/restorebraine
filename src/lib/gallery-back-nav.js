@@ -1,17 +1,40 @@
-import { navigateToGallery } from '@/lib/gallery-nav';
+import { persistActiveSession } from '@/lib/gallery-nav';
 import { resetAppScrollPosition } from '@/lib/scroll-reset';
 
-/** Account → Gallery: scroll reset + gallery refresh on bundled iOS WebView. */
-export async function navigateToGalleryFromAccount(navigate, { popBack, resumeActiveSession } = {}) {
+function isNativeWebView() {
+  if (typeof window === 'undefined') return false;
+  return (
+    window.Capacitor?.isNativePlatform?.() ||
+    window.location.protocol === 'capacitor:' ||
+    window.location.protocol === 'ionic:'
+  );
+}
+
+/** Account → Gallery — sync nav with iOS WebView hard fallback. */
+export function navigateToGalleryFromAccount(navigate, { popBack, resumeActiveSession } = {}) {
+  popBack?.();
   resetAppScrollPosition();
-  await navigateToGallery(navigate, { popBack, resumeActiveSession });
+  void persistActiveSession();
+  void resumeActiveSession?.();
   window.dispatchEvent(new CustomEvent('restorebraine-gallery-ready', { detail: {} }));
-  requestAnimationFrame(() => {
-    resetAppScrollPosition();
-    const path = (window.location.pathname || '/').toLowerCase();
-    if (path !== '/' && !path.includes('gallery')) {
-      window.history.replaceState(null, '', '/');
-      window.dispatchEvent(new PopStateEvent('popstate'));
-    }
-  });
+
+  navigate('/', { replace: true });
+
+  if (isNativeWebView()) {
+    window.setTimeout(() => {
+      const path = (window.location.pathname || '').toLowerCase();
+      if (path.includes('account')) {
+        window.location.replace('/');
+      }
+    }, 120);
+  } else {
+    requestAnimationFrame(() => {
+      resetAppScrollPosition();
+      const path = (window.location.pathname || '/').toLowerCase();
+      if (path !== '/' && !path.includes('gallery')) {
+        window.history.replaceState(null, '', '/');
+        window.dispatchEvent(new PopStateEvent('popstate'));
+      }
+    });
+  }
 }

@@ -56,8 +56,9 @@ export default function Account() {
     }
   };
 
-  const goToGallery = () => {
-    void navigateToGalleryFromAccount(navigate, { popBack, resumeActiveSession });
+  const goToGallery = (event) => {
+    event?.preventDefault?.();
+    navigateToGalleryFromAccount(navigate, { popBack, resumeActiveSession });
   };
 
   return (
