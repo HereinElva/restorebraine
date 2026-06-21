@@ -75,8 +75,8 @@ if [ "$XCODE_EXIT" -ne 0 ]; then
       echo "  Product → Run (Cmd+R)"
     fi
     echo ""
-    echo "Override team ID:"
-    echo "  RESTOREBRAINE_DEVELOPMENT_TEAM=YOUR_TEAM_ID bash scripts/mac-ios-v4-install.sh"
+    echo "After signing in, use Xcode Product → Run (Cmd+R) — do not use CLI until"
+    echo "  bash scripts/mac-list-xcode-account-teams.sh shows a team (not NONE)."
     exit 1
   fi
   echo "ERROR: xcodebuild failed (exit $XCODE_EXIT) — see $LOG"

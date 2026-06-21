@@ -70,7 +70,8 @@ if [ -n "$RESOLVED" ] && [ -n "$KEYCHAIN_TEAMS" ] && echo "$KEYCHAIN_TEAMS" | gr
     echo "  5. Product → Run (Cmd+R) — Xcode creates the provisioning profile"
     echo ""
     echo "If you use a different Apple ID, pick its Team in Signing & Capabilities, then:"
-    echo "  RESTOREBRAINE_DEVELOPMENT_TEAM=YOUR_TEAM_ID bash scripts/mac-ios-v4-install.sh"
+    echo "  After signing in: bash scripts/mac-list-xcode-account-teams.sh"
+    echo "  Then Product → Run in Xcode (recommended), or CLI with your real team ID."
     fail=1
   fi
 fi
