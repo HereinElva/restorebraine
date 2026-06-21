@@ -71,6 +71,7 @@ fi
 echo "=== Step 1b: wipe stale ios bundle (survives git pull — causes v199 UI on device) ==="
 rm -rf ios/App/App/public dist node_modules/.vite
 mkdir -p ios/App/App/public/assets
+git checkout HEAD -- src/lib/gallery-nav.js 2>/dev/null || true
 echo "Removed old ios/App/App/public — fresh bundle will be built in Step 3"
 echo ""
 

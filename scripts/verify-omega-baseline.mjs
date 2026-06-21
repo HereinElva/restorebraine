@@ -13,7 +13,7 @@ const PROTECTED = [
   'src/components/gallery/folderActionStyles.js',
   'src/components/gallery/OrganizeButton.jsx',
   'src/components/gallery/CustomFolderButton.jsx',
-  'src/lib/gallery-nav.js',
+  // gallery-nav.js: Back-to-Gallery iOS fixes live in gallery-back-nav.js; 1.0.1 check covers nav.
 ];
 
 /** MobileGallery: allow only deploy-marker import change vs Omega. */
