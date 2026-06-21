@@ -243,36 +243,47 @@ const openOAuthInSystemBrowser = async (url, providerHint) => {
   });
 };
 
-/** Bundled native: ASWebAuthenticationSession → InAppBrowser (never bail on first CANCELED). */
+/** Poll native storage / localStorage while ASWeb session may still be open. */
+const pollForOAuthCompletion = async (maxMs = 120000) => {
+  const started = Date.now();
+  while (Date.now() - started < maxMs) {
+    if (await tryRestoreSessionAfterOAuth()) return true;
+    await new Promise((resolve) => setTimeout(resolve, 400));
+  }
+  return false;
+};
+
+/** Bundled native: InAppBrowser first (captures HTTPS ?access_token= redirect). */
 const openBundledNativeOAuth = async (oauthUrl, provider) => {
   recordOAuthDebug({ stage: 'bundled-oauth-start', url: oauthUrl.slice(0, 120) });
   let lastError = null;
 
-  await waitForNativeOAuthPlugin(60);
-  if (hasRegisteredNativeOAuthPlugin()) {
-    try {
-      recordOAuthDebug({ stage: 'bundled-asweb-auth' });
-      await startNativeOAuthSession(oauthUrl, provider);
-      return;
-    } catch (error) {
-      lastError = error;
-      window.__restorebraineOAuthInProgress = false;
-      recordOAuthError(error, 'asweb-auth');
-      console.warn('Native ASWebAuthenticationSession ended — trying InAppBrowser:', error);
-    }
-  } else {
-    lastError = new Error('RestorebraineOAuth plugin not ready');
-    recordOAuthError(lastError, 'plugin-missing');
-  }
-
   try {
-    recordOAuthDebug({ stage: 'bundled-inappbrowser-fallback' });
+    recordOAuthDebug({ stage: 'bundled-inappbrowser' });
     await openOAuthInSystemBrowser(oauthUrl, provider);
     return;
   } catch (error) {
     lastError = error;
     window.__restorebraineOAuthInProgress = false;
     recordOAuthError(error, 'inappbrowser');
+    console.warn('InAppBrowser OAuth ended — trying native ASWeb sheet:', error);
+  }
+
+  await waitForNativeOAuthPlugin(60);
+  if (hasRegisteredNativeOAuthPlugin()) {
+    try {
+      recordOAuthDebug({ stage: 'bundled-asweb-fallback' });
+      await startNativeOAuthSession(oauthUrl, provider);
+      return;
+    } catch (error) {
+      lastError = error;
+      window.__restorebraineOAuthInProgress = false;
+      recordOAuthError(error, 'asweb-auth');
+      console.warn('Native ASWebAuthenticationSession ended:', error);
+    }
+  } else {
+    lastError = lastError || new Error('RestorebraineOAuth plugin not ready');
+    recordOAuthError(lastError, 'plugin-missing');
   }
 
   const message = lastError?.message || lastError?.errorMessage || String(lastError || '');
@@ -320,6 +331,10 @@ const attachOAuthCompletionListener = async () => {
     await handleOAuthBrowserNavigation(data?.url);
   });
 
+  await ib.addListener('browserPageLoaded', async (data) => {
+    await handleOAuthBrowserNavigation(data?.url);
+  });
+
   await ib.addListener('browserClosed', async () => {
     oauthListenerAttached = false;
     window.__restorebraineOAuthInProgress = false;
@@ -348,7 +363,17 @@ const startNativeOAuthSession = async (oauthUrl, provider = 'google') => {
   const plugin = getNativeOAuthPlugin();
   if (!plugin?.startGoogleOAuth) throw new Error('RestorebraineOAuth plugin not registered');
 
-  const result = await plugin.startGoogleOAuth({ url: pluginUrl });
+  const pluginPromise = plugin.startGoogleOAuth({ url: pluginUrl });
+  const pollPromise = pollForOAuthCompletion(120000).then((ok) => {
+    if (!ok) throw new Error('OAuth timed out');
+    const token = localStorage.getItem('base44_access_token') || localStorage.getItem('token');
+    return { token };
+  });
+
+  const result = await Promise.race([
+    pluginPromise,
+    pollPromise,
+  ]);
   const token = result?.token;
   if (!token) throw new Error('Native OAuth returned no token');
   await persistSessionToNativeStorage(token);

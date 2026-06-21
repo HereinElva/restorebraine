@@ -52,10 +52,12 @@ if (oauthJs.includes('RestorebraineOAuth') && oauthJs.includes('Browser.open')) 
 } else {
   bad('native-google-oauth missing registerPlugin or Browser fallback');
 }
-if (oauthJs.includes('LOCAL_NATIVE_BUNDLE') && oauthJs.includes('openBundledNativeOAuth')) {
-  ok('Bundled native tries ASWebAuthenticationSession first, then InAppBrowser/Safari');
+if (oauthJs.includes('LOCAL_NATIVE_BUNDLE') && /bundled-inappbrowser[\s\S]*bundled-asweb/.test(oauthJs)) {
+  ok('Bundled native uses InAppBrowser first (captures HTTPS token redirect), ASWeb fallback');
 } else if (oauthJs.includes('LOCAL_NATIVE_BUNDLE') && oauthJs.includes('openOAuthInSystemBrowser(oauthUrl, provider)')) {
   ok('Bundled native uses InAppBrowser system browser for OAuth (captures HTTPS token redirect)');
+} else if (oauthJs.includes('LOCAL_NATIVE_BUNDLE') && oauthJs.includes('openBundledNativeOAuth')) {
+  ok('Bundled native has openBundledNativeOAuth entry path');
 } else {
   bad('Bundled native missing OAuth entry path');
 }

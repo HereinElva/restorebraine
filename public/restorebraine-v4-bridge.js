@@ -459,7 +459,8 @@
             url = normalizeAuthUrl(url || getCanonicalOAuthUrl(providerHint), providerHint);
             window.__restorebraineLastOAuthUrl = url;
             if (isBundledNativeOrigin()) {
-              openGoogleOAuthWithNativeSession(url, providerHint);
+              // InAppBrowser captures HTTPS ?access_token= — ASWeb restorebraine:// hangs without hosted redirect script.
+              launchSystemBrowserForOAuth(url);
               return;
             }
             window.__restorebraineOAuthMode = 'v4-system-browser';

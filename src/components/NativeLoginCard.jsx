@@ -78,10 +78,14 @@ export default function NativeLoginCard({ clearSignedOut = false }) {
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') recoverAfterOAuth();
     });
+    const safetyTimer = setInterval(() => {
+      if (!window.__restorebraineOAuthInProgress && openingProvider) resetOpening();
+    }, 2000);
     return () => {
       window.removeEventListener('restorebraine-native-oauth-complete', resetOpening);
+      clearInterval(safetyTimer);
     };
-  }, []);
+  }, [openingProvider]);
 
   const clearSignedOutFlag = () => {
     try {
