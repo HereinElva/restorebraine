@@ -83,30 +83,27 @@ export default function NativeLoginCard({ clearSignedOut = false }) {
     }
   };
 
-  const handleProviderClick = async (provider) => {
+  const handleProviderClick = (provider) => {
     if (openingProvider) return;
     clearSignedOutFlag();
     setErrorMessage('');
-    setNoticeMessage('Sign in using the in-app sheet — you stay in Restorebraine.');
     setOpeningProvider(provider);
-    try {
-      if (typeof window !== 'undefined') {
-        window.__restorebraineLastOAuthError = '';
-      }
-      const url = provider === 'google' ? getGoogleOAuthUrl() : getProviderOAuthUrl(provider);
-      await openLoginInSystemBrowser(url, provider);
-      setNoticeMessage('');
-    } catch (error) {
-      console.error(`${provider} sign-in failed to open`, error);
-      const detail = typeof window !== 'undefined' ? window.__restorebraineLastOAuthError : '';
-      const canceled = error?.code === 'CANCELED' || /cancel/i.test(error?.message || detail || '');
-      if (!canceled) {
-        setErrorMessage(detail || error?.message || 'Could not open sign in. Tap again or use email.');
-      }
-      setNoticeMessage('');
-    } finally {
-      setOpeningProvider(null);
+    if (typeof window !== 'undefined') {
+      window.__restorebraineLastOAuthError = '';
     }
+    const url = provider === 'google' ? getGoogleOAuthUrl() : getProviderOAuthUrl(provider);
+    openLoginInSystemBrowser(url, provider)
+      .catch((error) => {
+        console.error(`${provider} sign-in failed to open`, error);
+        const detail = typeof window !== 'undefined' ? window.__restorebraineLastOAuthError : '';
+        const canceled = error?.code === 'CANCELED' || /cancel/i.test(error?.message || detail || '');
+        if (!canceled) {
+          setErrorMessage(detail || error?.message || 'Could not open sign in. Tap again or use email.');
+        }
+      })
+      .finally(() => {
+        setOpeningProvider(null);
+      });
   };
 
   const handleSubmit = async (event) => {

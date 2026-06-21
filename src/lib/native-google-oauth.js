@@ -78,7 +78,17 @@ export const captureOAuthTokenFromUrl = async (url) => {
 };
 
 let oauthListenerAttached = false;
+let oauthListenerAttachPromise = null;
 let oauthTokenPollTimer = null;
+
+const waitForCapacitorBridge = async (maxAttempts = 100) => {
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    if (window.Capacitor?.Plugins?.InAppBrowser?.openInWebView) return true;
+    if (InAppBrowser?.openInWebView) return true;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  return Boolean(window.Capacitor?.Plugins?.InAppBrowser?.openInWebView || InAppBrowser?.openInWebView);
+};
 
 const stopOAuthTokenPoll = () => {
   if (oauthTokenPollTimer) {
@@ -283,21 +293,26 @@ const openOAuthInWebView = async (url, providerHint) => {
     window.__restorebraineOAuthInProgress = true;
   }
   recordOAuthDebug({ stage: 'inapp-webview', url: normalizedUrl.slice(0, 120) });
+
+  await waitForCapacitorBridge(80);
   await attachOAuthCompletionListener();
   startOAuthTokenPoll();
-  const ib = await getInAppBrowserPluginAsync(30);
+
+  const ib = await getInAppBrowserPluginAsync(80);
   if (!ib?.openInWebView) {
     signalOAuthEnded();
     throw new Error('InAppBrowser openInWebView not available — rebuild in Xcode.');
   }
-  try {
-    await ib.openInWebView({ url: normalizedUrl, options: WEBVIEW_OPTIONS });
-  } catch (error) {
+
+  // Do NOT await openInWebView — on iOS the promise may not resolve until the sheet closes,
+  // which leaves the login button stuck on "Opening Google…".
+  ib.openInWebView({ url: normalizedUrl, options: WEBVIEW_OPTIONS }).catch((error) => {
+    if (!window.__restorebraineOAuthInProgress) return;
     signalOAuthEnded();
     recordOAuthError(error, 'inappbrowser-webview-open');
-    throw error;
-  }
-  // Sheet is open — caller can reset UI; completion handled by listeners + token poll.
+  });
+
+  await new Promise((resolve) => setTimeout(resolve, 350));
 };
 
 const openOAuthInSystemBrowser = async (url, providerHint) => {
@@ -369,29 +384,45 @@ const handleOAuthBrowserNavigation = async (url) => {
 
 const attachOAuthCompletionListener = async () => {
   if (oauthListenerAttached) return;
-  oauthListenerAttached = true;
+  if (oauthListenerAttachPromise) return oauthListenerAttachPromise;
 
-  const ib = await getInAppBrowserPluginAsync();
-  await ib.addListener('browserPageNavigationCompleted', async (data) => {
-    await handleOAuthBrowserNavigation(data?.url);
-  });
-
-  await ib.addListener('browserPageLoaded', async (data) => {
-    await handleOAuthBrowserNavigation(data?.url);
-  });
-
-  await ib.addListener('browserClosed', async () => {
-    if (await tryRestoreSessionAfterOAuth()) return;
+  oauthListenerAttachPromise = (async () => {
     try {
-      const { App } = await import('@capacitor/app');
-      const launch = await App.getLaunchUrl();
-      if (launch?.url && (await handleNativeOAuthCallback(launch.url))) return;
-    } catch {}
-    if (localStorage.getItem('b44_signed_out') !== '1') {
-      await tryRestoreSessionAfterOAuth();
+      await waitForCapacitorBridge(80);
+      const ib = await getInAppBrowserPluginAsync(80);
+      await ib.addListener('browserPageNavigationCompleted', async (data) => {
+        await handleOAuthBrowserNavigation(data?.url);
+      });
+      await ib.addListener('browserPageLoaded', async (data) => {
+        await handleOAuthBrowserNavigation(data?.url);
+      });
+      await ib.addListener('browserClosed', async () => {
+        if (await tryRestoreSessionAfterOAuth()) {
+          stopOAuthTokenPoll();
+          window.__restorebraineOAuthInProgress = false;
+          return;
+        }
+        try {
+          const { App } = await import('@capacitor/app');
+          const launch = await App.getLaunchUrl();
+          if (launch?.url && (await handleNativeOAuthCallback(launch.url))) return;
+        } catch {}
+        if (localStorage.getItem('b44_signed_out') !== '1') {
+          await tryRestoreSessionAfterOAuth();
+        }
+        signalOAuthEnded();
+      });
+      oauthListenerAttached = true;
+    } catch (error) {
+      oauthListenerAttached = false;
+      recordOAuthError(error, 'oauth-listeners');
+      throw error;
+    } finally {
+      oauthListenerAttachPromise = null;
     }
-    signalOAuthEnded();
-  });
+  })();
+
+  return oauthListenerAttachPromise;
 };
 
 /** OAuth via native ASWebAuthenticationSession — all providers (URL-driven, not Google-only). */
@@ -456,13 +487,19 @@ export const openLoginInSystemBrowser = async (url = getGoogleOAuthUrl(), provid
   await openInAppBrowserOAuth(oauthUrl, provider);
 };
 
-/** Install OAuth listeners once at app startup (deep links + InAppBrowser navigation). */
+/** Install OAuth listeners once Capacitor bridge + InAppBrowser are ready. */
 export const installNativeOAuthListeners = async () => {
   if (typeof window === 'undefined' || window.__restorebraineOAuthListenersInstalled) return;
+
+  const ready = await waitForCapacitorBridge(100);
+  if (!ready) {
+    console.warn('InAppBrowser not ready — OAuth listeners deferred until first login tap');
+    return;
+  }
+
   window.__restorebraineOAuthListenersInstalled = true;
   installNativeOAuthBridgeListener();
 
-  // Do not overwrite v4-bridge handlers — bridge ASWebAuthenticationSession path works on device.
   if (!window.__restorebraineSessionBridgeInstalled) {
     window.__restorebraineOpenLogin = () => openLoginInSystemBrowser(getGoogleOAuthUrl(), 'google');
     window.__restorebraineOpenProviderLogin = (provider) => {
@@ -477,6 +514,7 @@ export const installNativeOAuthListeners = async () => {
     await installNativeOAuthDeepLinkHandler();
     await attachOAuthCompletionListener();
   } catch (error) {
+    window.__restorebraineOAuthListenersInstalled = false;
     console.warn('Native OAuth listener setup failed:', error);
   }
 };

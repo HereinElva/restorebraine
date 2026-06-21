@@ -52,6 +52,31 @@ if (oauthJs.includes('RestorebraineOAuth') && oauthJs.includes('Browser.open')) 
 } else {
   bad('native-google-oauth missing registerPlugin or Browser fallback');
 }
+if (oauthJs.includes('oauthListenerAttachPromise') && !/oauthListenerAttached = true;\s*\n\s*const ib = await getInAppBrowserPluginAsync/.test(oauthJs)) {
+  ok('OAuth listeners attach after InAppBrowser ready (no poisoned flag)');
+} else {
+  bad('OAuth listener attach may poison oauthListenerAttached before plugin ready');
+}
+if (oauthJs.includes('openInWebView({ url: normalizedUrl') && !oauthJs.includes('await ib.openInWebView({ url: normalizedUrl')) {
+  ok('Bundled WebView open is non-blocking (button resets after sheet opens)');
+} else {
+  bad('openInWebView is still awaited — login button will stick on Opening Google');
+}
+
+const pbx = existsSync('ios/App/App.xcodeproj/project.pbxproj') ? read('ios/App/App.xcodeproj/project.pbxproj') : '';
+if (pbx.includes('CODE_SIGN_ENTITLEMENTS = App/App.entitlements')) {
+  ok('Xcode links App.entitlements (universal links / webcredentials)');
+} else {
+  bad('App.entitlements not linked in Xcode — OAuth universal-link fallback disabled');
+}
+
+const rootCap = existsSync('capacitor.config.json') ? read('capacitor.config.json') : '';
+if (rootCap.includes('InAppBrowserPlugin')) {
+  ok('Root capacitor.config.json registers InAppBrowserPlugin');
+} else {
+  bad('Root capacitor.config.json missing InAppBrowserPlugin');
+}
+
 if (oauthJs.includes('LOCAL_NATIVE_BUNDLE') && oauthJs.includes('openOAuthInWebView')) {
   ok('Bundled native uses in-app WebView for OAuth (no Base44 system popup)');
 } else if (oauthJs.includes('LOCAL_NATIVE_BUNDLE') && oauthJs.includes('openBundledNativeOAuth')) {

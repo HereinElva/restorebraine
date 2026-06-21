@@ -71,10 +71,6 @@ function bootstrapNativeLocal() {
     .then(({ installNativeBundleShellGuard }) => installNativeBundleShellGuard())
     .catch((error) => console.warn('Bundle shell guard:', error));
 
-  import('@/lib/native-google-oauth')
-    .then(({ installNativeOAuthListeners }) => installNativeOAuthListeners())
-    .catch((error) => console.warn('Early OAuth listeners:', error));
-
   const mountTimer = setTimeout(() => {
     if (!window.__restorebraineAppMounted) {
       showBootstrapError('Startup timed out. Run bash scripts/mac-capacitor-web-sync.sh then Xcode Run.');
@@ -89,6 +85,9 @@ function bootstrapNativeLocal() {
     requestAnimationFrame(() => {
       loadV4BridgeScript();
       installNativeOAuthFix();
+      import('@/lib/native-google-oauth')
+        .then(({ installNativeOAuthListeners }) => installNativeOAuthListeners())
+        .catch((error) => console.warn('OAuth listeners after mount:', error));
     });
 
     import('@/lib/session-bootstrap')
