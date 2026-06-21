@@ -31,6 +31,15 @@ if (existsSync(stampPath)) {
 }
 
 if (!existsSync(indexPath)) {
+  console.error('');
+  console.error('████████████████████████████████████████████████████████████████');
+  console.error('██  ERROR: ios/App/App/public/index.html is MISSING            ██');
+  console.error('██  Run in Terminal BEFORE Xcode Run:                         ██');
+  console.error('██    cd ~/restorebraine                                       ██');
+  console.error('██    bash build-iphone.sh --no-git                            ██');
+  console.error('██  Or: bash scripts/mac-fix-before-run.sh                      ██');
+  console.error('████████████████████████████████████████████████████████████████');
+  console.error('');
   fail('ios/App/App/public/index.html missing');
 }
 
