@@ -6,6 +6,7 @@
 	<array>
 		<string>applinks:restorebraine.base44.app</string>
 		<string>applinks:restorebraine.com</string>
+		<string>webcredentials:restorebraine.base44.app</string>
 	</array>
 </dict>
 </plist>

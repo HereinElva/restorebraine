@@ -57,6 +57,8 @@ public class RestorebraineOAuthPlugin: CAPPlugin, CAPBridgedPlugin, ASWebAuthent
             self.authSession?.cancel()
 
             // iOS 17.4+: catch https://restorebraine.base44.app/?access_token= directly.
+            // Compile-time SDK guard — #available alone fails on Xcode with iOS 17.2 SDK.
+#if __IPHONE_OS_VERSION_MAX_ALLOWED >= 170400
             if #available(iOS 17.4, *) {
                 let httpsSession = ASWebAuthenticationSession(
                     url: url,
@@ -72,6 +74,7 @@ public class RestorebraineOAuthPlugin: CAPPlugin, CAPBridgedPlugin, ASWebAuthent
                 if httpsSession.start() { return }
                 self.authSession = nil
             }
+#endif
 
             // Fallback: restorebraine://oauth/callback
             let schemeSession = ASWebAuthenticationSession(url: url, callbackURLScheme: "restorebraine") { [weak self] callbackURL, error in
