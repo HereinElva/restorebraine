@@ -50,7 +50,7 @@ for (const file of PROTECTED) {
     fail += 1;
     continue;
   }
-  const diff = git(`diff ${baseline} HEAD -- ${file}`);
+  const diff = git(`diff ${baseline} -- ${file}`);
   if (diff) {
     console.error(`FAIL: ${file} differs from Omega baseline`);
     fail += 1;
@@ -59,7 +59,7 @@ for (const file of PROTECTED) {
   }
 }
 
-const mgDiff = git(`diff ${baseline} HEAD -- ${MOBILE_GALLERY}`);
+const mgDiff = git(`diff ${baseline} -- ${MOBILE_GALLERY}`);
 if (mgDiff) {
   const allowedOnly =
     mgDiff.includes('deploy-marker') ||

@@ -49,7 +49,7 @@ mustInclude('src/components/gallery/folderActionStyles.js', 'SQUARE_FOLDER_ACTIO
 
 // Back to Gallery (no sign-out)
 mustInclude('src/pages/Account.jsx', 'data-rb-gallery-nav', 'Back to Gallery nav marker');
-mustInclude('src/pages/Account.jsx', 'navigateToGallery', 'Back to Gallery handler');
+mustInclude('src/pages/Account.jsx', 'navigateToGalleryFromAccount', 'Back to Gallery handler');
 mustInclude('src/lib/gallery-nav.js', 'resumeActiveSession', 'Session resume on gallery nav');
 
 // Sign out only via button
