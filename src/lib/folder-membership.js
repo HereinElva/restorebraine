@@ -10,6 +10,7 @@ import {
   clearFolderMembershipCache,
   loadFolderMembershipCache,
   loadFolderSnapshotCache,
+  persistGalleryFolders,
   recordBatchFolderMembership,
   recordPhotoFolderMembership,
   saveFolderMembershipCache,
@@ -155,9 +156,12 @@ export async function deleteFoldersWithTimeout(folderIds, { timeoutMs = FOLDER_D
 
 /** Gallery load: Folder.list (with timeout) + merged local snapshot fallback. */
 export async function fetchGalleryFoldersWithMembership(email, photos = []) {
-  const listed = await listAllFoldersSafe();
   const snapshot = email ? await loadFolderSnapshotCache(email) : [];
-  let folderSource = mergeApiFoldersWithLocal(listed, snapshot);
+  const listed = await listAllFoldersSafe();
+
+  let folderSource =
+    listed.length > 0 ? mergeApiFoldersWithLocal(listed, snapshot) : snapshot;
+
   let cached = await loadFolderMembershipCache(email);
 
   const validIds = new Set(folderSource.map((f) => f.id));
@@ -171,9 +175,14 @@ export async function fetchGalleryFoldersWithMembership(email, photos = []) {
     cached = pruned;
   }
 
-  const result = applyFolderMembershipCache(folderSource, photos, cached);
+  let result = applyFolderMembershipCache(folderSource, photos, cached);
+
+  if (snapshot.length > 0 && result.length < snapshot.length) {
+    result = mergeApiFoldersWithLocal(result, snapshot);
+  }
+
   if (email && result.length > 0) {
-    void saveFolderSnapshotCache(email, result);
+    await persistGalleryFolders(email, result);
   }
   return result;
 }
@@ -319,7 +328,7 @@ export async function assignLoosePhotosByFolder({
       }
 
       onPartialSave?.(folders);
-      if (userEmail) void saveFolderSnapshotCache(userEmail, folders);
+      if (userEmail) await persistGalleryFolders(userEmail, folders);
     } catch (error) {
       console.warn('Folder group save failed:', folderName, error);
       failedPhotoIds.push(...photoIds);

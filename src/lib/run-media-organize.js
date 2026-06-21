@@ -18,8 +18,8 @@ import {
   listAllFoldersSafe,
 } from "@/lib/folder-membership";
 import {
+  persistGalleryFolders,
   recordBatchFolderMembership,
-  saveFolderSnapshotCache,
 } from "@/lib/folder-membership-cache";
 
 const CHUNK_SIZE = 15;
@@ -98,7 +98,7 @@ async function buildLabelsFromDescriptions(
   for (let i = 0; i < chunks.length; i++) {
     const chunk = chunks[i];
     if (i > 0) await sleep(LLM_DELAY_MS);
-    onProgress?.(`Grouping batch ${i + 1}/${chunks.length}…`);
+    onProgress?.(`Grouping Batch ${i + 1}/${chunks.length}…`);
 
     try {
       const labels = await labelChunkWithAI(
@@ -224,7 +224,7 @@ export async function runMediaOrganize({
   onProgress?.("Finishing…");
 
   if (userEmail && afterFolders.length > 0) {
-    void saveFolderSnapshotCache(userEmail, afterFolders);
+    await persistGalleryFolders(userEmail, afterFolders);
   }
 
   const savedApiFolders = afterFolders;

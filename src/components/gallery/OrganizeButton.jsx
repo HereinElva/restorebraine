@@ -21,7 +21,7 @@ import {
   loosePhotosForOrganize,
   setGalleryOrganizeSnapshot,
 } from "@/lib/gallery-organize-snapshot";
-import { saveFolderSnapshotCache } from "@/lib/folder-membership-cache";
+import { persistGalleryFolders } from "@/lib/folder-membership-cache";
 import { getGalleryUserEmail, galleryFoldersKey, galleryPhotosKey } from "@/lib/gallery-query-keys";
 import { runMediaOrganize } from "@/lib/run-media-organize";
 import { ORGANIZE_ICON_CLASS, ORGANIZE_LABEL_CLASS, SQUARE_FOLDER_ACTION_CLASS, SQUARE_FOLDER_ACTION_STYLE } from "./folderActionStyles";
@@ -83,10 +83,11 @@ export default function OrganizeButton({ photos, folders: foldersProp, squareSty
         includeOrganized,
         customInstructions,
         onProgress: setProgressLabel,
-        onPartialSave: (partialFolders) => {
+        onPartialSave: async (partialFolders) => {
           const verified = foldersForGalleryView(partialFolders, photos);
           queryClient.setQueryData(galleryFoldersKey(email), verified);
           setGalleryOrganizeSnapshot({ photos, folders: verified });
+          if (email) await persistGalleryFolders(email, verified);
         },
         userEmail: email,
       });
@@ -105,13 +106,11 @@ export default function OrganizeButton({ photos, folders: foldersProp, squareSty
       setGalleryOrganizeSnapshot({ photos: syncedPhotos, folders: verifiedFolders });
 
       if (email && verifiedFolders.length > 0) {
-        void saveFolderSnapshotCache(email, verifiedFolders);
+        await persistGalleryFolders(email, verifiedFolders);
       }
 
       setOrganizing(false);
       setProgressLabel("");
-
-      void queryClient.invalidateQueries({ queryKey: galleryFoldersKey(email) });
 
       alert(
         organizeResultMessage({

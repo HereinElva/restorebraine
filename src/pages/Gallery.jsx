@@ -23,7 +23,7 @@ import { DragDropContext } from "@hello-pangea/dnd";
 import { useNavigation } from "../components/NavigationContext";
 import { useTabState } from "../components/TabStateContext";
 import MobileGallery from "../components/gallery/MobileGallery";
-import { setGalleryOrganizeSnapshot, toStoredPhotoIds, normalizePhotoId, foldersForGalleryView } from "@/lib/gallery-organize-snapshot";
+import { setGalleryOrganizeSnapshot, toStoredPhotoIds, normalizePhotoId } from "@/lib/gallery-organize-snapshot";
 import { fetchGalleryFoldersWithMembership } from "@/lib/folder-membership";
 import { loadFolderSnapshotCacheSync } from "@/lib/folder-membership-cache";
 import "../components/gallery/mobile-gallery-layout.css";
@@ -193,29 +193,22 @@ export default function Gallery() {
         (await base44.entities.Photo.filter({ created_by: me.email }, '-created_date'));
       return fetchGalleryFoldersWithMembership(me.email, photosData || []);
     },
-    enabled: canFetchData,
+    enabled: canFetchData && !!userEmail,
     staleTime: CACHE.folders.staleTime,
     gcTime: CACHE.folders.gcTime,
+    placeholderData: (previousData) => {
+      if (previousData?.length) return previousData;
+      if (!userEmail) return [];
+      const snapshot = loadFolderSnapshotCacheSync(userEmail);
+      return snapshot.length ? snapshot : [];
+    },
     retry: 2,
     refetchOnMount: 'always',
   });
 
   useEffect(() => {
     if (!userEmail || !canFetchData) return;
-    const snapshot = loadFolderSnapshotCacheSync(userEmail);
-    if (snapshot.length > 0) {
-      const cached = foldersForGalleryView(snapshot, photos);
-      queryClient.setQueryData(['folders', userEmail], (prev) =>
-        prev?.length ? prev : cached,
-      );
-      setGalleryOrganizeSnapshot({ photos, folders: cached });
-    }
-  }, [userEmail, canFetchData, photos, queryClient]);
-
-  useEffect(() => {
-    if (!userEmail || !canFetchData) return;
     queryClient.invalidateQueries({ queryKey: ['photos', userEmail] });
-    queryClient.invalidateQueries({ queryKey: ['folders', userEmail] });
   }, [userEmail, canFetchData, queryClient]);
 
   // Only show the loading spinner on the very first load (no cached data yet)

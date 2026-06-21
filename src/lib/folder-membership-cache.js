@@ -50,42 +50,52 @@ export async function clearFolderMembershipCache(email) {
 
 /** Last known folder list — used when Folder.list is slow or returns empty. */
 export async function loadFolderSnapshotCache(email) {
-  if (!email) return [];
+  const fromSync = loadFolderSnapshotCacheSync(email);
+  if (!email) return fromSync;
   try {
     const raw = await persistentStorage.get(snapshotKey(email));
-    if (!raw) return [];
+    if (!raw) return fromSync;
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
+    const fromAsync = Array.isArray(parsed) ? parsed : [];
+    if (!fromSync.length) return fromAsync;
+    if (!fromAsync.length) return fromSync;
+    return mergeSnapshotRecords(fromSync, fromAsync);
   } catch {
-    return [];
+    return fromSync;
   }
+}
+
+function mergeSnapshotRecords(a = [], b = []) {
+  const byId = new Map();
+  for (const folder of [...a, ...b]) {
+    if (!folder?.id) continue;
+    const prev = byId.get(folder.id);
+    if (prev) {
+      byId.set(folder.id, {
+        ...prev,
+        ...folder,
+        photo_ids: mergeIds(prev.photo_ids, folder.photo_ids),
+      });
+    } else {
+      byId.set(folder.id, { ...folder });
+    }
+  }
+  return [...byId.values()];
 }
 
 export async function saveFolderSnapshotCache(email, folders) {
   if (!email || !folders?.length) return;
   const existing = await loadFolderSnapshotCache(email);
-  const byId = new Map(existing.map((f) => [f.id, { ...f }]));
-  for (const folder of folders) {
-    const slim = {
-      id: folder.id,
-      name: folder.name,
-      description: folder.description || '',
-      photo_ids: folder.photo_ids || [],
-      cover_photo_url: folder.cover_photo_url || '',
-      created_by: folder.created_by,
-    };
-    const prev = byId.get(slim.id);
-    if (prev) {
-      byId.set(slim.id, {
-        ...prev,
-        ...slim,
-        photo_ids: mergeIds(prev.photo_ids, slim.photo_ids),
-      });
-    } else {
-      byId.set(slim.id, slim);
-    }
-  }
-  await persistentStorage.set(snapshotKey(email), JSON.stringify([...byId.values()]));
+  const merged = mergeSnapshotRecords(existing, folders);
+  const slim = merged.map((f) => ({
+    id: f.id,
+    name: f.name,
+    description: f.description || '',
+    photo_ids: f.photo_ids || [],
+    cover_photo_url: f.cover_photo_url || '',
+    created_by: f.created_by,
+  }));
+  await persistentStorage.set(snapshotKey(email), JSON.stringify(slim));
 }
 
 /** Instant read from localStorage mirror — for showing cached folders before API responds. */
@@ -151,4 +161,11 @@ export function buildMembershipMapFromFolders(folders) {
     }
   }
   return map;
+}
+
+/** Await snapshot + membership so folders survive app close/reload. */
+export async function persistGalleryFolders(email, folders) {
+  if (!email || !folders?.length) return;
+  await saveFolderSnapshotCache(email, folders);
+  await saveFolderMembershipCache(email, buildMembershipMapFromFolders(folders));
 }
