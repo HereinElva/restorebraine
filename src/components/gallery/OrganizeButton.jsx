@@ -28,19 +28,14 @@ function truncateProgress(text, max = 22) {
   return `${text.slice(0, max - 1)}…`;
 }
 
-function countLooseInGallery(photos, folders) {
-  return getUnorganizedPhotos(photos, foldersForGalleryView(folders, photos)).length;
-}
-
-function organizeResultMessage({ totalToOrganize, foldersSaved, remainingLoose }) {
-  const cleared = totalToOrganize - remainingLoose;
-  if (cleared <= 0) {
-    return "Organize finished but photos are still in Recents. Pull down to refresh, then try again.";
+function organizeResultMessage({ totalSaved, totalToOrganize, missed, foldersSaved }) {
+  if (totalSaved <= 0) {
+    return "Organize could not save photos into folders. Pull down to refresh, then try again.";
   }
-  if (remainingLoose > 0) {
-    return `Done! ${cleared} of ${totalToOrganize} loose photos sorted into ${foldersSaved} folders. Tap Organize again for the ${remainingLoose} remaining.`;
+  if (missed > 0) {
+    return `Done! ${totalSaved} of ${totalToOrganize} loose photos sorted into ${foldersSaved} folders. Tap Organize again for the ${missed} remaining.`;
   }
-  return `Done! ${cleared} loose photo${cleared !== 1 ? "s" : ""} sorted into ${foldersSaved} folder${foldersSaved !== 1 ? "s" : ""}.`;
+  return `Done! ${totalSaved} loose photo${totalSaved !== 1 ? "s" : ""} sorted into ${foldersSaved} folder${foldersSaved !== 1 ? "s" : ""}.`;
 }
 
 export default function OrganizeButton({ photos, folders: foldersProp, squareStyle = false }) {
@@ -88,41 +83,29 @@ export default function OrganizeButton({ photos, folders: foldersProp, squareSty
 
       const user = queryClient.getQueryData(["current-user"]);
       const email = user?.email ?? "pending";
+      const freshPhotos = queryClient.getQueryData(["photos", email]) ?? photos;
 
+      // Apply saved folders to cache immediately — do not refetch right away (server can lag).
       if (result.afterFolders?.length) {
         queryClient.setQueryData(["folders", email], result.afterFolders);
       }
 
-      await queryClient.invalidateQueries({ queryKey: ["folders", email] });
-      await queryClient.refetchQueries({ queryKey: ["folders", email] });
-      await queryClient.refetchQueries({ queryKey: ["photos", email] });
-
-      let freshPhotos = queryClient.getQueryData(["photos", email]) ?? photos;
-      let freshFolders =
-        queryClient.getQueryData(["folders", email]) ?? result.afterFolders ?? folders;
-
-      let remainingLoose = countLooseInGallery(freshPhotos, freshFolders);
-      if (remainingLoose > 0 && result.missed === 0) {
-        await new Promise((resolve) => setTimeout(resolve, 800));
-        await queryClient.refetchQueries({ queryKey: ["folders", email] });
-        freshFolders = queryClient.getQueryData(["folders", email]) ?? freshFolders;
-        remainingLoose = countLooseInGallery(freshPhotos, freshFolders);
-      }
-
-      const galleryFolders = foldersForGalleryView(freshFolders, freshPhotos);
+      const galleryFolders = foldersForGalleryView(result.afterFolders ?? folders, freshPhotos);
       setGalleryOrganizeSnapshot({ photos: freshPhotos, folders: galleryFolders });
 
-      if (result.foldersSaved === 0) {
-        alert("Could not create folders for your loose photos. Try again in a minute.");
-      } else {
-        alert(
-          organizeResultMessage({
-            totalToOrganize: result.totalToOrganize,
-            foldersSaved: result.foldersSaved,
-            remainingLoose,
-          }),
-        );
-      }
+      alert(
+        organizeResultMessage({
+          totalSaved: result.totalSaved,
+          totalToOrganize: result.totalToOrganize,
+          missed: result.missed,
+          foldersSaved: result.foldersSaved,
+        }),
+      );
+
+      // Sync with server in the background after a short delay.
+      window.setTimeout(() => {
+        void queryClient.invalidateQueries({ queryKey: ["folders", email] });
+      }, 2500);
     } catch (error) {
       console.error("Error organizing:", error);
       alert(formatLLMError(error));
@@ -165,7 +148,7 @@ export default function OrganizeButton({ photos, folders: foldersProp, squareSty
             </>
           ) : (
             <>
-              <FolderPlus className="w-4 h-4" />
+              <FolderPlus className="w-4 h-4 mr-2" />
               Organize
             </>
           )}

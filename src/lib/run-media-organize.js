@@ -14,6 +14,7 @@ import {
   getUnorganizedPhotos,
   mergeStoredPhotoIds,
   normalizePhotoId,
+  photoIdsFromOrganizeBatch,
   toStoredPhotoIds,
 } from "@/lib/gallery-organize-snapshot";
 
@@ -213,6 +214,7 @@ async function cleanupEmptyFolders(allPhotoIds) {
 async function saveFolderGroups({
   foldersToSave,
   photos,
+  photosToOrganize,
   allPhotoIds,
   includeOrganized,
   existingFolderNames,
@@ -226,7 +228,7 @@ async function saveFolderGroups({
     const folder = foldersToSave[i];
     onProgress?.(`Saving folders… (${i + 1}/${foldersToSave.length})`);
 
-    const storedNewIds = toStoredPhotoIds(folder.photo_ids, photos);
+    const storedNewIds = photoIdsFromOrganizeBatch(folder.photo_ids, photosToOrganize);
     if (storedNewIds.length === 0) continue;
 
     const displayName = normalizeFolderName(folder.name, existingFolderNames);
@@ -411,9 +413,10 @@ export async function runMediaOrganize({
     }
   }
 
-  await saveFolderGroups({
+  let afterFolders = await saveFolderGroups({
     foldersToSave,
     photos,
+    photosToOrganize,
     allPhotoIds,
     includeOrganized,
     existingFolderNames: folderNamesForLabel.length ? folderNamesForLabel : existingFolderNames,
@@ -421,7 +424,6 @@ export async function runMediaOrganize({
     onProgress,
   });
 
-  let afterFolders = await base44.entities.Folder.list();
   let organizedAfter = getOrganizedPhotoIds(afterFolders);
   let missedPhotos = photosToOrganize.filter(
     (p) => !organizedAfter.has(normalizePhotoId(p.id)),

@@ -66,6 +66,23 @@ export function getGalleryOrganizeSnapshot() {
   return snapshot;
 }
 
+/** Map normalized ids from organize groups back to canonical Photo.id values. */
+export function photoIdsFromOrganizeBatch(normalizedIds, photos) {
+  const byNorm = new Map(
+    (photos || []).map((p) => [normalizePhotoId(p.id), p.id]),
+  );
+  const stored = [];
+  for (const id of normalizedIds || []) {
+    const norm = normalizePhotoId(id);
+    if (!norm) continue;
+    const original = byNorm.get(norm);
+    if (original != null && !stored.some((s) => normalizePhotoId(s) === norm)) {
+      stored.push(original);
+    }
+  }
+  return stored;
+}
+
 /** Folder list with photo_ids aligned to Photo.id — same shape Gallery passes to MobileGallery. */
 export function foldersForGalleryView(folders, photos) {
   return (folders || []).map((folder) => ({
