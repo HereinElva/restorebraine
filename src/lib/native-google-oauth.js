@@ -1,4 +1,3 @@
-import { Browser } from '@capacitor/browser';
 import { InAppBrowser } from '@capacitor/inappbrowser';
 import { Capacitor } from '@capacitor/core';
 import { RestorebraineOAuth } from '@/lib/native-oauth-plugin';
@@ -198,6 +197,7 @@ const isHostedOAuthReturn = (url) => {
 const openWithBrowserFallback = async (url) => {
   recordOAuthDebug({ stage: 'browser-fallback', url: String(url).slice(0, 120) });
   window.__restorebraineOAuthMode = 'cap-browser';
+  const { Browser } = await import('@capacitor/browser');
   await Browser.open({ url });
 };
 
@@ -321,7 +321,7 @@ export const openLoginInSystemBrowser = async (url = getGoogleOAuthUrl(), provid
 
   // ASWebAuthenticationSession via native plugin (never WKWebView — Google blocks embedded WebViews).
   if (LOCAL_NATIVE_BUNDLE) {
-    await waitForNativeOAuthPlugin(80);
+    await waitForNativeOAuthPlugin(15);
     recordOAuthDebug({
       stage: 'pre-open',
       plugin: hasRegisteredNativeOAuthPlugin(),
@@ -329,7 +329,7 @@ export const openLoginInSystemBrowser = async (url = getGoogleOAuthUrl(), provid
     });
     if (hasRegisteredNativeOAuthPlugin()) {
       try {
-        await withTimeout(startNativeOAuthSession(oauthUrl, provider), 90000, 'OAuth');
+        await withTimeout(startNativeOAuthSession(oauthUrl, provider), 8000, 'OAuth');
         return;
       } catch (error) {
         window.__restorebraineOAuthInProgress = false;
@@ -337,8 +337,6 @@ export const openLoginInSystemBrowser = async (url = getGoogleOAuthUrl(), provid
         if (error?.code === 'CANCELED' || /^oauth canceled$/i.test(message)) return;
         console.warn('Native ASWebAuthenticationSession failed — opening system browser:', error);
       }
-    } else {
-      recordOAuthError(new Error('RestorebraineOAuth plugin not ready'), 'plugin-missing');
     }
     await openOAuthInSystemBrowser(oauthUrl, provider);
     return;

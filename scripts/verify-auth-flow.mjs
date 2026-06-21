@@ -40,10 +40,10 @@ if (fail === 0 || card.includes('Continue With Google')) {
 }
 
 const v4oauth = existsSync('public/v4-native-oauth.js') ? read('public/v4-native-oauth.js') : '';
-if (v4oauth.includes('data-rb-provider') && v4oauth.includes('__restorebraineNativeOAuthTapBackup')) {
-  ok('v4-native-oauth.js has capture-phase OAuth tap backup');
-} else if (v4oauth) {
-  bad('v4-native-oauth.js missing OAuth tap backup wiring');
+if (v4oauth.includes('__restorebraineNativeOAuthTapBackup')) {
+  bad('v4-native-oauth.js must not install capture-phase tap backup (double-fires with React onClick)');
+} else if (v4oauth.includes('data-rb-provider') || v4oauth.includes('__restorebraineNativeOAuth')) {
+  ok('v4-native-oauth.js token helpers only — React owns login taps');
 }
 
 const oauthJs = read('src/lib/native-google-oauth.js');

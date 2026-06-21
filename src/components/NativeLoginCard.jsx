@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/lib/AuthContext';
 import { NATIVE_BUILD_LABEL, WEB_BUILD_LABEL } from '@/lib/build-info';
 import { openLoginInSystemBrowser } from '@/lib/native-google-oauth';
@@ -44,6 +44,8 @@ const ProviderButton = ({ children, onClick, provider, dark = false, disabled = 
       marginBottom: '10px',
       boxShadow: dark ? 'none' : '0 2px 8px rgba(0,0,0,0.04)',
       opacity: disabled ? 0.7 : 1,
+      WebkitTapHighlightColor: 'rgba(0,0,0,0.08)',
+      touchAction: 'manipulation',
     }}
   >
     {children}
@@ -61,6 +63,19 @@ export default function NativeLoginCard({ clearSignedOut = false }) {
   const [noticeMessage, setNoticeMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [openingProvider, setOpeningProvider] = useState(null);
+  const openingResetRef = useRef(null);
+
+  useEffect(() => () => {
+    if (openingResetRef.current) clearTimeout(openingResetRef.current);
+  }, []);
+
+  const clearOpeningProvider = () => {
+    if (openingResetRef.current) {
+      clearTimeout(openingResetRef.current);
+      openingResetRef.current = null;
+    }
+    setOpeningProvider(null);
+  };
 
   const clearSignedOutFlag = () => {
     try {
@@ -77,9 +92,14 @@ export default function NativeLoginCard({ clearSignedOut = false }) {
     setErrorMessage('');
     setNoticeMessage('');
     setOpeningProvider(provider);
+    openingResetRef.current = setTimeout(() => {
+      clearOpeningProvider();
+      setErrorMessage('Sign in timed out. Tap again or use email.');
+    }, 15000);
     try {
       if (typeof window !== 'undefined') {
         window.__restorebraineLastOAuthError = '';
+        window.__restorebraineOAuthInProgress = false;
       }
       const url = provider === 'google' ? getGoogleOAuthUrl() : getProviderOAuthUrl(provider);
       await openLoginInSystemBrowser(url, provider);
@@ -88,7 +108,7 @@ export default function NativeLoginCard({ clearSignedOut = false }) {
       const detail = typeof window !== 'undefined' ? window.__restorebraineLastOAuthError : '';
       setErrorMessage(detail || error?.message || 'Could not open sign in. Try again or use email.');
     } finally {
-      setOpeningProvider(null);
+      clearOpeningProvider();
     }
   };
 
@@ -134,14 +154,14 @@ export default function NativeLoginCard({ clearSignedOut = false }) {
       <div style={formStyle}>
         <h1 style={{ fontSize: '24px', fontWeight: '700', color: '#111', margin: '0 0 24px' }}>Restorebraine</h1>
 
-        <ProviderButton provider="google" onClick={() => handleProviderClick('google')} disabled={!!openingProvider}>
+        <ProviderButton provider="google" onClick={() => handleProviderClick('google')} disabled={openingProvider === 'google'}>
           <span style={{ color: '#4285F4', fontWeight: '800', marginRight: '10px' }}>G</span>
           {openingProvider === 'google' ? 'Opening Google…' : 'Continue With Google'}
         </ProviderButton>
-        <ProviderButton provider="apple" dark onClick={() => handleProviderClick('apple')} disabled={!!openingProvider}>
+        <ProviderButton provider="apple" dark onClick={() => handleProviderClick('apple')} disabled={openingProvider === 'apple'}>
           {openingProvider === 'apple' ? 'Opening Apple…' : 'Continue With Apple'}
         </ProviderButton>
-        <ProviderButton provider="microsoft" onClick={() => handleProviderClick('microsoft')} disabled={!!openingProvider}>
+        <ProviderButton provider="microsoft" onClick={() => handleProviderClick('microsoft')} disabled={openingProvider === 'microsoft'}>
           <span style={{ color: '#0078d4', fontWeight: '800', marginRight: '10px' }}>M</span>
           {openingProvider === 'microsoft' ? 'Opening Microsoft…' : 'Continue With Microsoft'}
         </ProviderButton>
@@ -188,7 +208,7 @@ export default function NativeLoginCard({ clearSignedOut = false }) {
         {errorMessage ? <p style={{ color: '#dc2626', fontSize: '13px', margin: '0 0 12px' }}>{errorMessage}</p> : null}
         {noticeMessage ? <p style={{ color: '#6b7280', fontSize: '13px', margin: '0 0 12px' }}>{noticeMessage}</p> : null}
         <button
-          disabled={isSubmitting || !!openingProvider}
+          disabled={isSubmitting}
           type="submit"
           style={{
             width: '100%',

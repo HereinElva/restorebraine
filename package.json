@@ -23,7 +23,6 @@
     "mac:build": "bash scripts/mac-build.sh",
     "mac:sync": "bash scripts/mac-sync-github.sh",
     "mac:doctor": "bash scripts/mac-doctor.sh",
-    "mac:pre-upload": "bash scripts/mac-pre-upload-checklist.sh",
     "mac:appstore": "bash scripts/mac-build.sh --hosted",
     "mac:start-fresh": "bash scripts/mac-build.sh",
     "mac:resync-omega": "bash scripts/mac-build.sh",
