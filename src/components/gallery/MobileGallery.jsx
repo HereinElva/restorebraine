@@ -89,16 +89,17 @@ export default function MobileGallery({
     setMergeDrawerOpen(false);
     setMerging(true);
     try {
-      const updatedFolders = await mergeFoldersIntoTarget({
+      const email = getGalleryUserEmail(queryClient, authUser?.email);
+      const updated = await mergeFoldersIntoTarget({
         targetFolderId,
         sourceFolderIds: selectedFolderIds,
         folders,
         photos,
+        userEmail: email,
       });
-      const email = getGalleryUserEmail(queryClient, authUser?.email);
       queryClient.setQueryData(
         galleryFoldersKey(email),
-        foldersForGalleryView(updatedFolders, photos),
+        foldersForGalleryView(updated, photos),
       );
       exitSelection();
     } catch (error) {

@@ -24,6 +24,7 @@ import { useNavigation } from "../components/NavigationContext";
 import { useTabState } from "../components/TabStateContext";
 import MobileGallery from "../components/gallery/MobileGallery";
 import { setGalleryOrganizeSnapshot, toStoredPhotoIds, normalizePhotoId } from "@/lib/gallery-organize-snapshot";
+import { fetchGalleryFoldersWithMembership } from "@/lib/folder-membership";
 import "../components/gallery/mobile-gallery-layout.css";
  
 // ---------------------------------------------------------------------------
@@ -186,8 +187,10 @@ export default function Gallery() {
       ensureClientSessionToken();
       const me = userEmail ? { email: userEmail } : await base44.auth.me();
       if (!me?.email) throw new Error('Gallery requires signed-in user');
-      const result = await base44.entities.Folder.list('-created_date', 200);
-      return (result || []).filter(f => !f.created_by || f.created_by === me.email);
+      const photosData =
+        queryClient.getQueryData(['photos', me.email]) ??
+        (await base44.entities.Photo.filter({ created_by: me.email }, '-created_date'));
+      return fetchGalleryFoldersWithMembership(me.email, photosData || []);
     },
     enabled: canFetchData,
     staleTime: CACHE.folders.staleTime,

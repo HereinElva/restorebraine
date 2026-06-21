@@ -14,11 +14,11 @@ import {
   toStoredPhotoIds,
 } from "@/lib/gallery-organize-snapshot";
 import {
-  assignLoosePhotosToFolders,
+  assignLoosePhotosOneByOne,
   listAllFolders,
-  mergeApiFoldersWithLocal,
   reconcileOrganizeBatch,
 } from "@/lib/folder-membership";
+import { recordBatchFolderMembership } from "@/lib/folder-membership-cache";
 
 const CHUNK_SIZE = 15;
 const LLM_DELAY_MS = 1500;
@@ -28,7 +28,6 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-/** Clean folder membership in memory only — do not write to API before organize saves. */
 function sanitizeFoldersLocally(folders, photos, allPhotoIds) {
   return (folders || []).map((folder) => {
     const normalized = (folder.photo_ids || [])
@@ -134,6 +133,7 @@ export async function runMediaOrganize({
   includeOrganized,
   customInstructions,
   onProgress,
+  userEmail,
 }) {
   onProgress?.("Preparing…");
 
@@ -163,8 +163,6 @@ export async function runMediaOrganize({
     };
   }
 
-  const validPhotoIds = new Set(photosToOrganize.map((p) => normalizePhotoId(p.id)));
-
   if (includeOrganized && existingFolders.length > 0) {
     onProgress?.("Clearing folders…");
     for (const folder of existingFolders) {
@@ -175,6 +173,7 @@ export async function runMediaOrganize({
 
   onProgress?.(`Sorting ${photosToOrganize.length} loose item${photosToOrganize.length !== 1 ? "s" : ""}…`);
 
+  const validPhotoIds = new Set(photosToOrganize.map((p) => normalizePhotoId(p.id)));
   const folderNamesForLabel = includeOrganized ? [] : existingFolderNames;
 
   const allLabels = await buildLabelsFromDescriptions(
@@ -191,14 +190,13 @@ export async function runMediaOrganize({
   const labelByPhotoNormId = new Map(allLabels.map((l) => [l.id, l.folder]));
   const nameList = folderNamesForLabel.length ? folderNamesForLabel : existingFolderNames;
 
-  let afterFolders = await assignLoosePhotosToFolders({
+  let afterFolders = await assignLoosePhotosOneByOne({
     photosToAssign: photosToOrganize,
     labelByPhotoNormId,
     liveFolders,
-    existingFolderNames: nameList,
     includeOrganized,
-    photos,
     onProgress,
+    userEmail,
   });
 
   const reconciled = await reconcileOrganizeBatch({
@@ -206,31 +204,40 @@ export async function runMediaOrganize({
     afterFolders,
     labelByPhotoNormId,
     onProgress,
+    userEmail,
   });
 
   const apiFolders = reconciled.apiFolders || [];
-  afterFolders = mergeApiFoldersWithLocal(apiFolders, reconciled.folders);
+  afterFolders = reconciled.folders;
 
   const missedPhotos = getUnorganizedPhotos(photosToOrganize, apiFolders);
   const actuallySaved = photosToOrganize.length - missedPhotos.length;
 
-  // Prefer verified in-memory folders when list/get lag behind but one-by-one saves ran
-  const localMissed = getUnorganizedPhotos(photosToOrganize, afterFolders).length;
-  const savedCount = Math.max(actuallySaved, photosToOrganize.length - localMissed);
-
-  if (savedCount === 0 && photosToOrganize.length > 0) {
+  if (actuallySaved === 0 && photosToOrganize.length > 0) {
     return {
       ok: false,
       reason: "Organize could not save photos into folders. Pull down to refresh, then try again.",
     };
   }
 
+  if (userEmail && actuallySaved > 0) {
+    const entries = [];
+    for (const photo of photosToOrganize) {
+      if (missedPhotos.some((p) => normalizePhotoId(p.id) === normalizePhotoId(photo.id))) continue;
+      const folder = afterFolders.find((f) =>
+        (f.photo_ids || []).some((id) => normalizePhotoId(id) === normalizePhotoId(photo.id)),
+      );
+      if (folder) entries.push({ photoId: photo.id, folderId: folder.id });
+    }
+    if (entries.length) await recordBatchFolderMembership(userEmail, entries);
+  }
+
   return {
     ok: true,
     foldersSaved: new Set(allLabels.map((l) => l.folder)).size,
-    totalSaved: savedCount,
+    totalSaved: actuallySaved,
     totalToOrganize: photosToOrganize.length,
-    missed: photosToOrganize.length - savedCount,
+    missed: missedPhotos.length,
     afterFolders,
     apiFolders,
     photosToOrganize,

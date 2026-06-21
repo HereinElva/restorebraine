@@ -72,12 +72,15 @@ export default function OrganizeButton({ photos, folders: foldersProp, squareSty
     setProgressLabel("Starting…");
 
     try {
+      const email = getGalleryUserEmail(queryClient, authUser?.email);
+
       const result = await runMediaOrganize({
         photos,
         folders,
         includeOrganized,
         customInstructions,
         onProgress: setProgressLabel,
+        userEmail: email,
       });
 
       if (!result.ok) {
