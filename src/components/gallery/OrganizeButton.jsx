@@ -109,17 +109,23 @@ export default function OrganizeButton({ photos, folders: foldersProp, squareSty
         batchPhotos: result.photosToOrganize || [],
         afterFolders: merged,
         labelByPhotoNormId: result.labelByPhotoNormId,
+        photos: syncedPhotos,
         onProgress: setProgressLabel,
       });
-      merged = foldersForGalleryView(reconciled.folders, syncedPhotos);
 
-      queryClient.setQueryData(galleryFoldersKey(email), merged);
-      setGalleryOrganizeSnapshot({ photos: syncedPhotos, folders: merged });
+      const apiFolders = reconciled.apiFolders || [];
+      const finalFolders = foldersForGalleryView(
+        mergeApiFoldersWithLocal(apiFolders, reconciled.folders),
+        syncedPhotos,
+      );
+
+      queryClient.setQueryData(galleryFoldersKey(email), finalFolders);
+      setGalleryOrganizeSnapshot({ photos: syncedPhotos, folders: finalFolders });
 
       const batchNormIds = new Set(
         (result.photosToOrganize || []).map((p) => normalizePhotoId(p.id)).filter(Boolean),
       );
-      const remainingLoose = getUnorganizedPhotos(syncedPhotos, merged).filter((p) =>
+      const remainingLoose = getUnorganizedPhotos(syncedPhotos, apiFolders).filter((p) =>
         batchNormIds.has(normalizePhotoId(p.id)),
       ).length;
       const totalToOrganize = result.totalToOrganize;

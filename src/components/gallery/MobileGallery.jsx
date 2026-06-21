@@ -490,10 +490,11 @@ export default function MobileGallery({
                 <button
                   onClick={() => setMergeDrawerOpen(true)}
                   disabled={merging}
+                  aria-label={selectedFolderIds.length === 1 ? "Move to Folder" : "Merge Folders"}
                   className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-purple-600 text-white text-sm font-semibold disabled:opacity-50"
                 >
-                  {merging ? <Loader2 className="w-4 h-4 animate-spin" /> : <FolderInput className="w-4 h-4" />}
-                  {selectedFolderIds.length === 1 ? "Move to Folder" : "Merge Folders"}
+                  {merging ? <Loader2 className="w-4 h-4 animate-spin" /> : <FolderInput className="w-4 h-4 shrink-0" />}
+                  {selectedFolderIds.length === 1 ? "Move" : "Merge"}
                 </button>
               )}
 

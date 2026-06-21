@@ -57,12 +57,21 @@
   z-index: 110 !important;
 }
 
-[data-rb-selection-toolbar] button {
-  min-height: 2.75rem;
-  white-space: nowrap;
-  font-size: 0.8125rem;
-  line-height: 1.25;
-  overflow: visible;
+[data-rb-selection-toolbar] .flex.gap-2.flex-wrap > button {
+  min-height: 3rem !important;
+  height: auto !important;
+  padding-top: 0.625rem !important;
+  padding-bottom: 0.625rem !important;
+  box-sizing: border-box !important;
+  white-space: nowrap !important;
+  font-size: 0.8125rem !important;
+  line-height: 1.35 !important;
+  overflow: visible !important;
+  align-items: center !important;
+}
+
+[data-rb-selection-toolbar] .flex.gap-2.flex-wrap {
+  align-items: stretch !important;
 }
 
 /* Extra scroll room when folder/photo selection bar is open */
