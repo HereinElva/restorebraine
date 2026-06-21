@@ -1,14 +1,55 @@
 # Build Restorebraine — one Terminal command
 
-No Base44 paste. No wizard. No Safari checks.
+## If Mac feels disconnected from GitHub
 
-## Build (recommended)
+Run these **in order** (copy each line):
 
 ```bash
 cd ~/restorebraine
-git pull origin cursor/fix-native-localhost-oauth-bacf
+```
+
+```bash
+git fetch https://github.com/HereinElva/restorebraine.git cursor/fix-native-localhost-oauth-bacf
+```
+
+```bash
+git checkout -B cursor/fix-native-localhost-oauth-bacf FETCH_HEAD
+```
+
+```bash
+git reset --hard FETCH_HEAD
+```
+
+```bash
+ls scripts/mac-build.sh
+```
+
+If `mac-build.sh` shows up, Mac matches GitHub. Then:
+
+```bash
+bash scripts/mac-build.sh --no-git
+```
+
+After the next sync, use: `bash scripts/mac-sync-github.sh` (does the same thing).
+
+## Three separate copies (this is the confusion)
+
+| Copy | What it is | How it updates |
+|------|------------|----------------|
+| **GitHub** | Source code | We push from cloud agent |
+| **Your Mac** | Local repo + Xcode | `mac-sync-github.sh` |
+| **Base44 website** | Hosted web app | Manual paste (optional — **not needed for iPhone build**) |
+
+**iPhone build uses your Mac/git only.** Base44 can stay on v162 — bundled build still gets v178.
+
+## Build (after sync)
+
+```bash
 bash scripts/mac-build.sh
 ```
+
+Xcode: **Clean → Run → Archive**
+
 
 That one command:
 
