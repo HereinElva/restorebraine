@@ -13,12 +13,31 @@ fi
 
 REPO_ENTRY=$(grep -o 'src="\./assets/[^"]*\.js"' ios/App/App/public/index.html 2>/dev/null | head -1 | sed 's/.*assets\///;s/"//' || echo '?')
 REPO_STAMP=$(tr -d '\n' < ios/App/App/BUILD_STAMP.txt 2>/dev/null || echo missing)
-HOSTED=$(grep -c '"url".*restorebraine.base44.app' ios/App/App/capacitor.config.json 2>/dev/null || echo 0)
+REPO_CONFIG="ios/App/App/capacitor.config.json"
+REPO_SERVER_URL=$(python3 - <<'PY' 2>/dev/null || true
+import json, pathlib
+p = pathlib.Path("ios/App/App/capacitor.config.json")
+if not p.exists():
+    print("")
+else:
+    cfg = json.loads(p.read_text())
+    print(cfg.get("server", {}).get("url", ""))
+PY
+)
+if [ -z "$REPO_SERVER_URL" ]; then
+  REPO_SERVER_URL=$(grep -o '"url": *"[^"]*"' "$REPO_CONFIG" 2>/dev/null | head -1 | sed 's/.*"url": *"\([^"]*\)".*/\1/' || echo "")
+fi
+HOSTED=0
+if [[ "$REPO_SERVER_URL" == *"restorebraine.base44.app"* ]]; then
+  HOSTED=1
+fi
 
 echo "Repo ready: $REPO_STAMP"
 echo "Entry JS:   $REPO_ENTRY"
-if [ "$HOSTED" != "0" ]; then
+if [ "$HOSTED" = "1" ]; then
   echo "Mode:       HOSTED WebView → restorebraine.base44.app"
+else
+  echo "Mode:       BUNDLED native → capacitor://localhost (v4-core)"
 fi
 echo ""
 
@@ -26,7 +45,7 @@ echo "=== Copy ios/public → DerivedData App.app ==="
 bash scripts/mac-copy-public-into-appapp.sh
 echo ""
 
-if [ "$HOSTED" != "0" ]; then
+if [ "$HOSTED" = "1" ]; then
   bash scripts/verify-hosted-app-bundle.sh || exit 1
 else
   bash scripts/verify-xcode-app-bundle.sh || exit 1
@@ -64,8 +83,14 @@ if xcrun devicectl help device install app >/dev/null 2>&1; then
     echo ""
     echo "════════════════════════════════════════════════════════════════"
     echo "  INSTALLED on iPhone: v${BUILD_NUM} · ${REPO_ENTRY}"
-    echo "  Login: same as https://restorebraine.base44.app (hosted WebView)"
-    echo "  Tap Continue with Google — identical to Safari web app"
+    if [ "$HOSTED" = "1" ]; then
+      echo "  Mode: hosted WebView (same login as restorebraine.com)"
+      echo "  Tap Continue with Google — identical to web browser"
+    else
+      echo "  Mode: bundled native (capacitor://localhost)"
+      echo "  Login must show: Native bundle · v${BUILD_NUM}"
+      echo "  Purple badge: v${BUILD_NUM} · v4-core · auth: sign-in-v4"
+    fi
     echo "════════════════════════════════════════════════════════════════"
     exit 0
   fi
