@@ -101,6 +101,10 @@ fi
 
 node scripts/verify-ios-bundle-version.mjs
 
+if [ "$MODE" = "bundled" ]; then
+  node scripts/verify-bundled-deploy-ready.mjs
+fi
+
 BUILD_NUM=$(grep -E '^export const BUILD_NUMBER = ' src/lib/build-info.js | sed 's/.*= //;s/;//')
 DEPLOY=$(grep -E '^export const DEPLOY_BUILD = ' src/deploy-marker.js | sed 's/.*= //;s/;//')
 ENTRY=$(grep -o 'src="\./assets/[^"]*\.js"' ios/App/App/public/index.html | head -1 | sed 's/.*assets\///;s/"//')

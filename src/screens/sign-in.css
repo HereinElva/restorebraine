@@ -101,6 +101,7 @@
   flex-shrink: 0 !important;
   opacity: 1 !important;
   visibility: visible !important;
+  object-fit: contain !important;
 }
 
 .rb-signin-email-btn {

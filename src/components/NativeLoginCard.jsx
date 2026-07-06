@@ -134,6 +134,19 @@ export default function NativeLoginCard({ clearSignedOut = false }) {
   return (
     <div style={cardStyle} data-rb-auth="sign-in-v4">
       <div style={formStyle}>
+        <p
+          data-rb-login-build={BUILD_NUMBER}
+          style={{
+            margin: '0 0 18px',
+            fontSize: '12px',
+            fontWeight: '700',
+            color: '#7c3aed',
+            letterSpacing: '0.04em',
+            textTransform: 'uppercase',
+          }}
+        >
+          Bundled login · v{BUILD_NUMBER}
+        </p>
         <h1
           style={{
             fontSize: '24px',
