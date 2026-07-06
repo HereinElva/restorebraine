@@ -178,8 +178,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     @objc private func installSessionBridge() {
         guard let bridge = window?.rootViewController as? CAPBridgeViewController else { return }
         configureNativeWebView(bridge)
-        guard let webView = bridge.webView,
-              let userContentController = webView.configuration.userContentController else { return }
+        guard let webView = bridge.webView else { return }
+        let userContentController = webView.configuration.userContentController
 
         if !sessionBridgeInstalled {
             sessionBridgeInstalled = true
