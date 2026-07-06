@@ -85,12 +85,12 @@ console.log('');
 if (fail) {
   console.error('=== NOT READY for Xcode Run ===');
   console.error('If you Run anyway, iPhone will show "Continue With Apple" (hosted Base44).');
-  console.error('After fixing, login must show "Sign in with Apple" + Build vN at bottom.');
+  console.error('After fixing, login must show "Sign in with Apple" with white Apple logo.');
   process.exit(1);
 }
 
 console.log('=== READY — now Xcode Clean → Run on iPhone ===');
 console.log('After install, login MUST show:');
 console.log('  • Sign in with Apple (with white logo)');
-console.log('  • Build vN at bottom of card');
+console.log('  • No "Login vN" or "Build vN" diagnostic banners');
 console.log('If you still see "Continue With Apple", Xcode did not install this bundle.');

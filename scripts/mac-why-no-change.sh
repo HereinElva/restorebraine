@@ -75,6 +75,6 @@ else
 fi
 echo "On iPhone login screen:"
 echo "  OLD (hosted Base44 not updated): Continue With Apple — no logo"
-echo "  NEW (bundled v${BUILD}+):         Sign in with Apple + logo · Build v${BUILD} at bottom"
+echo "  NEW (bundled v${BUILD}+):         Sign in with Apple + logo (no version banners on login)"
 echo "On iPhone tap purple badge: must say v${BUILD} · v4-core · capacitor://localhost"
 echo "══════════════════════════════════════════════════════════════"

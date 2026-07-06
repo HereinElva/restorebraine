@@ -60,7 +60,7 @@ cat <<EOF
     RestorebraineAppleLoginOverlay.swift
 
 === Step 5 — On login screen (bundled build) ===
-  PASS: purple "Login v${BUILD}" + Sign in with Apple + logo
+  PASS: Sign in with Apple + logo (no Login v / Build v banners)
   FAIL: "Continue With Apple" only → Step 1 was skipped or Run failed
 
 After Run works, then Archive for TestFlight.

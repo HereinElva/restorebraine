@@ -29,6 +29,13 @@ function mustInclude(file, pattern, label) {
   else failMsg(`${label} missing in ${file}`);
 }
 
+function mustNotInclude(file, pattern, label) {
+  const content = read(file);
+  const hit = typeof pattern === 'string' ? content.includes(pattern) : pattern.test(content);
+  if (!hit) ok(`${label} (${file})`);
+  else failMsg(`${label} still present in ${file}`);
+}
+
 console.log('=== Restorebraine 1.0.1 feature check ===\n');
 
 // Version
@@ -65,7 +72,8 @@ mustInclude('src/main.jsx', 'installNativeSessionPersistence', 'Boot-time sessio
 
 // Login — all providers
 mustInclude('src/components/NativeLoginCard.jsx', 'Continue With Google', 'Google login');
-mustInclude('src/components/NativeLoginCard.jsx', 'Login v', 'Login version banner');
+mustNotInclude('src/components/NativeLoginCard.jsx', 'Login v', 'No diagnostic login version banner');
+mustNotInclude('src/components/NativeLoginCard.jsx', 'Build v', 'No diagnostic build footer');
 mustInclude('src/components/NativeLoginCard.jsx', 'Sign in with Apple', 'Apple HIG label');
 mustInclude('src/components/NativeLoginCard.jsx', 'data-rb-apple-logo', 'Apple logo in login card');
 mustInclude('src/components/NativeLoginCard.jsx', 'data-rb-apple-sign-in', 'Apple sign-in button');

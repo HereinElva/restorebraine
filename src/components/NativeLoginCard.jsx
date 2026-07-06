@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/AuthContext';
 import { launchProviderOAuth } from '@/lib/native-google-oauth';
-import { BUILD_NUMBER } from '@/lib/build-info';
 import '@/screens/sign-in.css';
 
 const BRAND_GRADIENT = 'linear-gradient(135deg,#60a5fa,#a78bfa)';
@@ -199,19 +198,6 @@ export default function NativeLoginCard({ clearSignedOut = false }) {
   return (
     <div style={cardStyle} data-rb-auth="sign-in-v4">
       <div style={formStyle}>
-        <p
-          data-rb-login-build={BUILD_NUMBER}
-          style={{
-            margin: '0 0 18px',
-            fontSize: '12px',
-            fontWeight: '700',
-            color: '#7c3aed',
-            letterSpacing: '0.04em',
-            textTransform: 'uppercase',
-          }}
-        >
-          Login v{BUILD_NUMBER}
-        </p>
         <h1
           style={{
             fontSize: '24px',
@@ -309,12 +295,6 @@ export default function NativeLoginCard({ clearSignedOut = false }) {
         >
           {mode === 'signup' ? 'Already have an account? Sign in' : "Don't have an account? Sign up"}
         </button>
-        <p
-          data-rb-login-build={BUILD_NUMBER}
-          style={{ margin: '14px 0 0', fontSize: '11px', color: '#9ca3af', letterSpacing: '0.02em' }}
-        >
-          Build v{BUILD_NUMBER}
-        </p>
         </form>
       </div>
     </div>
