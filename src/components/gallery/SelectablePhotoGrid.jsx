@@ -2,6 +2,13 @@ import React from "react";
 import { motion } from "framer-motion";
 import { Play, Check } from "lucide-react";
 import { Droppable, Draggable } from "@hello-pangea/dnd";
+import { gridImageProps } from "@/lib/gallery-image";
+
+const STAGGER_CAP = 18;
+const tileTransition = (index) => ({
+  duration: 0.2,
+  delay: index < STAGGER_CAP ? index * 0.02 : 0,
+});
 
 export default function SelectablePhotoGrid({ 
   photos, 
@@ -43,9 +50,9 @@ export default function SelectablePhotoGrid({
                       ref={provided.innerRef}
                       {...provided.draggableProps}
                       {...provided.dragHandleProps}
-                      initial={{ opacity: 0, y: 20 }}
+                      initial={{ opacity: 0, y: 12 }}
                       animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.3, delay: index * 0.03 }}
+                      transition={tileTransition(index)}
                       onClick={(e) => handleClick(photo, e)}
                       className="group cursor-move relative"
                       style={{
@@ -71,10 +78,8 @@ export default function SelectablePhotoGrid({
                           </>
                         ) : (
                           <img
-                            src={photo.file_url}
-                            alt={photo.ai_description}
+                            {...gridImageProps(photo.file_url, photo.ai_description)}
                             className="w-full h-full object-cover"
-                            loading="eager"
                           />
                         )}
                         
@@ -112,9 +117,9 @@ export default function SelectablePhotoGrid({
       {photos.map((photo, index) => (
         <motion.div
           key={photo.id}
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3, delay: index * 0.03 }}
+          transition={tileTransition(index)}
           onClick={(e) => handleClick(photo, e)}
           className="group cursor-pointer relative"
         >
@@ -134,10 +139,8 @@ export default function SelectablePhotoGrid({
               </>
             ) : (
               <img
-                src={photo.file_url}
-                alt={photo.ai_description}
+                {...gridImageProps(photo.file_url, photo.ai_description)}
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                loading="eager"
               />
             )}
             

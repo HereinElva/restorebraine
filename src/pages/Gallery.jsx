@@ -119,7 +119,6 @@ export default function Gallery() {
       void loadGalleryData(queryClient);
       resetAppScrollPosition();
     };
-    void loadGalleryData(queryClient);
     window.addEventListener('restorebraine-session-updated', refreshGallery);
     window.addEventListener('restorebraine-native-oauth-complete', refreshGallery);
     window.addEventListener('restorebraine-gallery-ready', refreshGallery);
@@ -133,8 +132,7 @@ export default function Gallery() {
   useLayoutEffect(() => {
     if (!canFetchData) return;
     resetAppScrollPosition();
-    void loadGalleryData(queryClient);
-  }, [canFetchData, queryClient]);
+  }, [canFetchData]);
 
   useEffect(() => {
     if (selectedFolder) {
@@ -162,7 +160,6 @@ export default function Gallery() {
     gcTime: CACHE.user.gcTime,
     placeholderData: (prev) => prev ?? authUser ?? undefined,
     retry: 2,
-    refetchOnMount: 'always',
   });
 
   const userEmail = currentUser?.email || authUser?.email;
@@ -179,7 +176,6 @@ export default function Gallery() {
     staleTime: CACHE.photos.staleTime,
     gcTime: CACHE.photos.gcTime,
     retry: 2,
-    refetchOnMount: 'always',
   });
 
   const { data: folders = [] } = useQuery({
@@ -205,7 +201,6 @@ export default function Gallery() {
       return snapshot.length ? snapshot : [];
     },
     retry: 2,
-    refetchOnMount: 'always',
   });
 
   useEffect(() => {
@@ -216,11 +211,6 @@ export default function Gallery() {
         mergeApiFoldersWithLocal(prev ?? [], snapshot),
       );
     });
-  }, [userEmail, canFetchData, queryClient]);
-
-  useEffect(() => {
-    if (!userEmail || !canFetchData) return;
-    queryClient.invalidateQueries({ queryKey: ['photos', userEmail] });
   }, [userEmail, canFetchData, queryClient]);
 
   // Only show the loading spinner on the very first load (no cached data yet)
@@ -247,15 +237,17 @@ export default function Gallery() {
         f => (!f.cover_photo_url || f.cover_photo_url === '') && f.photo_ids?.length > 0
       );
       if (foldersNeedingCovers.length === 0) return;
-      let updated = false;
-      for (const folder of foldersNeedingCovers) {
-        const coverPhoto = photos.find(p => p.id === folder.photo_ids[0]);
-        if (coverPhoto) {
-          await base44.entities.Folder.update(folder.id, { cover_photo_url: coverPhoto.file_url });
-          updated = true;
-        }
-      }
-      if (updated) queryClient.invalidateQueries({ queryKey: ['folders'] });
+      const updates = foldersNeedingCovers
+        .map((folder) => {
+          const coverPhoto = photos.find((p) => p.id === folder.photo_ids[0]);
+          return coverPhoto
+            ? base44.entities.Folder.update(folder.id, { cover_photo_url: coverPhoto.file_url })
+            : null;
+        })
+        .filter(Boolean);
+      if (updates.length === 0) return;
+      await Promise.all(updates);
+      queryClient.invalidateQueries({ queryKey: ['folders'] });
     };
     if (photos.length > 0 && folders.length > 0) updateFolderCovers();
   }, [folders, photos, queryClient]);

@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useMemo } from "react";
 import { Search, X, Sparkles, ImageIcon, Grid3x3, Layers, MousePointer2, Check, Pencil, Loader2, FolderInput, Folder } from "lucide-react";
 
 import SelectablePhotoGrid from "./SelectablePhotoGrid";
@@ -16,6 +16,7 @@ import { normalizePhotoId, foldersForGalleryView } from "@/lib/gallery-organize-
 import { mergeFoldersIntoTarget } from "@/lib/folder-membership";
 import { getGalleryUserEmail, galleryFoldersKey } from "@/lib/gallery-query-keys";
 import { useAuth } from "@/lib/AuthContext";
+import { gridImageProps } from "@/lib/gallery-image";
 
 export default function MobileGallery({
   photos,
@@ -54,12 +55,25 @@ export default function MobileGallery({
   const inputRef = useRef(null);
   const { user: authUser } = useAuth();
 
-  const photosInFolders = new Set(
-    folders.flatMap((f) => (f.photo_ids || []).map(normalizePhotoId)),
+  const photosById = useMemo(
+    () => new Map(photos.map((p) => [normalizePhotoId(p.id), p])),
+    [photos],
   );
-  const unorganizedPhotos = photos.filter(
-    (p) => p?.id != null && !photosInFolders.has(normalizePhotoId(p.id)),
+
+  const photosInFolders = useMemo(
+    () => new Set(folders.flatMap((f) => (f.photo_ids || []).map(normalizePhotoId))),
+    [folders],
   );
+
+  const unorganizedPhotos = useMemo(
+    () => photos.filter((p) => p?.id != null && !photosInFolders.has(normalizePhotoId(p.id))),
+    [photos, photosInFolders],
+  );
+
+  const folderPhotosFor = (folder) =>
+    (folder?.photo_ids || [])
+      .map((id) => photosById.get(normalizePhotoId(id)))
+      .filter(Boolean);
 
   const exitSelection = () => {
     setSelectionMode(false);
@@ -120,7 +134,7 @@ export default function MobileGallery({
 
   // Folder view
   if (selectedFolder) {
-    const folderPhotos = photos.filter(p => (selectedFolder.photo_ids || []).includes(p.id));
+    const folderPhotos = folderPhotosFor(selectedFolder);
 
     const handleFolderPhotoMove = async (targetFolderId) => {
       setMergeDrawerOpen(false);
@@ -177,7 +191,7 @@ export default function MobileGallery({
                   {photo.file_type === 'video' ? (
                     <video src={photo.file_url} className="w-full h-full object-cover" preload="metadata" />
                   ) : (
-                    <img src={photo.file_url} alt="" className="w-full h-full object-cover" />
+                    <img {...gridImageProps(photo.file_url)} className="w-full h-full object-cover" />
                   )}
                   {selectionMode && (
                     <div className={`absolute top-1 right-1 w-5 h-5 rounded-full border-2 flex items-center justify-center z-10 ${isSelected ? 'bg-purple-600 border-purple-600' : 'bg-white/80 border-gray-400'}`}>
@@ -262,7 +276,7 @@ export default function MobileGallery({
           }
         }}
       >
-        <MobileFolderCard folder={folder} photos={photos} onClick={() => {}} />
+        <MobileFolderCard folder={folder} onClick={() => {}} />
         {selectionMode && (
           <div className={`absolute top-1 right-1 w-5 h-5 rounded-full border-2 flex items-center justify-center z-10 ${
             isSelected ? 'bg-purple-600 border-purple-600' : 'bg-white/80 border-gray-400'
@@ -418,7 +432,6 @@ export default function MobileGallery({
                         <MobileFolderCard
                           key={folder.id}
                           folder={folder}
-                          photos={photos}
                           onClick={() => {
                             setSelectedFolder(folder);
                             pushBack(folder.name, () => { setSelectedFolder(null); setSelectionMode(false); setSelectedIds([]); });
