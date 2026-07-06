@@ -52,6 +52,20 @@ echo "FULL REPLACE: copied ${NEW_COUNT} files into App.app/public"
 
 [ -f "$STAMP" ] && cp "$STAMP" "${DEST_APP}/BUILD_STAMP.txt"
 [ -f "$CONFIG" ] && cp "$CONFIG" "${DEST_APP}/capacitor.config.json"
+BUNDLED_MARKER="${SRCROOT}/App/BUNDLED_MODE.txt"
+if [ -f "$BUNDLED_MARKER" ]; then
+  cp "$BUNDLED_MARKER" "${DEST_APP}/BUNDLED_MODE.txt"
+  if grep -q '"url"' "$CONFIG" 2>/dev/null; then
+    echo ""
+    echo "████████████████████████████████████████████████████████████████"
+    echo "██  ERROR: BUNDLED build but capacitor.config.json has server.url ██"
+    echo "██  iPhone will load hosted Base44 (Continue With Apple) — NOT bundled ██"
+    echo "██  Run on Mac: bash build-iphone.sh                          ██"
+    echo "████████████████████████████████████████████████████████████████"
+    echo ""
+    exit 1
+  fi
+fi
 
 MANIFEST="${DEST_APP}/DEPLOY_MANIFEST.txt"
 {

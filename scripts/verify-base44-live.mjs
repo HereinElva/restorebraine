@@ -24,7 +24,8 @@ const liveDeploy = html.match(/restorebraine-deploy[^>]*content="v(\d+)"/)?.[1]
   ?? html.match(/content="v(\d+)"[^>]*restorebraine-deploy/)?.[1]
   ?? '?';
 const liveBundle = html.match(/assets\/(index-[^"]+\.js)/)?.[1] ?? 'unknown';
-const hasMultiProvider = /Continue With Apple|Continue With Microsoft|Sign In With Email/i.test(html);
+const hasMultiProvider = /Sign in with Apple|Continue With Apple|Continue With Microsoft|Sign In With Email/i.test(html);
+const hasAppleLogo = /data-rb-apple-logo|SignInWithAppleButton/i.test(html);
 const hasOldSingleGoogle = /Continue with Google/i.test(html) && !hasMultiProvider;
 
 console.log('=== Base44 live vs git ===\n');
@@ -49,6 +50,17 @@ if (hasOldSingleGoogle) {
   fail += 1;
 } else if (hasMultiProvider) {
   console.log('OK: Live login has multi-provider card (Google / Apple / email)');
+  if (/Continue With Apple/i.test(html) && !/Sign in with Apple/i.test(html)) {
+    console.error('FAIL: Live Apple button is OLD ("Continue With Apple" — no logo)');
+    console.error('       Publish base44-publish-v' + localDeploy + '.txt → Base44 Code editor → Publish');
+    fail += 1;
+  } else if (!hasAppleLogo) {
+    console.error('FAIL: Live login missing Apple logo (data-rb-apple-logo / SignInWithAppleButton)');
+    console.error('       Publish base44-publish-v' + localDeploy + '.txt → Base44 Code editor → Publish');
+    fail += 1;
+  } else {
+    console.log('OK: Live login has HIG Apple button + logo');
+  }
 } else {
   console.warn('WARN: Could not detect login UI from HTML (check in Safari after Publish)');
 }

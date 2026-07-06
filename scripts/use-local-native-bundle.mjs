@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, unlinkSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 const useLocal = process.argv.includes('--local');
@@ -35,6 +35,9 @@ for (const configPath of paths) {
     delete config.server;
     config.ios = { ...baseIos };
     console.log(`Local bundle mode (build v4 style): removed server.url from ${configPath}`);
+    if (configPath.includes('ios/App/App/capacitor.config.json')) {
+      writeFileSync(resolve('ios/App/App/BUNDLED_MODE.txt'), 'bundled\n');
+    }
   } else {
     config.server = {
       url: 'https://restorebraine.base44.app',
@@ -56,6 +59,8 @@ for (const configPath of paths) {
     };
     config.ios = { ...hostedIos };
     console.log(`Hosted mode: restored server.url in ${configPath}`);
+    const bundledModePath = resolve('ios/App/App/BUNDLED_MODE.txt');
+    if (existsSync(bundledModePath)) unlinkSync(bundledModePath);
   }
 
   writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`);

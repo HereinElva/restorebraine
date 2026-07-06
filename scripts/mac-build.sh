@@ -18,7 +18,7 @@
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 
-BRANCH="${RESTOREBRAINE_BRANCH:-cursor/fix-native-localhost-oauth-bacf}"
+BRANCH="${RESTOREBRAINE_BRANCH:-cursor/fix-apple-sign-in-bacf}"
 MODE=bundled
 SKIP_GIT=0
 NUCLEAR=0
@@ -100,6 +100,10 @@ else
 fi
 
 node scripts/verify-ios-bundle-version.mjs
+
+if [ "$MODE" = "bundled" ]; then
+  node scripts/verify-bundled-deploy-ready.mjs
+fi
 
 BUILD_NUM=$(grep -E '^export const BUILD_NUMBER = ' src/lib/build-info.js | sed 's/.*= //;s/;//')
 DEPLOY=$(grep -E '^export const DEPLOY_BUILD = ' src/deploy-marker.js | sed 's/.*= //;s/;//')

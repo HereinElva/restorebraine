@@ -3,7 +3,7 @@
 #
 # Usage:
 #   bash scripts/base44-copy-one.sh          # next file (tracks progress)
-#   bash scripts/base44-copy-one.sh 5        # specific file number 1-35
+#   bash scripts/base44-copy-one.sh 5        # specific file number 1-38
 #   bash scripts/base44-copy-one.sh --status # where you are
 #   bash scripts/base44-copy-one.sh --reset  # start over at file 1
 set -euo pipefail
@@ -29,6 +29,9 @@ FILES=(
   "src/screens/SignInScreen.jsx"
   "src/screens/sign-in.css"
   "src/components/NativeLoginCard.jsx"
+  "src/components/SignInWithAppleButton.jsx"
+  "src/components/AppleLogo.jsx"
+  "public/apple-sign-in-logo.svg"
   "src/components/LoginPage.jsx"
   "src/components/LoginLogo.jsx"
   "src/lib/login-logo-data.js"

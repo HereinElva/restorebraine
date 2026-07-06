@@ -7,7 +7,7 @@
 set -euo pipefail
 
 REPO="${RESTOREBRAINE_REPO:-$HOME/restorebraine}"
-BRANCH="${RESTOREBRAINE_BRANCH:-cursor/fix-native-localhost-oauth-bacf}"
+BRANCH="${RESTOREBRAINE_BRANCH:-cursor/fix-apple-sign-in-bacf}"
 REMOTE="${RESTOREBRAINE_REMOTE:-https://github.com/HereinElva/restorebraine.git}"
 
 if [ ! -d "$REPO/.git" ]; then
@@ -58,7 +58,7 @@ echo "             $MSG"
 echo ""
 
 FAIL=0
-for f in scripts/mac-build.sh scripts/mac-unblock-pull.sh; do
+for f in scripts/mac-build.sh scripts/mac-sync-apple-fix.sh scripts/mac-apple-login-bundled.sh; do
   if [ -f "$f" ]; then
     echo "OK: $f"
   else
@@ -73,8 +73,9 @@ if [ "$FAIL" -eq 0 ]; then
   echo "██  PASS — Mac matches GitHub                               ██"
   echo "████████████████████████████████████████████████████████████"
   echo ""
-  echo "Next:"
-  echo "  bash scripts/mac-build.sh --no-git"
+  echo "Next (Apple login fix):"
+  echo "  bash scripts/mac-sync-apple-fix.sh --no-git"
+  echo "  or: bash scripts/mac-build.sh --no-git"
 else
   echo "FAIL — still missing scripts. Check internet / repo URL."
   exit 1
