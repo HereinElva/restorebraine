@@ -33,6 +33,11 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         return label.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    /// Bundled builds ship React login with Apple logo — native overlay would duplicate the button.
+    private var isBundledNativeMode: Bool {
+        Bundle.main.url(forResource: "BUNDLED_MODE", withExtension: "txt") != nil
+    }
+
     private func storedNativeToken() -> String? {
         let defaults = UserDefaults.standard
         if defaults.string(forKey: "CapacitorStorage.b44_signed_out") == "1" { return nil }
@@ -150,11 +155,15 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 
     func onWebViewDidFinish(_ webView: WKWebView) {
-        runAppleLoginFix(on: webView)
-        if let bridge = window?.rootViewController as? CAPBridgeViewController {
-            appleLoginOverlay.attach(webView: webView, containerView: bridge.view)
+        if isBundledNativeMode {
+            appleLoginOverlay.detach()
+        } else {
+            runAppleLoginFix(on: webView)
+            if let bridge = window?.rootViewController as? CAPBridgeViewController {
+                appleLoginOverlay.attach(webView: webView, containerView: bridge.view)
+            }
+            scheduleAppleFixBurst(on: webView)
         }
-        scheduleAppleFixBurst(on: webView)
     }
 
     private func scheduleAppleFixBurst(on webView: WKWebView) {

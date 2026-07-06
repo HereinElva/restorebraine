@@ -20,7 +20,7 @@ final class RestorebraineAppleLoginOverlay: NSObject {
         var t=(b.textContent||'').replace(/\\s+/g,' ').trim();
         if(!/apple/i.test(t)||/google|microsoft|email|opening apple/i.test(t))continue;
         if(!/continue with|sign in with/i.test(t))continue;
-        if(b.querySelector('[data-rb-apple-logo]'))return null;
+        if(b.querySelector('[data-rb-apple-logo]'))return {found:0,webHasLogo:1};
         var r=b.getBoundingClientRect();
         if(r.width<40||r.height<16)return null;
         b.setAttribute('data-rb-native-apple-cover','1');
@@ -92,6 +92,13 @@ final class RestorebraineAppleLoginOverlay: NSObject {
     }
 
     private func layoutButton(from result: Any?, webView: WKWebView, containerView: UIView) {
+        if let dict = result as? [String: Any],
+           dict["webHasLogo"] as? Int == 1 || dict["webHasLogo"] as? Double == 1 {
+            missCount = 0
+            appleButton?.isHidden = true
+            return
+        }
+
         if let dict = result as? [String: Any],
            dict["found"] as? Int == 1 || dict["found"] as? Double == 1,
            let x = dict["x"] as? Double,

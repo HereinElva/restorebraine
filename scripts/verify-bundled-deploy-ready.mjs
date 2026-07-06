@@ -81,6 +81,16 @@ if (existsSync(buildStamp)) {
   bad('BUILD_STAMP.txt missing');
 }
 
+const appDelegate = resolve('ios/App/App/AppDelegate.swift');
+if (existsSync(appDelegate)) {
+  const swift = readFileSync(appDelegate, 'utf8');
+  if (!/isBundledNativeMode/.test(swift) || !/appleLoginOverlay\.detach\(\)/.test(swift)) {
+    bad('AppDelegate must skip native Apple overlay in bundled mode (duplicate button)');
+  } else {
+    ok('AppDelegate skips native Apple overlay when BUNDLED_MODE.txt is present');
+  }
+}
+
 console.log('');
 if (fail) {
   console.error('=== NOT READY for Xcode Run ===');
