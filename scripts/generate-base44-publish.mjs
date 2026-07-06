@@ -28,6 +28,8 @@ const FILES = [
   'src/screens/SignInScreen.jsx',
   'src/screens/sign-in.css',
   'src/components/NativeLoginCard.jsx',
+  'src/components/SignInWithAppleButton.jsx',
+  'src/components/AppleLogo.jsx',
   'src/components/LoginPage.jsx',
   'src/components/LoginLogo.jsx',
   'src/lib/login-logo-data.js',

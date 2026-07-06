@@ -65,7 +65,9 @@ mustInclude('src/main.jsx', 'installNativeSessionPersistence', 'Boot-time sessio
 
 // Login — all providers
 mustInclude('src/components/NativeLoginCard.jsx', 'Continue With Google', 'Google login');
-mustInclude('src/components/NativeLoginCard.jsx', 'Continue With Apple', 'Apple login');
+mustInclude('src/components/NativeLoginCard.jsx', 'SignInWithAppleButton', 'Apple HIG login button');
+mustInclude('src/components/SignInWithAppleButton.jsx', 'Sign in with Apple', 'Apple HIG label');
+mustInclude('src/components/AppleLogo.jsx', 'data-rb-apple-logo', 'Apple logo mark');
 mustInclude('src/components/NativeLoginCard.jsx', 'Continue With Microsoft', 'Microsoft login');
 mustInclude('src/screens/SignInScreen.jsx', 'NativeLoginCard', 'SignIn uses NativeLoginCard');
 

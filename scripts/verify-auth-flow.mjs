@@ -30,13 +30,20 @@ if (!signIn.includes('NativeLoginCard')) {
 }
 
 const card = read('src/components/NativeLoginCard.jsx');
-for (const label of ['Continue With Google', 'Continue With Apple', 'Sign In With Email']) {
+for (const label of ['Continue With Google', 'Continue With Microsoft', 'Sign In With Email']) {
   if (!card.includes(label)) bad(`NativeLoginCard missing "${label}"`);
+}
+if (!card.includes('SignInWithAppleButton')) bad('NativeLoginCard missing SignInWithAppleButton');
+if (!read('src/components/SignInWithAppleButton.jsx').includes('Sign in with Apple')) {
+  bad('SignInWithAppleButton missing HIG label "Sign in with Apple"');
+}
+if (!read('src/components/AppleLogo.jsx').includes('data-rb-apple-logo')) {
+  bad('AppleLogo missing data-rb-apple-logo mark');
 }
 if (!card.includes('data-rb-provider')) bad('NativeLoginCard missing data-rb-provider on OAuth buttons');
 else ok('NativeLoginCard OAuth buttons have data-rb-provider');
 if (fail === 0 || card.includes('Continue With Google')) {
-  ok('NativeLoginCard has Google, Apple, email options');
+  ok('NativeLoginCard has Google, Apple (HIG button + logo), email options');
 }
 
 const v4oauth = existsSync('public/v4-native-oauth.js') ? read('public/v4-native-oauth.js') : '';

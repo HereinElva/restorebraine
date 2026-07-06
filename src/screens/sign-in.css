@@ -90,8 +90,16 @@
   width: 100%;
 }
 
-.rb-signin-apple-label {
-  line-height: 1.2;
+.rb-signin-apple img[data-rb-apple-logo],
+.rb-signin-apple svg {
+  display: block !important;
+  width: 20px !important;
+  height: 20px !important;
+  min-width: 20px !important;
+  min-height: 20px !important;
+  flex-shrink: 0 !important;
+  opacity: 1 !important;
+  visibility: visible !important;
 }
 
 .rb-signin-email-btn {
