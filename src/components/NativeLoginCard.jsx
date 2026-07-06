@@ -1,11 +1,76 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/AuthContext';
 import { launchProviderOAuth } from '@/lib/native-google-oauth';
-import SignInWithAppleButton from '@/components/SignInWithAppleButton';
 import { BUILD_NUMBER } from '@/lib/build-info';
 import '@/screens/sign-in.css';
 
 const BRAND_GRADIENT = 'linear-gradient(135deg,#60a5fa,#a78bfa)';
+
+const APPLE_BUTTON_STYLE = {
+  width: '100%',
+  minHeight: '44px',
+  padding: '0 16px',
+  marginBottom: '10px',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: '8px',
+  background: '#000000',
+  color: '#ffffff',
+  border: 'none',
+  borderRadius: '8px',
+  fontSize: '16px',
+  fontWeight: '600',
+  fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif',
+  letterSpacing: '-0.01em',
+  cursor: 'pointer',
+  WebkitTapHighlightColor: 'rgba(255,255,255,0.1)',
+  touchAction: 'manipulation',
+  boxSizing: 'border-box',
+};
+
+/** Inline Apple logo — self-contained for Base44 publish (no separate file import). */
+function AppleLogoMark({ size = 20 }) {
+  return (
+    <svg
+      aria-hidden="true"
+      data-rb-apple-logo="1"
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      style={{ display: 'block', width: size, height: size, minWidth: size, minHeight: size, flexShrink: 0 }}
+    >
+      <path
+        fill="#ffffff"
+        d="M17.05 20.28c-.98.95-2.05.88-3.08.4-1.09-.5-2.08-.48-3.24 0-1.44.62-2.2.44-3.06-.4C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09l.01-.01zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"
+      />
+    </svg>
+  );
+}
+
+/** Sign in with Apple — HIG black button + logo (App Store Review 4.8). */
+function AppleSignInButton({ onClick, loading = false }) {
+  const text = loading ? 'Opening Apple…' : 'Sign in with Apple';
+  return (
+    <button
+      type="button"
+      data-rb-provider="apple"
+      data-rb-apple-sign-in="true"
+      className="rb-signin-apple"
+      onClick={onClick}
+      disabled={loading}
+      aria-label={text}
+      style={{
+        ...APPLE_BUTTON_STYLE,
+        opacity: loading ? 0.7 : 1,
+        cursor: loading ? 'wait' : 'pointer',
+      }}
+    >
+      <AppleLogoMark size={20} />
+      <span style={{ color: '#ffffff', lineHeight: 1.2 }}>{text}</span>
+    </button>
+  );
+}
 
 const cardStyle = {
   minHeight: '100vh',
@@ -145,7 +210,7 @@ export default function NativeLoginCard({ clearSignedOut = false }) {
             textTransform: 'uppercase',
           }}
         >
-          Bundled login · v{BUILD_NUMBER}
+          Login v{BUILD_NUMBER}
         </p>
         <h1
           style={{
@@ -165,7 +230,7 @@ export default function NativeLoginCard({ clearSignedOut = false }) {
           <span style={{ color: '#4285F4', fontWeight: '800', marginRight: '10px' }}>G</span>
           {openingProvider === 'google' ? 'Opening Google…' : 'Continue With Google'}
         </ProviderButton>
-        <SignInWithAppleButton
+        <AppleSignInButton
           onClick={() => handleProviderClick('apple')}
           loading={openingProvider === 'apple'}
         />

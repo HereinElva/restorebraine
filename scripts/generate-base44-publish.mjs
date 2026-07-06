@@ -30,6 +30,7 @@ const FILES = [
   'src/components/NativeLoginCard.jsx',
   'src/components/SignInWithAppleButton.jsx',
   'src/components/AppleLogo.jsx',
+  'public/apple-sign-in-logo.svg',
   'src/components/LoginPage.jsx',
   'src/components/LoginLogo.jsx',
   'src/lib/login-logo-data.js',
