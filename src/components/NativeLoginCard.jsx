@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/AuthContext';
 import { launchProviderOAuth } from '@/lib/native-google-oauth';
+import SignInWithAppleButton from '@/components/SignInWithAppleButton';
+import '@/screens/sign-in.css';
 
 const BRAND_GRADIENT = 'linear-gradient(135deg,#60a5fa,#a78bfa)';
 
@@ -149,9 +151,10 @@ export default function NativeLoginCard({ clearSignedOut = false }) {
           <span style={{ color: '#4285F4', fontWeight: '800', marginRight: '10px' }}>G</span>
           {openingProvider === 'google' ? 'Opening Google…' : 'Continue With Google'}
         </ProviderButton>
-        <ProviderButton provider="apple" dark onClick={() => handleProviderClick('apple')} disabled={openingProvider === 'apple'}>
-          {openingProvider === 'apple' ? 'Opening Apple…' : 'Continue With Apple'}
-        </ProviderButton>
+        <SignInWithAppleButton
+          onClick={() => handleProviderClick('apple')}
+          loading={openingProvider === 'apple'}
+        />
         <ProviderButton provider="microsoft" onClick={() => handleProviderClick('microsoft')} disabled={openingProvider === 'microsoft'}>
           <span style={{ color: '#0078d4', fontWeight: '800', marginRight: '10px' }}>M</span>
           {openingProvider === 'microsoft' ? 'Opening Microsoft…' : 'Continue With Microsoft'}

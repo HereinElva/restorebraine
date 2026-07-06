@@ -60,8 +60,38 @@
 }
 
 .rb-signin-apple {
-  background: #111827;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 16px;
+  margin: 0;
+  border: none;
+  border-radius: 8px;
+  background: #000;
   color: #fff;
+  font-size: 16px;
+  font-weight: 600;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;
+  letter-spacing: -0.01em;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  box-shadow: none;
+  margin-bottom: 10px;
+}
+
+.rb-signin-apple-inner {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.rb-signin-apple-label {
+  line-height: 1.2;
 }
 
 .rb-signin-email-btn {
