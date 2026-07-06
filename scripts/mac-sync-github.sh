@@ -58,7 +58,7 @@ echo "             $MSG"
 echo ""
 
 FAIL=0
-for f in scripts/mac-build.sh scripts/mac-unblock-pull.sh; do
+for f in scripts/mac-build.sh scripts/mac-sync-apple-fix.sh scripts/mac-apple-login-bundled.sh; do
   if [ -f "$f" ]; then
     echo "OK: $f"
   else
