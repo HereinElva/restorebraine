@@ -25,10 +25,10 @@ import { persistGalleryFoldersFast, persistGalleryFoldersSync } from "@/lib/fold
 import { mergeApiFoldersWithLocal } from "@/lib/folder-membership";
 import { getGalleryUserEmail, galleryFoldersKey, galleryPhotosKey } from "@/lib/gallery-query-keys";
 import { runMediaOrganize } from "@/lib/run-media-organize";
-import { ORGANIZE_BATCH_SIZE, MAX_FOLDERS_PER_RUN } from "@/lib/media-organize";
+import { ORGANIZE_MAX_LOOSE, MAX_FOLDERS_PER_RUN } from "@/lib/media-organize";
 import { ORGANIZE_ICON_CLASS, ORGANIZE_LABEL_CLASS, SQUARE_FOLDER_ACTION_CLASS, SQUARE_FOLDER_ACTION_STYLE } from "./folderActionStyles";
 
-const ORGANIZE_UI_RESET_MS = 75000;
+const ORGANIZE_UI_RESET_MS = 180000;
 
 function truncateProgress(text, max = 16) {
   if (!text || text.length <= max) return text || "Organizing...";
@@ -42,6 +42,7 @@ function organizeResultMessage({
   remainingLoose,
   totalFolders,
   newFolderCount,
+  foldersInBatch,
 }) {
   if (totalSaved <= 0) {
     return "Organize could not save photos into folders. Pull down to refresh, then try again.";
@@ -49,16 +50,16 @@ function organizeResultMessage({
 
   const folderDesc =
     newFolderCount > 0
-      ? `${totalFolders} folders (${newFolderCount} new)`
+      ? `${totalFolders} folders (${newFolderCount} new, ${foldersInBatch ?? newFolderCount} themed)`
       : `${totalFolders} folders`;
 
   if (remainingLoose > 0) {
-    return `Saved ${totalSaved} photo${totalSaved !== 1 ? "s" : ""} — now ${folderDesc}. ${remainingLoose} still loose — tap Organize again to continue.`;
+    return `Sorted ${totalSaved} of ${totalToOrganize} loose items into ${foldersInBatch ?? 8} theme folders — ${folderDesc}. ${remainingLoose} still loose.`;
   }
   if (missed > 0) {
-    return `Done! ${totalSaved} of ${totalToOrganize} loose photos sorted — ${folderDesc}. Tap Organize again for the ${missed} remaining.`;
+    return `Sorted ${totalSaved} of ${totalToOrganize} loose items — ${folderDesc}. ${missed} could not be saved — tap Organize again.`;
   }
-  return `Done! ${totalSaved} loose photo${totalSaved !== 1 ? "s" : ""} sorted — ${folderDesc}.`;
+  return `Sorted all ${totalSaved} loose items into ${foldersInBatch ?? 8} theme folders — ${folderDesc}.`;
 }
 
 export default function OrganizeButton({ photos, folders: foldersProp, squareStyle = false }) {
@@ -160,6 +161,9 @@ export default function OrganizeButton({ photos, folders: foldersProp, squareSty
         persistGalleryFoldersFast(email, verifiedFolders);
       }
 
+      await queryClient.invalidateQueries({ queryKey: galleryFoldersKey(email) });
+      window.dispatchEvent(new CustomEvent('restorebraine-gallery-ready'));
+
       const newFolderCount = verifiedFolders.filter((f) => !folderIdsBefore.has(f.id)).length;
 
       alert(
@@ -170,6 +174,7 @@ export default function OrganizeButton({ photos, folders: foldersProp, squareSty
           remainingLoose: result.remainingLoose ?? 0,
           totalFolders: verifiedFolders.length,
           newFolderCount,
+          foldersInBatch: result.foldersSaved,
         }),
       );
     } catch (error) {
@@ -259,11 +264,9 @@ export default function OrganizeButton({ photos, folders: foldersProp, squareSty
               />
             </div>
 
-            {unorganizedCount > ORGANIZE_BATCH_SIZE && !includeOrganized && (
-              <p className="text-xs text-gray-500 ml-1">
-                Organize sorts up to {ORGANIZE_BATCH_SIZE} loose photos into broad category folders (up to {MAX_FOLDERS_PER_RUN} per run). Tap again to continue.
-              </p>
-            )}
+            <p className="text-xs text-gray-500 ml-1">
+              Organize scans all loose photos and videos (up to {ORGANIZE_MAX_LOOSE}) and sorts them into up to {MAX_FOLDERS_PER_RUN} broad theme folders in one run.
+            </p>
 
             <div className="flex items-center space-x-2">
               <Checkbox

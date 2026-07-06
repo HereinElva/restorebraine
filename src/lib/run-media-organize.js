@@ -1,11 +1,10 @@
 import { invokeLLMWithRetry, withTimeout } from "@/lib/invoke-llm-retry";
 import {
-  assignFolderLocally,
-  consolidateOrganizeLabels,
+  bucketLoosePhotosByTheme,
   buildFolderOptions,
   buildLabelPrompt,
   MAX_FOLDERS_PER_RUN,
-  ORGANIZE_BATCH_SIZE,
+  ORGANIZE_MAX_LOOSE,
   parseCustomFolderHints,
   photoDataForOrganize,
 } from "@/lib/media-organize";
@@ -24,9 +23,9 @@ import {
   recordBatchFolderMembership,
 } from "@/lib/folder-membership-cache";
 
-const SAVE_BATCH_SIZE = ORGANIZE_BATCH_SIZE;
 const LLM_TIMEOUT_MS = 22000;
-const ORGANIZE_RUN_TIMEOUT_MS = 70000;
+const ORGANIZE_RUN_TIMEOUT_MS = 180000;
+const AI_ORGANIZE_MAX = 40;
 const MISC_FOLDER = "Miscellaneous";
 
 function sanitizeFoldersLocally(folders, photos, allPhotoIds) {
@@ -77,10 +76,7 @@ async function labelBatchWithAI(batchPhotos, customInstructions) {
 }
 
 function labelBatchLocally(batchPhotos) {
-  return batchPhotos.map((photo) => ({
-    id: normalizePhotoId(photo.id),
-    folder: assignFolderLocally(photo),
-  }));
+  return bucketLoosePhotosByTheme(batchPhotos);
 }
 
 async function buildLabelsFromDescriptions(
@@ -89,8 +85,8 @@ async function buildLabelsFromDescriptions(
   validPhotoIds,
   onProgress,
 ) {
-  const useAi = Boolean(customInstructions?.trim());
-  onProgress?.(useAi ? "AI grouping…" : "Grouping…");
+  const useAi = Boolean(customInstructions?.trim()) && batchPhotos.length <= AI_ORGANIZE_MAX;
+  onProgress?.(useAi ? "AI grouping…" : `Sorting ${batchPhotos.length} items…`);
 
   let rawLabels;
   if (useAi) {
@@ -116,7 +112,8 @@ async function buildLabelsFromDescriptions(
   for (const photo of batchPhotos) {
     const id = normalizePhotoId(photo.id);
     if (!labelledIds.has(id)) {
-      allLabels.push({ id, folder: assignFolderLocally(photo) });
+      const fallback = bucketLoosePhotosByTheme([photo]);
+      if (fallback[0]) allLabels.push(fallback[0]);
     }
   }
 
@@ -187,8 +184,8 @@ async function runMediaOrganizeInner({
     };
   }
 
-  const batchPhotos = photosToOrganize.slice(0, SAVE_BATCH_SIZE);
-  const remainingLoose = photosToOrganize.length - batchPhotos.length;
+  const batchPhotos = photosToOrganize.slice(0, ORGANIZE_MAX_LOOSE);
+  const remainingLoose = Math.max(0, photosToOrganize.length - batchPhotos.length);
 
   if (includeOrganized && apiFolders.length > 0) {
     const confirmed = typeof window !== 'undefined' && window.confirm(
@@ -204,25 +201,13 @@ async function runMediaOrganizeInner({
 
   onProgress?.(
     remainingLoose > 0
-      ? `Sorting ${batchPhotos.length} of ${photosToOrganize.length}…`
-      : `Sorting ${batchPhotos.length} item${batchPhotos.length !== 1 ? "s" : ""}…`,
+      ? `Sorting ${batchPhotos.length} of ${photosToOrganize.length} loose items…`
+      : `Sorting all ${batchPhotos.length} loose items into ${MAX_FOLDERS_PER_RUN} themes…`,
   );
-
-  const validPhotoIds = new Set(batchPhotos.map((p) => normalizePhotoId(p.id)));
 
   const existingFolderNames = liveFolderSource.map((f) => f.name);
 
-  const rawLabels = await buildLabelsFromDescriptions(
-    batchPhotos,
-    customInstructions,
-    validPhotoIds,
-    onProgress,
-  );
-
-  const allLabels = consolidateOrganizeLabels(rawLabels, batchPhotos, {
-    maxFolders: MAX_FOLDERS_PER_RUN,
-    existingFolderNames,
-  });
+  const allLabels = bucketLoosePhotosByTheme(batchPhotos, { existingFolderNames });
 
   onProgress?.("Saving…");
 

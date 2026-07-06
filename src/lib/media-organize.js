@@ -4,8 +4,23 @@ import { normalizePhotoId } from '@/lib/gallery-organize-snapshot';
 export const MAX_FOLDERS_PER_RUN = 8;
 /** @deprecated use MAX_FOLDERS_PER_RUN */
 export const TARGET_FOLDERS_PER_RUN = MAX_FOLDERS_PER_RUN;
-export const ORGANIZE_BATCH_SIZE = 24;
+/** Process all loose gallery items in one organize run (cap for safety). */
+export const ORGANIZE_MAX_LOOSE = 500;
+/** @deprecated use ORGANIZE_MAX_LOOSE */
+export const ORGANIZE_BATCH_SIZE = ORGANIZE_MAX_LOOSE;
 export const MIN_ITEMS_PER_FOLDER = 3;
+
+/** The 8 visual theme folders every organize run targets. */
+export const PRIMARY_ORGANIZE_THEMES = [
+  'People & Portraits',
+  'Nature & Landscapes',
+  'Food & Dining',
+  'Travel & Landmarks',
+  'Celebrations & Events',
+  'Home & Indoor',
+  'Outdoor Activities',
+  'Animals & Pets',
+];
 
 export const CANONICAL_FOLDERS = [
   'People & Portraits',
@@ -191,26 +206,136 @@ function keywordMatch(text, kw) {
   return re.test(text);
 }
 
-/** Assign folder using tags/description — zero LLM calls. */
-export function assignFolderLocally(photo) {
+/** Score how well a photo matches one of the 8 primary theme buckets. */
+export function scorePhotoForTheme(photo, theme) {
   const text = photoSearchText(photo);
-  if (!text.trim()) return 'Miscellaneous';
+  if (!text.trim()) return 0;
 
-  let bestFolder = 'Miscellaneous';
-  let bestScore = 0;
+  let score = 0;
+  const keywords = FOLDER_KEYWORD_MAP[theme] || [];
+  for (const kw of keywords) {
+    if (keywordMatch(text, kw)) score += kw.length >= 5 ? 2 : 1;
+  }
 
-  for (const [folder, keywords] of Object.entries(FOLDER_KEYWORD_MAP)) {
-    let score = 0;
-    for (const kw of keywords) {
-      if (keywordMatch(text, kw)) score += kw.length >= 5 ? 2 : 1;
+  if (theme === 'Home & Indoor') {
+    for (const kw of FOLDER_KEYWORD_MAP['Quotes & Text Screenshots'] || []) {
+      if (keywordMatch(text, kw)) score += 1;
     }
-    if (score > bestScore) {
-      bestScore = score;
-      bestFolder = folder;
+  }
+  if (theme === 'Celebrations & Events') {
+    for (const kw of FOLDER_KEYWORD_MAP['Artwork & Illustrations'] || []) {
+      if (keywordMatch(text, kw)) score += 1;
+    }
+  }
+  if (theme === 'Travel & Landmarks') {
+    for (const kw of ['video', 'clip', 'footage', 'drone']) {
+      if (keywordMatch(text, kw)) score += 1;
     }
   }
 
-  return bestFolder;
+  return score;
+}
+
+/** Assign each photo to the best-matching of the 8 primary visual theme buckets. */
+export function assignToPrimaryTheme(photo) {
+  let bestTheme = PRIMARY_ORGANIZE_THEMES[0];
+  let bestScore = -1;
+
+  for (const theme of PRIMARY_ORGANIZE_THEMES) {
+    const score = scorePhotoForTheme(photo, theme);
+    if (score > bestScore) {
+      bestScore = score;
+      bestTheme = theme;
+    }
+  }
+
+  if (bestScore <= 0) {
+    if (photo?.file_type === 'video') return 'Celebrations & Events';
+    return 'Home & Indoor';
+  }
+
+  return bestTheme;
+}
+
+/** Assign folder using tags/description — zero LLM calls. */
+export function assignFolderLocally(photo) {
+  return assignToPrimaryTheme(photo);
+}
+
+/**
+ * Sort ALL loose photos into up to 8 broad theme buckets — no merging down to 3.
+ * Every loose item lands in the best-matching category for search by description.
+ */
+export function bucketLoosePhotosByTheme(photos, { existingFolderNames = [] } = {}) {
+  const groups = new Map();
+  for (const theme of PRIMARY_ORGANIZE_THEMES) {
+    groups.set(theme, new Set());
+  }
+
+  for (const photo of photos || []) {
+    if (photo?.id == null) continue;
+    const theme = normalizeFolderName(assignToPrimaryTheme(photo), existingFolderNames);
+    if (!groups.has(theme)) groups.set(theme, new Set());
+    groups.get(theme).add(normalizePhotoId(photo.id));
+  }
+
+  splitBucketsUntilTarget(groups, photos, MAX_FOLDERS_PER_RUN);
+
+  const result = [];
+  for (const [folder, ids] of groups) {
+    if (!ids.size) continue;
+    for (const id of ids) result.push({ id, folder });
+  }
+  return result;
+}
+
+function countNonEmptyGroups(groups) {
+  return [...groups.values()].filter((ids) => ids.size > 0).length;
+}
+
+/** When fewer than 8 buckets have items, split the largest into related empty themes. */
+function splitBucketsUntilTarget(groups, photos, targetCount) {
+  const photoById = new Map((photos || []).map((p) => [normalizePhotoId(p.id), p]));
+
+  while (countNonEmptyGroups(groups) < targetCount) {
+    const filled = [...groups.entries()]
+      .filter(([, ids]) => ids.size > 0)
+      .sort((a, b) => b[1].size - a[1].size);
+    if (!filled.length) break;
+
+    const [sourceName, sourceIds] = filled[0];
+    if (sourceIds.size < 4) break;
+
+    const emptyTheme = PRIMARY_ORGANIZE_THEMES.find(
+      (theme) => !groups.get(theme)?.size,
+    );
+    if (!emptyTheme) break;
+
+    if (!groups.has(emptyTheme)) groups.set(emptyTheme, new Set());
+    const targetIds = groups.get(emptyTheme);
+
+    let moved = 0;
+    for (const id of [...sourceIds]) {
+      const photo = photoById.get(id);
+      if (!photo) continue;
+      const altScore = scorePhotoForTheme(photo, emptyTheme);
+      const srcScore = scorePhotoForTheme(photo, sourceName);
+      if (altScore > 0 && altScore >= srcScore - 1) {
+        sourceIds.delete(id);
+        targetIds.add(id);
+        moved += 1;
+      }
+    }
+
+    if (moved === 0) {
+      const idArr = [...sourceIds];
+      const half = idArr.slice(Math.ceil(idArr.length / 2));
+      for (const id of half) {
+        sourceIds.delete(id);
+        targetIds.add(id);
+      }
+    }
+  }
 }
 
 /** Match a folder label to an existing or canonical name without LLM. */
@@ -258,87 +383,13 @@ export function resolveOrganizeFolderName(rawLabel, existingFolderNames = []) {
   return normalizeFolderName(rawLabel, existingFolderNames);
 }
 
-/** Related broad categories — used when merging thin duplicate folders. */
-const RELATED_CATEGORIES = [
-  ['Nature & Landscapes', 'Outdoor Activities', 'Travel & Landmarks'],
-  ['People & Portraits', 'Celebrations & Events'],
-  ['Home & Indoor', 'Food & Dining'],
-  ['Animals & Pets', 'Nature & Landscapes'],
-  ['Quotes & Text Screenshots', 'Artwork & Illustrations'],
-];
-
-function relatedCategoryScore(nameA, nameB) {
-  if (nameA === nameB) return 100;
-  for (const cluster of RELATED_CATEGORIES) {
-    if (cluster.includes(nameA) && cluster.includes(nameB)) return 50;
-  }
-  return 0;
-}
-
-function pickMergeTarget(smallName, groups) {
-  let best = null;
-  let bestScore = -1;
-  for (const [name, ids] of groups) {
-    if (name === smallName) continue;
-    const score = relatedCategoryScore(smallName, name) * 1000 + ids.size;
-    if (score > bestScore) {
-      bestScore = score;
-      best = [name, ids];
-    }
-  }
-  return best;
-}
-
-/**
- * Merge labels into broad canonical folders — pack more items per folder,
- * merge near-duplicate themes, never split thin groups artificially.
- */
+/** @deprecated — merges down; use bucketLoosePhotosByTheme instead */
 export function consolidateOrganizeLabels(
   allLabels,
   photos,
   { maxFolders = MAX_FOLDERS_PER_RUN, existingFolderNames = [] } = {},
 ) {
-  const batchSize = (photos || []).length || (allLabels || []).length;
-  const minItemsPerFolder = Math.max(
-    MIN_ITEMS_PER_FOLDER,
-    Math.floor(batchSize / Math.min(maxFolders, 6)),
-  );
-  const groups = new Map();
-
-  for (const { id, folder } of allLabels || []) {
-    const canonical = normalizeFolderName(folder, existingFolderNames);
-    if (!groups.has(canonical)) groups.set(canonical, new Set());
-    groups.get(canonical).add(normalizePhotoId(id));
-  }
-
-  // Pack tiny groups into related larger categories
-  while (groups.size > 1) {
-    const sorted = [...groups.entries()].sort((a, b) => a[1].size - b[1].size);
-    const [smallName, smallIds] = sorted[0];
-    if (smallIds.size >= minItemsPerFolder) break;
-    const target = pickMergeTarget(smallName, groups);
-    if (!target) break;
-    for (const id of smallIds) target[1].add(id);
-    groups.delete(smallName);
-  }
-
-  // Cap folder count — merge smallest into related larger buckets
-  while (groups.size > maxFolders) {
-    const sorted = [...groups.entries()].sort((a, b) => a[1].size - b[1].size);
-    const [smallName, smallIds] = sorted[0];
-    const target = pickMergeTarget(smallName, groups);
-    if (!target) break;
-    for (const id of smallIds) target[1].add(id);
-    groups.delete(smallName);
-  }
-
-  const result = [];
-  for (const [folder, ids] of groups) {
-    for (const id of ids) {
-      if (id) result.push({ id, folder });
-    }
-  }
-  return result;
+  return bucketLoosePhotosByTheme(photos, { existingFolderNames });
 }
 
 /** @deprecated use consolidateOrganizeLabels */
