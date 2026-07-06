@@ -276,7 +276,7 @@ export default function MobileGallery({
           }
         }}
       >
-        <MobileFolderCard folder={folder} onClick={() => {}} />
+        <MobileFolderCard folder={folder} folderPhotos={folderPhotosFor(folder)} onClick={() => {}} />
         {selectionMode && (
           <div className={`absolute top-1 right-1 w-5 h-5 rounded-full border-2 flex items-center justify-center z-10 ${
             isSelected ? 'bg-purple-600 border-purple-600' : 'bg-white/80 border-gray-400'
@@ -432,6 +432,7 @@ export default function MobileGallery({
                         <MobileFolderCard
                           key={folder.id}
                           folder={folder}
+                          folderPhotos={folderPhotosFor(folder)}
                           onClick={() => {
                             setSelectedFolder(folder);
                             pushBack(folder.name, () => { setSelectedFolder(null); setSelectionMode(false); setSelectedIds([]); });
