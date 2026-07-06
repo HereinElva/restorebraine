@@ -20,8 +20,10 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
     var window: UIWindow?
     private let sessionMessageHandler = RestorebraineSessionMessageHandler()
+    private let appleLoginOverlay = RestorebraineAppleLoginOverlay()
     private var pendingCacheReload = false
     private var sessionBridgeInstalled = false
+    private var appleFixPollCount = 0
 
     private var nativeBuildLabel: String {
         guard let url = Bundle.main.url(forResource: "BUILD_STAMP", withExtension: "txt"),
@@ -83,7 +85,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         }
     }
 
-    /// Minimal sync at document start — full bridge loads after React mounts (index.html / main.jsx).
     private func sessionBridgeScript(for buildLabel: String, syncToken: String) -> String {
         let escapedLabel = buildLabel
             .replacingOccurrences(of: "\\", with: "\\\\")
@@ -99,20 +100,20 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         """
     }
 
-    /// Injects Apple logo + HIG label on hosted Base44 login (v162) — no Base44 publish required.
     private func appleLoginFixScript() -> String {
         return """
         (function(){
-          var SVG='<svg aria-hidden="true" data-rb-apple-logo="1" width="20" height="20" viewBox="0 0 24 24" style="display:block;flex-shrink:0;pointer-events:none"><path fill="#ffffff" d="M17.05 20.28c-.98.95-2.05.88-3.08.4-1.09-.5-2.08-.48-3.24 0-1.44.62-2.2.44-3.06-.4C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09l.01-.01zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/></svg>';
+          var SVG='<svg aria-hidden="true" data-rb-apple-logo="1" width="20" height="20" viewBox="0 0 24 24" style="display:block;flex-shrink:0"><path fill="#ffffff" d="M17.05 20.28c-.98.95-2.05.88-3.08.4-1.09-.5-2.08-.48-3.24 0-1.44.62-2.2.44-3.06-.4C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09l.01-.01zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/></svg>';
           function fix(){
             try{
-              var nodes=document.querySelectorAll('button[data-rb-provider="apple"],button[data-rb-apple-sign-in],button');
+              var nodes=document.querySelectorAll('button,[role="button"],a');
               for(var i=0;i<nodes.length;i++){
                 var btn=nodes[i];
                 if(btn.getAttribute('data-rb-apple-fixed')==='1')continue;
                 if(btn.querySelector('[data-rb-apple-logo]')){btn.setAttribute('data-rb-apple-fixed','1');continue;}
                 var label=(btn.textContent||'').replace(/\\s+/g,' ').trim();
-                if(!/^continue with apple$/i.test(label)&&!/^sign in with apple$/i.test(label))continue;
+                if(!/apple/i.test(label)||/google|microsoft|email/i.test(label))continue;
+                if(!/continue with|sign in with/i.test(label))continue;
                 btn.setAttribute('data-rb-apple-fixed','1');
                 btn.setAttribute('data-rb-apple-sign-in','true');
                 btn.setAttribute('data-rb-provider','apple');
@@ -128,34 +129,40 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                 btn.style.borderRadius='8px';
                 btn.style.fontSize='16px';
                 btn.style.fontWeight='600';
-                btn.style.fontFamily='-apple-system,BlinkMacSystemFont,sans-serif';
                 btn.style.width='100%';
                 btn.style.boxSizing='border-box';
-                btn.style.cursor='pointer';
                 while(btn.firstChild)btn.removeChild(btn.firstChild);
                 btn.insertAdjacentHTML('beforeend',SVG);
                 var span=document.createElement('span');
                 span.style.color='#ffffff';
-                span.style.lineHeight='1.2';
                 span.textContent='Sign in with Apple';
                 btn.appendChild(span);
               }
             }catch(e){}
           }
-          if(!window.__restorebraineAppleLoginFixInstalled){
-            window.__restorebraineAppleLoginFixInstalled=true;
-            if(!window.__rbAppleLoginFixObserver){
-              window.__rbAppleLoginFixObserver=new MutationObserver(fix);
-              window.__rbAppleLoginFixObserver.observe(document.documentElement,{childList:true,subtree:true});
-            }
-            setInterval(fix,400);
-          }
-          if(document.readyState==='loading'){
-            document.addEventListener('DOMContentLoaded',fix);
-          }
           fix();
         })();
         """
+    }
+
+    func runAppleLoginFix(on webView: WKWebView) {
+        webView.evaluateJavaScript(appleLoginFixScript(), completionHandler: nil)
+    }
+
+    func onWebViewDidFinish(_ webView: WKWebView) {
+        runAppleLoginFix(on: webView)
+        appleLoginOverlay.attach(to: webView)
+        scheduleAppleFixBurst(on: webView)
+    }
+
+    private func scheduleAppleFixBurst(on webView: WKWebView) {
+        appleFixPollCount = 0
+        for delay in [0.3, 0.8, 1.5, 2.5, 4.0, 6.0] {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self, weak webView] in
+                guard let self, let webView else { return }
+                self.runAppleLoginFix(on: webView)
+            }
+        }
     }
 
     private func configureNativeWebView(_ bridge: CAPBridgeViewController) {
@@ -169,29 +176,31 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     @objc private func installSessionBridge() {
         guard let bridge = window?.rootViewController as? CAPBridgeViewController else { return }
         configureNativeWebView(bridge)
-        guard let userContentController = bridge.webView?.configuration.userContentController else { return }
+        guard let webView = bridge.webView,
+              let userContentController = webView.configuration.userContentController else { return }
 
-        guard !sessionBridgeInstalled else { return }
-        sessionBridgeInstalled = true
+        if !sessionBridgeInstalled {
+            sessionBridgeInstalled = true
+            let script = WKUserScript(
+                source: sessionBridgeScript(for: nativeBuildLabel, syncToken: storedNativeToken() ?? ""),
+                injectionTime: .atDocumentStart,
+                forMainFrameOnly: false
+            )
+            userContentController.removeScriptMessageHandler(forName: "restorebraineNativeSession")
+            userContentController.add(sessionMessageHandler, name: "restorebraineNativeSession")
+            userContentController.addUserScript(script)
 
-        let script = WKUserScript(
-            source: sessionBridgeScript(for: nativeBuildLabel, syncToken: storedNativeToken() ?? ""),
-            injectionTime: .atDocumentStart,
-            forMainFrameOnly: true
-        )
-        userContentController.removeScriptMessageHandler(forName: "restorebraineNativeSession")
-        userContentController.add(sessionMessageHandler, name: "restorebraineNativeSession")
-        userContentController.addUserScript(script)
+            let appleFix = WKUserScript(
+                source: appleLoginFixScript(),
+                injectionTime: .atDocumentEnd,
+                forMainFrameOnly: false
+            )
+            userContentController.addUserScript(appleFix)
+        }
 
-        let appleFix = WKUserScript(
-            source: appleLoginFixScript(),
-            injectionTime: .atDocumentEnd,
-            forMainFrameOnly: true
-        )
-        userContentController.addUserScript(appleFix)
+        onWebViewDidFinish(webView)
     }
 
-    /// WKWebView caches capacitor://localhost aggressively — block briefly on stamp change.
     private func clearWebViewCacheIfBuildChanged() -> Bool {
         guard let stampPath = Bundle.main.path(forResource: "BUILD_STAMP", ofType: "txt"),
               let stamp = try? String(contentsOfFile: stampPath, encoding: .utf8)
@@ -235,16 +244,17 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             name: Notification.Name("CAPBridgeDidLoad"),
             object: nil
         )
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            self.installSessionBridge()
+        for delay in [0.5, 1.0, 2.0, 4.0, 8.0, 12.0] {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                self.installSessionBridge()
+            }
         }
         return true
     }
 
     @objc private func onBridgeDidLoad() {
-        // Cache already wiped in clearWebViewCacheIfBuildChanged — do not reload here;
-        // reload interrupts React bootstrap and causes first-launch white screen.
         pendingCacheReload = false
+        installSessionBridge()
     }
 
     func application(_ app: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey: Any] = [:]) -> Bool {
