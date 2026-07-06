@@ -1,31 +1,34 @@
 #!/usr/bin/env bash
-# Rebuild iOS with native Apple login fix (works on hosted Base44 v162 — no Base44 publish).
+# One command: bundled App Store build with Apple login fix in ios/public (no Base44).
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 
 echo "╔══════════════════════════════════════════════════════════════╗"
-echo "║  Apple login — native inject rebuild (no Base44 publish)     ║"
+echo "║  Apple login fix — BUNDLED build (recommended for App Store) ║"
 echo "╚══════════════════════════════════════════════════════════════╝"
 echo ""
-echo "This adds Apple logo + \"Sign in with Apple\" via iOS native code"
-echo "even when the app loads old hosted Base44 (Continue With Apple)."
+echo "This ships login UI from your Mac (Sign in with Apple + logo)."
+echo "Does NOT load old Base44 v162 website for login."
 echo ""
 
-bash scripts/mac-build.sh --hosted "$@"
+bash scripts/mac-build.sh --bundled "$@"
 
 BUILD=$(grep -E '^export const BUILD_NUMBER = ' src/lib/build-info.js | sed 's/.*= //;s/;//')
+node scripts/verify-bundled-deploy-ready.mjs
+
 echo ""
 echo "════════════════════════════════════════════════════════════════"
-echo "  NEXT — Xcode ONLY"
+echo "  XCODE — install on iPhone"
 echo "════════════════════════════════════════════════════════════════"
 echo ""
 echo "  1. Delete Restorebraine from iPhone"
-echo "  2. Xcode → Clean Build Folder (Shift+Cmd+K)"
-echo "  3. Product → Run on YOUR iPhone (Cmd+R)"
+echo "  2. open ios/App/App.xcworkspace"
+echo "  3. Clean Build Folder (Shift+Cmd+K)"
+echo "  4. Run on YOUR iPhone (Cmd+R) — NOT TestFlight old build"
 echo ""
-echo "  Apple button should show white logo + \"Sign in with Apple\""
-echo "  (Hosted Base44 text may flash briefly — native inject fixes it)"
+echo "  Login MUST show:"
+echo "    • purple \"Login v${BUILD}\" banner"
+echo "    • Sign in with Apple + white logo"
 echo ""
-echo "  Official Apple button overlays the web row (fixed v276 — on controller view)"
-echo "  Build v${BUILD} · must compile RestorebraineAppleLoginOverlay.swift"
+echo "  If you still see \"Continue With Apple\" → Xcode did not install this build."
 echo ""

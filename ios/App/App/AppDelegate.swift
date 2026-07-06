@@ -151,7 +151,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
     func onWebViewDidFinish(_ webView: WKWebView) {
         runAppleLoginFix(on: webView)
-        appleLoginOverlay.attach(to: webView)
+        if let bridge = window?.rootViewController as? CAPBridgeViewController {
+            appleLoginOverlay.attach(webView: webView, containerView: bridge.view)
+        }
         scheduleAppleFixBurst(on: webView)
     }
 

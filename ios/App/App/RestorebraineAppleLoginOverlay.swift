@@ -3,11 +3,12 @@ import WebKit
 import AuthenticationServices
 
 /// Official Sign in with Apple button over hosted Base44 login — App Store HIG 4.8.
+/// Must be added to the view controller's view (NOT webView — web content draws on top of webView subviews).
 final class RestorebraineAppleLoginOverlay: NSObject {
     private weak var webView: WKWebView?
+    private weak var containerView: UIView?
     private var appleButton: ASAuthorizationAppleIDButton?
     private var pollTimer: Timer?
-    private var hiddenWebButtonId: String?
 
     private static let findRectScript = """
     (function(){
@@ -16,14 +17,14 @@ final class RestorebraineAppleLoginOverlay: NSObject {
         var b=nodes[i];
         var t=(b.textContent||'').replace(/\\s+/g,' ').trim();
         if(!/apple/i.test(t)||/google|microsoft|email/i.test(t))continue;
-        if(!/continue with|sign in with|^apple$/i.test(t))continue;
+        if(!/continue with|sign in with/i.test(t))continue;
         if(b.querySelector('[data-rb-apple-logo]'))return null;
         var r=b.getBoundingClientRect();
         if(r.width<40||r.height<20)return null;
         b.setAttribute('data-rb-native-apple-cover','1');
         b.style.opacity='0.01';
         b.style.pointerEvents='none';
-        return {x:r.left,y:r.top,w:r.width,h:Math.max(r.height,44),id:b.getAttribute('data-rb-native-apple-cover')||String(i)};
+        return {x:r.left,y:r.top,w:r.width,h:Math.max(r.height,44)};
       }
       return null;
     })();
@@ -31,7 +32,7 @@ final class RestorebraineAppleLoginOverlay: NSObject {
 
     private static let clickWebAppleScript = """
     (function(){
-      var b=document.querySelector('[data-rb-native-apple-cover]')||document.querySelector('button[data-rb-provider="apple"]');
+      var b=document.querySelector('[data-rb-native-apple-cover]');
       if(!b){
         var nodes=document.querySelectorAll('button,[role="button"]');
         for(var i=0;i<nodes.length;i++){
@@ -39,18 +40,19 @@ final class RestorebraineAppleLoginOverlay: NSObject {
           if(/continue with apple|sign in with apple/i.test(t)){b=nodes[i];break;}
         }
       }
-      if(b){ b.style.opacity='1'; b.style.pointerEvents='auto'; b.click(); b.style.opacity='0.01'; b.style.pointerEvents='none'; }
+      if(b){ b.style.opacity='1'; b.style.pointerEvents='auto'; b.click(); }
     })();
     """
 
-    func attach(to webView: WKWebView) {
+    func attach(webView: WKWebView, containerView: UIView) {
         self.webView = webView
+        self.containerView = containerView
         pollTimer?.invalidate()
         pollTimer = Timer.scheduledTimer(withTimeInterval: 0.35, repeats: true) { [weak self] _ in
             self?.updatePosition()
         }
         RunLoop.main.add(pollTimer!, forMode: .common)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
             self?.updatePosition()
         }
     }
@@ -61,6 +63,7 @@ final class RestorebraineAppleLoginOverlay: NSObject {
         appleButton?.removeFromSuperview()
         appleButton = nil
         webView = nil
+        containerView = nil
     }
 
     @objc private func onAppleTap() {
@@ -68,16 +71,16 @@ final class RestorebraineAppleLoginOverlay: NSObject {
     }
 
     private func updatePosition() {
-        guard let webView else { return }
+        guard let webView, let containerView else { return }
         webView.evaluateJavaScript(Self.findRectScript) { [weak self] result, _ in
             guard let self else { return }
             DispatchQueue.main.async {
-                self.layoutButton(from: result, in: webView)
+                self.layoutButton(from: result, webView: webView, containerView: containerView)
             }
         }
     }
 
-    private func layoutButton(from result: Any?, in webView: WKWebView) {
+    private func layoutButton(from result: Any?, webView: WKWebView, containerView: UIView) {
         guard let dict = result as? [String: Any],
               let x = dict["x"] as? Double,
               let y = dict["y"] as? Double,
@@ -92,14 +95,17 @@ final class RestorebraineAppleLoginOverlay: NSObject {
             let btn = ASAuthorizationAppleIDButton(type: .signIn, style: .black)
             btn.addTarget(self, action: #selector(onAppleTap), for: .touchUpInside)
             btn.accessibilityIdentifier = "restorebraine-native-apple-sign-in"
-            webView.addSubview(btn)
+            containerView.addSubview(btn)
             appleButton = btn
         }
 
         guard let appleButton else { return }
         appleButton.isHidden = false
+
         let height = max(44, min(h, 56))
-        appleButton.frame = CGRect(x: x, y: y, width: w, height: height)
-        webView.bringSubviewToFront(appleButton)
+        let rectInWebView = CGRect(x: x, y: y, width: w, height: height)
+        let rectInContainer = webView.convert(rectInWebView, to: containerView)
+        appleButton.frame = rectInContainer
+        containerView.bringSubviewToFront(appleButton)
     }
 }
