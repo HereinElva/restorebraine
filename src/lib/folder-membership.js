@@ -1,5 +1,6 @@
 import { base44 } from '@/api/base44Client';
 import { normalizeFolderName, resolveOrganizeFolderName } from '@/lib/media-organize';
+import { runConcurrent } from '@/lib/concurrency';
 import {
   getUnorganizedPhotos,
   normalizePhotoId,
@@ -70,7 +71,8 @@ function photoIdsPersisted(persistedIds, expectedIds) {
 
 const FOLDER_DELETE_TIMEOUT_MS = 8000;
 const FOLDER_API_TIMEOUT_MS = 25000;
-const ORGANIZE_SAVE_TIMEOUT_MS = 12000;
+const ORGANIZE_SAVE_TIMEOUT_MS = 7000;
+const ORGANIZE_SAVE_CONCURRENCY = 4;
 
 function withFolderApiTimeout(promise, label, timeoutMs = FOLDER_API_TIMEOUT_MS) {
   return Promise.race([
@@ -238,6 +240,81 @@ async function appendPhotoToFolderOnServer(folderId, photo, userEmail) {
   return appendPhotosToFolderOnServer(folderId, [photo], userEmail);
 }
 
+async function saveOneOrganizeGroup({
+  folderName,
+  groupPhotos,
+  initialFolders,
+  userEmail,
+  useOrganizeFolderNames,
+}) {
+  const names = initialFolders.map((f) => f.name);
+  const photoIds = groupPhotos.map((p) => p.id);
+  const cacheEntries = [];
+  const failedPhotoIds = [];
+
+  try {
+    const target = findFolderByDisplayName(initialFolders, folderName, names);
+
+    if (target) {
+      const updatedIds = mergePhotoIdsLikeManualMove(target.photo_ids, photoIds);
+      const coverUrl = target.cover_photo_url || groupPhotos[0]?.file_url || '';
+      let saved = {
+        ...target,
+        photo_ids: updatedIds,
+        cover_photo_url: coverUrl || target.cover_photo_url,
+      };
+      try {
+        const api = await updateFolderPhotoIdsWithTimeout(
+          target.id,
+          updatedIds,
+          {
+            ...(!target.cover_photo_url && coverUrl ? { cover_photo_url: coverUrl } : {}),
+          },
+          ORGANIZE_SAVE_TIMEOUT_MS,
+        );
+        saved = { ...target, ...api, photo_ids: api.photo_ids || updatedIds };
+      } catch (error) {
+        console.warn('Folder.update failed, using local state:', error);
+      }
+      for (const photo of groupPhotos) {
+        cacheEntries.push({ photoId: photo.id, folderId: target.id });
+      }
+      return { folder: saved, cacheEntries, failedPhotoIds };
+    }
+
+    let created;
+    try {
+      created = await createFolderOnServer(
+        {
+          name: folderName,
+          description: '',
+          photo_ids: photoIds,
+          cover_photo_url: groupPhotos[0]?.file_url || '',
+        },
+        ORGANIZE_SAVE_TIMEOUT_MS,
+      );
+    } catch (error) {
+      console.warn('Folder.create failed:', error);
+      failedPhotoIds.push(...photoIds);
+      return { folder: null, cacheEntries, failedPhotoIds };
+    }
+
+    const folderRecord = {
+      ...created,
+      name: folderName,
+      photo_ids: created.photo_ids || photoIds,
+    };
+    for (const photo of groupPhotos) {
+      cacheEntries.push({ photoId: photo.id, folderId: created.id });
+    }
+    return { folder: folderRecord, cacheEntries, failedPhotoIds };
+  } catch (error) {
+    console.warn('Folder group save failed:', folderName, error);
+    failedPhotoIds.push(...photoIds);
+    return { folder: null, cacheEntries, failedPhotoIds };
+  }
+}
+
 /**
  * Assign loose photos grouped by folder name — one API write per folder, not per photo.
  */
@@ -249,10 +326,10 @@ export async function assignLoosePhotosByFolder({
   onPartialSave,
   userEmail,
   useOrganizeFolderNames = false,
+  parallelSaves = false,
 }) {
-  let folders = [...(liveFolders || [])];
-  const names = () => folders.map((f) => f.name);
-  const total = photosToAssign.filter((p) => p?.id != null).length;
+  const initialFolders = [...(liveFolders || [])];
+  const names = () => initialFolders.map((f) => f.name);
 
   const groups = new Map();
   for (const photo of photosToAssign) {
@@ -266,77 +343,58 @@ export async function assignLoosePhotosByFolder({
     groups.get(folderName).push(photo);
   }
 
-  let groupIndex = 0;
-  const groupCount = groups.size;
+  const groupEntries = [...groups.entries()];
+  const groupCount = groupEntries.length;
   const cacheEntries = [];
   const failedPhotoIds = [];
 
-  for (const [folderName, groupPhotos] of groups) {
-    groupIndex += 1;
-    onProgress?.(`Save ${groupIndex}/${groupCount}…`);
+  let folders = [...initialFolders];
 
-    const photoIds = groupPhotos.map((p) => p.id);
-    let folderId = null;
-
-    try {
-      const target = findFolderByDisplayName(folders, folderName, names());
-
-      if (target) {
-        const updatedIds = mergePhotoIdsLikeManualMove(target.photo_ids, photoIds);
-        const coverUrl = target.cover_photo_url || groupPhotos[0]?.file_url || '';
-        let saved = {
-          ...target,
-          photo_ids: updatedIds,
-          cover_photo_url: coverUrl || target.cover_photo_url,
-        };
-        try {
-          const api = await updateFolderPhotoIdsWithTimeout(
-            target.id,
-            updatedIds,
-            {
-              ...(!target.cover_photo_url && coverUrl ? { cover_photo_url: coverUrl } : {}),
-            },
-            ORGANIZE_SAVE_TIMEOUT_MS,
-          );
-          saved = { ...target, ...api, photo_ids: api.photo_ids || updatedIds };
-        } catch (error) {
-          console.warn('Folder.update failed, using local state:', error);
-        }
-        folderId = target.id;
-        folders = folders.map((f) => (f.id === target.id ? saved : f));
-      } else {
-        let created;
-        try {
-          created = await createFolderOnServer(
-            {
-              name: folderName,
-              description: '',
-              photo_ids: photoIds,
-              cover_photo_url: groupPhotos[0]?.file_url || '',
-            },
-            ORGANIZE_SAVE_TIMEOUT_MS,
-          );
-        } catch (error) {
-          console.warn('Folder.create failed:', error);
-          failedPhotoIds.push(...photoIds);
-          continue;
-        }
-        folderId = created.id;
-        folders.push({
-          ...created,
-          name: folderName,
-          photo_ids: created.photo_ids || photoIds,
+  if (parallelSaves && groupCount > 1) {
+    onProgress?.(`Saving ${groupCount} folders…`);
+    const results = await runConcurrent(
+      groupEntries.map(([folderName, groupPhotos], index) => async () => {
+        onProgress?.(`Save ${index + 1}/${groupCount}…`);
+        return saveOneOrganizeGroup({
+          folderName,
+          groupPhotos,
+          initialFolders,
+          userEmail,
+          useOrganizeFolderNames,
         });
-      }
+      }),
+      ORGANIZE_SAVE_CONCURRENCY,
+    );
 
-      for (const photo of groupPhotos) {
-        cacheEntries.push({ photoId: photo.id, folderId });
+    for (const result of results) {
+      if (result.failedPhotoIds?.length) failedPhotoIds.push(...result.failedPhotoIds);
+      if (result.cacheEntries?.length) cacheEntries.push(...result.cacheEntries);
+      if (!result.folder) continue;
+      const idx = folders.findIndex((f) => f.id === result.folder.id);
+      if (idx >= 0) folders[idx] = result.folder;
+      else folders.push(result.folder);
+    }
+    onPartialSave?.(folders);
+  } else {
+    let groupIndex = 0;
+    for (const [folderName, groupPhotos] of groupEntries) {
+      groupIndex += 1;
+      onProgress?.(`Save ${groupIndex}/${groupCount}…`);
+      const result = await saveOneOrganizeGroup({
+        folderName,
+        groupPhotos,
+        initialFolders: folders,
+        userEmail,
+        useOrganizeFolderNames,
+      });
+      if (result.failedPhotoIds?.length) failedPhotoIds.push(...result.failedPhotoIds);
+      if (result.cacheEntries?.length) cacheEntries.push(...result.cacheEntries);
+      if (result.folder) {
+        const idx = folders.findIndex((f) => f.id === result.folder.id);
+        if (idx >= 0) folders[idx] = result.folder;
+        else folders.push(result.folder);
       }
-
       onPartialSave?.(folders);
-    } catch (error) {
-      console.warn('Folder group save failed:', folderName, error);
-      failedPhotoIds.push(...photoIds);
     }
   }
 

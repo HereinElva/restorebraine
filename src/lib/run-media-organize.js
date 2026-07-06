@@ -1,4 +1,4 @@
-import { invokeLLMWithRetry } from "@/lib/invoke-llm-retry";
+import { invokeLLMWithRetry, withTimeout } from "@/lib/invoke-llm-retry";
 import {
   assignFolderLocally,
   balanceOrganizeLabels,
@@ -24,14 +24,10 @@ import {
   recordBatchFolderMembership,
 } from "@/lib/folder-membership-cache";
 
-const CHUNK_SIZE = 15;
 const SAVE_BATCH_SIZE = ORGANIZE_BATCH_SIZE;
-const LLM_DELAY_MS = 1500;
+const LLM_TIMEOUT_MS = 22000;
+const ORGANIZE_RUN_TIMEOUT_MS = 70000;
 const MISC_FOLDER = "Miscellaneous";
-
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
 
 function sanitizeFoldersLocally(folders, photos, allPhotoIds) {
   return (folders || []).map((folder) => {
@@ -45,8 +41,9 @@ function sanitizeFoldersLocally(folders, photos, allPhotoIds) {
   });
 }
 
-async function labelChunkWithAI(chunk, customInstructions, customFolderHints) {
-  const photoData = chunk.map(photoDataForOrganize);
+async function labelBatchWithAI(batchPhotos, customInstructions) {
+  const customFolderHints = parseCustomFolderHints(customInstructions);
+  const photoData = batchPhotos.map(photoDataForOrganize);
   const folderOptions = buildFolderOptions([], customFolderHints);
 
   const result = await invokeLLMWithRetry(
@@ -73,59 +70,50 @@ async function labelChunkWithAI(chunk, customInstructions, customFolderHints) {
         },
       },
     },
-    { maxRetries: 1, baseDelayMs: 2500, timeoutMs: 50000 }
+    { maxRetries: 0, baseDelayMs: 1500, timeoutMs: LLM_TIMEOUT_MS },
   );
 
   return result.labels || [];
 }
 
-function labelChunkLocally(chunk) {
-  return chunk.map((photo) => ({
+function labelBatchLocally(batchPhotos) {
+  return batchPhotos.map((photo) => ({
     id: normalizePhotoId(photo.id),
     folder: assignFolderLocally(photo),
   }));
 }
 
 async function buildLabelsFromDescriptions(
-  photosToOrganize,
+  batchPhotos,
   customInstructions,
   validPhotoIds,
-  onProgress
+  onProgress,
 ) {
-  const customFolderHints = parseCustomFolderHints(customInstructions);
-  const chunks = [];
-  const chunkSize = photosToOrganize.length <= 15 ? photosToOrganize.length : CHUNK_SIZE;
-  for (let i = 0; i < photosToOrganize.length; i += chunkSize) {
-    chunks.push(photosToOrganize.slice(i, i + chunkSize));
+  const useAi = Boolean(customInstructions?.trim());
+  onProgress?.(useAi ? "AI grouping…" : "Grouping…");
+
+  let rawLabels;
+  if (useAi) {
+    try {
+      rawLabels = await labelBatchWithAI(batchPhotos, customInstructions);
+    } catch (error) {
+      console.warn("AI organize failed, using local fallback:", error);
+      rawLabels = labelBatchLocally(batchPhotos);
+    }
+  } else {
+    rawLabels = labelBatchLocally(batchPhotos);
   }
 
   const allLabels = [];
-
-  for (let i = 0; i < chunks.length; i++) {
-    const chunk = chunks[i];
-    if (i > 0) await sleep(LLM_DELAY_MS);
-    onProgress?.(`Grouping Batch ${i + 1}/${chunks.length}…`);
-
-    try {
-      const labels = await labelChunkWithAI(
-        chunk,
-        customInstructions,
-        customFolderHints
-      );
-      for (const label of labels) {
-        const id = normalizePhotoId(label.id);
-        if (validPhotoIds.has(id)) {
-          allLabels.push({ id, folder: label.folder || MISC_FOLDER });
-        }
-      }
-    } catch (error) {
-      console.warn("AI label batch failed, using local fallback:", error);
-      allLabels.push(...labelChunkLocally(chunk));
+  for (const label of rawLabels) {
+    const id = normalizePhotoId(label.id);
+    if (validPhotoIds.has(id)) {
+      allLabels.push({ id, folder: label.folder || MISC_FOLDER });
     }
   }
 
   const labelledIds = new Set(allLabels.map((l) => l.id));
-  for (const photo of photosToOrganize) {
+  for (const photo of batchPhotos) {
     const id = normalizePhotoId(photo.id);
     if (!labelledIds.has(id)) {
       allLabels.push({ id, folder: assignFolderLocally(photo) });
@@ -144,24 +132,47 @@ export async function runMediaOrganize({
   onPartialSave,
   userEmail,
 }) {
+  return withTimeout(
+    runMediaOrganizeInner({
+      photos,
+      folders: foldersSnapshot,
+      includeOrganized,
+      customInstructions,
+      onProgress,
+      onPartialSave,
+      userEmail,
+    }),
+    ORGANIZE_RUN_TIMEOUT_MS,
+    "Organize",
+  );
+}
+
+async function runMediaOrganizeInner({
+  photos,
+  folders: foldersSnapshot,
+  includeOrganized,
+  customInstructions,
+  onProgress,
+  onPartialSave,
+  userEmail,
+}) {
   onProgress?.("Preparing…");
 
   const allPhotoIds = new Set(photos.map((p) => normalizePhotoId(p.id)).filter(Boolean));
   const uiFolders = foldersSnapshot ?? [];
-  const uiShowsNoFolders = uiFolders.length === 0;
 
-  // When UI shows no folders, skip Folder.list — it often hangs and blocks organize.
+  // Skip Folder.list on normal organize — it often hangs; UI folders are enough.
   let apiFolders = [];
-  if (includeOrganized || !uiShowsNoFolders) {
+  if (includeOrganized) {
     onProgress?.("Checking folders…");
     apiFolders = sanitizeFoldersLocally(
-      await listAllFoldersSafe({ timeoutMs: 8000 }),
+      await listAllFoldersSafe({ timeoutMs: 5000 }),
       photos,
       allPhotoIds,
     );
   }
 
-  const liveFolderSource = uiShowsNoFolders ? [] : uiFolders.length ? uiFolders : apiFolders;
+  const liveFolderSource = includeOrganized ? apiFolders : uiFolders;
 
   const photosToOrganize = includeOrganized
     ? photos
@@ -193,8 +204,8 @@ export async function runMediaOrganize({
 
   onProgress?.(
     remainingLoose > 0
-      ? `Sorting ${batchPhotos.length} of ${photosToOrganize.length} loose items…`
-      : `Sorting ${batchPhotos.length} loose item${batchPhotos.length !== 1 ? "s" : ""}…`,
+      ? `Sorting ${batchPhotos.length} of ${photosToOrganize.length}…`
+      : `Sorting ${batchPhotos.length} item${batchPhotos.length !== 1 ? "s" : ""}…`,
   );
 
   const validPhotoIds = new Set(batchPhotos.map((p) => normalizePhotoId(p.id)));
@@ -203,7 +214,7 @@ export async function runMediaOrganize({
     batchPhotos,
     customInstructions,
     validPhotoIds,
-    onProgress
+    onProgress,
   );
 
   const folderTarget =
@@ -215,7 +226,7 @@ export async function runMediaOrganize({
     targetCount: folderTarget,
   });
 
-  onProgress?.("Saving folders…");
+  onProgress?.("Saving…");
 
   const liveFolders = includeOrganized ? [] : liveFolderSource;
   const labelByPhotoNormId = new Map(allLabels.map((l) => [l.id, l.folder]));
@@ -228,14 +239,11 @@ export async function runMediaOrganize({
     onPartialSave,
     userEmail,
     useOrganizeFolderNames: true,
+    parallelSaves: true,
   });
 
-  let afterFolders = saveResult.folders;
+  const afterFolders = saveResult.folders;
   const failedNormIds = new Set((saveResult.failedPhotoIds || []).map(normalizePhotoId));
-
-  onProgress?.("Done");
-
-  const savedApiFolders = afterFolders;
 
   const missedPhotos = batchPhotos.filter(
     (p) =>
@@ -273,7 +281,7 @@ export async function runMediaOrganize({
     remainingLoose: totalRemainingLoose,
     partial: totalRemainingLoose > 0,
     afterFolders,
-    apiFolders: savedApiFolders,
+    apiFolders: afterFolders,
     photosToOrganize: batchPhotos,
     labelByPhotoNormId,
   };

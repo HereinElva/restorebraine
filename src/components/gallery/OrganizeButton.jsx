@@ -28,6 +28,8 @@ import { runMediaOrganize } from "@/lib/run-media-organize";
 import { ORGANIZE_BATCH_SIZE, TARGET_FOLDERS_PER_RUN } from "@/lib/media-organize";
 import { ORGANIZE_ICON_CLASS, ORGANIZE_LABEL_CLASS, SQUARE_FOLDER_ACTION_CLASS, SQUARE_FOLDER_ACTION_STYLE } from "./folderActionStyles";
 
+const ORGANIZE_UI_RESET_MS = 75000;
+
 function truncateProgress(text, max = 16) {
   if (!text || text.length <= max) return text || "Organizing...";
   return `${text.slice(0, max - 1)}…`;
@@ -107,6 +109,15 @@ export default function OrganizeButton({ photos, folders: foldersProp, squareSty
     setProgressLabel("Starting…");
 
     const folderIdsBefore = new Set((folders || []).map((f) => f.id));
+    const resetUi = () => {
+      organizeInFlight.current = false;
+      setOrganizing(false);
+      setProgressLabel("");
+    };
+    const uiWatchdog = window.setTimeout(() => {
+      resetUi();
+      alert("Organize took too long and was reset. Try again.");
+    }, ORGANIZE_UI_RESET_MS);
 
     try {
       const email = getGalleryUserEmail(queryClient, authUser?.email);
@@ -125,10 +136,6 @@ export default function OrganizeButton({ photos, folders: foldersProp, squareSty
           );
           queryClient.setQueryData(galleryFoldersKey(email), verified);
           setGalleryOrganizeSnapshot({ photos, folders: verified });
-          if (email) {
-            persistGalleryFoldersSync(email, verified);
-            persistGalleryFoldersFast(email, verified);
-          }
         },
         userEmail: email,
       });
@@ -155,9 +162,6 @@ export default function OrganizeButton({ photos, folders: foldersProp, squareSty
 
       const newFolderCount = verifiedFolders.filter((f) => !folderIdsBefore.has(f.id)).length;
 
-      setOrganizing(false);
-      setProgressLabel("");
-
       alert(
         organizeResultMessage({
           totalSaved: result.totalSaved,
@@ -172,9 +176,8 @@ export default function OrganizeButton({ photos, folders: foldersProp, squareSty
       console.error("Error organizing:", error);
       alert(formatLLMError(error));
     } finally {
-      organizeInFlight.current = false;
-      setOrganizing(false);
-      setProgressLabel("");
+      window.clearTimeout(uiWatchdog);
+      resetUi();
     }
   };
 
