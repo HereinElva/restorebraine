@@ -25,6 +25,7 @@ import { persistGalleryFoldersFast, persistGalleryFoldersSync } from "@/lib/fold
 import { mergeApiFoldersWithLocal } from "@/lib/folder-membership";
 import { getGalleryUserEmail, galleryFoldersKey, galleryPhotosKey } from "@/lib/gallery-query-keys";
 import { runMediaOrganize } from "@/lib/run-media-organize";
+import { ORGANIZE_BATCH_SIZE, TARGET_FOLDERS_PER_RUN } from "@/lib/media-organize";
 import { ORGANIZE_ICON_CLASS, ORGANIZE_LABEL_CLASS, SQUARE_FOLDER_ACTION_CLASS, SQUARE_FOLDER_ACTION_STYLE } from "./folderActionStyles";
 
 function truncateProgress(text, max = 16) {
@@ -255,9 +256,9 @@ export default function OrganizeButton({ photos, folders: foldersProp, squareSty
               />
             </div>
 
-            {unorganizedCount > 20 && !includeOrganized && (
+            {unorganizedCount > ORGANIZE_BATCH_SIZE && !includeOrganized && (
               <p className="text-xs text-gray-500 ml-1">
-                Organize processes up to 20 loose photos per run. Tap again to continue until all are sorted.
+                Organize sorts up to {ORGANIZE_BATCH_SIZE} loose photos into {TARGET_FOLDERS_PER_RUN} folders per run. Tap again to continue.
               </p>
             )}
 

@@ -1,10 +1,13 @@
 import { invokeLLMWithRetry } from "@/lib/invoke-llm-retry";
 import {
   assignFolderLocally,
+  balanceOrganizeLabels,
   buildFolderOptions,
   buildLabelPrompt,
+  ORGANIZE_BATCH_SIZE,
   parseCustomFolderHints,
   photoDataForOrganize,
+  TARGET_FOLDERS_PER_RUN,
 } from "@/lib/media-organize";
 import {
   getUnorganizedPhotos,
@@ -22,7 +25,7 @@ import {
 } from "@/lib/folder-membership-cache";
 
 const CHUNK_SIZE = 15;
-const SAVE_BATCH_SIZE = 20;
+const SAVE_BATCH_SIZE = ORGANIZE_BATCH_SIZE;
 const LLM_DELAY_MS = 1500;
 const MISC_FOLDER = "Miscellaneous";
 
@@ -42,13 +45,18 @@ function sanitizeFoldersLocally(folders, photos, allPhotoIds) {
   });
 }
 
-async function labelChunkWithAI(chunk, existingFolderNames, customInstructions, customFolderHints) {
+async function labelChunkWithAI(chunk, customInstructions, customFolderHints) {
   const photoData = chunk.map(photoDataForOrganize);
-  const folderOptions = buildFolderOptions(existingFolderNames, customFolderHints);
+  const folderOptions = buildFolderOptions([], customFolderHints);
 
   const result = await invokeLLMWithRetry(
     {
-      prompt: buildLabelPrompt({ photoData, folderOptions, customInstructions }),
+      prompt: buildLabelPrompt({
+        photoData,
+        folderOptions,
+        customInstructions,
+        targetFolderCount: TARGET_FOLDERS_PER_RUN,
+      }),
       response_json_schema: {
         type: "object",
         properties: {
@@ -80,7 +88,6 @@ function labelChunkLocally(chunk) {
 
 async function buildLabelsFromDescriptions(
   photosToOrganize,
-  existingFolderNames,
   customInstructions,
   validPhotoIds,
   onProgress
@@ -102,7 +109,6 @@ async function buildLabelsFromDescriptions(
     try {
       const labels = await labelChunkWithAI(
         chunk,
-        existingFolderNames,
         customInstructions,
         customFolderHints
       );
@@ -156,7 +162,6 @@ export async function runMediaOrganize({
   }
 
   const liveFolderSource = uiShowsNoFolders ? [] : uiFolders.length ? uiFolders : apiFolders;
-  const existingFolderNames = liveFolderSource.map((f) => f.name);
 
   const photosToOrganize = includeOrganized
     ? photos
@@ -193,15 +198,22 @@ export async function runMediaOrganize({
   );
 
   const validPhotoIds = new Set(batchPhotos.map((p) => normalizePhotoId(p.id)));
-  const folderNamesForLabel = includeOrganized ? [] : existingFolderNames;
 
-  const allLabels = await buildLabelsFromDescriptions(
+  const rawLabels = await buildLabelsFromDescriptions(
     batchPhotos,
-    folderNamesForLabel,
     customInstructions,
     validPhotoIds,
     onProgress
   );
+
+  const folderTarget =
+    batchPhotos.length >= TARGET_FOLDERS_PER_RUN * 2
+      ? TARGET_FOLDERS_PER_RUN
+      : Math.max(1, Math.min(TARGET_FOLDERS_PER_RUN, Math.floor(batchPhotos.length / 2)));
+
+  const allLabels = balanceOrganizeLabels(rawLabels, batchPhotos, {
+    targetCount: folderTarget,
+  });
 
   onProgress?.("Saving folders…");
 
@@ -215,6 +227,7 @@ export async function runMediaOrganize({
     onProgress,
     onPartialSave,
     userEmail,
+    useOrganizeFolderNames: true,
   });
 
   let afterFolders = saveResult.folders;

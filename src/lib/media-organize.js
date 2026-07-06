@@ -1,4 +1,8 @@
 import { isWeakMetadata } from '@/lib/media-tags';
+import { normalizePhotoId } from '@/lib/gallery-organize-snapshot';
+
+export const TARGET_FOLDERS_PER_RUN = 8;
+export const ORGANIZE_BATCH_SIZE = 24;
 
 export const CANONICAL_FOLDERS = [
   'People & Portraits',
@@ -93,7 +97,7 @@ export const ORGANIZE_LABEL_RULES = `GROUP BY WHAT ITEMS LOOK LIKE — read desc
 
 Items with the same visible subject, setting, or activity belong in the SAME folder.`;
 
-export function buildLabelPrompt({ photoData, folderOptions, customInstructions }) {
+export function buildLabelPrompt({ photoData, folderOptions, customInstructions, targetFolderCount = TARGET_FOLDERS_PER_RUN }) {
   const customBlock = customInstructions?.trim()
     ? `
 USER INSTRUCTIONS — ABSOLUTE HIGHEST PRIORITY (override default rules above):
@@ -106,8 +110,9 @@ Instruction rules:
 - Every item in this batch must receive a folder — do not skip any id.
 `
     : `
-- Compare ALL items in this batch — merge similar subjects into the same folder name.
-- Prefer existing folder names when content clearly matches.
+- Sort this batch into exactly ${targetFolderCount} distinct folder names — each name used only once in this batch.
+- Spread items evenly (at least 2 items per folder when the batch has ${targetFolderCount * 2}+ items).
+- Use specific descriptive names (e.g. "Beach sunsets", "Family portraits") — never put everything in one folder.
 - Every item MUST receive a folder — do not skip any id.
 `;
 
@@ -115,13 +120,13 @@ Instruction rules:
 
 Assign each item to exactly ONE folder based on its description and tags.
 
-AVAILABLE FOLDERS (use exact spelling; prefer existing names when content matches):
+SUGGESTED FOLDER THEMES (use these or create similarly specific new names):
 ${folderOptions.map((n) => `- "${n}"`).join('\n')}
 
 ${ORGANIZE_LABEL_RULES}
 
 RULES:
-- Use folder names from the list OR new names required by user instructions.
+- This batch requires exactly ${targetFolderCount} different folder names.
 - Return exactly ${photoData.length} labels — one per item, every id covered.
 - Read the FULL desc field — it describes what is visible.
 - weak:true items have less reliable tags — rely more on desc.
@@ -230,6 +235,73 @@ export function normalizeFolderName(name, existingFolderNames = []) {
   }
 
   return raw || 'Miscellaneous';
+}
+
+/** Organize save: keep AI-specific names; only reuse an existing folder on exact name match. */
+export function resolveOrganizeFolderName(rawLabel, existingFolderNames = []) {
+  const trimmed = (rawLabel || 'Miscellaneous').trim() || 'Miscellaneous';
+  const exact = (existingFolderNames || []).find((n) => n.toLowerCase() === trimmed.toLowerCase());
+  return exact || trimmed;
+}
+
+function uniqueSplitFolderName(baseName, groups, photo, index) {
+  const alt = assignFolderLocally(photo);
+  if (alt && alt.toLowerCase() !== baseName.toLowerCase() && !groups.has(alt)) return alt;
+  let candidate = `${baseName} ${index + 1}`;
+  let n = index + 2;
+  while (groups.has(candidate)) {
+    candidate = `${baseName} ${n}`;
+    n += 1;
+  }
+  return candidate;
+}
+
+/** Merge/split label groups so each organize run uses exactly targetCount folder names. */
+export function balanceOrganizeLabels(allLabels, photos, { targetCount = TARGET_FOLDERS_PER_RUN } = {}) {
+  const photoByNormId = new Map(
+    (photos || []).map((p) => [normalizePhotoId(p.id), p]),
+  );
+  const groups = new Map();
+
+  for (const { id, folder } of allLabels || []) {
+    const name = (folder || 'Miscellaneous').trim() || 'Miscellaneous';
+    if (!groups.has(name)) groups.set(name, new Set());
+    groups.get(name).add(normalizePhotoId(id));
+  }
+
+  while (groups.size > targetCount) {
+    const sorted = [...groups.entries()].sort((a, b) => a[1].size - b[1].size);
+    const [smallName, smallIds] = sorted[0];
+    const [, mergeTargetIds] = sorted[1];
+    for (const id of smallIds) mergeTargetIds.add(id);
+    groups.delete(smallName);
+  }
+
+  while (groups.size < targetCount) {
+    const sorted = [...groups.entries()].sort((a, b) => b[1].size - a[1].size);
+    const [name, ids] = sorted[0];
+    if (!ids || ids.size < 2) break;
+
+    const idArr = [...ids];
+    const mid = Math.ceil(idArr.length / 2);
+    const keep = idArr.slice(0, mid);
+    const splitOff = idArr.slice(mid);
+    groups.set(name, new Set(keep));
+
+    const samplePhoto = photoByNormId.get(splitOff[0]);
+    const newName = samplePhoto
+      ? uniqueSplitFolderName(name, groups, samplePhoto, groups.size)
+      : `${name} ${groups.size + 1}`;
+    groups.set(newName, new Set(splitOff));
+  }
+
+  const result = [];
+  for (const [folder, ids] of groups) {
+    for (const id of ids) {
+      if (id) result.push({ id, folder });
+    }
+  }
+  return result;
 }
 
 /** Merge folder groups locally — replaces LLM merge phase. */

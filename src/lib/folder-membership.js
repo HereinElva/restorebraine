@@ -1,5 +1,5 @@
 import { base44 } from '@/api/base44Client';
-import { normalizeFolderName } from '@/lib/media-organize';
+import { normalizeFolderName, resolveOrganizeFolderName } from '@/lib/media-organize';
 import {
   getUnorganizedPhotos,
   normalizePhotoId,
@@ -248,6 +248,7 @@ export async function assignLoosePhotosByFolder({
   onProgress,
   onPartialSave,
   userEmail,
+  useOrganizeFolderNames = false,
 }) {
   let folders = [...(liveFolders || [])];
   const names = () => folders.map((f) => f.name);
@@ -257,10 +258,10 @@ export async function assignLoosePhotosByFolder({
   for (const photo of photosToAssign) {
     if (photo?.id == null) continue;
     const norm = normalizePhotoId(photo.id);
-    const folderName = normalizeFolderName(
-      labelByPhotoNormId.get(norm) || 'Miscellaneous',
-      names(),
-    );
+    const rawLabel = labelByPhotoNormId.get(norm) || 'Miscellaneous';
+    const folderName = useOrganizeFolderNames
+      ? resolveOrganizeFolderName(rawLabel, names())
+      : normalizeFolderName(rawLabel, names());
     if (!groups.has(folderName)) groups.set(folderName, []);
     groups.get(folderName).push(photo);
   }
