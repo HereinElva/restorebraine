@@ -99,6 +99,65 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         """
     }
 
+    /// Injects Apple logo + HIG label on hosted Base44 login (v162) — no Base44 publish required.
+    private func appleLoginFixScript() -> String {
+        return """
+        (function(){
+          var SVG='<svg aria-hidden="true" data-rb-apple-logo="1" width="20" height="20" viewBox="0 0 24 24" style="display:block;flex-shrink:0;pointer-events:none"><path fill="#ffffff" d="M17.05 20.28c-.98.95-2.05.88-3.08.4-1.09-.5-2.08-.48-3.24 0-1.44.62-2.2.44-3.06-.4C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09l.01-.01zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/></svg>';
+          function fix(){
+            try{
+              var nodes=document.querySelectorAll('button[data-rb-provider="apple"],button[data-rb-apple-sign-in],button');
+              for(var i=0;i<nodes.length;i++){
+                var btn=nodes[i];
+                if(btn.getAttribute('data-rb-apple-fixed')==='1')continue;
+                if(btn.querySelector('[data-rb-apple-logo]')){btn.setAttribute('data-rb-apple-fixed','1');continue;}
+                var label=(btn.textContent||'').replace(/\\s+/g,' ').trim();
+                if(!/^continue with apple$/i.test(label)&&!/^sign in with apple$/i.test(label))continue;
+                btn.setAttribute('data-rb-apple-fixed','1');
+                btn.setAttribute('data-rb-apple-sign-in','true');
+                btn.setAttribute('data-rb-provider','apple');
+                btn.style.display='flex';
+                btn.style.alignItems='center';
+                btn.style.justifyContent='center';
+                btn.style.gap='8px';
+                btn.style.background='#000000';
+                btn.style.color='#ffffff';
+                btn.style.minHeight='44px';
+                btn.style.padding='0 16px';
+                btn.style.border='none';
+                btn.style.borderRadius='8px';
+                btn.style.fontSize='16px';
+                btn.style.fontWeight='600';
+                btn.style.fontFamily='-apple-system,BlinkMacSystemFont,sans-serif';
+                btn.style.width='100%';
+                btn.style.boxSizing='border-box';
+                btn.style.cursor='pointer';
+                while(btn.firstChild)btn.removeChild(btn.firstChild);
+                btn.insertAdjacentHTML('beforeend',SVG);
+                var span=document.createElement('span');
+                span.style.color='#ffffff';
+                span.style.lineHeight='1.2';
+                span.textContent='Sign in with Apple';
+                btn.appendChild(span);
+              }
+            }catch(e){}
+          }
+          if(!window.__restorebraineAppleLoginFixInstalled){
+            window.__restorebraineAppleLoginFixInstalled=true;
+            if(!window.__rbAppleLoginFixObserver){
+              window.__rbAppleLoginFixObserver=new MutationObserver(fix);
+              window.__rbAppleLoginFixObserver.observe(document.documentElement,{childList:true,subtree:true});
+            }
+            setInterval(fix,400);
+          }
+          if(document.readyState==='loading'){
+            document.addEventListener('DOMContentLoaded',fix);
+          }
+          fix();
+        })();
+        """
+    }
+
     private func configureNativeWebView(_ bridge: CAPBridgeViewController) {
         guard let webView = bridge.webView else { return }
         webView.allowsBackForwardNavigationGestures = false
@@ -123,6 +182,13 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         userContentController.removeScriptMessageHandler(forName: "restorebraineNativeSession")
         userContentController.add(sessionMessageHandler, name: "restorebraineNativeSession")
         userContentController.addUserScript(script)
+
+        let appleFix = WKUserScript(
+            source: appleLoginFixScript(),
+            injectionTime: .atDocumentEnd,
+            forMainFrameOnly: true
+        )
+        userContentController.addUserScript(appleFix)
     }
 
     /// WKWebView caches capacitor://localhost aggressively — block briefly on stamp change.
