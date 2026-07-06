@@ -246,7 +246,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             name: Notification.Name("CAPBridgeDidLoad"),
             object: nil
         )
-        for delay in [0.5, 1.0, 2.0, 4.0, 8.0, 12.0] {
+        for delay in [0.5, 1.0, 2.0, 4.0, 8.0, 12.0, 20.0] {
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
                 self.installSessionBridge()
             }
