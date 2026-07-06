@@ -9,9 +9,10 @@ HTML=$(curl -sL --max-time 20 "https://restorebraine.base44.app/?nocache=$(date 
 LIVE=$(echo "$HTML" | grep -oE 'restorebraine-deploy" content="v[0-9]+"|content="v[0-9]+" name="restorebraine-deploy"' | grep -oE 'v[0-9]+' | head -1 | tr -d 'v' || echo "?")
 BUNDLE=$(echo "$HTML" | grep -oE 'assets/index-[^"]+\.js' | head -1 | sed 's|assets/||' || echo "unknown")
 
-HAS_APPLE=$(echo "$HTML" | grep -qi 'Continue With Apple' && echo yes || echo no)
+HAS_APPLE_OLD=$(echo "$HTML" | grep -qi 'Continue With Apple' && echo yes || echo no)
+HAS_APPLE_HIG=$(echo "$HTML" | grep -qi 'Sign in with Apple' && echo yes || echo no)
+HAS_APPLE_LOGO=$(echo "$HTML" | grep -qi 'data-rb-apple-logo\|SignInWithAppleButton' && echo yes || echo no)
 HAS_EMAIL=$(echo "$HTML" | grep -qi 'Sign In With Email' && echo yes || echo no)
-HAS_OLD=$(echo "$HTML" | grep -qi 'Continue with Google' && echo yes || echo no)
 
 echo ""
 echo "══════════════════════════════════════════════════════════════"
@@ -20,11 +21,13 @@ echo "════════════════════════�
 echo ""
 echo "  Git expects:     v${GIT}"
 echo "  Live site has:   v${LIVE}  (bundle: ${BUNDLE})"
-echo "  Apple login:     ${HAS_APPLE}"
+echo "  Apple (old):     ${HAS_APPLE_OLD}"
+echo "  Apple (HIG):     ${HAS_APPLE_HIG}"
+echo "  Apple logo:      ${HAS_APPLE_LOGO}"
 echo "  Email login:     ${HAS_EMAIL}"
 echo ""
 
-if [ "$LIVE" = "$GIT" ] && [ "$HAS_APPLE" = "yes" ]; then
+if [ "$LIVE" = "$GIT" ] && [ "$HAS_APPLE_HIG" = "yes" ] && [ "$HAS_APPLE_LOGO" = "yes" ]; then
   echo "  ██████████████████████████████████████████████████████████"
   echo "  ██  PASS — Base44 is updated. Run native step next.     ██"
   echo "  ██████████████████████████████████████████████████████████"

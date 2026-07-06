@@ -91,6 +91,7 @@
 }
 
 .rb-signin-apple img[data-rb-apple-logo],
+.rb-signin-apple span[data-rb-apple-logo],
 .rb-signin-apple svg {
   display: block !important;
   width: 20px !important;

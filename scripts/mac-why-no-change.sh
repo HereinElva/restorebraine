@@ -73,5 +73,8 @@ else
   echo "BOTTOM LINE: Sign in OK. In Xcode: select iPhone → Clean → Run."
   echo "Build log must show: Restorebraine DEPLOY OK"
 fi
+echo "On iPhone login screen:"
+echo "  OLD (hosted Base44 not updated): Continue With Apple — no logo"
+echo "  NEW (bundled v${BUILD}+):         Sign in with Apple + logo · Build v${BUILD} at bottom"
 echo "On iPhone tap purple badge: must say v${BUILD} · v4-core · capacitor://localhost"
 echo "══════════════════════════════════════════════════════════════"
