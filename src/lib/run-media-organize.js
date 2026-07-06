@@ -1,13 +1,13 @@
 import { invokeLLMWithRetry, withTimeout } from "@/lib/invoke-llm-retry";
 import {
   assignFolderLocally,
-  balanceOrganizeLabels,
+  consolidateOrganizeLabels,
   buildFolderOptions,
   buildLabelPrompt,
+  MAX_FOLDERS_PER_RUN,
   ORGANIZE_BATCH_SIZE,
   parseCustomFolderHints,
   photoDataForOrganize,
-  TARGET_FOLDERS_PER_RUN,
 } from "@/lib/media-organize";
 import {
   getUnorganizedPhotos,
@@ -52,7 +52,7 @@ async function labelBatchWithAI(batchPhotos, customInstructions) {
         photoData,
         folderOptions,
         customInstructions,
-        targetFolderCount: TARGET_FOLDERS_PER_RUN,
+        targetFolderCount: MAX_FOLDERS_PER_RUN,
       }),
       response_json_schema: {
         type: "object",
@@ -210,6 +210,8 @@ async function runMediaOrganizeInner({
 
   const validPhotoIds = new Set(batchPhotos.map((p) => normalizePhotoId(p.id)));
 
+  const existingFolderNames = liveFolderSource.map((f) => f.name);
+
   const rawLabels = await buildLabelsFromDescriptions(
     batchPhotos,
     customInstructions,
@@ -217,13 +219,9 @@ async function runMediaOrganizeInner({
     onProgress,
   );
 
-  const folderTarget =
-    batchPhotos.length >= TARGET_FOLDERS_PER_RUN * 2
-      ? TARGET_FOLDERS_PER_RUN
-      : Math.max(1, Math.min(TARGET_FOLDERS_PER_RUN, Math.floor(batchPhotos.length / 2)));
-
-  const allLabels = balanceOrganizeLabels(rawLabels, batchPhotos, {
-    targetCount: folderTarget,
+  const allLabels = consolidateOrganizeLabels(rawLabels, batchPhotos, {
+    maxFolders: MAX_FOLDERS_PER_RUN,
+    existingFolderNames,
   });
 
   onProgress?.("Saving…");

@@ -25,7 +25,7 @@ import { persistGalleryFoldersFast, persistGalleryFoldersSync } from "@/lib/fold
 import { mergeApiFoldersWithLocal } from "@/lib/folder-membership";
 import { getGalleryUserEmail, galleryFoldersKey, galleryPhotosKey } from "@/lib/gallery-query-keys";
 import { runMediaOrganize } from "@/lib/run-media-organize";
-import { ORGANIZE_BATCH_SIZE, TARGET_FOLDERS_PER_RUN } from "@/lib/media-organize";
+import { ORGANIZE_BATCH_SIZE, MAX_FOLDERS_PER_RUN } from "@/lib/media-organize";
 import { ORGANIZE_ICON_CLASS, ORGANIZE_LABEL_CLASS, SQUARE_FOLDER_ACTION_CLASS, SQUARE_FOLDER_ACTION_STYLE } from "./folderActionStyles";
 
 const ORGANIZE_UI_RESET_MS = 75000;
@@ -261,7 +261,7 @@ export default function OrganizeButton({ photos, folders: foldersProp, squareSty
 
             {unorganizedCount > ORGANIZE_BATCH_SIZE && !includeOrganized && (
               <p className="text-xs text-gray-500 ml-1">
-                Organize sorts up to {ORGANIZE_BATCH_SIZE} loose photos into {TARGET_FOLDERS_PER_RUN} folders per run. Tap again to continue.
+                Organize sorts up to {ORGANIZE_BATCH_SIZE} loose photos into broad category folders (up to {MAX_FOLDERS_PER_RUN} per run). Tap again to continue.
               </p>
             )}
 

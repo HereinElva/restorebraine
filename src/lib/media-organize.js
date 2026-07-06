@@ -1,8 +1,11 @@
 import { isWeakMetadata } from '@/lib/media-tags';
 import { normalizePhotoId } from '@/lib/gallery-organize-snapshot';
 
-export const TARGET_FOLDERS_PER_RUN = 8;
+export const MAX_FOLDERS_PER_RUN = 8;
+/** @deprecated use MAX_FOLDERS_PER_RUN */
+export const TARGET_FOLDERS_PER_RUN = MAX_FOLDERS_PER_RUN;
 export const ORGANIZE_BATCH_SIZE = 24;
+export const MIN_ITEMS_PER_FOLDER = 3;
 
 export const CANONICAL_FOLDERS = [
   'People & Portraits',
@@ -110,23 +113,24 @@ Instruction rules:
 - Every item in this batch must receive a folder — do not skip any id.
 `
     : `
-- Sort this batch into exactly ${targetFolderCount} distinct folder names — each name used only once in this batch.
-- Spread items evenly (at least 2 items per folder when the batch has ${targetFolderCount * 2}+ items).
-- Use specific descriptive names (e.g. "Beach sunsets", "Family portraits") — never put everything in one folder.
+- Use ONLY the broad category names from the suggested list below (e.g. "Nature & Landscapes", not "Beach sunset").
+- Merge similar themes into ONE folder — never create near-duplicate folder names.
+- Pack many items into each folder; aim for at least ${MIN_ITEMS_PER_FOLDER} items per folder when possible.
 - Every item MUST receive a folder — do not skip any id.
 `;
 
   return `You organize a photo/video library by PHYSICAL VISUAL CONTENT.
 
-Assign each item to exactly ONE folder based on its description and tags.
+Assign each item to exactly ONE broad category folder based on its description and tags.
 
-SUGGESTED FOLDER THEMES (use these or create similarly specific new names):
-${folderOptions.map((n) => `- "${n}"`).join('\n')}
+BROAD CATEGORY FOLDERS (use exact names from this list):
+${folderOptions.filter((n) => CANONICAL_FOLDERS.includes(n)).map((n) => `- "${n}"`).join('\n')}
 
 ${ORGANIZE_LABEL_RULES}
 
 RULES:
-- This batch requires exactly ${targetFolderCount} different folder names.
+- Use ONLY broad category names from the list above unless user instructions require otherwise.
+- Merge similar subjects into the same category — do not split into narrow sub-folders.
 - Return exactly ${photoData.length} labels — one per item, every id covered.
 - Read the FULL desc field — it describes what is visible.
 - weak:true items have less reliable tags — rely more on desc.
@@ -157,8 +161,9 @@ Return JSON: { "folders": [{ "name": "...", "ids": ["..."] }, ...] }`;
 export const FOLDER_KEYWORD_MAP = {
   'Nature & Landscapes': [
     'grass', 'field', 'meadow', 'lawn', 'pasture', 'nature', 'landscape', 'sky', 'forest',
-    'beach', 'mountain', 'flower', 'lake', 'tree', 'outdoor', 'garden', 'plant', 'sunset',
-    'sunrise', 'hill', 'river', 'scenery', 'wildflower', 'meadows', 'greenery',
+    'beach', 'ocean', 'mountain', 'flower', 'lake', 'tree', 'outdoor', 'garden', 'plant', 'sunset',
+    'sunrise', 'hill', 'river', 'scenery', 'wildflower', 'meadows', 'greenery', 'park', 'cloud',
+    'water', 'wave', 'coast', 'trail', 'woods', 'snow', 'winter', 'fall', 'autumn',
   ],
   'People & Portraits': [
     'people', 'portrait', 'selfie', 'face', 'family', 'friend', 'baby', 'child', 'person',
@@ -169,7 +174,7 @@ export const FOLDER_KEYWORD_MAP = {
   'Travel & Landmarks': ['travel', 'landmark', 'vacation', 'city', 'tourist', 'monument', 'airport', 'hotel', 'trip', 'building', 'architecture', 'dome', 'tower'],
   'Celebrations & Events': ['party', 'birthday', 'celebration', 'event', 'holiday', 'concert', 'festival', 'cake', 'christmas', 'halloween'],
   'Home & Indoor': ['home', 'indoor', 'room', 'bedroom', 'living', 'house', 'furniture', 'interior', 'apartment', 'office', 'desk', 'counter'],
-  'Outdoor Activities': ['sport', 'gym', 'fitness', 'hike', 'bike', 'run', 'workout', 'swim', 'pool', 'basketball', 'soccer', 'football', 'tennis', 'ski', 'camp', 'vaulter', 'athlete', 'pole vault'],
+  'Outdoor Activities': ['sport', 'gym', 'fitness', 'hike', 'hiking', 'bike', 'biking', 'run', 'running', 'workout', 'swim', 'swimming', 'pool', 'basketball', 'soccer', 'football', 'tennis', 'ski', 'camp', 'vaulter', 'athlete', 'pole vault', 'golf', 'yoga', 'surf', 'climb'],
   'Quotes & Text Screenshots': ['screenshot', 'screen', 'text', 'quote', 'meme', 'document', 'sign', 'letter', 'calendar', 'schedule', 'app'],
   'Artwork & Illustrations': ['art', 'drawing', 'painting', 'illustration', 'cartoon', 'sketch', 'design', 'graphic', 'poster', 'retro', 'illustrations'],
 };
@@ -219,6 +224,17 @@ export function normalizeFolderName(name, existingFolderNames = []) {
   const canonical = CANONICAL_FOLDERS.find((f) => f.toLowerCase() === lower);
   if (canonical) return canonical;
 
+  for (const [canonicalName, keywords] of Object.entries(FOLDER_KEYWORD_MAP)) {
+    for (const kw of keywords) {
+      if (keywordMatch(lower, kw)) {
+        const existing = existingFolderNames.find(
+          (f) => f.toLowerCase() === canonicalName.toLowerCase(),
+        );
+        return existing || canonicalName;
+      }
+    }
+  }
+
   for (const c of CANONICAL_FOLDERS) {
     const cLower = c.toLowerCase();
     if (lower.includes(cLower) || cLower.includes(lower)) return c;
@@ -237,62 +253,83 @@ export function normalizeFolderName(name, existingFolderNames = []) {
   return raw || 'Miscellaneous';
 }
 
-/** Organize save: keep AI-specific names; only reuse an existing folder on exact name match. */
+/** Organize save: map to broad canonical/existing folder names. */
 export function resolveOrganizeFolderName(rawLabel, existingFolderNames = []) {
-  const trimmed = (rawLabel || 'Miscellaneous').trim() || 'Miscellaneous';
-  const exact = (existingFolderNames || []).find((n) => n.toLowerCase() === trimmed.toLowerCase());
-  return exact || trimmed;
+  return normalizeFolderName(rawLabel, existingFolderNames);
 }
 
-function uniqueSplitFolderName(baseName, groups, photo, index) {
-  const alt = assignFolderLocally(photo);
-  if (alt && alt.toLowerCase() !== baseName.toLowerCase() && !groups.has(alt)) return alt;
-  let candidate = `${baseName} ${index + 1}`;
-  let n = index + 2;
-  while (groups.has(candidate)) {
-    candidate = `${baseName} ${n}`;
-    n += 1;
+/** Related broad categories — used when merging thin duplicate folders. */
+const RELATED_CATEGORIES = [
+  ['Nature & Landscapes', 'Outdoor Activities', 'Travel & Landmarks'],
+  ['People & Portraits', 'Celebrations & Events'],
+  ['Home & Indoor', 'Food & Dining'],
+  ['Animals & Pets', 'Nature & Landscapes'],
+  ['Quotes & Text Screenshots', 'Artwork & Illustrations'],
+];
+
+function relatedCategoryScore(nameA, nameB) {
+  if (nameA === nameB) return 100;
+  for (const cluster of RELATED_CATEGORIES) {
+    if (cluster.includes(nameA) && cluster.includes(nameB)) return 50;
   }
-  return candidate;
+  return 0;
 }
 
-/** Merge/split label groups so each organize run uses exactly targetCount folder names. */
-export function balanceOrganizeLabels(allLabels, photos, { targetCount = TARGET_FOLDERS_PER_RUN } = {}) {
-  const photoByNormId = new Map(
-    (photos || []).map((p) => [normalizePhotoId(p.id), p]),
+function pickMergeTarget(smallName, groups) {
+  let best = null;
+  let bestScore = -1;
+  for (const [name, ids] of groups) {
+    if (name === smallName) continue;
+    const score = relatedCategoryScore(smallName, name) * 1000 + ids.size;
+    if (score > bestScore) {
+      bestScore = score;
+      best = [name, ids];
+    }
+  }
+  return best;
+}
+
+/**
+ * Merge labels into broad canonical folders — pack more items per folder,
+ * merge near-duplicate themes, never split thin groups artificially.
+ */
+export function consolidateOrganizeLabels(
+  allLabels,
+  photos,
+  { maxFolders = MAX_FOLDERS_PER_RUN, existingFolderNames = [] } = {},
+) {
+  const batchSize = (photos || []).length || (allLabels || []).length;
+  const minItemsPerFolder = Math.max(
+    MIN_ITEMS_PER_FOLDER,
+    Math.floor(batchSize / Math.min(maxFolders, 6)),
   );
   const groups = new Map();
 
   for (const { id, folder } of allLabels || []) {
-    const name = (folder || 'Miscellaneous').trim() || 'Miscellaneous';
-    if (!groups.has(name)) groups.set(name, new Set());
-    groups.get(name).add(normalizePhotoId(id));
+    const canonical = normalizeFolderName(folder, existingFolderNames);
+    if (!groups.has(canonical)) groups.set(canonical, new Set());
+    groups.get(canonical).add(normalizePhotoId(id));
   }
 
-  while (groups.size > targetCount) {
+  // Pack tiny groups into related larger categories
+  while (groups.size > 1) {
     const sorted = [...groups.entries()].sort((a, b) => a[1].size - b[1].size);
     const [smallName, smallIds] = sorted[0];
-    const [, mergeTargetIds] = sorted[1];
-    for (const id of smallIds) mergeTargetIds.add(id);
+    if (smallIds.size >= minItemsPerFolder) break;
+    const target = pickMergeTarget(smallName, groups);
+    if (!target) break;
+    for (const id of smallIds) target[1].add(id);
     groups.delete(smallName);
   }
 
-  while (groups.size < targetCount) {
-    const sorted = [...groups.entries()].sort((a, b) => b[1].size - a[1].size);
-    const [name, ids] = sorted[0];
-    if (!ids || ids.size < 2) break;
-
-    const idArr = [...ids];
-    const mid = Math.ceil(idArr.length / 2);
-    const keep = idArr.slice(0, mid);
-    const splitOff = idArr.slice(mid);
-    groups.set(name, new Set(keep));
-
-    const samplePhoto = photoByNormId.get(splitOff[0]);
-    const newName = samplePhoto
-      ? uniqueSplitFolderName(name, groups, samplePhoto, groups.size)
-      : `${name} ${groups.size + 1}`;
-    groups.set(newName, new Set(splitOff));
+  // Cap folder count — merge smallest into related larger buckets
+  while (groups.size > maxFolders) {
+    const sorted = [...groups.entries()].sort((a, b) => a[1].size - b[1].size);
+    const [smallName, smallIds] = sorted[0];
+    const target = pickMergeTarget(smallName, groups);
+    if (!target) break;
+    for (const id of smallIds) target[1].add(id);
+    groups.delete(smallName);
   }
 
   const result = [];
@@ -302,6 +339,13 @@ export function balanceOrganizeLabels(allLabels, photos, { targetCount = TARGET_
     }
   }
   return result;
+}
+
+/** @deprecated use consolidateOrganizeLabels */
+export function balanceOrganizeLabels(allLabels, photos, options = {}) {
+  return consolidateOrganizeLabels(allLabels, photos, {
+    maxFolders: options.targetCount ?? MAX_FOLDERS_PER_RUN,
+  });
 }
 
 /** Merge folder groups locally — replaces LLM merge phase. */
