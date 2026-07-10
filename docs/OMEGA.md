@@ -1,42 +1,145 @@
-# Omega archive
+# Omega archive — v4-core reference build
 
-Known-good Restorebraine native iOS builds. Use these to revert if a later change breaks login, logout, or icons.
+Known-good Restorebraine builds. **Use this baseline so login/auth experiments do not interfere** with gallery navigation, folder tiles, or account UI.
+
+## Omega 3 — current bundled iPhone snapshot (v261)
+
+**→ Recommended restore point. Organize, folder persistence, and gallery refresh all working.**
+
+See [OMEGA-3.md](./OMEGA-3.md) for full details.
+
+| Item | Value |
+|------|--------|
+| **Git tag** | `omega-3` |
+| **Build** | v261 |
+| **Branch** | `cursor/fix-organize-partial-save-bacf` |
+
+```bash
+git fetch origin --tags
+git reset --hard omega-3
+bash build-iphone.sh --no-git
+```
+
+---
+
+## Omega 2 — previous bundled snapshot (v217)
+
+See [OMEGA-2.md](./OMEGA-2.md) for full details.
+
+| Item | Value |
+|------|--------|
+| **Git tag** | `omega-2` |
+| **Build** | v217 |
+| **Branch** | `cursor/fix-native-localhost-oauth-bacf` |
+
+```bash
+git fetch origin --tags
+git reset --hard omega-2
+bash build-iphone.sh --no-git
+```
+
+---
+
+## Current Omega (v4-core) — gallery UI baseline
+
+**→ For iPhone builds use [OMEGA-1.0.1.md](./OMEGA-1.0.1.md) and `bash scripts/mac-build.sh`**
+
+| Item | Value |
+|------|--------|
+| **Git tag** | `omega-v4-core` |
+| **Commit** | `ec86e42` |
+| **Deploy stamp** | `kbrown native v80` / `restorebraine web v80` |
+| **App Store lineage** | `MARKETING_VERSION 1.0.1`, `CURRENT_PROJECT_VERSION 4` (first re-upload after old build pulled) |
+
+### What this Omega includes (do not regress)
+
+1. **Back to Gallery** (v69–v70) — Account page link uses `data-rb-gallery-nav`; no sign-out interceptor on gallery taps
+2. **Folder action aesthetics** (v71–v79) — compact white tiles, purple Organize label, shared `folderActionStyles.js`
+3. **MobileGallery white-screen fix** (v80) — no `build-info.js` import in gallery bundle
+4. **Session restore on gallery nav** — `navigateToGallery` + `resumeActiveSession`
+
+### Protected files (must match Omega unless explicitly requested)
+
+```
+src/components/gallery/folderActionStyles.js
+src/components/gallery/OrganizeButton.jsx
+src/components/gallery/CustomFolderButton.jsx
+src/components/gallery/MobileGallery.jsx   (except DEPLOY_BUILD import — OK)
+src/lib/gallery-nav.js
+src/pages/Account.jsx                    (gallery nav + data-rb-gallery-nav; logout may evolve)
+src/Layout.jsx                           (gallery tab + back nav; header logo may evolve)
+```
+
+Verify anytime:
+
+```bash
+node scripts/verify-omega-baseline.mjs
+```
+
+### Revert gallery/folders/account nav to Omega only
+
+```bash
+git fetch origin --tags
+git checkout omega-v4-core -- \
+  src/components/gallery/folderActionStyles.js \
+  src/components/gallery/OrganizeButton.jsx \
+  src/components/gallery/CustomFolderButton.jsx \
+  src/components/gallery/MobileGallery.jsx \
+  src/lib/gallery-nav.js
+# Account.jsx / Layout.jsx: merge manually — logout and header logo may differ from v80
+```
+
+Then rebuild: `bash scripts/mac-start-fresh.sh` and **Xcode → Run**.
+
+### Start fresh (recommended — Omega hosted + kept fixes)
+
+See [START-FRESH.md](./START-FRESH.md).
+
+```bash
+bash scripts/mac-start-fresh.sh
+```
+
+Syncs repo, verifies Omega gallery baseline, full hosted rebuild, generates Base44 publish pack, full Xcode replace on next Run/Archive.
+
+### App Store / TestFlight (use hosted — NOT bundled)
+
+Old Omega (`omega` tag, v58) loaded live `restorebraine.base44.app` — login worked without Base44 paste marathons.
+
+**Before every Archive:**
+
+```bash
+bash scripts/mac-start-fresh.sh
+# Paste base44-publish-v*.txt → Base44 Publish
+# Xcode → Clean → Run → Archive → Upload
+```
+
+Do **not** run `mac-ios-v4-deploy.sh` or `mac-capacitor-web-sync.sh` before App Store upload — those bundle `capacitor://localhost` and break login on TestFlight.
+
+**Reference build:** App Store Connect **1.0.1 (3)** — see [APPSTORE-BUILD-1.0.1-3.md](./APPSTORE-BUILD-1.0.1-3.md).
+
+---
+
+## Legacy Omega (hosted WebView — pre v4-core)
+
+Older tags from before bundled `capacitor://localhost`. **Do not use for current iPhone deploy.**
 
 | Tag | Build stamp | Notes |
 |-----|-------------|-------|
-| `omega-v55` | `kbrown native v55` | Login worked; sign-out showed native overlay |
-| `omega-v57` | `kbrown native v57` | Login + logout perfect; home screen icon still missing |
-| **`omega`** | **`kbrown native v58`** | **Current Omega — login, logout, official app icon** |
-
-## Revert to current Omega (recommended)
+| `omega-v55` | `kbrown native v55` | Login worked; sign-out overlay |
+| `omega-v57` | `kbrown native v57` | Login + logout; home icon issue |
+| `omega` | `kbrown native v58` | Hosted WebView + CDN icon |
 
 ```bash
-cd /Users/ari/Desktop/restorebraine
-git fetch origin --tags
-git reset --hard omega
-bash scripts/mac-ios-setup.sh
+git reset --hard omega   # legacy only — not v4-core
 ```
 
-## Revert to a specific archive entry
+---
 
-```bash
-git reset --hard omega-v57   # logout fixed, icon issue
-git reset --hard omega-v55   # earliest Omega baseline
-```
+## What may change without touching Omega UI
 
-Then run `bash scripts/mac-ios-setup.sh` and rebuild in Xcode.
+- Login / OAuth / `SignInScreen` / `NativeLoginCard` (native auth layer)
+- Launch screen storyboard + splash assets
+- Logout server redirect (web)
+- Build stamp / deploy number (v81+)
 
-## What Omega v58 includes
-
-- Hosted app model (`server.url` → `https://restorebraine.base44.app`)
-- OAuth login persists across restarts
-- One-tap sign-out → original in-app login page
-- Official Restorebraine brain icon fetched from CDN at build time
-- `CFBundleIconName` + `CFBundleIcons` in Info.plist
-
-## Home screen icon after install
-
-1. Delete app from iPhone
-2. **Restart iPhone** (iOS caches icons aggressively)
-3. Xcode → Clean Build Folder → Run
-4. In Xcode: App → Assets.xcassets → AppIcon — all slots should show the brain icon
+**Rule:** run `node scripts/verify-omega-baseline.mjs` before every iPhone or Base44 publish.

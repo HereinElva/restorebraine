@@ -1,0 +1,720 @@
+Restorebraine Base44 Publish — PART 2 — Native OAuth + session (deploy v174)
+
+For each block: open BASE44 PATH in Code editor → Select All → Paste code below divider → Save
+
+
+════════════════════════════════════════════════════════════
+BASE44 PATH: src/App.jsx
+ACTION: Open this exact path in the Base44 Code editor → Select All → Paste → Save
+════════════════════════════════════════════════════════════
+import './App.css'
+import { Toaster } from "@/components/ui/toaster"
+import { QueryClientProvider } from '@tanstack/react-query'
+import { queryClientInstance } from '@/lib/query-client'
+
+import NavigationTracker from '@/lib/NavigationTracker'
+import { pagesConfig } from './pages.config'
+import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
+import { setupIframeMessaging } from './lib/iframe-messaging';
+import PageNotFound from './lib/PageNotFound';
+import { AuthProvider, useAuth } from '@/lib/AuthContext';
+import UserNotRegisteredError from '@/components/UserNotRegisteredError';
+import NativeDebugBadge from '@/components/NativeDebugBadge';
+import SignInScreen, { hasStoredSessionToken } from '@/screens/SignInScreen';
+import V4CoreWrongOrigin from '@/components/V4CoreWrongOrigin';
+import { isNativeShell } from '@/lib/native-hosted-redirect';
+import { isV4CoreWrongOrigin } from '@/lib/v4-core-guard';
+
+const { Pages, Layout, mainPage } = pagesConfig;
+const mainPageKey = mainPage ?? Object.keys(Pages)[0];
+const MainPage = mainPageKey ? Pages[mainPageKey] : <></>;
+
+if (!isNativeShell()) {
+  setupIframeMessaging();
+}
+
+const LayoutWrapper = ({ children, currentPageName }) => Layout ?
+  <Layout currentPageName={currentPageName}>{children}</Layout>
+  : <>{children}</>;
+
+const AuthenticatedApp = () => {
+  const { isLoadingAuth, isLoadingPublicSettings, authError, isAuthenticated, manuallyLoggedOut, navigateToLogin } = useAuth();
+
+  if (manuallyLoggedOut) {
+    return <SignInScreen clearSignedOut />;
+  }
+
+  if (!isAuthenticated && !hasStoredSessionToken()) {
+    return <SignInScreen />;
+  }
+
+  if ((isLoadingPublicSettings || isLoadingAuth) && hasStoredSessionToken()) {
+    return (
+      <>
+        <div className="fixed inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 gap-4">
+          <div className="w-8 h-8 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin" />
+          <p className="text-sm text-gray-500">Loading Restorebraine…</p>
+          {isNativeShell() ? (
+            <button
+              type="button"
+              onClick={navigateToLogin}
+              className="mt-2 text-sm font-semibold text-purple-600 underline"
+            >
+              Sign in instead
+            </button>
+          ) : null}
+        </div>
+        {isNativeShell() ? <NativeDebugBadge /> : null}
+      </>
+    );
+  }
+
+  if (authError?.type === 'user_not_registered') {
+    return <UserNotRegisteredError />;
+  }
+
+  if (authError || !isAuthenticated) {
+    return <SignInScreen clearSignedOut />;
+  }
+
+  return (
+    <>
+      <LayoutWrapper currentPageName={mainPageKey}>
+        <Routes>
+          <Route path="/" element={<MainPage />} />
+          {Object.entries(Pages).map(([path, Page]) => (
+            <Route key={path} path={`/${path.toLowerCase()}`} element={<Page />} />
+          ))}
+          <Route path="*" element={<PageNotFound />} />
+        </Routes>
+      </LayoutWrapper>
+      {isNativeShell() ? <NativeDebugBadge /> : null}
+    </>
+  );
+};
+
+
+function App() {
+  if (isV4CoreWrongOrigin()) {
+    return <V4CoreWrongOrigin />;
+  }
+
+  return (
+    <AuthProvider>
+      <QueryClientProvider client={queryClientInstance}>
+        <Router>
+          <NavigationTracker />
+          <AuthenticatedApp />
+        </Router>
+        <Toaster />
+      </QueryClientProvider>
+    </AuthProvider>
+  )
+}
+
+export default App
+
+
+
+════════════════════════════════════════════════════════════
+BASE44 PATH: src/screens/SignInScreen.jsx
+ACTION: Open this exact path in the Base44 Code editor → Select All → Paste → Save
+════════════════════════════════════════════════════════════
+import { useEffect, useRef } from 'react';
+import { useAuth } from '@/lib/AuthContext';
+import { LOCAL_NATIVE_BUNDLE } from '@/lib/native-bundle-mode';
+import { isHostedAppOrigin, isNativeShell } from '@/lib/native-hosted-redirect';
+import NativeLoginCard from '@/components/NativeLoginCard';
+import NativeDebugBadge from '@/components/NativeDebugBadge';
+
+/**
+ * Web → Base44 platform login (Google / Apple / email on one page).
+ * Native bundled → NativeLoginCard with all options in-app.
+ * Native hosted → simple Sign in button → platform login.
+ */
+export default function SignInScreen({ clearSignedOut = false }) {
+  const { navigateToLogin } = useAuth();
+  const started = useRef(false);
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-rb-screen', 'sign-in');
+    return () => document.documentElement.removeAttribute('data-rb-screen');
+  }, []);
+
+  useEffect(() => {
+    if (isNativeShell()) return;
+    if (clearSignedOut) return;
+    if (started.current) return;
+    started.current = true;
+    navigateToLogin();
+  }, [navigateToLogin, clearSignedOut]);
+
+  if (!isNativeShell()) {
+    if (clearSignedOut) {
+      return (
+        <div className="fixed inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 gap-4 px-6">
+          <h1 className="text-2xl font-bold text-gray-900">Restorebraine</h1>
+          <p className="text-sm text-gray-500 text-center">You have been signed out.</p>
+          <button
+            type="button"
+            onClick={navigateToLogin}
+            className="mt-2 px-6 py-3 rounded-xl bg-gradient-to-r from-blue-400 to-purple-500 text-white font-semibold"
+          >
+            Sign in
+          </button>
+        </div>
+      );
+    }
+
+    return (
+      <div className="fixed inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 gap-4">
+        <div className="w-8 h-8 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin" />
+        <p className="text-sm text-gray-500">Loading sign in…</p>
+      </div>
+    );
+  }
+
+  if (LOCAL_NATIVE_BUNDLE && !isHostedAppOrigin()) {
+    return <NativeLoginCard clearSignedOut={clearSignedOut} />;
+  }
+
+  return (
+    <main
+      id="restorebraine-signin"
+      className="rb-signin"
+      data-rb-auth="sign-in-v4"
+    >
+      <section className="rb-signin-card">
+        <h1 className="rb-signin-title">Restorebraine</h1>
+        <button
+          type="button"
+          className="rb-signin-google"
+          onClick={() => {
+            if (clearSignedOut) {
+              try {
+                localStorage.removeItem('b44_signed_out');
+              } catch {
+                /* ignore */
+              }
+            }
+            navigateToLogin();
+          }}
+        >
+          Sign in
+        </button>
+      </section>
+      <NativeDebugBadge />
+    </main>
+  );
+}
+
+export const hasStoredSessionToken = () => {
+  try {
+    if (localStorage.getItem('b44_signed_out') === '1') return false;
+    return Boolean(localStorage.getItem('base44_access_token') || localStorage.getItem('token'));
+  } catch {
+    return false;
+  }
+};
+
+
+
+════════════════════════════════════════════════════════════
+BASE44 PATH: src/screens/sign-in.css
+ACTION: Open this exact path in the Base44 Code editor → Select All → Paste → Save
+════════════════════════════════════════════════════════════
+.rb-signin {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  padding: max(16px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right))
+    max(16px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
+  background: linear-gradient(135deg, #eff6ff 0%, #f5f3ff 50%, #fdf2f8 100%);
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+.rb-signin-card {
+  width: 100%;
+  max-width: 360px;
+  padding: 36px 28px;
+  border-radius: 24px;
+  background: #fff;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+  text-align: center;
+}
+
+.rb-signin-title {
+  margin: 0 0 6px;
+  font-size: 24px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.rb-signin-tag {
+  margin: 0 0 20px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #7c3aed;
+}
+
+.rb-signin-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.rb-signin-google,
+.rb-signin-apple,
+.rb-signin-email-btn {
+  width: 100%;
+  padding: 14px 16px;
+  border: none;
+  border-radius: 14px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.rb-signin-google {
+  background: linear-gradient(135deg, #60a5fa 0%, #a78bfa 100%);
+  color: #fff;
+}
+
+.rb-signin-apple {
+  background: #111827;
+  color: #fff;
+}
+
+.rb-signin-email-btn {
+  background: #f3f4f6;
+  color: #111827;
+  border: 1px solid #e5e7eb;
+}
+
+.rb-signin-google:disabled,
+.rb-signin-apple:disabled,
+.rb-signin-email-btn:disabled {
+  opacity: 0.75;
+  cursor: wait;
+}
+
+.rb-signin-divider {
+  margin: 20px 0 16px;
+  font-size: 13px;
+  color: #9ca3af;
+  text-transform: lowercase;
+}
+
+.rb-signin-email {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  text-align: left;
+}
+
+.rb-signin-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 12px 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  font-size: 16px;
+  background: #fff;
+  color: #111827;
+}
+
+.rb-signin-input:focus {
+  outline: none;
+  border-color: #a78bfa;
+  box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.25);
+}
+
+.rb-signin-link {
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  font-size: 13px;
+  color: #7c3aed;
+  cursor: pointer;
+  text-align: center;
+}
+
+.rb-signin-error {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: #dc2626;
+  text-align: center;
+}
+
+
+
+════════════════════════════════════════════════════════════
+BASE44 PATH: src/components/NativeLoginCard.jsx
+ACTION: Open this exact path in the Base44 Code editor → Select All → Paste → Save
+════════════════════════════════════════════════════════════
+import { useState } from 'react';
+import { useAuth } from '@/lib/AuthContext';
+import { NATIVE_BUILD_LABEL } from '@/lib/build-info';
+import { openLoginInSystemBrowser } from '@/lib/native-google-oauth';
+import { getGoogleOAuthUrl, getProviderOAuthUrl } from '@/lib/native-platform-guard';
+import NativeDebugBadge from '@/components/NativeDebugBadge';
+
+const cardStyle = {
+  minHeight: '100vh',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  background: 'linear-gradient(135deg,#eff6ff,#f5f3ff,#fdf2f8)',
+  padding: '20px',
+};
+
+const formStyle = {
+  background: 'white',
+  borderRadius: '24px',
+  padding: '30px',
+  boxShadow: '0 10px 40px rgba(0,0,0,0.1)',
+  maxWidth: '390px',
+  width: '100%',
+  textAlign: 'center',
+};
+
+const ProviderButton = ({ children, onClick, dark = false, disabled = false }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    disabled={disabled}
+    style={{
+      width: '100%',
+      padding: '13px 14px',
+      background: dark ? '#000' : '#fff',
+      color: dark ? '#fff' : '#374151',
+      border: dark ? '1px solid #000' : '1px solid #d1d5db',
+      borderRadius: '10px',
+      fontSize: '15px',
+      fontWeight: '600',
+      cursor: disabled ? 'wait' : 'pointer',
+      marginBottom: '10px',
+      boxShadow: dark ? 'none' : '0 2px 8px rgba(0,0,0,0.04)',
+      opacity: disabled ? 0.7 : 1,
+    }}
+  >
+    {children}
+  </button>
+);
+
+/** v4 bundled native login — all providers + email. No logo. */
+export default function NativeLoginCard({ clearSignedOut = false }) {
+  const { loginWithEmailPassword, registerWithEmailPassword } = useAuth();
+  const [mode, setMode] = useState('signin');
+  const [fullName, setFullName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
+  const [noticeMessage, setNoticeMessage] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [openingProvider, setOpeningProvider] = useState(null);
+
+  const clearSignedOutFlag = () => {
+    if (!clearSignedOut) return;
+    try {
+      localStorage.removeItem('b44_signed_out');
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const handleProviderClick = async (provider) => {
+    if (openingProvider) return;
+    clearSignedOutFlag();
+    setErrorMessage('');
+    setNoticeMessage('');
+    setOpeningProvider(provider);
+    try {
+      const url = provider === 'google' ? getGoogleOAuthUrl() : getProviderOAuthUrl(provider);
+      await openLoginInSystemBrowser(url, provider);
+    } catch (error) {
+      console.error(`${provider} sign-in failed to open`, error);
+      setErrorMessage('Could not open sign in. Try again or use email.');
+    } finally {
+      setOpeningProvider(null);
+    }
+  };
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    setErrorMessage('');
+    setNoticeMessage('');
+    clearSignedOutFlag();
+
+    if (!email.trim() || !password) {
+      setErrorMessage('Enter your email and password to sign in.');
+      return;
+    }
+
+    if (mode === 'signup' && !fullName.trim()) {
+      setErrorMessage('Enter your name to create an account.');
+      return;
+    }
+
+    setNoticeMessage(mode === 'signup' ? 'Creating your account…' : 'Signing in…');
+    setIsSubmitting(true);
+    try {
+      if (mode === 'signup') {
+        await registerWithEmailPassword({ fullName: fullName.trim(), email: email.trim(), password });
+        setNoticeMessage('Account created.');
+        setMode('signin');
+      } else {
+        await loginWithEmailPassword({ email: email.trim(), password });
+        setNoticeMessage('Signed in.');
+      }
+    } catch (error) {
+      setNoticeMessage('');
+      setErrorMessage(
+        error?.data?.message || error?.message || (mode === 'signup' ? 'Unable to create account' : 'Invalid email or password'),
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div style={cardStyle}>
+      <form onSubmit={handleSubmit} noValidate style={formStyle}>
+        <h1 style={{ fontSize: '24px', fontWeight: '700', color: '#111', margin: '0 0 24px' }}>Restorebraine</h1>
+
+        <ProviderButton onClick={() => handleProviderClick('google')} disabled={!!openingProvider}>
+          <span style={{ color: '#4285F4', fontWeight: '800', marginRight: '10px' }}>G</span>
+          {openingProvider === 'google' ? 'Opening Google…' : 'Continue With Google'}
+        </ProviderButton>
+        <ProviderButton dark onClick={() => handleProviderClick('apple')} disabled={!!openingProvider}>
+          {openingProvider === 'apple' ? 'Opening Apple…' : 'Continue With Apple'}
+        </ProviderButton>
+        <ProviderButton onClick={() => handleProviderClick('microsoft')} disabled={!!openingProvider}>
+          <span style={{ color: '#0078d4', fontWeight: '800', marginRight: '10px' }}>M</span>
+          {openingProvider === 'microsoft' ? 'Opening Microsoft…' : 'Continue With Microsoft'}
+        </ProviderButton>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px', margin: '18px 0', color: '#9ca3af', fontSize: '13px' }}>
+          <div style={{ height: '1px', background: '#e5e7eb', flex: 1 }} />
+          <span>OR</span>
+          <div style={{ height: '1px', background: '#e5e7eb', flex: 1 }} />
+        </div>
+
+        {mode === 'signup' ? (
+          <>
+            <label style={{ display: 'block', textAlign: 'left', fontSize: '13px', fontWeight: '600', color: '#374151', marginBottom: '6px' }}>Name</label>
+            <input
+              type="text"
+              autoComplete="name"
+              value={fullName}
+              onChange={(event) => setFullName(event.target.value)}
+              required
+              style={{ width: '100%', boxSizing: 'border-box', padding: '13px 14px', border: '1px solid #d1d5db', borderRadius: '12px', fontSize: '16px', marginBottom: '12px' }}
+            />
+          </>
+        ) : null}
+        <label style={{ display: 'block', textAlign: 'left', fontSize: '13px', fontWeight: '600', color: '#374151', marginBottom: '6px' }}>Email</label>
+        <input
+          type="email"
+          autoCapitalize="none"
+          autoComplete="email"
+          value={email}
+          onChange={(event) => setEmail(event.target.value)}
+          required
+          style={{ width: '100%', boxSizing: 'border-box', padding: '13px 14px', border: '1px solid #d1d5db', borderRadius: '12px', fontSize: '16px', marginBottom: '12px' }}
+        />
+        <label style={{ display: 'block', textAlign: 'left', fontSize: '13px', fontWeight: '600', color: '#374151', marginBottom: '6px' }}>Password</label>
+        <input
+          type="password"
+          autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
+          value={password}
+          onChange={(event) => setPassword(event.target.value)}
+          required
+          style={{ width: '100%', boxSizing: 'border-box', padding: '13px 14px', border: '1px solid #d1d5db', borderRadius: '12px', fontSize: '16px', marginBottom: '16px' }}
+        />
+        {errorMessage ? <p style={{ color: '#dc2626', fontSize: '13px', margin: '0 0 12px' }}>{errorMessage}</p> : null}
+        {noticeMessage ? <p style={{ color: '#6b7280', fontSize: '13px', margin: '0 0 12px' }}>{noticeMessage}</p> : null}
+        <button
+          disabled={isSubmitting || !!openingProvider}
+          type="submit"
+          style={{
+            width: '100%',
+            padding: '14px',
+            background: 'linear-gradient(135deg,#60a5fa,#a78bfa)',
+            color: 'white',
+            border: 'none',
+            borderRadius: '14px',
+            fontSize: '16px',
+            fontWeight: '600',
+            cursor: isSubmitting ? 'default' : 'pointer',
+            opacity: isSubmitting ? 0.7 : 1,
+          }}
+        >
+          {isSubmitting ? (mode === 'signup' ? 'Creating Account…' : 'Signing In…') : (mode === 'signup' ? 'Create Account' : 'Sign In With Email')}
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setMode(mode === 'signup' ? 'signin' : 'signup');
+            setErrorMessage('');
+            setNoticeMessage('');
+          }}
+          style={{ marginTop: '16px', background: 'transparent', border: 'none', color: '#7c3aed', fontSize: '14px', fontWeight: '600', cursor: 'pointer' }}
+        >
+          {mode === 'signup' ? 'Already have an account? Sign in' : "Don't have an account? Sign up"}
+        </button>
+        <p style={{ margin: '14px 0 0', color: '#c4b5fd', fontSize: '11px', fontWeight: '600' }}>{NATIVE_BUILD_LABEL}</p>
+      </form>
+      <NativeDebugBadge />
+    </div>
+  );
+}
+
+
+
+════════════════════════════════════════════════════════════
+BASE44 PATH: src/components/LoginPage.jsx
+ACTION: Open this exact path in the Base44 Code editor → Select All → Paste → Save
+════════════════════════════════════════════════════════════
+/** @deprecated Use @/screens/SignInScreen — kept for Base44 path compatibility. */
+export { default, hasStoredSessionToken } from '@/screens/SignInScreen';
+
+
+
+════════════════════════════════════════════════════════════
+BASE44 PATH: src/components/LoginLogo.jsx
+ACTION: Open this exact path in the Base44 Code editor → Select All → Paste → Save
+════════════════════════════════════════════════════════════
+import { useState } from 'react';
+import { getRestorebraineAppLogo, getRestorebraineAppLogoFallbacks } from '@/lib/app-branding';
+
+/** Build v4: embedded logo data URL first — brain emoji only if all sources fail. */
+export default function LoginLogo({ compact = false }) {
+  const [sources] = useState(() => getRestorebraineAppLogoFallbacks());
+  const [sourceIndex, setSourceIndex] = useState(0);
+  const src = sources[sourceIndex] ?? getRestorebraineAppLogo();
+  const size = compact ? 44 : 56;
+  const radius = compact ? 12 : 16;
+  const failed = sourceIndex >= sources.length;
+
+  if (failed) {
+    return (
+      <div
+        style={{
+          width: `${size}px`,
+          height: `${size}px`,
+          borderRadius: `${radius}px`,
+          margin: compact ? 0 : '0 auto 12px',
+          background: 'linear-gradient(135deg,#60a5fa,#a78bfa)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: compact ? '22px' : '28px',
+          boxShadow: '0 6px 20px rgba(96,165,250,0.22)',
+        }}
+        aria-hidden
+      >
+        🧠
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={src}
+      alt="Restorebraine"
+      data-rb-logo="1"
+      onError={() => setSourceIndex((index) => index + 1)}
+      style={{
+        width: `${size}px`,
+        height: `${size}px`,
+        borderRadius: `${radius}px`,
+        objectFit: 'cover',
+        display: 'block',
+        margin: compact ? 0 : '0 auto 12px',
+        boxShadow: '0 6px 20px rgba(96,165,250,0.22)',
+      }}
+    />
+  );
+}
+
+
+
+════════════════════════════════════════════════════════════
+BASE44 PATH: src/lib/login-logo-data.js
+ACTION: Open this exact path in the Base44 Code editor → Select All → Paste → Save
+════════════════════════════════════════════════════════════
+/** Generated by scripts/embed-login-logo.mjs — do not edit */
+export const LOGIN_LOGO_DATA_URL = 'data:image/png;base64,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';
+
+
+
+════════════════════════════════════════════════════════════
+BASE44 PATH: src/lib/native-hosted-redirect.js
+ACTION: Open this exact path in the Base44 Code editor → Select All → Paste → Save
+════════════════════════════════════════════════════════════
+import { DEFAULT_APP_ORIGIN, getAppOrigin, isAppHost } from './app-domains';
+import { LOCAL_NATIVE_BUNDLE } from './native-bundle-mode';
+import { Capacitor } from '@capacitor/core';
+
+export const HOSTED_APP_URL = DEFAULT_APP_ORIGIN;
+
+export const isNativeShell = () => {
+  try {
+    if (typeof window === 'undefined') return false;
+    if (Capacitor.isNativePlatform()) return true;
+    const { protocol, hostname } = window.location;
+    if (protocol === 'capacitor:' || protocol === 'ionic:') return true;
+    if ((hostname === 'localhost' || hostname === '127.0.0.1') && window.Capacitor) return true;
+    return false;
+  } catch {
+    return false;
+  }
+};
+
+/** Where the Capacitor WebView should land after OAuth — NOT always the hosted URL. */
+export const getNativeWebViewHome = () => {
+  if (typeof window === 'undefined') return DEFAULT_APP_ORIGIN;
+  const { hostname } = window.location;
+  if (hostname === 'localhost' || hostname === '127.0.0.1') return `${window.location.origin}/`;
+  if (LOCAL_NATIVE_BUNDLE) return `${window.location.origin}/`;
+  if (isNativeShell()) return DEFAULT_APP_ORIGIN;
+  return getAppOrigin();
+};
+
+export const isHostedAppOrigin = () => {
+  try {
+    if (typeof window === 'undefined') return false;
+    const { protocol, hostname } = window.location;
+    // Bundled native app (capacitor://localhost or https://localhost) is NOT the live hosted site.
+    if (protocol === 'capacitor:' || protocol === 'ionic:') return false;
+    if (LOCAL_NATIVE_BUNDLE) return false;
+    if (hostname === 'localhost' || hostname === '127.0.0.1') return false;
+    return isAppHost(hostname);
+  } catch {
+    return false;
+  }
+};
+
+/** Native installs should always use the live hosted app — same UI/login as kbrown9000@aol.com */
+export const redirectNativeToHostedApp = () => {
+  if (LOCAL_NATIVE_BUNDLE) return false;
+  if (!isNativeShell() || isHostedAppOrigin()) return false;
+  // Bundled native-local loads https://localhost — never redirect to hosted URL.
+  const hostname = window.location?.hostname;
+  if (hostname === 'localhost' || hostname === '127.0.0.1') return false;
+
+  const suffix = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+  const target = suffix && suffix !== '/' ? `${HOSTED_APP_URL}${suffix}` : HOSTED_APP_URL;
+  window.location.replace(target);
+  return true;
+};
+
+
+
+>>> Continue with Part 3 before clicking Publish <<<

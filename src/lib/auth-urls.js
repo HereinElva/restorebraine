@@ -1,8 +1,9 @@
-import { isNativeShell } from '@/lib/native-hosted-redirect';
+import { isNativeShell, isHostedAppOrigin } from '@/lib/native-hosted-redirect';
 import { getAuthReturnOrigin } from '@/lib/app-domains';
-import { BASE44_APP_ID, BASE44_PLATFORM_URL } from '@/lib/native-platform-guard';
+import { BASE44_APP_ID, BASE44_PLATFORM_URL, getGoogleOAuthUrl } from '@/lib/native-platform-guard';
+import { openLoginInSystemBrowser } from '@/lib/native-google-oauth';
 
-export { RESTOREBRAINE_FROM_URL, getGoogleOAuthUrl } from '@/lib/native-platform-guard';
+export { RESTOREBRAINE_FROM_URL, getGoogleOAuthUrl, getCanonicalOAuthUrl } from '@/lib/native-platform-guard';
 export { getAuthReturnOrigin } from '@/lib/app-domains';
 
 /**
@@ -21,20 +22,22 @@ export const getPlatformLoginUrl = (fromUrl) => {
 
 export const getRestorebraineLoginUrl = getPlatformLoginUrl;
 
-/** Open Restorebraine login — never the broken custom-domain /login route. */
+/**
+ * Open Base44 platform login — Google, Apple, Microsoft, and email on one page.
+ */
 export const openRestorebraineLogin = () => {
   if (typeof window === 'undefined') return;
 
-  const url = getPlatformLoginUrl();
-
-  if (isNativeShell()) {
-    import('@/lib/native-google-oauth').then(({ openLoginInSystemBrowser }) => {
-      openLoginInSystemBrowser(url);
-    });
-    return;
+  // Bundled native: OAuth in iOS sign-in sheet — never navigate the WebView to Base44.
+  if (isNativeShell() && !isHostedAppOrigin()) {
+    return openLoginInSystemBrowser(getGoogleOAuthUrl(), 'google');
   }
 
-  window.location.href = url;
+  if (isNativeShell()) {
+    return openLoginInSystemBrowser(getPlatformLoginUrl(), 'google');
+  }
+
+  window.location.href = getPlatformLoginUrl();
 };
 
 /** If the user lands on /login on a custom domain, escape the broken platform page. */
@@ -49,6 +52,6 @@ export const redirectBrokenCustomDomainLogin = () => {
   if (!params.get('from_url')) params.set('from_url', getAuthReturnOrigin());
   if (!params.get('prompt')) params.set('prompt', 'select_account');
 
-  window.location.replace(`${BASE44_PLATFORM_URL}/login?${params.toString()}`);
+  window.location.replace(getGoogleOAuthUrl());
   return true;
 };

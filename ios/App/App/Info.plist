@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-        <string>Restorebraine</string>
+	<string>Restorebraine</string>
 	<key>CFBundleIconName</key>
 	<string>AppIcon</string>
 	<key>CFBundleExecutable</key>
@@ -15,7 +15,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>$(PRODUCT_NAME)</string>
+	<string>Restorebraine</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -58,5 +58,19 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Restorebraine needs access to your photos and videos so you can upload memories.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Restorebraine can save photos to your library when you choose.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Restorebraine can use your camera to take photos and videos to upload.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Restorebraine needs microphone access when you upload videos.</string>
+	<key>WKAppBoundDomains</key>
+	<array>
+		<string>restorebraine.base44.app</string>
+		<string>restorebraine.com</string>
+		<string>www.restorebraine.com</string>
+	</array>
 </dict>
 </plist>

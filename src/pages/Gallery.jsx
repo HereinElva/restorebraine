@@ -1,6 +1,20 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useLayoutEffect, useMemo } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/lib/AuthContext";
+import { hasStoredSessionToken } from "@/screens/SignInScreen";
+import { ensureClientSessionToken } from "@/lib/session-bootstrap";
+import { loadGalleryData } from "@/lib/gallery-data";
+import { hydrateGalleryCacheSync } from "@/lib/gallery-cache-hydrate";
+import { withTimeout } from "@/lib/invoke-llm-retry";
+import {
+  loadGalleryPhotosCacheSync,
+  loadGalleryUserEmailSync,
+  loadGalleryUserSnapshotSync,
+  persistGalleryPhotosSync,
+  persistGalleryUserSync,
+} from "@/lib/gallery-photos-cache";
+import { resetAppScrollPosition } from "@/lib/scroll-reset";
 import { Search, Image as ImageIcon, Sparkles, MousePointer2 } from "lucide-react";
 import PullToRefresh from "../components/gallery/PullToRefresh";
 import { Input } from "@/components/ui/input";
@@ -18,6 +32,10 @@ import { DragDropContext } from "@hello-pangea/dnd";
 import { useNavigation } from "../components/NavigationContext";
 import { useTabState } from "../components/TabStateContext";
 import MobileGallery from "../components/gallery/MobileGallery";
+import { setGalleryOrganizeSnapshot, toStoredPhotoIds, normalizePhotoId } from "@/lib/gallery-organize-snapshot";
+import { fetchGalleryFoldersWithMembership, mergeApiFoldersWithLocal } from "@/lib/folder-membership";
+import { loadFullFolderSnapshotAsync, loadFolderSnapshotCacheSync } from "@/lib/folder-membership-cache";
+import "../components/gallery/mobile-gallery-layout.css";
  
 // ---------------------------------------------------------------------------
 // Search helpers
@@ -76,12 +94,16 @@ const CACHE = {
   photos:  { staleTime: 2  * 60 * 1000, gcTime: 10 * 60 * 1000 }, // 2 min stale
   folders: { staleTime: 2  * 60 * 1000, gcTime: 10 * 60 * 1000 },
 };
+
+const GALLERY_LOAD_TIMEOUT_MS = 12000;
  
 // ---------------------------------------------------------------------------
  
 export default function Gallery() {
   const { pushBack, popBack } = useNavigation();
   const { getTabState, setTabState } = useTabState();
+  const { isAuthenticated, user: authUser } = useAuth();
+  const canFetchData = isAuthenticated || hasStoredSessionToken();
   const isIOS = true;
  
   const saved = getTabState("Gallery") ?? {};
@@ -94,12 +116,41 @@ export default function Gallery() {
   const [selectedIds, setSelectedIds] = useState([]);
   const [selectedFolderIds, setSelectedFolderIds] = useState([]);
   const [isMoving, setIsMoving] = useState(false);
+  const [loadTimedOut, setLoadTimedOut] = useState(false);
   const queryClient = useQueryClient();
+
+  useLayoutEffect(() => {
+    hydrateGalleryCacheSync(queryClient);
+  }, [queryClient]);
  
   useEffect(() => {
     setTabState("Gallery", { searchQuery, debouncedQuery, selectedFolder });
   }, [searchQuery, debouncedQuery, selectedFolder]);
- 
+
+  useEffect(() => {
+    if (!canFetchData) return;
+    ensureClientSessionToken();
+    const refreshGallery = () => {
+      ensureClientSessionToken();
+      void loadGalleryData(queryClient);
+      resetAppScrollPosition();
+    };
+    refreshGallery();
+    window.addEventListener('restorebraine-session-updated', refreshGallery);
+    window.addEventListener('restorebraine-native-oauth-complete', refreshGallery);
+    window.addEventListener('restorebraine-gallery-ready', refreshGallery);
+    return () => {
+      window.removeEventListener('restorebraine-session-updated', refreshGallery);
+      window.removeEventListener('restorebraine-native-oauth-complete', refreshGallery);
+      window.removeEventListener('restorebraine-gallery-ready', refreshGallery);
+    };
+  }, [canFetchData, queryClient]);
+
+  useLayoutEffect(() => {
+    if (!canFetchData) return;
+    resetAppScrollPosition();
+  }, [canFetchData]);
+
   useEffect(() => {
     if (selectedFolder) {
       pushBack(selectedFolder.name, () => {
@@ -117,39 +168,130 @@ export default function Gallery() {
   // currentUser is fetched once and cached — no blocking on re-opens
   const { data: currentUser } = useQuery({
     queryKey: ['current-user'],
-    queryFn: () => base44.auth.me(),
+    queryFn: async () => {
+      ensureClientSessionToken();
+      const me = await withTimeout(base44.auth.me(), 8000, 'Auth');
+      persistGalleryUserSync(me);
+      return me;
+    },
+    enabled: canFetchData,
     staleTime: CACHE.user.staleTime,
     gcTime: CACHE.user.gcTime,
-    // Show stale data immediately while re-fetching in background
-    placeholderData: (prev) => prev,
+    placeholderData: (prev) => prev ?? loadGalleryUserSnapshotSync() ?? authUser ?? undefined,
+    retry: 1,
   });
- 
+
+  const userEmail = currentUser?.email || authUser?.email || loadGalleryUserEmailSync();
+
   const { data: photos = [], isLoading: photosLoading } = useQuery({
-    queryKey: ['photos', currentUser?.email],
-    queryFn: () => base44.entities.Photo.filter({ created_by: currentUser.email }, '-created_date'),
-    enabled: !!currentUser?.email,
+    queryKey: ['photos', userEmail ?? 'pending'],
+    queryFn: async () => {
+      ensureClientSessionToken();
+      const me = userEmail
+        ? { email: userEmail }
+        : await withTimeout(base44.auth.me(), 8000, 'Auth');
+      if (!me?.email) throw new Error('Gallery requires signed-in user');
+      persistGalleryUserSync(me);
+      try {
+        const fetched = await withTimeout(
+          base44.entities.Photo.filter({ created_by: me.email }, '-created_date'),
+          18000,
+          'Photos',
+        );
+        const list = fetched || [];
+        persistGalleryPhotosSync(me.email, list);
+        return list;
+      } catch (error) {
+        const cached = loadGalleryPhotosCacheSync(me.email);
+        if (cached.length) {
+          console.warn('Photos query failed, using cache:', error);
+          return cached;
+        }
+        throw error;
+      }
+    },
+    enabled: canFetchData && !!userEmail,
     staleTime: CACHE.photos.staleTime,
     gcTime: CACHE.photos.gcTime,
-    // Keep showing previous data while new data loads — no blank flash
-    placeholderData: (prev) => prev,
-    initialData: [],
-  });
- 
-  const { data: folders = [] } = useQuery({
-    queryKey: ['folders', currentUser?.email],
-    queryFn: async () => {
-      const result = await base44.entities.Folder.list('-created_date', 200);
-      return (result || []).filter(f => !f.created_by || f.created_by === currentUser.email);
+    placeholderData: (previousData) => {
+      if (previousData?.length) return previousData;
+      if (!userEmail) return [];
+      return loadGalleryPhotosCacheSync(userEmail);
     },
-    enabled: !!currentUser?.email,
+    retry: 1,
+  });
+
+  const { data: folders = [] } = useQuery({
+    queryKey: ['folders', userEmail ?? 'pending'],
+    queryFn: async () => {
+      ensureClientSessionToken();
+      const me = userEmail
+        ? { email: userEmail }
+        : await withTimeout(base44.auth.me(), 8000, 'Auth');
+      if (!me?.email) throw new Error('Gallery requires signed-in user');
+      const photosData =
+        queryClient.getQueryData(['photos', me.email]) ??
+        loadGalleryPhotosCacheSync(me.email) ??
+        (await withTimeout(
+          base44.entities.Photo.filter({ created_by: me.email }, '-created_date'),
+          18000,
+          'Photos',
+        ));
+      const snapshot = await loadFullFolderSnapshotAsync(me.email);
+      const fetched = await withTimeout(
+        fetchGalleryFoldersWithMembership(me.email, photosData || []),
+        15000,
+        'Folders',
+      );
+      return mergeApiFoldersWithLocal(fetched, snapshot);
+    },
+    enabled: canFetchData && !!userEmail,
     staleTime: CACHE.folders.staleTime,
     gcTime: CACHE.folders.gcTime,
-    placeholderData: (prev) => prev,
-    initialData: [],
+    placeholderData: (previousData) => {
+      if (previousData?.length) return previousData;
+      if (!userEmail) return [];
+      const snapshot = loadFolderSnapshotCacheSync(userEmail);
+      return snapshot.length ? snapshot : [];
+    },
+    retry: 1,
   });
- 
-  // Only show the loading spinner on the very first load (no cached data yet)
-  const isLoading = photosLoading && photos.length === 0;
+
+  useEffect(() => {
+    if (!userEmail || !canFetchData) return;
+    loadFullFolderSnapshotAsync(userEmail).then((snapshot) => {
+      if (!snapshot.length) return;
+      queryClient.setQueryData(['folders', userEmail], (prev) =>
+        mergeApiFoldersWithLocal(prev ?? [], snapshot),
+      );
+    });
+  }, [userEmail, canFetchData, queryClient]);
+
+  // Only show the loading spinner when there is no cached data to display yet.
+  const isLoading = photosLoading && photos.length === 0 && !loadTimedOut;
+
+  useEffect(() => {
+    if (!photosLoading || photos.length > 0) {
+      setLoadTimedOut(false);
+      return;
+    }
+    const timer = setTimeout(() => setLoadTimedOut(true), GALLERY_LOAD_TIMEOUT_MS);
+    return () => clearTimeout(timer);
+  }, [photosLoading, photos.length]);
+
+  /** Align folder photo_ids with Photo.id values so Recents clears after organize. */
+  const foldersForGallery = useMemo(
+    () =>
+      folders.map((folder) => ({
+        ...folder,
+        photo_ids: toStoredPhotoIds(folder.photo_ids, photos),
+      })),
+    [folders, photos],
+  );
+
+  useEffect(() => {
+    setGalleryOrganizeSnapshot({ photos, folders: foldersForGallery });
+  }, [photos, foldersForGallery]);
  
   // Auto-update folders without cover photos
   useEffect(() => {
@@ -158,15 +300,17 @@ export default function Gallery() {
         f => (!f.cover_photo_url || f.cover_photo_url === '') && f.photo_ids?.length > 0
       );
       if (foldersNeedingCovers.length === 0) return;
-      let updated = false;
-      for (const folder of foldersNeedingCovers) {
-        const coverPhoto = photos.find(p => p.id === folder.photo_ids[0]);
-        if (coverPhoto) {
-          await base44.entities.Folder.update(folder.id, { cover_photo_url: coverPhoto.file_url });
-          updated = true;
-        }
-      }
-      if (updated) queryClient.invalidateQueries({ queryKey: ['folders'] });
+      const updates = foldersNeedingCovers
+        .map((folder) => {
+          const coverPhoto = photos.find((p) => p.id === folder.photo_ids[0]);
+          return coverPhoto
+            ? base44.entities.Folder.update(folder.id, { cover_photo_url: coverPhoto.file_url })
+            : null;
+        })
+        .filter(Boolean);
+      if (updates.length === 0) return;
+      await Promise.all(updates);
+      queryClient.invalidateQueries({ queryKey: ['folders'] });
     };
     if (photos.length > 0 && folders.length > 0) updateFolderCovers();
   }, [folders, photos, queryClient]);
@@ -192,10 +336,12 @@ export default function Gallery() {
     return () => clearTimeout(timer);
   }, [searchQuery]);
  
-  const photosInFolders = new Set(folders.flatMap(f => f.photo_ids || []));
+  const photosInFolders = new Set(
+    foldersForGallery.flatMap((f) => (f.photo_ids || []).map(normalizePhotoId)),
+  );
   const availablePhotos = debouncedQuery
     ? photos
-    : photos.filter(p => !photosInFolders.has(p.id));
+    : photos.filter((p) => p?.id != null && !photosInFolders.has(normalizePhotoId(p.id)));
  
   const filteredPhotos = debouncedQuery
     ? availablePhotos
@@ -308,19 +454,29 @@ export default function Gallery() {
     }
   };
  
-  // Pull-to-refresh forces a fresh fetch bypassing the cache
+  // Pull-to-refresh — refetch gallery data; always completes so spinner clears
   const handleRefresh = async () => {
-    await queryClient.invalidateQueries({ queryKey: ['photos'] });
-    await queryClient.invalidateQueries({ queryKey: ['folders'] });
-    await queryClient.invalidateQueries({ queryKey: ['current-user'] });
+    window.dispatchEvent(new Event("restorebraine-gallery-refresh"));
+    if (!userEmail) return;
+
+    await Promise.race([
+      Promise.all([
+        queryClient.refetchQueries({ queryKey: ["photos", userEmail] }),
+        queryClient.refetchQueries({ queryKey: ["folders", userEmail] }),
+      ]).catch((error) => {
+        console.warn("Gallery refetch failed:", error);
+      }),
+      new Promise((resolve) => setTimeout(resolve, 8000)),
+    ]);
   };
  
   if (isIOS) {
     return (
       <PullToRefresh onRefresh={handleRefresh}>
+        <div className="rb-mobile-gallery-shell">
         <MobileGallery
           photos={photos}
-          folders={folders}
+          folders={foldersForGallery}
           isLoading={isLoading}
           filteredPhotos={filteredPhotos}
           filteredFolders={filteredFolders}
@@ -343,6 +499,7 @@ export default function Gallery() {
           onDeletePhotos={handleDeletePhotos}
           onMoveToFolder={handleMoveToFolder}
         />
+        </div>
       </PullToRefresh>
     );
   }
@@ -363,7 +520,7 @@ export default function Gallery() {
  
           {photos.length >= 2 && (
             <div className="mt-6 flex justify-center gap-3 flex-wrap">
-              <OrganizeButton photos={photos} />
+              <OrganizeButton photos={photos} folders={foldersForGallery} />
               <CustomFolderButton photos={photos} />
               <DuplicateDetector photos={photos} folders={folders} />
               <Button

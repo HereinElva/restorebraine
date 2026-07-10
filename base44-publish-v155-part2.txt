@@ -1,0 +1,380 @@
+Restorebraine Base44 Publish — PART 2 — Native OAuth + session (deploy v155)
+
+For each block: open BASE44 PATH in Code editor → Select All → Paste code below divider → Save
+
+
+════════════════════════════════════════════════════════════
+BASE44 PATH: src/api/base44Client.js
+ACTION: Open this exact path in the Base44 Code editor → Select All → Paste → Save
+════════════════════════════════════════════════════════════
+import { createClient } from '@base44/sdk';
+import { appParams, getAppOrigin } from '@/lib/app-params';
+import { getGoogleOAuthUrl, openRestorebraineLogin } from '@/lib/auth-urls';
+import { isNativeShell, isHostedAppOrigin } from '@/lib/native-hosted-redirect';
+
+const { appId, serverUrl, token, functionsVersion } = appParams;
+
+//Create a client with authentication required
+export const base44 = createClient({
+  appId,
+  serverUrl,
+  appBaseUrl: getAppOrigin(),
+  token,
+  functionsVersion,
+  requiresAuth: false
+});
+
+// Never send users to app.base44.com/login multi-provider page — direct Google OAuth.
+const originalRedirectToLogin = base44.auth.redirectToLogin.bind(base44.auth);
+base44.auth.redirectToLogin = (nextUrl) => {
+  if (typeof window === 'undefined') {
+    return originalRedirectToLogin(nextUrl);
+  }
+  if (isNativeShell() && !isHostedAppOrigin()) {
+    openRestorebraineLogin();
+    return;
+  }
+  window.location.href = getGoogleOAuthUrl();
+};
+
+
+
+════════════════════════════════════════════════════════════
+BASE44 PATH: src/App.jsx
+ACTION: Open this exact path in the Base44 Code editor → Select All → Paste → Save
+════════════════════════════════════════════════════════════
+import './App.css'
+import { Toaster } from "@/components/ui/toaster"
+import { QueryClientProvider } from '@tanstack/react-query'
+import { queryClientInstance } from '@/lib/query-client'
+
+import NavigationTracker from '@/lib/NavigationTracker'
+import { pagesConfig } from './pages.config'
+import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
+import { setupIframeMessaging } from './lib/iframe-messaging';
+import PageNotFound from './lib/PageNotFound';
+import { AuthProvider, useAuth } from '@/lib/AuthContext';
+import UserNotRegisteredError from '@/components/UserNotRegisteredError';
+import NativeDebugBadge from '@/components/NativeDebugBadge';
+import RestorebraineSignIn, { hasStoredSessionToken } from '@/auth/RestorebraineSignIn';
+import V4CoreWrongOrigin from '@/components/V4CoreWrongOrigin';
+import { isNativeShell } from '@/lib/native-hosted-redirect';
+import { isV4CoreWrongOrigin } from '@/lib/v4-core-guard';
+
+const { Pages, Layout, mainPage } = pagesConfig;
+const mainPageKey = mainPage ?? Object.keys(Pages)[0];
+const MainPage = mainPageKey ? Pages[mainPageKey] : <></>;
+
+if (!isNativeShell()) {
+  setupIframeMessaging();
+}
+
+const LayoutWrapper = ({ children, currentPageName }) => Layout ?
+  <Layout currentPageName={currentPageName}>{children}</Layout>
+  : <>{children}</>;
+
+const AuthenticatedApp = () => {
+  const { isLoadingAuth, isLoadingPublicSettings, authError, isAuthenticated, manuallyLoggedOut } = useAuth();
+
+  if (manuallyLoggedOut) {
+    return <RestorebraineSignIn clearSignedOut />;
+  }
+
+  if (!isAuthenticated && !hasStoredSessionToken()) {
+    return <RestorebraineSignIn />;
+  }
+
+  if ((isLoadingPublicSettings || isLoadingAuth) && hasStoredSessionToken()) {
+    return (
+      <>
+        <div className="fixed inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 gap-4">
+          <div className="w-8 h-8 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin" />
+          <p className="text-sm text-gray-500">Loading Restorebraine…</p>
+        </div>
+        {isNativeShell() ? <NativeDebugBadge /> : null}
+      </>
+    );
+  }
+
+  if (authError?.type === 'user_not_registered') {
+    return <UserNotRegisteredError />;
+  }
+
+  if (authError || !isAuthenticated) {
+    return <RestorebraineSignIn clearSignedOut />;
+  }
+
+  return (
+    <>
+      <LayoutWrapper currentPageName={mainPageKey}>
+        <Routes>
+          <Route path="/" element={<MainPage />} />
+          {Object.entries(Pages).map(([path, Page]) => (
+            <Route key={path} path={`/${path.toLowerCase()}`} element={<Page />} />
+          ))}
+          <Route path="*" element={<PageNotFound />} />
+        </Routes>
+      </LayoutWrapper>
+      {isNativeShell() ? <NativeDebugBadge /> : null}
+    </>
+  );
+};
+
+
+function App() {
+  if (isV4CoreWrongOrigin()) {
+    return <V4CoreWrongOrigin />;
+  }
+
+  return (
+    <AuthProvider>
+      <QueryClientProvider client={queryClientInstance}>
+        <Router>
+          <NavigationTracker />
+          <AuthenticatedApp />
+        </Router>
+        <Toaster />
+      </QueryClientProvider>
+    </AuthProvider>
+  )
+}
+
+export default App
+
+
+
+════════════════════════════════════════════════════════════
+BASE44 PATH: src/auth/RestorebraineSignIn.jsx
+ACTION: Open this exact path in the Base44 Code editor → Select All → Paste → Save
+════════════════════════════════════════════════════════════
+import { useState } from 'react';
+import NativeDebugBadge from '@/components/NativeDebugBadge';
+import { isNativeShell } from '@/lib/native-hosted-redirect';
+import { startGoogleSignIn } from '@/auth/googleSignIn';
+import '@/auth/sign-in-screen.css';
+
+function GoogleSignInControl({ clearSignedOut = false }) {
+  const [busy, setBusy] = useState(false);
+  const [errorText, setErrorText] = useState('');
+
+  const onSignIn = async () => {
+    if (busy) return;
+    setErrorText('');
+    setBusy(true);
+    try {
+      await startGoogleSignIn({ clearSignedOut });
+    } catch (error) {
+      console.error('Google sign-in failed', error);
+      setErrorText(error?.message || 'Could not open sign in. Try again.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <>
+      {errorText ? <p className="rb-signin-error">{errorText}</p> : null}
+      <button
+        type="button"
+        id="restorebraine-google-btn"
+        className="rb-signin-google"
+        onClick={onSignIn}
+        disabled={busy}
+      >
+        {busy ? 'Opening sign in…' : 'Continue with Google'}
+      </button>
+    </>
+  );
+}
+
+/** v4 sign-in gate — white card, title, Google only (no logo). */
+export default function RestorebraineSignIn({ clearSignedOut = false }) {
+  return (
+    <main
+      id="restorebraine-signin-shell"
+      className="rb-signin-shell"
+      data-rb-v4-auth="react"
+      aria-label="Sign in to Restorebraine"
+    >
+      <div className="rb-signin-card">
+        <h1 className="rb-signin-title">Restorebraine</h1>
+        <GoogleSignInControl clearSignedOut={clearSignedOut} />
+      </div>
+      {isNativeShell() ? <NativeDebugBadge /> : null}
+    </main>
+  );
+}
+
+export const hasStoredSessionToken = () => {
+  try {
+    if (localStorage.getItem('b44_signed_out') === '1') return false;
+    return Boolean(localStorage.getItem('base44_access_token') || localStorage.getItem('token'));
+  } catch {
+    return false;
+  }
+};
+
+
+
+════════════════════════════════════════════════════════════
+BASE44 PATH: src/auth/googleSignIn.js
+ACTION: Open this exact path in the Base44 Code editor → Select All → Paste → Save
+════════════════════════════════════════════════════════════
+import { getGoogleOAuthUrl } from '@/lib/auth-urls';
+import { openLoginInSystemBrowser } from '@/lib/native-google-oauth';
+import { isNativeShell } from '@/lib/native-hosted-redirect';
+
+/** Start Google OAuth — direct API login, never Base44 multi-provider page. */
+export async function startGoogleSignIn({ clearSignedOut = false } = {}) {
+  if (clearSignedOut) {
+    try {
+      localStorage.removeItem('b44_signed_out');
+    } catch {
+      /* ignore storage errors */
+    }
+  }
+
+  const oauthUrl = getGoogleOAuthUrl();
+  if (isNativeShell()) {
+    await openLoginInSystemBrowser(oauthUrl, 'google');
+    return;
+  }
+
+  window.location.href = oauthUrl;
+}
+
+
+
+════════════════════════════════════════════════════════════
+BASE44 PATH: src/auth/sign-in-screen.css
+ACTION: Open this exact path in the Base44 Code editor → Select All → Paste → Save
+════════════════════════════════════════════════════════════
+/* Restorebraine v4 sign-in — fresh layout (no logo on login). */
+.rb-signin-shell {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  padding: max(16px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right))
+    max(16px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
+  background: linear-gradient(135deg, #eff6ff 0%, #f5f3ff 50%, #fdf2f8 100%);
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+.rb-signin-card {
+  width: 100%;
+  max-width: 360px;
+  padding: 36px 28px;
+  border-radius: 24px;
+  background: #ffffff;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+  text-align: center;
+}
+
+.rb-signin-title {
+  margin: 0 0 28px;
+  font-size: 24px;
+  font-weight: 700;
+  color: #111827;
+  letter-spacing: -0.02em;
+}
+
+.rb-signin-google {
+  width: 100%;
+  padding: 14px 16px;
+  border: none;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #60a5fa 0%, #a78bfa 100%);
+  color: #ffffff;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.rb-signin-google:disabled {
+  opacity: 0.75;
+  cursor: wait;
+}
+
+.rb-signin-error {
+  margin: 0 0 12px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: #dc2626;
+}
+
+
+
+════════════════════════════════════════════════════════════
+BASE44 PATH: src/components/LoginPage.jsx
+ACTION: Open this exact path in the Base44 Code editor → Select All → Paste → Save
+════════════════════════════════════════════════════════════
+/** @deprecated Import from @/auth/RestorebraineSignIn — kept for Base44 path compatibility. */
+export { default, hasStoredSessionToken } from '@/auth/RestorebraineSignIn';
+
+
+
+════════════════════════════════════════════════════════════
+BASE44 PATH: src/components/LoginLogo.jsx
+ACTION: Open this exact path in the Base44 Code editor → Select All → Paste → Save
+════════════════════════════════════════════════════════════
+import { useState } from 'react';
+import { getRestorebraineAppLogo, getRestorebraineAppLogoFallbacks } from '@/lib/app-branding';
+
+/** Build v4: embedded logo data URL first — brain emoji only if all sources fail. */
+export default function LoginLogo({ compact = false }) {
+  const [sources] = useState(() => getRestorebraineAppLogoFallbacks());
+  const [sourceIndex, setSourceIndex] = useState(0);
+  const src = sources[sourceIndex] ?? getRestorebraineAppLogo();
+  const size = compact ? 44 : 56;
+  const radius = compact ? 12 : 16;
+  const failed = sourceIndex >= sources.length;
+
+  if (failed) {
+    return (
+      <div
+        style={{
+          width: `${size}px`,
+          height: `${size}px`,
+          borderRadius: `${radius}px`,
+          margin: compact ? 0 : '0 auto 12px',
+          background: 'linear-gradient(135deg,#60a5fa,#a78bfa)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: compact ? '22px' : '28px',
+          boxShadow: '0 6px 20px rgba(96,165,250,0.22)',
+        }}
+        aria-hidden
+      >
+        🧠
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={src}
+      alt="Restorebraine"
+      data-rb-logo="1"
+      onError={() => setSourceIndex((index) => index + 1)}
+      style={{
+        width: `${size}px`,
+        height: `${size}px`,
+        borderRadius: `${radius}px`,
+        objectFit: 'cover',
+        display: 'block',
+        margin: compact ? 0 : '0 auto 12px',
+        boxShadow: '0 6px 20px rgba(96,165,250,0.22)',
+      }}
+    />
+  );
+}
+
+
+
+>>> Continue with Part 3 before clicking Publish <<<

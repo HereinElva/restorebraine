@@ -17,6 +17,8 @@ import {
   processUploadBatch,
   validateFiles,
 } from "@/lib/media-upload";
+import { persistGalleryPhotosSync } from "@/lib/gallery-photos-cache";
+import { getGalleryUserEmail } from "@/lib/gallery-query-keys";
 
 export default function Upload() {
   const queryClient = useQueryClient();
@@ -133,13 +135,29 @@ export default function Upload() {
           updateFileAt(indexes[batchIndex], patch);
         },
       });
-      queryClient.invalidateQueries({ queryKey: ["photos"] });
+      await queryClient.invalidateQueries({ queryKey: ["photos"] });
+      const email = getGalleryUserEmail(queryClient, currentUser?.email);
+      const latestPhotos = queryClient.getQueryData(["photos", email]);
+      if (email && latestPhotos?.length) {
+        persistGalleryPhotosSync(email, latestPhotos);
+      }
     } catch (error) {
       console.error("Batch upload failed:", error);
+      const message = error?.message || "Upload failed";
+      setFiles((prev) =>
+        prev.map((item, i) =>
+          indexes.includes(i) && item.status === "processing"
+            ? { ...item, status: "error", error: message, progress: 0, phase: "error" }
+            : item,
+        ),
+      );
+      if (/timed out/i.test(message)) {
+        alert("Upload took too long. Tap retry on failed items, or upload fewer files at once.");
+      }
     } finally {
       setProcessing(false);
     }
-  }, [currentPhotoCount, currentPaidTier, processing, queryClient, updateFileAt]);
+  }, [currentPhotoCount, currentPaidTier, processing, queryClient, updateFileAt, currentUser?.email]);
 
   useEffect(() => {
     if (!autoProcessRef.current || processing || showPayment) return;
@@ -217,7 +235,7 @@ export default function Upload() {
                     onClick={processPhotos}
                     className="w-full mb-4 bg-gradient-to-r from-purple-500 to-blue-500 text-white rounded-2xl py-4 font-semibold"
                   >
-                    Analyze & Save {files.filter((f) => f.status === "pending").length} Files
+                    Save {files.filter((f) => f.status === "pending").length} Memories
                   </button>
                 )}
                 <MobileUpload

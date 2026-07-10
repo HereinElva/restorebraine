@@ -2,6 +2,20 @@
   "appId": "com.restorebraine.app",
   "appName": "Restorebraine",
   "webDir": "dist",
+  "ios": {
+    "contentInset": "automatic",
+    "backgroundColor": "#ffffff",
+    "allowsLinkPreview": false,
+    "zoomEnabled": false
+  },
+  "packageClassList": [
+    "AppPlugin",
+    "CAPBrowserPlugin",
+    "InAppBrowserPlugin",
+    "PreferencesPlugin",
+    "NativePurchasesPlugin",
+    "RestorebraineOAuthPlugin"
+  ],
   "server": {
     "url": "https://restorebraine.base44.app",
     "cleartext": false,
@@ -19,9 +33,5 @@
       "m.stripe.com",
       "hooks.stripe.com"
     ]
-  },
-  "ios": {
-    "contentInset": "automatic",
-    "backgroundColor": "#ffffff"
   }
 }

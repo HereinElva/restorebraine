@@ -7,7 +7,8 @@ import { ArrowLeft, Trash2, AlertTriangle, LogOut } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useNavigation } from "@/components/NavigationContext";
-import { navigateToGallery } from "@/lib/gallery-nav";
+import { navigateToGalleryFromAccount } from "@/lib/gallery-back-nav";
+import { isHostedAppOrigin, isNativeShell } from "@/lib/native-hosted-redirect";
 
 export default function Account() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -16,7 +17,7 @@ export default function Account() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const { popBack } = useNavigation();
-  const { localLogout, resumeActiveSession } = useAuth();
+  const { logout, localLogout, resumeActiveSession } = useAuth();
 
   const { data: user } = useQuery({
     queryKey: ['user'],
@@ -28,21 +29,17 @@ export default function Account() {
   }, [popBack]);
 
   const handleLogout = async () => {
+    setShowLogoutDialog(false);
     queryClient.clear();
-    if (typeof window !== 'undefined' && window.__restorebrainePerformSignOut) {
-      window.__restorebrainePerformSignOut();
-      return;
+    try {
+      if (isNativeShell() && !isHostedAppOrigin()) {
+        await localLogout();
+      } else {
+        await logout();
+      }
+    } catch (error) {
+      console.error('Sign out failed:', error);
     }
-    await localLogout();
-  };
-
-  const goToGallery = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.nativeEvent?.stopImmediatePropagation) {
-      e.nativeEvent.stopImmediatePropagation();
-    }
-    navigateToGallery(navigate, { popBack, resumeActiveSession });
   };
 
   const handleDeleteAccount = async () => {
@@ -59,20 +56,23 @@ export default function Account() {
     }
   };
 
+  const goToGallery = (event) => {
+    event?.preventDefault?.();
+    navigateToGalleryFromAccount(navigate, { popBack, resumeActiveSession });
+  };
+
   return (
-    <div className="relative z-0 min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 py-12 pb-36">
+    <div className="relative z-0 min-h-0 bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 py-4 pb-8">
       <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8">
-        <Button
+        <button
           type="button"
-          variant="ghost"
-          className="mb-6"
-          data-rb-gallery-nav
+          data-rb-gallery-nav="back"
           onClick={goToGallery}
-          onTouchEnd={(e) => e.stopPropagation()}
+          className="inline-flex items-center mb-4 relative z-10 min-h-[44px] px-2 -ml-2 text-purple-600 font-medium hover:text-purple-700 bg-transparent border-0 cursor-pointer"
         >
           <ArrowLeft className="w-4 h-4 mr-2" />
           Back to Gallery
-        </Button>
+        </button>
         <div className="bg-white rounded-2xl shadow-lg p-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-6">Account Settings</h1>
           {user && (
@@ -88,12 +88,16 @@ export default function Account() {
             </div>
             <Button
               type="button"
-              onClick={(e) => {
-                e.stopPropagation();
+              data-rb-sign-out
+              onClick={() => {
+                if (isNativeShell() && !isHostedAppOrigin()) {
+                  void handleLogout();
+                  return;
+                }
                 setShowLogoutDialog(true);
               }}
               variant="outline"
-              className="gap-2 border-gray-300 flex-shrink-0"
+              className="gap-2 border-gray-300 flex-shrink-0 relative z-10"
             >
               <LogOut className="w-4 h-4" />
               Sign Out

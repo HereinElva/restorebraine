@@ -1,10 +1,11 @@
 import { DEFAULT_APP_ORIGIN, getAppOrigin, getAuthReturnOrigin, isAppHost } from './app-domains';
+import { LOCAL_NATIVE_BUNDLE } from './native-bundle-mode';
 
 export const RESTOREBRAINE_FROM_URL = DEFAULT_APP_ORIGIN;
 export const BASE44_APP_ID = '68fdc5f42768c4d045fe1bac';
 export const BASE44_PLATFORM_URL = 'https://app.base44.com';
-/** Native OAuth callback stays on the default hosted URL — not custom schemes. */
-export const NATIVE_OAUTH_CALLBACK = RESTOREBRAINE_FROM_URL;
+/** Native OAuth callback — custom scheme on v4-core, hosted URL otherwise. */
+export const NATIVE_OAUTH_CALLBACK = DEFAULT_APP_ORIGIN;
 
 const PLATFORM_HOSTS = new Set(['app.base44.com', 'base44.com']);
 
@@ -22,26 +23,34 @@ const providerFromLabel = (label = '') => {
   return 'google';
 };
 
-export const getCanonicalOAuthUrl = (provider = 'google') => {
+/** OAuth URL — always use hosted from_url so Base44 accepts the redirect domain. */
+export const getCanonicalOAuthUrl = (provider = 'google', { forWebView = false } = {}) => {
   const path = provider === 'google'
     ? '/api/apps/auth/login'
     : `/api/apps/auth/${provider}/login`;
   const params = new URLSearchParams({
     app_id: BASE44_APP_ID,
     from_url: getAuthReturnOrigin(),
+    prompt: 'select_account',
   });
   return `${BASE44_PLATFORM_URL}${path}?${params.toString()}`;
 };
 
-/** Force a valid OAuth URL — blocks capacitor://, restorebraine://, and app.base44.com from_url values. */
-export const normalizeAuthUrl = (rawUrl, providerHint) => {
+export const getWebViewOAuthUrl = (provider = 'google') => getCanonicalOAuthUrl(provider, { forWebView: true });
+
+/** Force a valid OAuth URL — blocks capacitor:// and app.base44.com from_url values. */
+export const normalizeAuthUrl = (rawUrl, providerHint, { forWebView = false, preservePlatformLogin = false } = {}) => {
   try {
+    if (preservePlatformLogin && isPlatformLoginUrl(rawUrl)) {
+      return String(rawUrl);
+    }
     const parsed = new URL(String(rawUrl || ''), typeof window !== 'undefined' ? window.location.href : DEFAULT_APP_ORIGIN);
-    if (!isAuthNavigationUrl(rawUrl) && !providerHint) return String(rawUrl);
+    if (!isAuthNavigationUrl(rawUrl) && !providerHint && !isPlatformLoginUrl(rawUrl)) return String(rawUrl);
+    if (isPlatformLoginUrl(rawUrl)) return String(rawUrl);
     const provider = providerHint || providerFromPath(parsed.pathname);
-    return getCanonicalOAuthUrl(provider);
+    return getCanonicalOAuthUrl(provider, { forWebView });
   } catch {
-    return getCanonicalOAuthUrl(providerHint || 'google');
+    return getCanonicalOAuthUrl(providerHint || 'google', { forWebView });
   }
 };
 
@@ -65,6 +74,15 @@ export const isAuthNavigationUrl = (url) => {
     if (/accounts\.google\.com|google\.com\/o\/oauth|oauth2\.googleapis\.com/i.test(parsed.href)) return true;
     if (isBase44PlatformHost(parsed.hostname) && parsed.pathname.startsWith('/api/apps/auth')) return true;
     if (isAppHost(parsed.hostname) && parsed.pathname.startsWith('/api/apps/auth')) return true;
+  } catch {}
+  return false;
+};
+
+export const isPlatformLoginUrl = (url) => {
+  if (!url) return false;
+  try {
+    const parsed = new URL(String(url), typeof window !== 'undefined' ? window.location.href : DEFAULT_APP_ORIGIN);
+    return isBase44PlatformHost(parsed.hostname) && /\/login/i.test(parsed.pathname);
   } catch {}
   return false;
 };
@@ -149,6 +167,7 @@ export const hideBase44EditorWidget = () => {
 
 export const interceptNativeSignInClicks = () => {
   if (typeof document === 'undefined' || window.__restorebraineSignInInterceptor) return;
+  if (LOCAL_NATIVE_BUNDLE) return;
   window.__restorebraineSignInInterceptor = true;
   document.addEventListener('click', (event) => {
     const target = event.target.closest('button, a, [role="button"], div[role="button"], [data-provider]');
@@ -181,6 +200,7 @@ export const guardGoogleOAuthInWebView = () => {
 
 export const installNativePlatformGuard = () => {
   if (typeof window === 'undefined' || window.__restorebrainePlatformGuardInstalled) return;
+  if (LOCAL_NATIVE_BUNDLE) return;
   window.__restorebrainePlatformGuardInstalled = true;
   guardPlatformNavigation();
   guardSignedOutLoginPage();

@@ -1,0 +1,2920 @@
+Restorebraine Base44 Publish — PART 3 — Gallery UI + Layout + CSS (paste last, then Publish) (deploy v151)
+
+For each block: open BASE44 PATH in Code editor → Select All → Paste code below divider → Save
+
+
+════════════════════════════════════════════════════════════
+BASE44 PATH: src/lib/native-platform-guard.js
+ACTION: Open this exact path in the Base44 Code editor → Select All → Paste → Save
+════════════════════════════════════════════════════════════
+import { DEFAULT_APP_ORIGIN, getAppOrigin, getAuthReturnOrigin, isAppHost } from './app-domains';
+import { LOCAL_NATIVE_BUNDLE } from './native-bundle-mode';
+
+export const RESTOREBRAINE_FROM_URL = DEFAULT_APP_ORIGIN;
+export const BASE44_APP_ID = '68fdc5f42768c4d045fe1bac';
+export const BASE44_PLATFORM_URL = 'https://app.base44.com';
+/** Native OAuth callback — custom scheme on v4-core, hosted URL otherwise. */
+export const NATIVE_OAUTH_CALLBACK = DEFAULT_APP_ORIGIN;
+
+const PLATFORM_HOSTS = new Set(['app.base44.com', 'base44.com']);
+
+export const isBase44PlatformHost = (hostname) => PLATFORM_HOSTS.has(hostname);
+
+const providerFromPath = (pathname = '') => {
+  if (/\/apple\//i.test(pathname)) return 'apple';
+  if (/\/microsoft\//i.test(pathname)) return 'microsoft';
+  return 'google';
+};
+
+const providerFromLabel = (label = '') => {
+  if (/apple/i.test(label)) return 'apple';
+  if (/microsoft/i.test(label)) return 'microsoft';
+  return 'google';
+};
+
+/** OAuth URL — always use hosted from_url so Base44 accepts the redirect domain. */
+export const getCanonicalOAuthUrl = (provider = 'google', { forWebView = false } = {}) => {
+  const path = provider === 'google'
+    ? '/api/apps/auth/login'
+    : `/api/apps/auth/${provider}/login`;
+  const params = new URLSearchParams({
+    app_id: BASE44_APP_ID,
+    from_url: getAuthReturnOrigin(),
+    prompt: 'select_account',
+  });
+  return `${BASE44_PLATFORM_URL}${path}?${params.toString()}`;
+};
+
+export const getWebViewOAuthUrl = (provider = 'google') => getCanonicalOAuthUrl(provider, { forWebView: true });
+
+/** Force a valid OAuth URL — blocks capacitor:// and app.base44.com from_url values. */
+export const normalizeAuthUrl = (rawUrl, providerHint, { forWebView = false, preservePlatformLogin = false } = {}) => {
+  try {
+    if (preservePlatformLogin && isPlatformLoginUrl(rawUrl)) {
+      return String(rawUrl);
+    }
+    const parsed = new URL(String(rawUrl || ''), typeof window !== 'undefined' ? window.location.href : DEFAULT_APP_ORIGIN);
+    if (!isAuthNavigationUrl(rawUrl) && !providerHint && !isPlatformLoginUrl(rawUrl)) return String(rawUrl);
+    if (isPlatformLoginUrl(rawUrl)) return String(rawUrl);
+    const provider = providerHint || providerFromPath(parsed.pathname);
+    return getCanonicalOAuthUrl(provider, { forWebView });
+  } catch {
+    return getCanonicalOAuthUrl(providerHint || 'google', { forWebView });
+  }
+};
+
+export const getAppScopedLoginUrl = () => {
+  const params = new URLSearchParams({
+    from_url: getAuthReturnOrigin(),
+    app_id: BASE44_APP_ID,
+    prompt: 'select_account',
+  });
+  return `${BASE44_PLATFORM_URL}/login?${params.toString()}`;
+};
+
+export const getGoogleOAuthUrl = () => getCanonicalOAuthUrl('google');
+
+export const getProviderOAuthUrl = (label = '') => getCanonicalOAuthUrl(providerFromLabel(label));
+
+export const isAuthNavigationUrl = (url) => {
+  if (!url) return false;
+  try {
+    const parsed = new URL(String(url), typeof window !== 'undefined' ? window.location.href : DEFAULT_APP_ORIGIN);
+    if (/accounts\.google\.com|google\.com\/o\/oauth|oauth2\.googleapis\.com/i.test(parsed.href)) return true;
+    if (isBase44PlatformHost(parsed.hostname) && parsed.pathname.startsWith('/api/apps/auth')) return true;
+    if (isAppHost(parsed.hostname) && parsed.pathname.startsWith('/api/apps/auth')) return true;
+  } catch {}
+  return false;
+};
+
+export const isPlatformLoginUrl = (url) => {
+  if (!url) return false;
+  try {
+    const parsed = new URL(String(url), typeof window !== 'undefined' ? window.location.href : DEFAULT_APP_ORIGIN);
+    return isBase44PlatformHost(parsed.hostname) && /\/login/i.test(parsed.pathname);
+  } catch {}
+  return false;
+};
+
+
+export const isAuthLogoutUrl = (url) => {
+  if (!url) return false;
+  try {
+    const parsed = new URL(String(url), typeof window !== 'undefined' ? window.location.href : DEFAULT_APP_ORIGIN);
+    return /\/api\/apps\/auth\/logout/i.test(parsed.pathname);
+  } catch {}
+  return false;
+};
+
+export const guardSignedOutLoginPage = () => {
+  if (typeof window === 'undefined') return;
+  try {
+    const path = window.location.pathname.replace(/\/$/, '') || '/';
+    if (path !== '/login') return;
+    const params = new URLSearchParams({
+      from_url: getAuthReturnOrigin(),
+      app_id: BASE44_APP_ID,
+      prompt: 'select_account',
+    });
+    window.location.replace(`${BASE44_PLATFORM_URL}/login?${params.toString()}`);
+  } catch {}
+};
+
+export const guardPlatformNavigation = () => {
+  if (typeof window === 'undefined') return;
+  const { hostname, search, pathname } = window.location;
+  if (!isBase44PlatformHost(hostname)) return;
+  const token = new URLSearchParams(search).get('access_token');
+  if (token) {
+    import('@/lib/session-bootstrap').then(({ persistSessionToNativeStorage }) => {
+      persistSessionToNativeStorage(token);
+    });
+  }
+  if (pathname.startsWith('/api/apps/auth')) return;
+  window.location.replace(getAppOrigin());
+};
+
+const blockBase44BadgeScript = () => {
+  if (typeof document === 'undefined') return;
+  document.querySelectorAll('script[src*="badge.js"]').forEach((node) => node.remove());
+};
+
+export const hideBase44EditorWidget = () => {
+  if (typeof document === 'undefined') return;
+  blockBase44BadgeScript();
+  if (!document.getElementById('rb-hide-base44')) {
+    const style = document.createElement('style');
+    style.id = 'rb-hide-base44';
+    style.textContent = '[href*="app.base44.com"], iframe[src*="base44"], script[src*="badge.js"] { display:none !important; visibility:hidden !important; pointer-events:none !important; }';
+    (document.head || document.documentElement).appendChild(style);
+  }
+  const hideMatchingNodes = (root = document.body) => {
+    if (!root?.querySelectorAll) return;
+    root.querySelectorAll('button, a, div, span, p, iframe').forEach((node) => {
+      if (node.id === 'rb-native-stamp') return;
+      const text = (node.textContent || '').trim();
+      if (/edit with base\s*44/i.test(text) && text.length < 60) {
+        let el = node;
+        for (let i = 0; i < 8 && el && el !== document.body; i += 1) {
+          el.style.setProperty('display', 'none', 'important');
+          el.style.setProperty('visibility', 'hidden', 'important');
+          el.style.setProperty('opacity', '0', 'important');
+          el.style.setProperty('pointer-events', 'none', 'important');
+          el = el.parentElement;
+        }
+      }
+    });
+  };
+  hideMatchingNodes();
+  if (window.__restorebraineEditorObserver) return;
+  window.__restorebraineEditorObserver = new MutationObserver(() => {
+    blockBase44BadgeScript();
+    hideMatchingNodes();
+  });
+  window.__restorebraineEditorObserver.observe(document.documentElement, { childList: true, subtree: true });
+};
+
+export const interceptNativeSignInClicks = () => {
+  if (typeof document === 'undefined' || window.__restorebraineSignInInterceptor) return;
+  if (LOCAL_NATIVE_BUNDLE) return;
+  window.__restorebraineSignInInterceptor = true;
+  document.addEventListener('click', (event) => {
+    const target = event.target.closest('button, a, [role="button"], div[role="button"], [data-provider]');
+    if (!target) return;
+    const label = (target.textContent || '').trim();
+    const href = target.href || target.getAttribute?.('href') || '';
+    const isProvider = /continue with google|continue with apple|continue with microsoft|sign in with email|sign in with google|sign in with apple|sign in with microsoft/i.test(label);
+    const isAuthLink = /auth\/login|auth\/apple|auth\/microsoft/i.test(href);
+    if (!isProvider && !isAuthLink) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation();
+    const provider = providerFromLabel(label);
+    const authUrl = href && isAuthNavigationUrl(href) ? href : getCanonicalOAuthUrl(provider);
+    import('@/lib/native-google-oauth').then(({ openLoginInSystemBrowser }) => {
+      openLoginInSystemBrowser(authUrl, provider);
+    });
+  }, true);
+};
+
+export const guardGoogleOAuthInWebView = () => {
+  if (typeof window === 'undefined') return;
+  if (/accounts\.google\.com/i.test(window.location.hostname)) {
+    import('@/lib/native-google-oauth').then(({ openLoginInSystemBrowser }) => {
+      window.history.length > 1 ? window.history.back() : window.location.replace(getAppOrigin());
+      openLoginInSystemBrowser(getGoogleOAuthUrl(), 'google');
+    });
+  }
+};
+
+export const installNativePlatformGuard = () => {
+  if (typeof window === 'undefined' || window.__restorebrainePlatformGuardInstalled) return;
+  if (LOCAL_NATIVE_BUNDLE) return;
+  window.__restorebrainePlatformGuardInstalled = true;
+  guardPlatformNavigation();
+  guardSignedOutLoginPage();
+  hideBase44EditorWidget();
+  interceptNativeSignInClicks();
+  guardGoogleOAuthInWebView();
+  window.addEventListener('popstate', () => {
+    guardPlatformNavigation();
+    guardSignedOutLoginPage();
+    guardGoogleOAuthInWebView();
+  });
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      guardPlatformNavigation();
+      guardSignedOutLoginPage();
+      guardGoogleOAuthInWebView();
+      hideBase44EditorWidget();
+    }
+  });
+  setInterval(() => {
+    guardPlatformNavigation();
+    guardSignedOutLoginPage();
+    guardGoogleOAuthInWebView();
+    hideBase44EditorWidget();
+  }, 500);
+};
+
+
+
+════════════════════════════════════════════════════════════
+BASE44 PATH: src/lib/native-google-oauth.js
+ACTION: Open this exact path in the Base44 Code editor → Select All → Paste → Save
+════════════════════════════════════════════════════════════
+import { InAppBrowser, DefaultWebViewOptions } from '@capacitor/inappbrowser';
+import { Capacitor } from '@capacitor/core';
+import { isAppHost, NATIVE_OAUTH_RETURN_URL, getAuthReturnOrigin } from '@/lib/app-domains';
+import {
+  getGoogleOAuthUrl,
+  getProviderOAuthUrl,
+  getWebViewOAuthUrl,
+  getCanonicalOAuthUrl,
+  BASE44_APP_ID,
+  BASE44_PLATFORM_URL,
+  NATIVE_OAUTH_CALLBACK,
+  isBase44PlatformHost,
+  isAuthNavigationUrl,
+  isPlatformLoginUrl,
+  normalizeAuthUrl,
+} from '@/lib/native-platform-guard';
+import { LOCAL_NATIVE_BUNDLE } from '@/lib/native-bundle-mode';
+import { persistSessionToNativeStorage } from '@/lib/session-bootstrap';
+import { isNativeShell, getNativeWebViewHome } from '@/lib/native-hosted-redirect';
+import { shouldBlockExternalNavigation, redirectToNativeBundleHome } from '@/lib/native-bundle-shell-guard';
+const GOOGLE_OAUTH_PATTERN = /accounts\.google\.com|google\.com\/o\/oauth|oauth2\.googleapis\.com|\/api\/apps\/auth\/login/i;
+
+const SYSTEM_BROWSER_OPTIONS = {
+  iOS: { closeButtonText: 2, viewStyle: 2, animationEffect: 2, enableBarsCollapsing: true, enableReadersMode: false },
+  android: { showTitle: false, hideToolbarOnScroll: false, viewStyle: 0, startAnimation: 0, exitAnimation: 1 },
+};
+
+export const isGoogleOAuthUrl = (url) => {
+  if (!url || typeof url !== 'string') return false;
+  try {
+    const { hostname, href, pathname } = new URL(url, window.location.href);
+    return GOOGLE_OAUTH_PATTERN.test(hostname) || GOOGLE_OAUTH_PATTERN.test(href) || GOOGLE_OAUTH_PATTERN.test(pathname);
+  } catch {
+    return GOOGLE_OAUTH_PATTERN.test(url);
+  }
+};
+
+export const isOAuthCallbackUrl = (url) => {
+  if (!url || typeof url !== 'string') return false;
+  if (url.includes('access_token=')) return true;
+  if (LOCAL_NATIVE_BUNDLE && url.startsWith(NATIVE_OAUTH_RETURN_URL.split('?')[0])) return true;
+  return false;
+};
+
+export const captureOAuthTokenFromUrl = async (url) => {
+  if (!url) return null;
+  try {
+    const parsed = new URL(String(url));
+    const token = parsed.searchParams.get('access_token');
+    if (!token) return null;
+    await persistSessionToNativeStorage(token);
+    return token;
+  } catch {
+    try {
+      const match = String(url).match(/[?&]access_token=([^&]+)/);
+      if (!match?.[1]) return null;
+      const token = decodeURIComponent(match[1]);
+      await persistSessionToNativeStorage(token);
+      return token;
+    } catch {
+      return null;
+    }
+  }
+};
+
+let oauthListenerAttached = false;
+
+const withTimeout = (promise, ms, label = 'Operation') =>
+  Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
+    }),
+  ]);
+
+const isNativeCapacitorShell = () => {
+  if (Capacitor.isNativePlatform?.()) return true;
+  try {
+    const { protocol } = window.location;
+    return protocol === 'capacitor:' || protocol === 'ionic:';
+  } catch {
+    return false;
+  }
+};
+
+/** Capacitor 8 exposes InAppBrowser via ES import — not always on window.Capacitor.Plugins. */
+const waitForCapacitor = async () => isNativeCapacitorShell();
+
+const hasRegisteredNativeOAuthPlugin = () => {
+  const plugin = window.Capacitor?.Plugins?.RestorebraineOAuth;
+  return typeof plugin?.startGoogleOAuth === 'function';
+};
+
+const waitForNativeOAuthPlugin = async (maxAttempts = 30) => {
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    if (hasRegisteredNativeOAuthPlugin()) return true;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  return hasRegisteredNativeOAuthPlugin();
+};
+
+const openInAppBrowserOAuth = async (oauthUrl, provider) => {
+  oauthListenerAttached = false;
+  await attachOAuthCompletionListener();
+  window.__restorebraineLastOAuthUrl = oauthUrl;
+  window.__restorebraineOAuthInProgress = true;
+  window.__restorebraineOAuthMode = LOCAL_NATIVE_BUNDLE ? 'v4-system-browser' : 'system-browser';
+
+  try {
+    await InAppBrowser.openInSystemBrowser({ url: oauthUrl, options: SYSTEM_BROWSER_OPTIONS });
+    return;
+  } catch (systemError) {
+    console.warn('InAppBrowser system browser failed, trying WebView:', systemError);
+  }
+
+  if (LOCAL_NATIVE_BUNDLE) {
+    throw new Error('Could not open sign in. Try again.');
+  }
+
+  window.__restorebraineOAuthMode = provider === 'google' ? 'webview-google' : 'webview';
+  try {
+    await InAppBrowser.openInWebView({ url: oauthUrl, options: DefaultWebViewOptions });
+    return;
+  } catch (webviewError) {
+    console.warn('InAppBrowser WebView failed:', webviewError);
+  }
+
+  throw new Error('Could not open sign in. Rebuild in Xcode and try again.');
+};
+
+const finishOAuthLogin = async () => {
+  window.__restorebraineOAuthInProgress = false;
+  await InAppBrowser.close().catch(() => {});
+  const token = localStorage.getItem('base44_access_token') || localStorage.getItem('token');
+  if (token) {
+    window.dispatchEvent(new CustomEvent('restorebraine-session-updated', { detail: { token } }));
+    window.dispatchEvent(new CustomEvent('restorebraine-native-oauth-complete'));
+  }
+  // v4-core: React AuthContext updates in-place — no reload (reload caused white screen).
+  if (LOCAL_NATIVE_BUNDLE && token) return;
+  if (window.location.pathname === '/' && token) return;
+  window.location.replace(getNativeWebViewHome());
+};
+
+/** After OAuth, AppDelegate / native plugin may have saved the token before JS listeners attach. */
+export const tryRestoreSessionAfterOAuth = async () => {
+  const existing = localStorage.getItem('base44_access_token') || localStorage.getItem('token');
+  if (existing && localStorage.getItem('b44_signed_out') !== '1') {
+    window.dispatchEvent(new CustomEvent('restorebraine-session-updated', { detail: { token: existing } }));
+    window.dispatchEvent(new CustomEvent('restorebraine-native-oauth-complete'));
+    if (LOCAL_NATIVE_BUNDLE) return true;
+    window.location.replace(getNativeWebViewHome());
+    return true;
+  }
+
+  const { restoreSessionFromNativeStorage } = await import('@/lib/session-bootstrap');
+  const token = await restoreSessionFromNativeStorage();
+  if (!token) return false;
+
+  window.dispatchEvent(new CustomEvent('restorebraine-session-updated', { detail: { token } }));
+  window.dispatchEvent(new CustomEvent('restorebraine-native-oauth-complete'));
+  if (LOCAL_NATIVE_BUNDLE) return true;
+  window.location.replace(getNativeWebViewHome());
+  return true;
+};
+
+export const handleNativeOAuthCallback = async (url) => {
+  const token = await captureOAuthTokenFromUrl(url);
+  if (!token) return false;
+  await finishOAuthLogin();
+  return true;
+};
+
+const isHostedOAuthReturn = (url) => {
+  try {
+    const parsed = new URL(String(url), window.location.href);
+    return isAppHost(parsed.hostname) && parsed.searchParams.has('access_token');
+  } catch {
+    return false;
+  }
+};
+
+const openOAuthInSystemBrowser = async (url, providerHint) => {
+  // Build v4 fallback: hosted from_url so OAuth sheet can return via restorebraine:// deep link.
+  const normalizedUrl = normalizeAuthUrl(
+    url || getWebViewOAuthUrl(providerHint || 'google'),
+    providerHint,
+    { forWebView: true },
+  );
+  if (typeof window !== 'undefined') {
+    window.__restorebraineLastOAuthUrl = normalizedUrl;
+    window.__restorebraineOAuthMode = 'v4-system-browser';
+    window.__restorebraineOAuthInProgress = true;
+  }
+  oauthListenerAttached = false;
+  await attachOAuthCompletionListener();
+
+  for (let attempt = 0; attempt < 60; attempt += 1) {
+    try {
+      const plugin = window.Capacitor?.Plugins?.InAppBrowser;
+      if (plugin?.openInSystemBrowser) {
+        await plugin.openInSystemBrowser({ url: normalizedUrl, options: SYSTEM_BROWSER_OPTIONS });
+      } else {
+        await InAppBrowser.openInSystemBrowser({ url: normalizedUrl, options: SYSTEM_BROWSER_OPTIONS });
+      }
+      return;
+    } catch (error) {
+      if (attempt === 59) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+  }
+};
+
+const handleOAuthBrowserNavigation = async (url) => {
+  if (!url) return false;
+  if (await handleNativeOAuthCallback(url)) return true;
+
+  try {
+    const parsed = new URL(url, window.location.href);
+    const token = parsed.searchParams.get('access_token');
+    if (token) {
+      await persistSessionToNativeStorage(token);
+      await finishOAuthLogin();
+      return true;
+    }
+    if (LOCAL_NATIVE_BUNDLE && isHostedOAuthReturn(url)) {
+      await redirectToNativeBundleHome(url);
+      return true;
+    }
+    if (isAuthNavigationUrl(url)) {
+      return false;
+    }
+  } catch {}
+
+  return false;
+};
+
+const attachOAuthCompletionListener = async () => {
+  if (oauthListenerAttached) return;
+  oauthListenerAttached = true;
+
+  await InAppBrowser.addListener('browserPageNavigationCompleted', async (data) => {
+    await handleOAuthBrowserNavigation(data?.url);
+  });
+
+  await InAppBrowser.addListener('browserClosed', async () => {
+    oauthListenerAttached = false;
+    window.__restorebraineOAuthInProgress = false;
+    if (await tryRestoreSessionAfterOAuth()) return;
+
+    try {
+      const { App } = await import('@capacitor/app');
+      const launch = await App.getLaunchUrl();
+      if (launch?.url && (await handleNativeOAuthCallback(launch.url))) return;
+    } catch {}
+
+    if (localStorage.getItem('b44_signed_out') !== '1') {
+      await tryRestoreSessionAfterOAuth();
+    }
+  });
+};
+
+/** Google OAuth via native ASWebAuthenticationSession (works without v4 bridge). */
+const startGoogleOAuthNative = async () => {
+  const pluginUrl = normalizeAuthUrl(getGoogleOAuthUrl(), 'google');
+  window.__restorebraineLastOAuthUrl = pluginUrl;
+  window.__restorebraineOAuthMode = 'asweb-auth';
+  window.__restorebraineOAuthInProgress = true;
+
+  const plugin = window.Capacitor?.Plugins?.RestorebraineOAuth;
+  if (!plugin?.startGoogleOAuth) throw new Error('RestorebraineOAuth plugin not registered');
+
+  const result = await plugin.startGoogleOAuth({ url: pluginUrl });
+  const token = result?.token;
+  if (!token) throw new Error('Native OAuth returned no token');
+  await persistSessionToNativeStorage(token);
+  await finishOAuthLogin();
+  return true;
+};
+
+/**
+ * v4-core OAuth: native plugin for Google when available, always fall back to InAppBrowser (visible UI).
+ */
+export const openLoginInSystemBrowser = async (url = getGoogleOAuthUrl(), providerHint) => {
+  const provider = providerHint || 'google';
+  if (typeof window !== 'undefined') {
+    window.__restorebraineOAuthInProgress = true;
+  }
+  if (!isNativeShell()) {
+    window.location.replace(normalizeAuthUrl(url, providerHint));
+    return;
+  }
+
+  if (!(await waitForCapacitor())) {
+    window.__restorebraineOAuthInProgress = false;
+    throw new Error('Not running in the native app shell.');
+  }
+
+  const oauthUrl = isPlatformLoginUrl(url)
+    ? String(url)
+    : normalizeAuthUrl(url || getCanonicalOAuthUrl(provider), provider);
+  window.__restorebraineLastOAuthUrl = oauthUrl;
+
+  // Build v4: WebView OAuth plugin first (reliable on device), then system browser.
+  if (LOCAL_NATIVE_BUNDLE) {
+    await waitForNativeOAuthPlugin(60);
+    if (hasRegisteredNativeOAuthPlugin()) {
+      try {
+        await startGoogleOAuthNative();
+        return;
+      } catch (error) {
+        window.__restorebraineOAuthInProgress = false;
+        if (error?.code === 'CANCELED' || /cancel/i.test(error?.message || '')) return;
+        console.warn('Native Google OAuth failed — opening system browser:', error);
+      }
+    }
+    oauthListenerAttached = false;
+    await attachOAuthCompletionListener();
+    window.__restorebraineOAuthMode = 'v4-system-browser';
+    await InAppBrowser.openInSystemBrowser({ url: oauthUrl, options: SYSTEM_BROWSER_OPTIONS });
+    return;
+  }
+
+  if (provider === 'google' && hasRegisteredNativeOAuthPlugin()) {
+    try {
+      await withTimeout(startGoogleOAuthNative(), 5000, 'Google OAuth');
+      return;
+    } catch (error) {
+      window.__restorebraineOAuthInProgress = false;
+      if (error?.code === 'CANCELED' || /cancel/i.test(error?.message || '')) return;
+      console.warn('Native Google OAuth failed — opening InAppBrowser:', error);
+    }
+  }
+
+  await openInAppBrowserOAuth(oauthUrl, provider);
+};
+
+/** Install OAuth listeners once at app startup (deep links + InAppBrowser navigation). */
+export const installNativeOAuthListeners = async () => {
+  if (typeof window === 'undefined' || window.__restorebraineOAuthListenersInstalled) return;
+  window.__restorebraineOAuthListenersInstalled = true;
+  installNativeOAuthBridgeListener();
+
+  // Do not overwrite v4-bridge handlers — bridge ASWebAuthenticationSession path works on device.
+  if (!window.__restorebraineSessionBridgeInstalled) {
+    window.__restorebraineOpenLogin = () => openLoginInSystemBrowser(getGoogleOAuthUrl(), 'google');
+    window.__restorebraineOpenProviderLogin = (provider) => {
+      const p = provider || 'google';
+      const url = p === 'google' ? getGoogleOAuthUrl() : getProviderOAuthUrl(p);
+      return openLoginInSystemBrowser(url, p);
+    };
+  }
+
+  try {
+    const { installNativeOAuthDeepLinkHandler } = await import('@/lib/session-bootstrap');
+    await installNativeOAuthDeepLinkHandler();
+    oauthListenerAttached = false;
+    await attachOAuthCompletionListener();
+  } catch (error) {
+    console.warn('Native OAuth listener setup failed:', error);
+  }
+};
+
+const handleAuthNavigation = (url, providerHint) => {
+  openLoginInSystemBrowser(url, providerHint);
+};
+
+const installNativeOAuthBridgeListener = () => {
+  if (typeof window === 'undefined' || window.__restorebraineNativeOAuthBridgeInstalled) return;
+  window.__restorebraineNativeOAuthBridgeInstalled = true;
+  window.addEventListener('restorebraine-native-oauth-complete', () => {
+    tryRestoreSessionAfterOAuth();
+  });
+};
+
+export const installLocationNavigationGuard = () => {
+  if (typeof window === 'undefined' || window.__restorebraineLocationGuardInstalled) return;
+  window.__restorebraineLocationGuardInstalled = true;
+
+  ['assign', 'replace'].forEach((method) => {
+    const original = Location.prototype[method];
+    Location.prototype[method] = function guardedNavigation(url) {
+      try {
+        const parsed = new URL(String(url), window.location.href);
+        if (parsed.searchParams.get('access_token')) {
+          redirectToNativeBundleHome(parsed.href);
+          return;
+        }
+        if (isPlatformLoginUrl(url)) {
+          handleAuthNavigation(getGoogleOAuthUrl(), 'google');
+          return;
+        }
+        if (isAuthNavigationUrl(url)) {
+          handleAuthNavigation(url);
+          return;
+        }
+        if (shouldBlockExternalNavigation(url)) {
+          redirectToNativeBundleHome(String(url));
+          return;
+        }
+        if (isBase44PlatformHost(parsed.hostname)) {
+          window.location.replace(getNativeWebViewHome());
+          return;
+        }
+      } catch {}
+
+      if (isPlatformLoginUrl(url)) {
+        handleAuthNavigation(getGoogleOAuthUrl(), 'google');
+        return;
+      }
+      if (isAuthNavigationUrl(url)) {
+        handleAuthNavigation(url);
+        return;
+      }
+      if (shouldBlockExternalNavigation(url)) {
+        redirectToNativeBundleHome(String(url));
+        return;
+      }
+      return original.call(this, url);
+    };
+  });
+
+  try {
+    const hrefDescriptor = Object.getOwnPropertyDescriptor(Location.prototype, 'href')
+      || Object.getOwnPropertyDescriptor(Object.getPrototypeOf(window.location), 'href');
+    if (hrefDescriptor?.set) {
+      Object.defineProperty(window.location, 'href', {
+        configurable: true,
+        enumerable: hrefDescriptor.enumerable,
+        get: hrefDescriptor.get?.bind(window.location),
+        set(value) {
+          try {
+            const parsed = new URL(String(value), window.location.href);
+            if (parsed.searchParams.get('access_token')) {
+              redirectToNativeBundleHome(parsed.href);
+              return;
+            }
+            if (isPlatformLoginUrl(value)) {
+              handleAuthNavigation(getGoogleOAuthUrl(), 'google');
+              return;
+            }
+            if (isAuthNavigationUrl(value)) {
+              handleAuthNavigation(value);
+              return;
+            }
+            if (shouldBlockExternalNavigation(value)) {
+              redirectToNativeBundleHome(String(value));
+              return;
+            }
+            if (isBase44PlatformHost(parsed.hostname)) {
+              window.location.replace(getNativeWebViewHome());
+              return;
+            }
+          } catch {}
+          if (isPlatformLoginUrl(value)) {
+            handleAuthNavigation(getGoogleOAuthUrl(), 'google');
+            return;
+          }
+          if (isAuthNavigationUrl(value)) {
+            handleAuthNavigation(value);
+            return;
+          }
+          if (shouldBlockExternalNavigation(value)) {
+            redirectToNativeBundleHome(String(value));
+            return;
+          }
+          hrefDescriptor.set.call(window.location, value);
+        },
+      });
+    }
+  } catch (error) {
+    console.warn('Could not patch window.location.href for OAuth guard.', error);
+  }
+};
+
+export const installNativeGoogleOAuthBrowser = () => {
+  if (typeof window === 'undefined' || window.__restorebraineGoogleOAuthBrowserInstalled) return;
+  window.__restorebraineGoogleOAuthBrowserInstalled = true;
+
+  installNativeOAuthBridgeListener();
+  installLocationNavigationGuard();
+
+  const originalOpen = window.open;
+  window.open = function openWithInAppBrowser(url, target, features) {
+    if (typeof url === 'string' && url.length > 0) {
+      if (isPlatformLoginUrl(url) || isAuthNavigationUrl(url)) {
+        handleAuthNavigation(isPlatformLoginUrl(url) ? getGoogleOAuthUrl() : url);
+        return window;
+      }
+      if (shouldBlockExternalNavigation(url)) {
+        redirectToNativeBundleHome(String(url));
+        return window;
+      }
+      window.location.assign(url);
+      return window;
+    }
+    return originalOpen ? originalOpen.call(window, url, target, features) : null;
+  };
+};
+
+export { NATIVE_OAUTH_CALLBACK, getProviderOAuthUrl };
+
+
+
+════════════════════════════════════════════════════════════
+BASE44 PATH: src/lib/session-bootstrap.js
+ACTION: Open this exact path in the Base44 Code editor → Select All → Paste → Save
+════════════════════════════════════════════════════════════
+import { base44 } from '@/api/base44Client';
+import { appParams } from '@/lib/app-params';
+import { captureAccessTokenFromUrl } from '@/lib/native-oauth-fix';
+import { persistentStorage } from '@/lib/persistentStorage';
+
+const TOKEN_KEYS = ['base44_access_token', 'token'];
+const SIGNED_OUT_KEY = 'b44_signed_out';
+const PREFERENCES_TIMEOUT_MS = 2000;
+
+const readSyncToken = () => {
+  try {
+    if (localStorage.getItem(SIGNED_OUT_KEY) === '1') return null;
+    return localStorage.getItem('base44_access_token') || localStorage.getItem('token');
+  } catch {
+    return null;
+  }
+};
+
+const withTimeout = (promise, ms) =>
+  Promise.race([
+    promise,
+    new Promise((resolve) => {
+      setTimeout(() => resolve(null), ms);
+    }),
+  ]);
+
+export const restoreSessionFromNativeStorage = async () => {
+  const urlToken = captureAccessTokenFromUrl();
+  if (urlToken) {
+    await persistSessionToNativeStorage(urlToken);
+    return urlToken;
+  }
+
+  const syncToken = readSyncToken();
+  if (syncToken) {
+    appParams.token = syncToken;
+    base44.auth.setToken(syncToken, false);
+    return syncToken;
+  }
+
+  try {
+    if (typeof window !== 'undefined' && localStorage.getItem(SIGNED_OUT_KEY) === '1') return null;
+  } catch {}
+
+  const signedOut = await withTimeout(persistentStorage.get(SIGNED_OUT_KEY), PREFERENCES_TIMEOUT_MS);
+  if (signedOut === '1') return null;
+
+  for (const key of TOKEN_KEYS) {
+    const storedToken = await withTimeout(persistentStorage.get(key), PREFERENCES_TIMEOUT_MS);
+    if (!storedToken) continue;
+
+    appParams.token = storedToken;
+    persistentStorage._mirror('base44_access_token', storedToken);
+    persistentStorage._mirror('token', storedToken);
+    base44.auth.setToken(storedToken, false);
+    return storedToken;
+  }
+
+  return null;
+};
+
+
+export const installNativeOAuthDeepLinkHandler = async () => {
+  try {
+    const { isNativeShell } = await import('@/lib/native-hosted-redirect');
+    if (!isNativeShell()) return;
+
+    const { App } = await import('@capacitor/app');
+    const { handleNativeOAuthCallback, isOAuthCallbackUrl, tryRestoreSessionAfterOAuth } = await import('@/lib/native-google-oauth');
+
+    await App.addListener('appUrlOpen', async ({ url }) => {
+      if (!url || !isOAuthCallbackUrl(url)) return;
+      if (await handleNativeOAuthCallback(url)) return;
+      await tryRestoreSessionAfterOAuth();
+    });
+  } catch (error) {
+    console.warn('Native OAuth deep link handler unavailable.', error);
+  }
+};
+
+export const installNativeSessionPersistence = async () => {
+  try {
+    const { isNativeShell, isHostedAppOrigin } = await import('@/lib/native-hosted-redirect');
+    if (!isNativeShell() || isHostedAppOrigin()) return;
+
+    await installNativeOAuthDeepLinkHandler();
+
+    const { App } = await import('@capacitor/app');
+
+    await App.addListener('appStateChange', async ({ isActive }) => {
+      if (isActive) {
+        if (localStorage.getItem(SIGNED_OUT_KEY) !== '1') {
+          const token = await restoreSessionFromNativeStorage();
+          if (token) {
+            window.dispatchEvent(new CustomEvent('restorebraine-session-updated', { detail: { token } }));
+          } else if (window.__restorebraineOAuthInProgress) {
+            const { tryRestoreSessionAfterOAuth } = await import('@/lib/native-google-oauth');
+            await tryRestoreSessionAfterOAuth();
+          }
+        }
+        try {
+          const { enforceNativeBundleOrigin } = await import('@/lib/native-bundle-shell-guard');
+          enforceNativeBundleOrigin();
+        } catch {}
+        return;
+      }
+
+      if (localStorage.getItem(SIGNED_OUT_KEY) === '1') return;
+
+      const token = localStorage.getItem('base44_access_token') || localStorage.getItem('token');
+      if (token) {
+        await persistSessionToNativeStorage(token);
+      }
+    });
+  } catch (error) {
+    console.warn('Native session persistence listener unavailable.', error);
+  }
+};
+
+export const persistSessionToNativeStorage = async (token) => {
+  if (!token) return;
+  await persistentStorage.remove(SIGNED_OUT_KEY);
+  try { localStorage.removeItem(SIGNED_OUT_KEY); } catch {}
+  appParams.token = token;
+  base44.auth.setToken(token, false);
+  persistentStorage._mirror('base44_access_token', token);
+  persistentStorage._mirror('token', token);
+  await Promise.all(TOKEN_KEYS.map((key) => persistentStorage.set(key, token)));
+};
+
+export const clearNativeSession = async () => {
+  appParams.token = null;
+  await persistentStorage.set(SIGNED_OUT_KEY, '1');
+  try {
+    localStorage.setItem(SIGNED_OUT_KEY, '1');
+    localStorage.removeItem('base44_access_token');
+    localStorage.removeItem('token');
+    localStorage.removeItem('base44_logged_out');
+    base44.auth.setToken(null, false);
+  } catch {}
+  if (typeof window !== 'undefined' && window.__restorebraineClearSession) {
+    window.__restorebraineClearSession();
+  }
+  for (const key of TOKEN_KEYS) {
+    await persistentStorage.remove(key);
+  }
+};
+
+
+
+════════════════════════════════════════════════════════════
+BASE44 PATH: src/lib/app-branding.js
+ACTION: Open this exact path in the Base44 Code editor → Select All → Paste → Save
+════════════════════════════════════════════════════════════
+/** Branded app logo — embedded data URL on native (never fails WKWebView load). */
+import { LOGIN_LOGO_DATA_URL } from '@/lib/login-logo-data';
+
+export const RESTOREBRAINE_APP_LOGO_URL =
+  'https://media.base44.com/images/public/68fdc5f42768c4d045fe1bac/e76571efc_appstore.png';
+
+const bundledLogoNames = ['login-logo.png', 'AppIcon.png'];
+
+const resolveBundledLogoUrl = (filename) => {
+  try {
+    return new URL(filename, window.location.href).href;
+  } catch {
+    return `./${filename}`;
+  }
+};
+
+const isNativeRuntime = () => {
+  try {
+    return (
+      window.Capacitor?.isNativePlatform?.() ||
+      window.location?.protocol === 'capacitor:' ||
+      window.location?.protocol === 'ionic:'
+    );
+  } catch {
+    return false;
+  }
+};
+
+/** Native login card: embedded PNG first (never wait for Capacitor), then bundled files, then remote. */
+export const getRestorebraineAppLogo = () => {
+  if (LOGIN_LOGO_DATA_URL) return LOGIN_LOGO_DATA_URL;
+  if (typeof window === 'undefined') return RESTOREBRAINE_APP_LOGO_URL;
+  if (isNativeRuntime()) return resolveBundledLogoUrl(bundledLogoNames[0]);
+  return RESTOREBRAINE_APP_LOGO_URL;
+};
+
+export const getRestorebraineAppLogoFallbacks = () => {
+  const sources = [];
+  if (LOGIN_LOGO_DATA_URL) sources.push(LOGIN_LOGO_DATA_URL);
+  if (typeof window !== 'undefined' && isNativeRuntime()) {
+    sources.push(...bundledLogoNames.map(resolveBundledLogoUrl));
+  }
+  if (typeof window !== 'undefined') {
+    sources.push(RESTOREBRAINE_APP_LOGO_URL);
+  } else if (!sources.length) {
+    sources.push(RESTOREBRAINE_APP_LOGO_URL);
+  }
+  return sources;
+};
+
+/** @deprecated prefer getRestorebraineAppLogo() */
+export const RESTOREBRAINE_APP_LOGO = RESTOREBRAINE_APP_LOGO_URL;
+
+
+
+════════════════════════════════════════════════════════════
+BASE44 PATH: src/components/gallery/MobileGallery.jsx
+ACTION: Open this exact path in the Base44 Code editor → Select All → Paste → Save
+════════════════════════════════════════════════════════════
+import React, { useState, useRef } from "react";
+import { Search, X, Sparkles, ImageIcon, Grid3x3, Layers, MousePointer2, Check, Pencil, Loader2, FolderInput, Folder } from "lucide-react";
+
+import SelectablePhotoGrid from "./SelectablePhotoGrid";
+import MobilePhotoModal from "./MobilePhotoModal";
+import EmptyState from "./EmptyState";
+import OrganizeButton from "./OrganizeButton";
+import { SQUARE_FOLDER_ACTION_ACTIVE_CLASS, SQUARE_FOLDER_ACTION_ACTIVE_STYLE, SQUARE_FOLDER_ACTION_CLASS, SQUARE_FOLDER_ACTION_STYLE } from "./folderActionStyles";
+import CustomFolderButton from "./CustomFolderButton";
+import DuplicateDetector from "./DuplicateDetector";
+import MobileFolderCard from "./MobileFolderCard";
+import MobileDrawerMenu from "./MobileDrawerMenu";
+import { base44 } from "@/api/base44Client";
+import { DEPLOY_BUILD } from "@/deploy-marker";
+
+export default function MobileGallery({
+  photos,
+  folders,
+  isLoading,
+  filteredPhotos,
+  filteredFolders,
+  searchQuery,
+  setSearchQuery,
+  debouncedQuery,
+  selectedFolder,
+  setSelectedFolder,
+  selectionMode,
+  setSelectionMode,
+  selectedIds,
+  setSelectedIds,
+  selectedFolderIds,
+  setSelectedFolderIds,
+  toggleSelect,
+  toggleFolderSelect,
+  queryClient,
+  pushBack,
+  popBack,
+  onDeletePhotos,
+  onMoveToFolder,
+}) {
+  const [selectedPhoto, setSelectedPhoto] = useState(null);
+  const [searchFocused, setSearchFocused] = useState(false);
+  const [activeTab, setActiveTab] = useState("all");
+  const [renameFolder, setRenameFolder] = useState(null); // folder being renamed
+  const [renameName, setRenameName] = useState("");
+  const [renaming, setRenaming] = useState(false);
+  const [mergeDrawerOpen, setMergeDrawerOpen] = useState(false);
+  const [merging, setMerging] = useState(false);
+  const [folderMoveDrawerOpen, setFolderMoveDrawerOpen] = useState(false);
+  const inputRef = useRef(null);
+
+  const photosInFolders = new Set(folders.flatMap(f => f.photo_ids || []));
+  const unorganizedPhotos = photos.filter(p => !photosInFolders.has(p.id));
+
+  const exitSelection = () => {
+    setSelectionMode(false);
+    setSelectedIds([]);
+    setSelectedFolderIds([]);
+  };
+
+  // Rename selected folder (only works when exactly 1 folder selected)
+  const handleRenameOpen = () => {
+    if (selectedFolderIds.length !== 1) return;
+    const folder = folders.find(f => f.id === selectedFolderIds[0]);
+    if (folder) { setRenameFolder(folder); setRenameName(folder.name); }
+  };
+
+  const handleRenameSave = async () => {
+    if (!renameFolder || !renameName.trim()) return;
+    setRenaming(true);
+    await base44.entities.Folder.update(renameFolder.id, { name: renameName.trim() });
+    queryClient.invalidateQueries({ queryKey: ['folders'] });
+    setRenaming(false);
+    setRenameFolder(null);
+    exitSelection();
+  };
+
+  // Merge selected folders into a target folder
+  const handleMerge = async (targetFolderId) => {
+    setMergeDrawerOpen(false);
+    setMerging(true);
+    const targetFolder = folders.find(f => f.id === targetFolderId);
+    const sourceIds = selectedFolderIds; // all selected folders merge INTO target
+    let allPhotoIds = [...(targetFolder.photo_ids || [])];
+    for (const srcId of sourceIds) {
+      const src = folders.find(f => f.id === srcId);
+      if (src) allPhotoIds = [...allPhotoIds, ...(src.photo_ids || [])];
+    }
+    const uniqueIds = [...new Set(allPhotoIds)];
+    const coverPhoto = photos.find(p => p.id === uniqueIds[0]);
+    await base44.entities.Folder.update(targetFolderId, {
+      photo_ids: uniqueIds,
+      ...(coverPhoto && { cover_photo_url: coverPhoto.file_url }),
+    });
+    for (const srcId of sourceIds) {
+      await base44.entities.Folder.delete(srcId);
+    }
+    queryClient.invalidateQueries({ queryKey: ['folders'] });
+    setMerging(false);
+    exitSelection();
+  };
+
+  const handleDeleteFolders = async () => {
+    if (!selectedFolderIds.length) return;
+    if (!confirm(`Delete ${selectedFolderIds.length} folder(s)? Photos will not be deleted.`)) return;
+    for (const id of selectedFolderIds) await base44.entities.Folder.delete(id);
+    queryClient.invalidateQueries({ queryKey: ['folders'] });
+    exitSelection();
+  };
+
+  // Folder view
+  if (selectedFolder) {
+    const folderPhotos = photos.filter(p => (selectedFolder.photo_ids || []).includes(p.id));
+
+    const handleFolderPhotoMove = async (targetFolderId) => {
+      setMergeDrawerOpen(false);
+      const targetFolder = folders.find(f => f.id === targetFolderId);
+      if (!targetFolder) return;
+      // Add selected photos to target folder
+      const updatedTargetIds = [...new Set([...(targetFolder.photo_ids || []), ...selectedIds])];
+      await base44.entities.Folder.update(targetFolderId, {
+        photo_ids: updatedTargetIds,
+        cover_photo_url: targetFolder.cover_photo_url || photos.find(p => p.id === updatedTargetIds[0])?.file_url,
+      });
+      // Remove selected photos from current folder
+      const updatedSourceIds = (selectedFolder.photo_ids || []).filter(id => !selectedIds.includes(id));
+      await base44.entities.Folder.update(selectedFolder.id, { photo_ids: updatedSourceIds });
+      queryClient.invalidateQueries({ queryKey: ['folders'] });
+      exitSelection();
+    };
+
+    const handleFolderPhotoDelete = async () => {
+      if (!confirm(`Delete ${selectedIds.length} item(s)? This cannot be undone.`)) return;
+      await Promise.all(selectedIds.map(id => base44.entities.Photo.delete(id)));
+      queryClient.invalidateQueries({ queryKey: ['photos'] });
+      queryClient.invalidateQueries({ queryKey: ['folders'] });
+      exitSelection();
+    };
+
+    return (
+      <div className="min-h-screen pb-24 px-3 pt-20">
+        <div className="flex items-center justify-between mb-3 px-1">
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+            {folderPhotos.length} item{folderPhotos.length !== 1 ? 's' : ''}
+          </p>
+          {folderPhotos.length > 0 && (
+            <button
+              onClick={() => { setSelectionMode(!selectionMode); setSelectedIds([]); }}
+              className={`text-xs font-semibold px-3 py-1 rounded-full transition-colors ${selectionMode ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-600'}`}
+            >
+              {selectionMode ? 'Cancel' : 'Select'}
+            </button>
+          )}
+        </div>
+        {folderPhotos.length === 0 ? (
+          <div className="text-center py-16 text-gray-400">No photos in this folder</div>
+        ) : (
+          <div className="grid grid-cols-3 gap-1">
+            {folderPhotos.map(photo => {
+              const isSelected = selectedIds.includes(photo.id);
+              return (
+                <div
+                  key={photo.id}
+                  className="relative aspect-square bg-gray-100 overflow-hidden rounded-lg"
+                  onClick={() => selectionMode ? toggleSelect(photo.id) : setSelectedPhoto(photo)}
+                >
+                  {photo.file_type === 'video' ? (
+                    <video src={photo.file_url} className="w-full h-full object-cover" preload="metadata" />
+                  ) : (
+                    <img src={photo.file_url} alt="" className="w-full h-full object-cover" />
+                  )}
+                  {selectionMode && (
+                    <div className={`absolute top-1 right-1 w-5 h-5 rounded-full border-2 flex items-center justify-center z-10 ${isSelected ? 'bg-purple-600 border-purple-600' : 'bg-white/80 border-gray-400'}`}>
+                      {isSelected && <Check className="w-3 h-3 text-white" />}
+                    </div>
+                  )}
+                  {selectionMode && isSelected && (
+                    <div className="absolute inset-0 bg-purple-500/20 pointer-events-none" />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {selectedPhoto && (
+          <MobilePhotoModal photo={selectedPhoto} onClose={() => setSelectedPhoto(null)} folders={folders} />
+        )}
+
+        {/* Selection toolbar for folder view */}
+        {selectionMode && selectedIds.length > 0 && (
+          <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 w-[calc(100vw-2rem)]">
+            <div className="bg-white rounded-2xl shadow-2xl border border-purple-200 px-4 py-3 flex flex-col gap-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-semibold text-purple-700">
+                  {selectedIds.length} photo{selectedIds.length !== 1 ? 's' : ''} selected
+                </span>
+                <button onClick={exitSelection} className="text-gray-400 text-sm font-medium flex items-center gap-1">
+                  <X className="w-4 h-4" /> Cancel
+                </button>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setFolderMoveDrawerOpen(true)}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-purple-600 text-white text-sm font-semibold"
+                >
+                  <FolderInput className="w-4 h-4" /> Move to Folder
+                </button>
+                <button
+                  onClick={handleFolderPhotoDelete}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-red-50 text-red-600 text-sm font-semibold"
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Move to folder drawer (folder view) */}
+        <MobileDrawerMenu open={folderMoveDrawerOpen} onOpenChange={setFolderMoveDrawerOpen} title="Move to Folder">
+          {folders.filter(f => f.id !== selectedFolder.id).map(folder => (
+            <button
+              key={folder.id}
+              onClick={() => handleFolderPhotoMove(folder.id)}
+              className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 rounded-lg"
+            >
+              <Folder className="w-4 h-4 text-orange-500 flex-shrink-0" />
+              <span className="text-sm text-gray-800 truncate">{folder.name}</span>
+            </button>
+          ))}
+        </MobileDrawerMenu>
+      </div>
+    );
+  }
+
+  // Selectable folder card
+  const SelectableFolderCard = ({ folder }) => {
+    const isSelected = selectedFolderIds.includes(folder.id);
+    return (
+      <div
+        className="relative"
+        onClick={() => {
+          if (selectionMode) {
+            toggleFolderSelect(folder.id);
+          } else {
+            setSelectedFolder(folder);
+            pushBack(folder.name, () => { setSelectedFolder(null); setSelectionMode(false); setSelectedIds([]); });
+          }
+        }}
+      >
+        <MobileFolderCard folder={folder} photos={photos} onClick={() => {}} />
+        {selectionMode && (
+          <div className={`absolute top-1 right-1 w-5 h-5 rounded-full border-2 flex items-center justify-center z-10 ${
+            isSelected ? 'bg-purple-600 border-purple-600' : 'bg-white/80 border-gray-400'
+          }`}>
+            {isSelected && <Check className="w-3 h-3 text-white" />}
+          </div>
+        )}
+        {selectionMode && isSelected && (
+          <div className="absolute inset-0 rounded-xl bg-purple-500/20 pointer-events-none" />
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <div className="min-h-screen pb-24" data-rb-deploy={`v${DEPLOY_BUILD}`}>
+      {/* Hero Title */}
+      <div className="px-4 pt-5 pb-2">
+        <h1 className="text-2xl font-bold text-gray-900">
+          Find Your{" "}
+          <span className="bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
+            Memories
+          </span>
+        </h1>
+        <p className="text-sm text-gray-500 mt-0.5">Search using natural language</p>
+      </div>
+
+      {/* Search bar */}
+      <div className="px-4 pb-2">
+        <div className={`flex items-center gap-2 bg-blue-50 rounded-2xl px-4 py-3 transition-all duration-200 border border-blue-100 ${searchFocused ? 'bg-blue-100 ring-2 ring-blue-300' : ''}`}>
+          <Search className={`w-4 h-4 flex-shrink-0 transition-colors ${searchFocused ? 'text-blue-500' : 'text-blue-300'}`} />
+          <input
+            ref={inputRef}
+            type="text"
+            placeholder="Search memories..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onFocus={() => setSearchFocused(true)}
+            onBlur={() => setSearchFocused(false)}
+            className="flex-1 bg-transparent text-base outline-none placeholder:text-gray-400 text-gray-900"
+          />
+          {searchQuery ? (
+            <button onClick={() => setSearchQuery("")}>
+              <X className="w-4 h-4 text-gray-400" />
+            </button>
+          ) : searchFocused ? (
+            <Sparkles className="w-4 h-4 text-purple-400 animate-pulse" />
+          ) : null}
+        </div>
+        {debouncedQuery && (
+          <p className="text-xs text-gray-500 mt-1.5 text-center">
+            {filteredPhotos.length} result{filteredPhotos.length !== 1 ? 's' : ''} for "{debouncedQuery}"
+          </p>
+        )}
+      </div>
+
+      {/* Tabs */}
+      {!debouncedQuery && (
+        <div className="flex px-4 gap-1 mb-1 sticky top-14 z-20 bg-white/95 backdrop-blur-md pb-2">
+          <button
+            onClick={() => { setActiveTab("all"); exitSelection(); }}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-sm font-medium transition-colors ${activeTab === "all" ? "bg-purple-100 text-purple-700" : "text-gray-500"}`}
+          >
+            <Grid3x3 className="w-3.5 h-3.5" />
+            All ({photos.length})
+          </button>
+          <button
+            onClick={() => setActiveTab("folders")}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-sm font-medium transition-colors ${activeTab === "folders" ? "bg-purple-100 text-purple-700" : "text-gray-500"}`}
+          >
+            <Layers className="w-3.5 h-3.5" />
+            Folders ({folders.length})
+          </button>
+        </div>
+      )}
+
+      <div className="px-3 pt-1">
+        {debouncedQuery ? (
+          <>
+            {filteredFolders.length > 0 && (
+              <div className="mb-4">
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 px-1">Folders</p>
+                <div className="grid grid-cols-4 gap-2">
+                  {filteredFolders.map(folder => (
+                    <SelectableFolderCard key={folder.id} folder={folder} />
+                  ))}
+                </div>
+              </div>
+            )}
+            {filteredPhotos.length === 0 ? (
+              <div className="text-center py-16">
+                <ImageIcon className="w-12 h-12 text-gray-200 mx-auto mb-3" />
+                <p className="text-gray-500 font-medium">No results</p>
+                <p className="text-gray-400 text-sm">Try a different search</p>
+              </div>
+            ) : (
+              <SelectablePhotoGrid photos={filteredPhotos} onPhotoClick={setSelectedPhoto} selectionMode={false} selectedIds={[]} onToggleSelect={() => {}} />
+            )}
+          </>
+        ) : activeTab === "folders" ? (
+          <div>
+            {/* Action buttons — direct grid cells, no wrapper rim */}
+            <div className="grid grid-cols-2 gap-1.5 mb-5">
+              <OrganizeButton photos={photos} squareStyle />
+              <CustomFolderButton photos={photos} squareStyle />
+              <DuplicateDetector photos={photos} folders={folders} squareStyle />
+              <button
+                type="button"
+                data-rb-folder-action="select"
+                onClick={() => { setSelectionMode(!selectionMode); setSelectedIds([]); setSelectedFolderIds([]); }}
+                className={selectionMode ? SQUARE_FOLDER_ACTION_ACTIVE_CLASS : SQUARE_FOLDER_ACTION_CLASS}
+                style={selectionMode ? SQUARE_FOLDER_ACTION_ACTIVE_STYLE : SQUARE_FOLDER_ACTION_STYLE}
+              >
+                <MousePointer2 className="w-5 h-5" />
+                <span>{selectionMode ? 'Exit Select' : 'Select'}</span>
+              </button>
+            </div>
+
+            {folders.length === 0 ? (
+              <div className="text-center py-16">
+                <Layers className="w-12 h-12 text-gray-200 mx-auto mb-3" />
+                <p className="text-gray-500 font-medium">No folders yet</p>
+                <p className="text-gray-400 text-sm">Tap Organize Media to create smart folders</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-4 gap-2">
+                {folders.map(folder => (
+                  <SelectableFolderCard key={folder.id} folder={folder} />
+                ))}
+              </div>
+            )}
+          </div>
+        ) : (
+          // All tab
+          <>
+            {isLoading ? (
+              <div className="flex flex-col items-center justify-center py-20 gap-3">
+                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-purple-400" />
+                <p className="text-gray-500 text-sm">Loading memories...</p>
+              </div>
+            ) : photos.length === 0 ? (
+              <EmptyState />
+            ) : (
+              <>
+                {folders.length > 0 && (
+                  <div className="mb-4">
+                    <div className="flex items-center justify-between mb-2 px-1">
+                      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Folders</p>
+                      <button onClick={() => setActiveTab("folders")} className="text-xs text-purple-500 font-medium">See all</button>
+                    </div>
+                    <div className="grid grid-cols-4 gap-2">
+                      {folders.slice(0, 8).map(folder => (
+                        <MobileFolderCard
+                          key={folder.id}
+                          folder={folder}
+                          photos={photos}
+                          onClick={() => {
+                            setSelectedFolder(folder);
+                            pushBack(folder.name, () => { setSelectedFolder(null); setSelectionMode(false); setSelectedIds([]); });
+                          }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {unorganizedPhotos.length > 0 && (
+                  <div>
+                    {folders.length > 0 && (
+                      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 px-1">
+                        Recents ({unorganizedPhotos.length})
+                      </p>
+                    )}
+                    <SelectablePhotoGrid
+                      photos={unorganizedPhotos}
+                      onPhotoClick={setSelectedPhoto}
+                      selectionMode={selectionMode}
+                      selectedIds={selectedIds}
+                      onToggleSelect={toggleSelect}
+                    />
+                  </div>
+                )}
+              </>
+            )}
+          </>
+        )}
+      </div>
+
+      {selectedPhoto && (
+        <MobilePhotoModal photo={selectedPhoto} onClose={() => setSelectedPhoto(null)} folders={folders} />
+      )}
+
+      {/* Folder selection toolbar */}
+      {selectionMode && (selectedFolderIds.length > 0 || selectedIds.length > 0) && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 w-[calc(100vw-2rem)]">
+          <div className="bg-white rounded-2xl shadow-2xl border border-purple-200 px-4 py-3 flex flex-col gap-3">
+            {/* Status row */}
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-semibold text-purple-700">
+                {selectedFolderIds.length > 0 && `${selectedFolderIds.length} folder${selectedFolderIds.length !== 1 ? 's' : ''}`}
+                {selectedFolderIds.length > 0 && selectedIds.length > 0 && ', '}
+                {selectedIds.length > 0 && `${selectedIds.length} photo${selectedIds.length !== 1 ? 's' : ''}`}
+                {' '}selected
+              </span>
+              <button onClick={exitSelection} className="text-gray-400 text-sm font-medium flex items-center gap-1">
+                <X className="w-4 h-4" /> Cancel
+              </button>
+            </div>
+
+            {/* Actions row */}
+            <div className="flex gap-2 flex-wrap">
+              {/* Rename — only when exactly 1 folder selected */}
+              {selectedFolderIds.length === 1 && selectedIds.length === 0 && (
+                <button
+                  onClick={handleRenameOpen}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-blue-50 text-blue-700 text-sm font-semibold"
+                >
+                  <Pencil className="w-4 h-4" /> Rename
+                </button>
+              )}
+
+              {/* Merge — when 1+ folders selected */}
+              {selectedFolderIds.length >= 1 && selectedIds.length === 0 && (
+                <button
+                  onClick={() => setMergeDrawerOpen(true)}
+                  disabled={merging}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-purple-600 text-white text-sm font-semibold disabled:opacity-50"
+                >
+                  {merging ? <Loader2 className="w-4 h-4 animate-spin" /> : <FolderInput className="w-4 h-4" />}
+                  Merge Folders
+                </button>
+              )}
+
+              {/* Move photos to folder */}
+              {selectedIds.length > 0 && (
+                <button
+                  onClick={() => setFolderMoveDrawerOpen(true)}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-purple-600 text-white text-sm font-semibold"
+                >
+                  <FolderInput className="w-4 h-4" /> Move to Folder
+                </button>
+              )}
+
+              {/* Delete */}
+              {(selectedFolderIds.length > 0 || selectedIds.length > 0) && (
+                <button
+                  onClick={() => {
+                    if (selectedFolderIds.length > 0) handleDeleteFolders();
+                    if (selectedIds.length > 0) onDeletePhotos();
+                  }}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-red-50 text-red-600 text-sm font-semibold"
+                >
+                  Delete
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Merge folders drawer */}
+      <MobileDrawerMenu open={mergeDrawerOpen} onOpenChange={setMergeDrawerOpen} title="Merge into folder">
+        {folders
+          .filter(f => !selectedFolderIds.includes(f.id))
+          .map(folder => (
+            <button
+              key={folder.id}
+              onClick={() => handleMerge(folder.id)}
+              className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 rounded-lg"
+            >
+              <Folder className="w-4 h-4 text-orange-500 flex-shrink-0" />
+              <span className="text-sm text-gray-800 truncate">{folder.name}</span>
+            </button>
+          ))
+        }
+      </MobileDrawerMenu>
+
+      {/* Move photos to folder drawer */}
+      <MobileDrawerMenu open={folderMoveDrawerOpen} onOpenChange={setFolderMoveDrawerOpen} title="Move to Folder">
+        {folders.map(folder => (
+          <button
+            key={folder.id}
+            onClick={() => { setFolderMoveDrawerOpen(false); onMoveToFolder(folder.id); }}
+            className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 rounded-lg"
+          >
+            <Folder className="w-4 h-4 text-orange-500 flex-shrink-0" />
+            <span className="text-sm text-gray-800 truncate">{folder.name}</span>
+          </button>
+        ))}
+      </MobileDrawerMenu>
+
+      {/* Rename modal */}
+      {renameFolder && (
+        <div className="fixed inset-0 z-[100] bg-black/50 flex items-end justify-center" onClick={() => setRenameFolder(null)}>
+          <div className="bg-white w-full rounded-t-3xl p-6 pb-10" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-gray-900 mb-4">Rename Folder</h3>
+            <input
+              autoFocus
+              value={renameName}
+              onChange={e => setRenameName(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleRenameSave()}
+              className="w-full border-2 border-purple-300 rounded-xl px-4 py-3 text-base outline-none focus:border-purple-500 mb-4"
+            />
+            <div className="flex gap-3">
+              <button onClick={() => setRenameFolder(null)} className="flex-1 py-3 rounded-xl border border-gray-200 text-gray-600 font-semibold">
+                Cancel
+              </button>
+              <button
+                onClick={handleRenameSave}
+                disabled={renaming || !renameName.trim()}
+                className="flex-1 py-3 rounded-xl bg-purple-600 text-white font-semibold disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {renaming ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+════════════════════════════════════════════════════════════
+BASE44 PATH: src/components/gallery/folderActionStyles.js
+ACTION: Open this exact path in the Base44 Code editor → Select All → Paste → Save
+════════════════════════════════════════════════════════════
+/** Compact tile — mostly white with a subtle purple hint at the corner */
+export const SQUARE_FOLDER_ACTION_CLASS =
+  'w-full min-h-[4.25rem] flex flex-col items-center justify-center gap-1 py-3 rounded-2xl bg-gradient-to-br from-white via-white to-purple-50/60 text-gray-700 border border-gray-200/80 shadow-sm text-sm font-semibold disabled:opacity-50';
+
+export const ORGANIZE_ICON_CLASS = 'w-5 h-5 text-purple-500';
+export const ORGANIZE_LABEL_CLASS = 'text-purple-600 font-semibold';
+
+export const SQUARE_FOLDER_ACTION_STYLE = {
+  width: '100%',
+  minHeight: '4.25rem',
+  boxSizing: 'border-box',
+};
+
+export const SQUARE_FOLDER_ACTION_ACTIVE_CLASS =
+  'w-full min-h-[4.25rem] flex flex-col items-center justify-center gap-1 py-3 rounded-2xl text-sm font-semibold shadow-sm border-0 transition-colors bg-purple-600 text-white';
+
+export const SQUARE_FOLDER_ACTION_ACTIVE_STYLE = SQUARE_FOLDER_ACTION_STYLE;
+
+
+
+════════════════════════════════════════════════════════════
+BASE44 PATH: src/components/gallery/OrganizeButton.jsx
+ACTION: Open this exact path in the Base44 Code editor → Select All → Paste → Save
+════════════════════════════════════════════════════════════
+import React, { useState } from "react";
+import { base44 } from "@/api/base44Client";
+import { Button } from "@/components/ui/button";
+import { FolderPlus, Loader2, Sparkles } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import { reanalyzeWeakPhotos } from "@/lib/media-analysis";
+import { isWeakMetadata } from "@/lib/media-tags";
+import {
+  buildFolderOptions,
+  buildLabelPrompt,
+  buildMergePrompt,
+  photoDataForOrganize,
+} from "@/lib/media-organize";
+import { ORGANIZE_ICON_CLASS, ORGANIZE_LABEL_CLASS, SQUARE_FOLDER_ACTION_CLASS, SQUARE_FOLDER_ACTION_STYLE } from "./folderActionStyles";
+
+const CHUNK_SIZE = 40;
+const CONCURRENCY = 4;
+const MERGE_CHUNK = 25;
+
+async function runConcurrent(tasks, concurrency) {
+  const results = new Array(tasks.length);
+  let index = 0;
+  async function runNext() {
+    while (index < tasks.length) {
+      const i = index++;
+      results[i] = await tasks[i]();
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(concurrency, tasks.length) }, runNext));
+  return results;
+}
+
+async function labelChunk(chunk, existingFolderNames, customInstructions) {
+  const photoData = chunk.map(photoDataForOrganize);
+  const folderOptions = buildFolderOptions(existingFolderNames);
+
+  const result = await base44.integrations.Core.InvokeLLM({
+    prompt: buildLabelPrompt({ photoData, folderOptions, customInstructions }),
+    response_json_schema: {
+      type: "object",
+      properties: {
+        labels: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              id: { type: "string" },
+              folder: { type: "string" },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  return result.labels || [];
+}
+
+async function mergeGroupBatch(groups, existingFolderNames, customInstructions) {
+  const result = await base44.integrations.Core.InvokeLLM({
+    prompt: buildMergePrompt({ groups, existingFolderNames, customInstructions }),
+    response_json_schema: {
+      type: "object",
+      properties: {
+        folders: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              name: { type: "string" },
+              ids: { type: "array", items: { type: "string" } },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  return (result.folders || []).map((f) => ({ name: f.name, ids: f.ids || [] }));
+}
+
+async function consolidateGroups(initialGroups, existingFolderNames, customInstructions, onProgress) {
+  let groups = initialGroups;
+  let pass = 1;
+
+  while (groups.length > MERGE_CHUNK) {
+    onProgress(`Phase 2 (pass ${pass}): merging ${groups.length} groups…`);
+    const batches = [];
+    for (let i = 0; i < groups.length; i += MERGE_CHUNK) {
+      batches.push(groups.slice(i, i + MERGE_CHUNK));
+    }
+    const batchResults = await runConcurrent(
+      batches.map((batch) => () => mergeGroupBatch(batch, existingFolderNames, customInstructions)),
+      CONCURRENCY
+    );
+    const merged = new Map();
+    for (const batch of batchResults) {
+      for (const { name, ids } of batch) {
+        const key = name.toLowerCase().trim();
+        if (!merged.has(key)) merged.set(key, { name, ids: new Set(ids) });
+        else ids.forEach((id) => merged.get(key).ids.add(id));
+      }
+    }
+    groups = Array.from(merged.values()).map((g) => ({ name: g.name, ids: [...g.ids] }));
+    pass++;
+  }
+
+  onProgress(`Phase 2: final consolidation of ${groups.length} groups…`);
+  const finalGroups = await mergeGroupBatch(groups, existingFolderNames, customInstructions);
+
+  const finalMap = new Map();
+  for (const { name, ids } of finalGroups) {
+    const key = name.toLowerCase().trim();
+    if (!finalMap.has(key)) finalMap.set(key, { name, ids: new Set(ids) });
+    else ids.forEach((id) => finalMap.get(key).ids.add(id));
+  }
+
+  return Array.from(finalMap.values()).map((g) => ({
+    name: g.name,
+    photo_ids: [...g.ids],
+  }));
+}
+
+export default function OrganizeButton({ photos, squareStyle = false }) {
+  const [organizing, setOrganizing] = useState(false);
+  const [progress, setProgress] = useState("");
+  const [showDialog, setShowDialog] = useState(false);
+  const [customInstructions, setCustomInstructions] = useState("");
+  const [includeOrganized, setIncludeOrganized] = useState(false);
+  const [sharpenTags, setSharpenTags] = useState(true);
+  const queryClient = useQueryClient();
+
+  const weakCount = photos.filter(isWeakMetadata).length;
+
+  const handleOrganize = async () => {
+    if (photos.length < 2) {
+      alert("You need at least 2 photos to organize.");
+      return;
+    }
+
+    setShowDialog(false);
+    setOrganizing(true);
+
+    try {
+      const existingFolders = await base44.entities.Folder.list();
+      const organizedPhotoIds = new Set(existingFolders.flatMap((f) => f.photo_ids || []));
+      const existingFolderNames = existingFolders.map((f) => f.name);
+
+      let photosToOrganize = includeOrganized
+        ? photos
+        : photos.filter((p) => !organizedPhotoIds.has(p.id));
+
+      if (photosToOrganize.length < 2) {
+        alert(
+          photosToOrganize.length === 0
+            ? "All photos are already in folders. Check 'Re-organize everything' to re-sort."
+            : "Only 1 loose photo found — need at least 2 to organize."
+        );
+        setOrganizing(false);
+        return;
+      }
+
+      if (includeOrganized && existingFolders.length > 0) {
+        setProgress(`Clearing ${existingFolders.length} existing folders for re-organization…`);
+        await runConcurrent(
+          existingFolders.map((f) => () => base44.entities.Folder.delete(f.id)),
+          5
+        );
+      }
+
+      if (sharpenTags) {
+        const weakInBatch = photosToOrganize.filter(isWeakMetadata).length;
+        if (weakInBatch > 0) {
+          setProgress(`Sharpening visual tags for ${weakInBatch} item${weakInBatch !== 1 ? "s" : ""}…`);
+          photosToOrganize = await reanalyzeWeakPhotos(photosToOrganize, { onProgress: setProgress });
+        }
+      }
+
+      const chunks = [];
+      for (let i = 0; i < photosToOrganize.length; i += CHUNK_SIZE) {
+        chunks.push(photosToOrganize.slice(i, i + CHUNK_SIZE));
+      }
+
+      const totalChunks = chunks.length;
+      let completedChunks = 0;
+      setProgress(
+        `Phase 1: labelling ${photosToOrganize.length} item${photosToOrganize.length !== 1 ? "s" : ""} (${totalChunks} batch${totalChunks !== 1 ? "es" : ""})…`
+      );
+
+      const labelTasks = chunks.map((chunk) => async () => {
+        const labels = await labelChunk(
+          chunk,
+          includeOrganized ? [] : existingFolderNames,
+          customInstructions
+        );
+        completedChunks++;
+        setProgress(`Phase 1: ${completedChunks}/${totalChunks} batches done…`);
+        return labels;
+      });
+
+      const labelResults = await runConcurrent(labelTasks, CONCURRENCY);
+      const allLabels = labelResults.flat();
+
+      const labelledIds = new Set(allLabels.map((l) => l.id));
+      for (const photo of photosToOrganize) {
+        if (!labelledIds.has(photo.id)) {
+          allLabels.push({ id: photo.id, folder: "Miscellaneous" });
+        }
+      }
+
+      const groupMap = new Map();
+      for (const { id, folder } of allLabels) {
+        const display = (folder || "Miscellaneous").trim();
+        const key = display.toLowerCase();
+        if (!groupMap.has(key)) groupMap.set(key, { name: display, ids: new Set() });
+        groupMap.get(key).ids.add(id);
+      }
+      const initialGroups = Array.from(groupMap.values()).map((g) => ({
+        name: g.name,
+        ids: [...g.ids],
+      }));
+
+      const finalFolders = await consolidateGroups(
+        initialGroups,
+        includeOrganized ? [] : existingFolderNames,
+        customInstructions,
+        setProgress
+      );
+
+      setProgress(`Saving ${finalFolders.length} folders…`);
+
+      const currentFolders = includeOrganized ? [] : existingFolders;
+
+      const seenThisRun = new Set();
+      const foldersToSave = [];
+      for (const folder of finalFolders) {
+        const uniqueIds = (folder.photo_ids || []).filter((id) => {
+          if (seenThisRun.has(id)) return false;
+          seenThisRun.add(id);
+          return true;
+        });
+        if (uniqueIds.length >= 1) {
+          foldersToSave.push({ ...folder, photo_ids: uniqueIds });
+        }
+      }
+
+      const folderTasks = foldersToSave.map((folder) => async () => {
+        const matchingFolder = currentFolders.find(
+          (f) => f.name.toLowerCase() === folder.name.toLowerCase()
+        );
+
+        if (matchingFolder) {
+          const mergedIds = [...new Set([...(matchingFolder.photo_ids || []), ...folder.photo_ids])];
+          const coverPhoto =
+            !matchingFolder.cover_photo_url && mergedIds.length > 0
+              ? photos.find((p) => p.id === mergedIds[0])
+              : null;
+          await base44.entities.Folder.update(matchingFolder.id, {
+            photo_ids: mergedIds,
+            ...(coverPhoto && { cover_photo_url: coverPhoto.file_url }),
+          });
+        } else {
+          const coverPhoto = photos.find((p) => p.id === folder.photo_ids[0]);
+          await base44.entities.Folder.create({
+            name: folder.name,
+            description: "",
+            photo_ids: folder.photo_ids,
+            cover_photo_url: coverPhoto?.file_url || "",
+          });
+        }
+      });
+
+      await runConcurrent(folderTasks, 5);
+
+      const totalSaved = foldersToSave.reduce((sum, f) => sum + f.photo_ids.length, 0);
+      const missed = photosToOrganize.length - totalSaved;
+
+      setProgress("");
+      queryClient.invalidateQueries({ queryKey: ["folders"] });
+      queryClient.invalidateQueries({ queryKey: ["photos"] });
+
+      if (foldersToSave.length === 0) {
+        alert("No groups found to organize.");
+      } else if (missed > 0) {
+        alert(
+          `Done! ${totalSaved} of ${photosToOrganize.length} items organized into ${foldersToSave.length} folders. ${missed} items had no clear group — press Organize again to retry.`
+        );
+      }
+    } catch (error) {
+      console.error("Error organizing:", error);
+      alert(error?.message || "Failed to organize photos. Please try again.");
+      setProgress("");
+    } finally {
+      setOrganizing(false);
+    }
+  };
+
+  return (
+    <>
+      {squareStyle ? (
+        <button
+          type="button"
+          data-rb-folder-action="organize"
+          onClick={() => setShowDialog(true)}
+          disabled={organizing || photos.length < 2}
+          className={`relative ${SQUARE_FOLDER_ACTION_CLASS}`}
+          style={SQUARE_FOLDER_ACTION_STYLE}
+        >
+          {organizing ? (
+            <Loader2 className={`${ORGANIZE_ICON_CLASS} animate-spin`} />
+          ) : (
+            <Sparkles className={ORGANIZE_ICON_CLASS} />
+          )}
+          <span className={ORGANIZE_LABEL_CLASS} data-rb-organize-label>
+            {organizing ? "Organizing..." : "Organize"}
+          </span>
+          {progress && (
+            <div className="absolute top-full left-0 right-0 mt-2 p-2 bg-white rounded-lg shadow-lg border border-orange-200 whitespace-nowrap z-10">
+              <div className="flex items-center gap-2 text-sm text-orange-600">
+                <Sparkles className="w-3 h-3 animate-pulse" />
+                {progress}
+              </div>
+            </div>
+          )}
+        </button>
+      ) : (
+        <div className="relative">
+          <Button
+            onClick={() => setShowDialog(true)}
+            disabled={organizing || photos.length < 2}
+            className="bg-gradient-to-r from-blue-400 to-purple-500 hover:from-blue-500 hover:to-purple-600 text-white gap-2"
+          >
+            {organizing ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Organizing...
+              </>
+            ) : (
+              <>
+                <FolderPlus className="w-4 h-4" />
+                Organize
+              </>
+            )}
+          </Button>
+          {progress && (
+            <div className="absolute top-full left-0 right-0 mt-2 p-2 bg-white rounded-lg shadow-lg border border-orange-200 whitespace-nowrap z-10">
+              <div className="flex items-center gap-2 text-sm text-orange-600">
+                <Sparkles className="w-3 h-3 animate-pulse" />
+                {progress}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      <Dialog open={showDialog} onOpenChange={setShowDialog}>
+        <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Organize Media</DialogTitle>
+            <DialogDescription>
+              AI groups photos and videos by what they look like — grass fields, beaches, pets, food, and more
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="instructions">
+                Custom Instructions (Optional)
+                {customInstructions && (
+                  <span className="ml-2 text-xs text-purple-600 font-semibold">✓ Instructions added</span>
+                )}
+              </Label>
+              <Textarea
+                id="instructions"
+                placeholder="e.g., 'Group by month and year' or 'Keep vacation photos separate' or 'Put all grass and field photos together'"
+                value={customInstructions}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setCustomInstructions(value);
+                  const needsOrganized = value
+                    .toLowerCase()
+                    .match(/\b(consolidate|merge|combine|take all folders|move folders|reorganize folders)\b/);
+                  if (needsOrganized && !includeOrganized) setIncludeOrganized(true);
+                }}
+                className="min-h-[100px]"
+              />
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="sharpen-tags"
+                checked={sharpenTags}
+                onCheckedChange={setSharpenTags}
+              />
+              <Label htmlFor="sharpen-tags" className="text-sm font-normal cursor-pointer">
+                Sharpen visual tags before organizing
+                {weakCount > 0 && (
+                  <span className="text-gray-500 ml-1">({weakCount} item{weakCount !== 1 ? "s" : ""} need better tags)</span>
+                )}
+              </Label>
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="include-organized"
+                checked={includeOrganized}
+                onCheckedChange={setIncludeOrganized}
+              />
+              <Label htmlFor="include-organized" className="text-sm font-normal cursor-pointer">
+                Re-organize everything — consolidate all existing folders and re-sort all media from scratch.
+              </Label>
+            </div>
+
+            {includeOrganized && (
+              <p className="text-xs text-orange-600 font-medium ml-6">
+                ⚠️ This will delete all existing folders and rebuild them. Your photos won&apos;t be deleted.
+              </p>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDialog(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleOrganize}
+              className="bg-gradient-to-r from-blue-400 to-purple-500 hover:from-blue-500 hover:to-purple-600"
+            >
+              <Sparkles className="w-4 h-4 mr-2" />
+              Auto Organize
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+
+
+════════════════════════════════════════════════════════════
+BASE44 PATH: src/components/gallery/CustomFolderButton.jsx
+ACTION: Open this exact path in the Base44 Code editor → Select All → Paste → Save
+════════════════════════════════════════════════════════════
+import React, { useState } from "react";
+import { base44 } from "@/api/base44Client";
+import { Button } from "@/components/ui/button";
+import { FolderPlus, Plus, X, Check, Loader2 } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { SQUARE_FOLDER_ACTION_CLASS, SQUARE_FOLDER_ACTION_STYLE } from "./folderActionStyles";
+
+export default function CustomFolderButton({ photos, squareStyle = false }) {
+  const [showDialog, setShowDialog] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [folders, setFolders] = useState([]);
+  const queryClient = useQueryClient();
+
+  const addFolder = () => {
+    setFolders([...folders, { name: "", description: "", photo_ids: [] }]);
+  };
+
+  const removeFolder = (index) => {
+    setFolders(folders.filter((_, i) => i !== index));
+  };
+
+  const updateFolder = (index, field, value) => {
+    const updated = [...folders];
+    updated[index][field] = value;
+    setFolders(updated);
+  };
+
+  const togglePhotoInFolder = (folderIndex, photoId) => {
+    const updated = [...folders];
+    const folder = updated[folderIndex];
+    if (folder.photo_ids.includes(photoId)) {
+      folder.photo_ids = folder.photo_ids.filter(id => id !== photoId);
+    } else {
+      folder.photo_ids.push(photoId);
+    }
+    setFolders(updated);
+  };
+
+  const handleCreate = async () => {
+    const validFolders = folders.filter(f => f.name.trim() && f.photo_ids.length > 0);
+    if (validFolders.length === 0) {
+      alert("Please add folder names and select photos.");
+      return;
+    }
+
+    setCreating(true);
+
+    try {
+      for (const folder of validFolders) {
+        const coverPhoto = photos.find(p => p.id === folder.photo_ids[0]);
+        await base44.entities.Folder.create({
+          name: folder.name,
+          description: folder.description || "",
+          photo_ids: folder.photo_ids,
+          cover_photo_url: coverPhoto?.file_url || ""
+        });
+      }
+
+      queryClient.invalidateQueries({ queryKey: ['folders'] });
+      setFolders([]);
+      setShowDialog(false);
+    } catch (error) {
+      console.error("Error creating folders:", error);
+      alert("Failed to create folders. Please try again.");
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  return (
+    <>
+      <Dialog open={showDialog} onOpenChange={(open) => {
+        setShowDialog(open);
+        if (!open) setFolders([]);
+      }}>
+        <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Create Custom Folders</DialogTitle>
+            <DialogDescription>
+              Create folders and assign photos manually
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div className="flex items-center justify-between">
+              <Label>Your Folders</Label>
+              <Button onClick={addFolder} size="sm" variant="outline" className="gap-2">
+                <Plus className="w-4 h-4" />
+                Add Folder
+              </Button>
+            </div>
+
+            {folders.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                Click "Add Folder" to create your first folder
+              </div>
+            ) : (
+              <div className="space-y-4 max-h-[400px] overflow-y-auto">
+                {folders.map((folder, index) => (
+                  <div key={index} className="p-4 border rounded-lg space-y-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 space-y-2">
+                        <Input
+                          placeholder="Folder name"
+                          value={folder.name}
+                          onChange={(e) => updateFolder(index, 'name', e.target.value)}
+                        />
+                        <Input
+                          placeholder="Description (optional)"
+                          value={folder.description}
+                          onChange={(e) => updateFolder(index, 'description', e.target.value)}
+                        />
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => removeFolder(index)}
+                        className="text-red-500"
+                      >
+                        <X className="w-4 h-4" />
+                      </Button>
+                    </div>
+
+                    <div>
+                      <Label className="text-sm text-gray-600">
+                        Select Photos ({folder.photo_ids.length} selected)
+                      </Label>
+                      <div className="mt-2 grid grid-cols-4 gap-2 max-h-[200px] overflow-y-auto p-2 border rounded">
+                        {photos.map((photo) => {
+                          const isSelected = folder.photo_ids.includes(photo.id);
+                          return (
+                            <div
+                              key={photo.id}
+                              onClick={() => togglePhotoInFolder(index, photo.id)}
+                              className={`relative aspect-square rounded-lg overflow-hidden cursor-pointer border-2 transition-all ${
+                                isSelected ? 'border-purple-500 ring-2 ring-purple-300' : 'border-gray-200'
+                              }`}
+                            >
+                              <img
+                                src={photo.file_url}
+                                alt={photo.ai_description}
+                                className="w-full h-full object-cover"
+                              />
+                              {isSelected && (
+                                <div className="absolute inset-0 bg-purple-500/30 flex items-center justify-center">
+                                  <div className="w-6 h-6 bg-purple-500 rounded-full flex items-center justify-center">
+                                    <Check className="w-4 h-4 text-white" />
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDialog(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleCreate}
+              disabled={folders.length === 0 || creating}
+              className="bg-gradient-to-r from-blue-400 to-purple-500 hover:from-blue-500 hover:to-purple-600"
+            >
+              {creating ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Creating...
+                </>
+              ) : (
+                'Create Folders'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {squareStyle ? (
+        <button
+          type="button"
+          data-rb-folder-action="new-folder"
+          onClick={() => setShowDialog(true)}
+          disabled={photos.length === 0}
+          className={SQUARE_FOLDER_ACTION_CLASS}
+          style={SQUARE_FOLDER_ACTION_STYLE}
+        >
+          <FolderPlus className="w-5 h-5 text-orange-500" />
+          <span>New Folder</span>
+        </button>
+      ) : (
+        <Button
+          onClick={() => setShowDialog(true)}
+          disabled={photos.length === 0}
+          className="bg-gradient-to-r from-blue-400 to-purple-500 hover:from-blue-500 hover:to-purple-600 text-white gap-2"
+        >
+          <FolderPlus className="w-4 h-4" />
+          Custom Folder
+        </Button>
+      )}
+    </>
+  );
+}
+
+
+════════════════════════════════════════════════════════════
+BASE44 PATH: src/components/gallery/DuplicateDetector.jsx
+ACTION: Open this exact path in the Base44 Code editor → Select All → Paste → Save
+════════════════════════════════════════════════════════════
+import React, { useState, useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import { base44 } from "@/api/base44Client";
+import { useQueryClient } from "@tanstack/react-query";
+import { Copy, Loader2, CheckCircle, AlertTriangle } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { SQUARE_FOLDER_ACTION_CLASS, SQUARE_FOLDER_ACTION_STYLE } from "./folderActionStyles";
+
+export default function DuplicateDetector({ photos, folders, squareStyle = false }) {
+  const [checking, setChecking] = useState(false);
+  const [duplicates, setDuplicates] = useState([]);
+  const [showDialog, setShowDialog] = useState(false);
+  const [consolidating, setConsolidating] = useState(false);
+  const queryClient = useQueryClient();
+
+  const findDuplicates = () => {
+    setChecking(true);
+    
+    // Find photos that appear in multiple folders
+    const photoFolderMap = {};
+    
+    folders.forEach(folder => {
+      const photoIds = folder.data?.photo_ids || folder.photo_ids || [];
+      photoIds.forEach(photoId => {
+        if (!photoFolderMap[photoId]) {
+          photoFolderMap[photoId] = [];
+        }
+        photoFolderMap[photoId].push(folder);
+      });
+    });
+    
+    // Find duplicates (photos in more than one folder)
+    const dupes = [];
+    Object.entries(photoFolderMap).forEach(([photoId, folderList]) => {
+      if (folderList.length > 1) {
+        const photo = photos.find(p => (p.data?.id || p.id) === photoId);
+        if (photo) {
+          dupes.push({
+            photo: photo.data || photo,
+            folders: folderList
+          });
+        }
+      }
+    });
+    
+    setDuplicates(dupes);
+    setShowDialog(true);
+    setChecking(false);
+  };
+
+  const consolidateDuplicates = async () => {
+    setConsolidating(true);
+    
+    try {
+      // For each duplicate, keep it only in the first folder
+      for (const dupe of duplicates) {
+        const [keepFolder, ...removeFolders] = dupe.folders;
+        
+        for (const folder of removeFolders) {
+          const folderId = folder.data?.id || folder.id;
+          const photoIds = folder.data?.photo_ids || folder.photo_ids || [];
+          const updatedIds = photoIds.filter(id => id !== dupe.photo.id);
+          await base44.entities.Folder.update(folderId, {
+            photo_ids: updatedIds
+          });
+        }
+      }
+      
+      queryClient.invalidateQueries({ queryKey: ['folders'] });
+      setShowDialog(false);
+      setDuplicates([]);
+    } catch (error) {
+      console.error("Error consolidating:", error);
+    } finally {
+      setConsolidating(false);
+    }
+  };
+
+  return (
+    <>
+      {squareStyle ? (
+        <button
+          type="button"
+          data-rb-folder-action="duplicates"
+          onClick={findDuplicates}
+          disabled={checking}
+          className={SQUARE_FOLDER_ACTION_CLASS}
+          style={SQUARE_FOLDER_ACTION_STYLE}
+        >
+          {checking ? <Loader2 className="w-5 h-5 animate-spin text-blue-500" /> : <Copy className="w-5 h-5 text-blue-500" />}
+          <span>Duplicates</span>
+        </button>
+      ) : (
+        <Button
+          onClick={findDuplicates}
+          disabled={checking}
+          className="bg-gradient-to-r from-blue-400 to-purple-500 hover:from-blue-500 hover:to-purple-600 text-white gap-2"
+        >
+          {checking ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <Copy className="w-4 h-4" />
+          )}
+          Check Duplicates
+        </Button>
+      )}
+
+      <Dialog open={showDialog} onOpenChange={setShowDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {duplicates.length > 0 ? (
+                <AlertTriangle className="w-5 h-5 text-amber-500" />
+              ) : (
+                <CheckCircle className="w-5 h-5 text-green-500" />
+              )}
+              Duplicate Check
+            </DialogTitle>
+            <DialogDescription>
+              {duplicates.length > 0 
+                ? `Found ${duplicates.length} photo${duplicates.length !== 1 ? 's' : ''} in multiple folders.`
+                : "No duplicates found! Your library is clean."
+              }
+            </DialogDescription>
+          </DialogHeader>
+
+          {duplicates.length > 0 && (
+            <div className="space-y-4">
+              <div className="max-h-60 overflow-y-auto space-y-3">
+                {duplicates.map((dupe, i) => (
+                  <div key={i} className="flex gap-3 p-2 bg-gray-50 rounded-lg">
+                    <img 
+                      src={dupe.photo.file_url} 
+                      className="w-12 h-12 object-cover rounded"
+                      alt=""
+                    />
+                    <div className="flex-1 min-w-0">
+                     <p className="text-sm text-gray-600 truncate">
+                       {dupe.photo.ai_description ? `${dupe.photo.ai_description.slice(0, 50)}...` : 'No description'}
+                     </p>
+                     <p className="text-xs text-amber-600">
+                       In: {dupe.folders.map(f => f.data?.name || f.name).join(", ")}
+                     </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <Button
+                onClick={consolidateDuplicates}
+                disabled={consolidating}
+                className="w-full bg-amber-500 hover:bg-amber-600"
+              >
+                {consolidating ? (
+                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                ) : null}
+                Consolidate (keep in first folder only)
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+
+════════════════════════════════════════════════════════════
+BASE44 PATH: src/components/ui/BrandGradientIcon.jsx
+ACTION: Open this exact path in the Base44 Code editor → Select All → Paste → Save
+════════════════════════════════════════════════════════════
+import { useId } from 'react';
+
+/** Shared blue→purple brand gradient (matches search bar / "Memories" title). */
+export const BRAND_GRADIENT_TEXT_CLASS =
+  'bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent';
+
+export function BrandGradientDefs() {
+  return (
+    <svg aria-hidden="true" focusable="false" className="absolute w-0 h-0 overflow-hidden pointer-events-none">
+      <defs>
+        <linearGradient id="rb-brand-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stopColor="#60a5fa" />
+          <stop offset="100%" stopColor="#a855f7" />
+        </linearGradient>
+      </defs>
+    </svg>
+  );
+}
+
+/** Gradient Lucide icon — embeds its own SVG defs so it works in Base44 without Layout. */
+export function BrandGradientIcon({ Icon, className, ...props }) {
+  const gradId = useId().replace(/:/g, '');
+  return (
+    <span className="inline-flex items-center justify-center leading-none">
+      <svg aria-hidden="true" focusable="false" className="absolute w-0 h-0 overflow-hidden pointer-events-none">
+        <defs>
+          <linearGradient id={gradId} x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="#60a5fa" />
+            <stop offset="100%" stopColor="#a855f7" />
+          </linearGradient>
+        </defs>
+      </svg>
+      <Icon className={className} stroke={`url(#${gradId})`} fill="none" {...props} />
+    </span>
+  );
+}
+
+
+
+════════════════════════════════════════════════════════════
+BASE44 PATH: src/Layout.jsx
+ACTION: Open this exact path in the Base44 Code editor → Select All → Paste → Save
+════════════════════════════════════════════════════════════
+import React, { useEffect, useRef } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { createPageUrl } from "@/utils";
+import { isGalleryPath, navigateToGallery, persistActiveSession } from "@/lib/gallery-nav";
+import { useAuth } from "@/lib/AuthContext";
+import { Search, Upload, User, ChevronLeft } from "lucide-react";
+
+/** Inlined for Base64 publish — native uses bundled AppIcon.png (remote logo blocked on iOS). */
+const RESTOREBRAINE_APP_LOGO =
+  typeof window !== 'undefined' && (window.Capacitor?.isNativePlatform?.() || window.location?.protocol === 'capacitor:')
+    ? new URL('AppIcon.png', window.location.href).href
+    : 'https://media.base44.com/images/public/68fdc5f42768c4d045fe1bac/e76571efc_appstore.png';
+import { AnimatePresence, motion } from "framer-motion";
+import { NavigationProvider, useNavigation } from "./components/NavigationContext";
+import { TabStateProvider } from "./components/TabStateContext";
+import { BrandGradientDefs } from "@/components/ui/BrandGradientIcon";
+const TAB_ORDER = ["Gallery", "Upload", "Account"];
+
+function LayoutInner({ children, currentPageName }) {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const prevIndexRef = useRef(0);
+  const { backState, popBack } = useNavigation();
+  const { resumeActiveSession } = useAuth();
+
+  const isTabActive = (name) => {
+    if (name === 'Gallery') return isGalleryPath(location.pathname);
+    return location.pathname === createPageUrl(name);
+  };
+
+  const currentIndex = TAB_ORDER.findIndex((name) => isTabActive(name));
+  const activeIndex = currentIndex === -1 ? 0 : currentIndex;
+  const direction = activeIndex >= prevIndexRef.current ? 1 : -1;
+
+  useEffect(() => {
+    prevIndexRef.current = activeIndex;
+  }, [activeIndex]);
+
+  // Dark mode detection
+  useEffect(() => {
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    const apply = (e) => document.documentElement.classList.toggle("dark", e.matches);
+    apply(mq);
+    mq.addEventListener("change", apply);
+    return () => mq.removeEventListener("change", apply);
+  }, []);
+
+  // Prevent overscroll bounce
+  useEffect(() => {
+    document.body.style.overscrollBehaviorY = "none";
+    return () => { document.body.style.overscrollBehaviorY = ""; };
+  }, []);
+
+  const tabs = [
+    { name: "Gallery", icon: Search, label: "Search" },
+    { name: "Upload", icon: Upload, label: "Upload" },
+    { name: "Account", icon: User, label: "Account" },
+  ];
+
+  const variants = {
+    enter: (dir) => ({ x: dir > 0 ? "100%" : "-100%", opacity: 0 }),
+    center: { x: 0, opacity: 1 },
+    exit: (dir) => ({ x: dir > 0 ? "-100%" : "100%", opacity: 0 }),
+  };
+
+  const handleBack = () => {
+    if (!backState) return;
+
+    if (isGalleryPath(location.pathname)) {
+      backState.onBack();
+      popBack();
+      return;
+    }
+
+    popBack();
+    navigateToGallery(navigate, { resumeActiveSession });
+  };
+
+  useEffect(() => {
+    if (!isGalleryPath(location.pathname)) popBack();
+  }, [location.pathname, popBack]);
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
+      <BrandGradientDefs />
+      <style>{`
+        :root {
+          --primary: 250 70% 75%;
+          --primary-dark: 250 65% 65%;
+        }
+        .safe-top { padding-top: env(safe-area-inset-top); }
+        .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+        * { -webkit-tap-highlight-color: transparent; }
+        button, a, [role="button"] { user-select: none; -webkit-user-select: none; }
+      `}</style>
+
+      {/* Top brand header */}
+      <header className="fixed top-0 left-0 right-0 z-50 bg-white/70 backdrop-blur-xl border-b border-purple-100 shadow-sm safe-top select-none">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center h-14 relative">
+            {/* Back button — shown on child routes */}
+            {backState ? (
+              <button
+                type="button"
+                data-rb-gallery-nav
+                onClick={handleBack}
+                className="flex items-center gap-1 text-purple-600 font-medium select-none absolute left-0"
+              >
+                <ChevronLeft className="w-5 h-5" />
+                <span className="text-sm">{backState.label}</span>
+              </button>
+            ) : null}
+
+            {/* Centered brand logo — hide when back button is shown to avoid overlap */}
+            <div className={`flex-1 flex justify-center ${backState ? 'invisible' : ''}`}>
+              <Link to={createPageUrl("Gallery")} className="flex items-center gap-2 select-none group">
+                <img
+                  src={RESTOREBRAINE_APP_LOGO}
+                  alt="Restorebraine"
+                  data-rb-logo="1"
+                  className="w-8 h-8 rounded-xl object-cover shadow-md transform group-hover:scale-105 transition-transform duration-200"
+                />
+                <span className="text-lg font-semibold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent select-none">
+                  Restorebraine
+                </span>
+              </Link>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Content with slide transition */}
+      <main className="pt-14 pb-20 safe-bottom overflow-hidden">
+        <AnimatePresence custom={direction} mode="wait">
+          <motion.div
+            key={location.pathname}
+            custom={direction}
+            variants={variants}
+            initial="enter"
+            animate="center"
+            exit="exit"
+            transition={{ type: "tween", duration: 0.22, ease: "easeInOut" }}
+          >
+            {children}
+          </motion.div>
+        </AnimatePresence>
+      </main>
+
+      {/* Bottom Tab Bar — always visible (hide toggle removed; broken on iOS) */}
+      <nav
+        className="fixed bottom-0 left-0 right-0 z-[100] select-none"
+        aria-label="App navigation"
+      >
+        <div className="bg-white/90 backdrop-blur-xl border-t border-purple-100 shadow-lg safe-bottom">
+          <div className="flex items-stretch max-w-lg mx-auto">
+            {tabs.map(({ name, icon: Icon, label }) => {
+              const isActive = isTabActive(name);
+              return (
+                <Link
+                  key={name}
+                  to={name === 'Gallery' ? createPageUrl('Gallery') : createPageUrl(name)}
+                  replace={isActive}
+                  data-rb-gallery-nav={name === 'Gallery' ? 'tab' : undefined}
+                  onClick={name === 'Gallery' ? () => {
+                    persistActiveSession().then(() => resumeActiveSession?.());
+                  } : undefined}
+                  className="flex-1 flex flex-col items-center justify-center py-3 gap-0.5 select-none relative"
+                >
+                  <Icon
+                    className={`w-5 h-5 transition-colors select-none ${
+                      isActive ? "text-purple-600" : "text-gray-400"
+                    }`}
+                  />
+                  <span
+                    className={`text-xs font-medium transition-colors select-none ${
+                      isActive ? "text-purple-600" : "text-gray-400"
+                    }`}
+                  >
+                    {label}
+                  </span>
+                  {isActive && (
+                    <span className="absolute bottom-0 w-8 h-0.5 bg-purple-500 rounded-full" />
+                  )}
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+      </nav>
+    </div>
+  );
+}
+
+export default function Layout({ children, currentPageName }) {
+  return (
+    <TabStateProvider>
+      <NavigationProvider>
+        <LayoutInner currentPageName={currentPageName} children={children} />
+      </NavigationProvider>
+    </TabStateProvider>
+  );
+}
+
+
+════════════════════════════════════════════════════════════
+BASE44 PATH: src/index.css
+ACTION: Open this exact path in the Base44 Code editor → Select All → Paste → Save
+════════════════════════════════════════════════════════════
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+
+/* :root {
+  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+
+  color-scheme: light dark;
+  color: rgba(255, 255, 255, 0.87);
+  background-color: #242424;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+a {
+  font-weight: 500;
+  color: #646cff;
+  text-decoration: inherit;
+}
+a:hover {
+  color: #535bf2;
+}
+
+body {
+  margin: 0;
+  display: flex;
+  place-items: center;
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+h1 {
+  font-size: 3.2em;
+  line-height: 1.1;
+}
+
+button {
+  border-radius: 8px;
+  border: 1px solid transparent;
+  padding: 0.6em 1.2em;
+  font-size: 1em;
+  font-weight: 500;
+  font-family: inherit;
+  background-color: #1a1a1a;
+  cursor: pointer;
+  transition: border-color 0.25s;
+}
+button:hover {
+  border-color: #646cff;
+}
+button:focus,
+button:focus-visible {
+  outline: 4px auto -webkit-focus-ring-color;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    color: #213547;
+    background-color: #ffffff;
+  }
+  a:hover {
+    color: #747bff;
+  }
+  button {
+    background-color: #f9f9f9;
+  }
+} */
+
+
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 0 0% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 3.9%;
+    --primary: 0 0% 9%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 0 0% 96.1%;
+    --secondary-foreground: 0 0% 9%;
+    --muted: 0 0% 96.1%;
+    --muted-foreground: 0 0% 45.1%;
+    --accent: 0 0% 96.1%;
+    --accent-foreground: 0 0% 9%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 89.8%;
+    --input: 0 0% 89.8%;
+    --ring: 0 0% 3.9%;
+    --chart-1: 12 76% 61%;
+    --chart-2: 173 58% 39%;
+    --chart-3: 197 37% 24%;
+    --chart-4: 43 74% 66%;
+    --chart-5: 27 87% 67%;
+    --radius: 0.5rem;
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 240 5.9% 10%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+  .dark {
+    --background: 0 0% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 0 0% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 0 0% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 0 0% 9%;
+    --secondary: 0 0% 14.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 0 0% 14.9%;
+    --muted-foreground: 0 0% 63.9%;
+    --accent: 0 0% 14.9%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 14.9%;
+    --input: 0 0% 14.9%;
+    --ring: 0 0% 83.1%;
+    --chart-1: 220 70% 50%;
+    --chart-2: 160 60% 45%;
+    --chart-3: 30 80% 55%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 340 75% 55%;
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}
+
+
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html,
+  body,
+  #root {
+    margin: 0;
+    min-height: 100%;
+    height: 100%;
+  }
+  body {
+    @apply bg-background text-foreground;
+    min-height: 100dvh;
+  }
+  #root {
+    min-height: 100dvh;
+  }
+}
+
+/* Folders tab: compact tiles — fill is the button, no outer border rim */
+div.grid.grid-cols-2.gap-1\.5.mb-5 > button,
+div.grid.grid-cols-2.gap-1\.5.mb-5 [data-rb-folder-action],
+div.grid.grid-cols-2.gap-2.mb-5 > button,
+div.grid.grid-cols-2.gap-2.mb-5 [data-rb-folder-action] {
+  box-sizing: border-box !important;
+  width: 100% !important;
+  height: auto !important;
+  min-height: 4.25rem !important;
+  max-width: none !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 0.25rem !important;
+  padding: 0.75rem !important;
+  border-radius: 1rem !important;
+  background: linear-gradient(to bottom right, #ffffff 0%, #ffffff 70%, rgb(250 245 255) 100%) !important;
+  border: 1px solid rgb(229 231 235) !important;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.08), 0 1px 2px -1px rgba(0, 0, 0, 0.04) !important;
+  font-size: 0.875rem !important;
+  font-weight: 600 !important;
+  outline: none !important;
+  -webkit-appearance: none !important;
+  appearance: none !important;
+}
+
+div.grid.grid-cols-2.gap-1\.5.mb-5 > button:not([data-rb-folder-action="organize"]),
+div.grid.grid-cols-2.gap-1\.5.mb-5 [data-rb-folder-action]:not([data-rb-folder-action="organize"]),
+div.grid.grid-cols-2.gap-2.mb-5 > button:not([data-rb-folder-action="organize"]),
+div.grid.grid-cols-2.gap-2.mb-5 [data-rb-folder-action]:not([data-rb-folder-action="organize"]) {
+  color: rgb(55 65 81) !important;
+}
+
+div.grid.grid-cols-2.gap-1\.5.mb-5 [data-rb-folder-action="select"].bg-purple-600,
+div.grid.grid-cols-2.gap-2.mb-5 [data-rb-folder-action="select"].bg-purple-600 {
+  background: rgb(147 51 234) !important;
+  color: #ffffff !important;
+}
+
+/* Organize: solid purple icon + label */
+div.grid.grid-cols-2.gap-1\.5.mb-5 [data-rb-folder-action="organize"] [data-rb-organize-label],
+div.grid.grid-cols-2.gap-2.mb-5 [data-rb-folder-action="organize"] [data-rb-organize-label] {
+  color: rgb(147 51 234) !important;
+  -webkit-text-fill-color: rgb(147 51 234) !important;
+  background: none !important;
+}
+
+div.grid.grid-cols-2.gap-1\.5.mb-5 [data-rb-folder-action="organize"] svg.lucide,
+div.grid.grid-cols-2.gap-2.mb-5 [data-rb-folder-action="organize"] svg.lucide {
+  stroke: rgb(168 85 247) !important;
+  color: rgb(168 85 247) !important;
+}
+
+div.grid.grid-cols-2.gap-1\.5.mb-5 button.border-purple-100,
+div.grid.grid-cols-2.gap-1\.5.mb-5 button.border-purple-200,
+div.grid.grid-cols-2.gap-2.mb-5 button.border-purple-100,
+div.grid.grid-cols-2.gap-2.mb-5 button.border-purple-200 {
+  border: 1px solid rgb(229 231 235) !important;
+  background: linear-gradient(to bottom right, #ffffff 0%, #ffffff 70%, rgb(250 245 255) 100%) !important;
+}
+
+div.grid.grid-cols-2.gap-1\.5.mb-5 button span.text-xs,
+div.grid.grid-cols-2.gap-2.mb-5 button span.text-xs {
+  font-size: 0.875rem !important;
+}
+
+
+
+>>> NOW CLICK PUBLISH in Base44 <<<
+
+Verify after publish:
+  meta name="restorebraine-deploy" content="v151"
+  App shows Sign In or gallery (not white screen)
