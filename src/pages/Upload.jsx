@@ -17,6 +17,8 @@ import {
   processUploadBatch,
   validateFiles,
 } from "@/lib/media-upload";
+import { persistGalleryPhotosSync } from "@/lib/gallery-photos-cache";
+import { getGalleryUserEmail } from "@/lib/gallery-query-keys";
 
 export default function Upload() {
   const queryClient = useQueryClient();
@@ -133,7 +135,12 @@ export default function Upload() {
           updateFileAt(indexes[batchIndex], patch);
         },
       });
-      queryClient.invalidateQueries({ queryKey: ["photos"] });
+      await queryClient.invalidateQueries({ queryKey: ["photos"] });
+      const email = getGalleryUserEmail(queryClient, currentUser?.email);
+      const latestPhotos = queryClient.getQueryData(["photos", email]);
+      if (email && latestPhotos?.length) {
+        persistGalleryPhotosSync(email, latestPhotos);
+      }
     } catch (error) {
       console.error("Batch upload failed:", error);
       const message = error?.message || "Upload failed";
@@ -150,7 +157,7 @@ export default function Upload() {
     } finally {
       setProcessing(false);
     }
-  }, [currentPhotoCount, currentPaidTier, processing, queryClient, updateFileAt]);
+  }, [currentPhotoCount, currentPaidTier, processing, queryClient, updateFileAt, currentUser?.email]);
 
   useEffect(() => {
     if (!autoProcessRef.current || processing || showPayment) return;

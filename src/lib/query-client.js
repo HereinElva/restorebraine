@@ -1,4 +1,5 @@
 import { QueryClient } from '@tanstack/react-query';
+import { hydrateGalleryCacheSync } from '@/lib/gallery-cache-hydrate';
 
 
 export const queryClientInstance = new QueryClient({
@@ -9,3 +10,5 @@ export const queryClientInstance = new QueryClient({
 		},
 	},
 });
+
+hydrateGalleryCacheSync(queryClientInstance);

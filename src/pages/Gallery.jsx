@@ -5,6 +5,15 @@ import { useAuth } from "@/lib/AuthContext";
 import { hasStoredSessionToken } from "@/screens/SignInScreen";
 import { ensureClientSessionToken } from "@/lib/session-bootstrap";
 import { loadGalleryData } from "@/lib/gallery-data";
+import { hydrateGalleryCacheSync } from "@/lib/gallery-cache-hydrate";
+import { withTimeout } from "@/lib/invoke-llm-retry";
+import {
+  loadGalleryPhotosCacheSync,
+  loadGalleryUserEmailSync,
+  loadGalleryUserSnapshotSync,
+  persistGalleryPhotosSync,
+  persistGalleryUserSync,
+} from "@/lib/gallery-photos-cache";
 import { resetAppScrollPosition } from "@/lib/scroll-reset";
 import { Search, Image as ImageIcon, Sparkles, MousePointer2 } from "lucide-react";
 import PullToRefresh from "../components/gallery/PullToRefresh";
@@ -85,6 +94,8 @@ const CACHE = {
   photos:  { staleTime: 2  * 60 * 1000, gcTime: 10 * 60 * 1000 }, // 2 min stale
   folders: { staleTime: 2  * 60 * 1000, gcTime: 10 * 60 * 1000 },
 };
+
+const GALLERY_LOAD_TIMEOUT_MS = 12000;
  
 // ---------------------------------------------------------------------------
  
@@ -105,7 +116,12 @@ export default function Gallery() {
   const [selectedIds, setSelectedIds] = useState([]);
   const [selectedFolderIds, setSelectedFolderIds] = useState([]);
   const [isMoving, setIsMoving] = useState(false);
+  const [loadTimedOut, setLoadTimedOut] = useState(false);
   const queryClient = useQueryClient();
+
+  useLayoutEffect(() => {
+    hydrateGalleryCacheSync(queryClient);
+  }, [queryClient]);
  
   useEffect(() => {
     setTabState("Gallery", { searchQuery, debouncedQuery, selectedFolder });
@@ -119,6 +135,7 @@ export default function Gallery() {
       void loadGalleryData(queryClient);
       resetAppScrollPosition();
     };
+    refreshGallery();
     window.addEventListener('restorebraine-session-updated', refreshGallery);
     window.addEventListener('restorebraine-native-oauth-complete', refreshGallery);
     window.addEventListener('restorebraine-gallery-ready', refreshGallery);
@@ -151,44 +168,81 @@ export default function Gallery() {
   // currentUser is fetched once and cached — no blocking on re-opens
   const { data: currentUser } = useQuery({
     queryKey: ['current-user'],
-    queryFn: () => {
+    queryFn: async () => {
       ensureClientSessionToken();
-      return base44.auth.me();
+      const me = await withTimeout(base44.auth.me(), 8000, 'Auth');
+      persistGalleryUserSync(me);
+      return me;
     },
     enabled: canFetchData,
     staleTime: CACHE.user.staleTime,
     gcTime: CACHE.user.gcTime,
-    placeholderData: (prev) => prev ?? authUser ?? undefined,
-    retry: 2,
+    placeholderData: (prev) => prev ?? loadGalleryUserSnapshotSync() ?? authUser ?? undefined,
+    retry: 1,
   });
 
-  const userEmail = currentUser?.email || authUser?.email;
+  const userEmail = currentUser?.email || authUser?.email || loadGalleryUserEmailSync();
 
   const { data: photos = [], isLoading: photosLoading } = useQuery({
     queryKey: ['photos', userEmail ?? 'pending'],
     queryFn: async () => {
       ensureClientSessionToken();
-      const me = userEmail ? { email: userEmail } : await base44.auth.me();
+      const me = userEmail
+        ? { email: userEmail }
+        : await withTimeout(base44.auth.me(), 8000, 'Auth');
       if (!me?.email) throw new Error('Gallery requires signed-in user');
-      return base44.entities.Photo.filter({ created_by: me.email }, '-created_date');
+      persistGalleryUserSync(me);
+      try {
+        const fetched = await withTimeout(
+          base44.entities.Photo.filter({ created_by: me.email }, '-created_date'),
+          18000,
+          'Photos',
+        );
+        const list = fetched || [];
+        persistGalleryPhotosSync(me.email, list);
+        return list;
+      } catch (error) {
+        const cached = loadGalleryPhotosCacheSync(me.email);
+        if (cached.length) {
+          console.warn('Photos query failed, using cache:', error);
+          return cached;
+        }
+        throw error;
+      }
     },
-    enabled: canFetchData,
+    enabled: canFetchData && !!userEmail,
     staleTime: CACHE.photos.staleTime,
     gcTime: CACHE.photos.gcTime,
-    retry: 2,
+    placeholderData: (previousData) => {
+      if (previousData?.length) return previousData;
+      if (!userEmail) return [];
+      return loadGalleryPhotosCacheSync(userEmail);
+    },
+    retry: 1,
   });
 
   const { data: folders = [] } = useQuery({
     queryKey: ['folders', userEmail ?? 'pending'],
     queryFn: async () => {
       ensureClientSessionToken();
-      const me = userEmail ? { email: userEmail } : await base44.auth.me();
+      const me = userEmail
+        ? { email: userEmail }
+        : await withTimeout(base44.auth.me(), 8000, 'Auth');
       if (!me?.email) throw new Error('Gallery requires signed-in user');
       const photosData =
         queryClient.getQueryData(['photos', me.email]) ??
-        (await base44.entities.Photo.filter({ created_by: me.email }, '-created_date'));
+        loadGalleryPhotosCacheSync(me.email) ??
+        (await withTimeout(
+          base44.entities.Photo.filter({ created_by: me.email }, '-created_date'),
+          18000,
+          'Photos',
+        ));
       const snapshot = await loadFullFolderSnapshotAsync(me.email);
-      const fetched = await fetchGalleryFoldersWithMembership(me.email, photosData || []);
+      const fetched = await withTimeout(
+        fetchGalleryFoldersWithMembership(me.email, photosData || []),
+        15000,
+        'Folders',
+      );
       return mergeApiFoldersWithLocal(fetched, snapshot);
     },
     enabled: canFetchData && !!userEmail,
@@ -200,7 +254,7 @@ export default function Gallery() {
       const snapshot = loadFolderSnapshotCacheSync(userEmail);
       return snapshot.length ? snapshot : [];
     },
-    retry: 2,
+    retry: 1,
   });
 
   useEffect(() => {
@@ -213,8 +267,17 @@ export default function Gallery() {
     });
   }, [userEmail, canFetchData, queryClient]);
 
-  // Only show the loading spinner on the very first load (no cached data yet)
-  const isLoading = photosLoading && photos.length === 0;
+  // Only show the loading spinner when there is no cached data to display yet.
+  const isLoading = photosLoading && photos.length === 0 && !loadTimedOut;
+
+  useEffect(() => {
+    if (!photosLoading || photos.length > 0) {
+      setLoadTimedOut(false);
+      return;
+    }
+    const timer = setTimeout(() => setLoadTimedOut(true), GALLERY_LOAD_TIMEOUT_MS);
+    return () => clearTimeout(timer);
+  }, [photosLoading, photos.length]);
 
   /** Align folder photo_ids with Photo.id values so Recents clears after organize. */
   const foldersForGallery = useMemo(
