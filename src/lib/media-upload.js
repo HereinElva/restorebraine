@@ -1,12 +1,16 @@
 import { base44 } from '@/api/base44Client';
 import { analyzeMedia } from '@/lib/media-analysis';
 import { runConcurrent } from '@/lib/concurrency';
+import { withTimeout } from '@/lib/invoke-llm-retry';
 import {
   ANALYSIS_CONCURRENCY,
   MAX_BATCH_SIZE,
   MAX_VIDEO_BYTES,
   SAVE_CONCURRENCY,
+  UPLOAD_BATCH_TIMEOUT_MS,
   UPLOAD_CONCURRENCY,
+  UPLOAD_MAX_RETRIES,
+  UPLOAD_TIMEOUT_MS,
 } from '@/lib/media-constants';
 
 export {
@@ -14,7 +18,10 @@ export {
   MAX_BATCH_SIZE,
   MAX_VIDEO_BYTES,
   SAVE_CONCURRENCY,
+  UPLOAD_BATCH_TIMEOUT_MS,
   UPLOAD_CONCURRENCY,
+  UPLOAD_MAX_RETRIES,
+  UPLOAD_TIMEOUT_MS,
 } from '@/lib/media-constants';
 
 export function getFileType(file) {
@@ -63,8 +70,44 @@ export function validateFiles(files) {
   return { valid: readable, error: null };
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isRetryableUploadError(error) {
+  const msg = String(error?.message || error || '').toLowerCase();
+  return (
+    msg.includes('network') ||
+    msg.includes('timeout') ||
+    msg.includes('timed out') ||
+    msg.includes('fetch') ||
+    msg.includes('failed to fetch') ||
+    msg.includes('connection') ||
+    msg.includes('abort') ||
+    msg.includes('503') ||
+    msg.includes('502') ||
+    msg.includes('504')
+  );
+}
+
 async function uploadFile(file) {
-  return base44.integrations.Core.UploadFile({ file });
+  let lastError;
+  for (let attempt = 0; attempt < UPLOAD_MAX_RETRIES; attempt++) {
+    try {
+      return await withTimeout(
+        base44.integrations.Core.UploadFile({ file }),
+        UPLOAD_TIMEOUT_MS,
+        'Upload',
+      );
+    } catch (error) {
+      lastError = error;
+      if (!isRetryableUploadError(error) || attempt === UPLOAD_MAX_RETRIES - 1) {
+        throw error;
+      }
+      await sleep(1500 * (attempt + 1));
+    }
+  }
+  throw lastError || new Error('Upload failed');
 }
 
 async function savePhoto({ file_url, file_type, ai_description, ai_tags, original_filename }) {
@@ -83,6 +126,14 @@ async function savePhoto({ file_url, file_type, ai_description, ai_tags, origina
  * Each phase runs in parallel for maximum throughput on large batches.
  */
 export async function processUploadBatch(queueItems, { onItemUpdate } = {}) {
+  return withTimeout(
+    processUploadBatchInner(queueItems, { onItemUpdate }),
+    UPLOAD_BATCH_TIMEOUT_MS,
+    'Upload batch',
+  );
+}
+
+async function processUploadBatchInner(queueItems, { onItemUpdate } = {}) {
   const update = (index, patch) => onItemUpdate?.(index, patch);
 
   const uploadTasks = queueItems.map((item, index) => async () => {

@@ -83,8 +83,10 @@ export default function OrganizeButton({ photos, folders: foldersProp, squareSty
       setProgressLabel("");
     };
     window.addEventListener("restorebraine-gallery-refresh", resetOrganizing);
+    window.addEventListener("restorebraine-gallery-ready", resetOrganizing);
     return () => {
       window.removeEventListener("restorebraine-gallery-refresh", resetOrganizing);
+      window.removeEventListener("restorebraine-gallery-ready", resetOrganizing);
       organizeInFlight.current = false;
     };
   }, []);
@@ -119,6 +121,8 @@ export default function OrganizeButton({ photos, folders: foldersProp, squareSty
       resetUi();
       alert("Organize took too long and was reset. Try again.");
     }, ORGANIZE_UI_RESET_MS);
+
+    let resultMessage = null;
 
     try {
       const email = getGalleryUserEmail(queryClient, authUser?.email);
@@ -156,27 +160,31 @@ export default function OrganizeButton({ photos, folders: foldersProp, squareSty
       queryClient.setQueryData(galleryFoldersKey(email), verifiedFolders);
       setGalleryOrganizeSnapshot({ photos: syncedPhotos, folders: verifiedFolders });
 
+      const newFolderCount = verifiedFolders.filter((f) => !folderIdsBefore.has(f.id)).length;
+      resultMessage = organizeResultMessage({
+        totalSaved: result.totalSaved,
+        totalToOrganize: result.totalToOrganize,
+        missed: result.missed,
+        remainingLoose: result.remainingLoose ?? 0,
+        totalFolders: verifiedFolders.length,
+        newFolderCount,
+        foldersInBatch: result.foldersSaved,
+      });
+
+      // Reset button immediately — post-save work must not block the UI.
+      window.clearTimeout(uiWatchdog);
+      setProgressLabel("Done!");
+      resetUi();
+
       if (email && verifiedFolders.length > 0) {
         persistGalleryFoldersSync(email, verifiedFolders);
         persistGalleryFoldersFast(email, verifiedFolders);
       }
 
-      await queryClient.invalidateQueries({ queryKey: galleryFoldersKey(email) });
-      window.dispatchEvent(new CustomEvent('restorebraine-gallery-ready'));
+      window.dispatchEvent(new CustomEvent("restorebraine-gallery-ready"));
+      void queryClient.invalidateQueries({ queryKey: galleryFoldersKey(email) });
 
-      const newFolderCount = verifiedFolders.filter((f) => !folderIdsBefore.has(f.id)).length;
-
-      alert(
-        organizeResultMessage({
-          totalSaved: result.totalSaved,
-          totalToOrganize: result.totalToOrganize,
-          missed: result.missed,
-          remainingLoose: result.remainingLoose ?? 0,
-          totalFolders: verifiedFolders.length,
-          newFolderCount,
-          foldersInBatch: result.foldersSaved,
-        }),
-      );
+      alert(resultMessage);
     } catch (error) {
       console.error("Error organizing:", error);
       alert(formatLLMError(error));

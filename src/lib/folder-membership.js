@@ -374,6 +374,7 @@ export async function assignLoosePhotosByFolder({
       if (idx >= 0) folders[idx] = result.folder;
       else folders.push(result.folder);
     }
+    onProgress?.("Done!");
     onPartialSave?.(folders);
   } else {
     let groupIndex = 0;
@@ -396,6 +397,7 @@ export async function assignLoosePhotosByFolder({
       }
       onPartialSave?.(folders);
     }
+    onProgress?.("Done!");
   }
 
   if (userEmail && cacheEntries.length) {

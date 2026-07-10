@@ -255,6 +255,8 @@ async function runMediaOrganizeInner({
     if (entries.length) void recordBatchFolderMembership(userEmail, entries);
   }
 
+  onProgress?.("Done!");
+
   return {
     ok: true,
     foldersSaved: new Set(allLabels.map((l) => l.folder)).size,

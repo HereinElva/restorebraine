@@ -136,6 +136,17 @@ export default function Upload() {
       queryClient.invalidateQueries({ queryKey: ["photos"] });
     } catch (error) {
       console.error("Batch upload failed:", error);
+      const message = error?.message || "Upload failed";
+      setFiles((prev) =>
+        prev.map((item, i) =>
+          indexes.includes(i) && item.status === "processing"
+            ? { ...item, status: "error", error: message, progress: 0, phase: "error" }
+            : item,
+        ),
+      );
+      if (/timed out/i.test(message)) {
+        alert("Upload took too long. Tap retry on failed items, or upload fewer files at once.");
+      }
     } finally {
       setProcessing(false);
     }

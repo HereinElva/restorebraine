@@ -23,8 +23,16 @@ export default function MobileUpload({
 
   const pendingCount = files.filter(f => f.status === 'pending').length;
   const successCount = files.filter(f => f.status === 'success').length;
-  const progress = files.length > 0 ? Math.round((successCount / files.length) * 100) : 0;
+  const errorCount = files.filter(f => f.status === 'error').length;
+  const processingCount = files.filter(f => f.status === 'processing').length;
+  const inFlightProgress = files
+    .filter(f => f.status === 'processing')
+    .reduce((sum, f) => sum + (f.progress || 0), 0) / 100;
+  const progress = files.length > 0
+    ? Math.round(((successCount + inFlightProgress) / files.length) * 100)
+    : 0;
   const showCompleteBanner = allProcessed && hasSuccess;
+  const showBatchActive = processing || processingCount > 0;
 
   return (
     <div className="min-h-screen pb-24 px-4 pt-4">
@@ -49,8 +57,8 @@ export default function MobileUpload({
         </p>
       </div>
 
-      {/* Add from Camera Roll — always first when idle */}
-      {!processing && (
+      {/* Add from Camera Roll — idle when no batch in flight */}
+      {!showBatchActive && (
         <motion.button
           type="button"
           whileTap={{ scale: 0.97 }}
@@ -87,7 +95,7 @@ export default function MobileUpload({
       )}
 
       {/* Processing progress */}
-      {processing && files.length > 0 && (
+      {showBatchActive && files.length > 0 && (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 mb-4 flex items-center gap-4">
           <div className="relative w-14 h-14 flex-shrink-0">
             <svg className="w-14 h-14 -rotate-90" viewBox="0 0 56 56">
@@ -113,13 +121,30 @@ export default function MobileUpload({
           </div>
           <div>
             <p className="font-semibold text-gray-900">Processing...</p>
-            <p className="text-sm text-gray-500">{successCount} of {files.length} complete</p>
+            <p className="text-sm text-gray-500">
+              {successCount} saved
+              {processingCount > 0 ? ` · ${processingCount} in progress` : ''}
+              {errorCount > 0 ? ` · ${errorCount} failed` : ''}
+              {` · ${files.length} total`}
+            </p>
           </div>
         </div>
       )}
 
+      {/* Batch finished with failures */}
+      {!showBatchActive && allProcessed && errorCount > 0 && (
+        <div className="bg-amber-50 rounded-2xl border border-amber-200 p-4 mb-4">
+          <p className="font-semibold text-amber-900">
+            {successCount > 0 ? 'Upload finished with errors' : 'Upload failed'}
+          </p>
+          <p className="text-sm text-amber-800 mt-1">
+            {successCount} saved, {errorCount} failed — tap retry on failed items below.
+          </p>
+        </div>
+      )}
+
       {/* Tips — below banner / progress, hidden once upload succeeds */}
-      {!processing && !showCompleteBanner && (
+      {!showBatchActive && !showCompleteBanner && (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 divide-y divide-gray-50 mb-4">
           <div className="flex items-center gap-3 px-4 py-3.5">
             <div className="w-8 h-8 bg-purple-100 rounded-xl flex items-center justify-center flex-shrink-0">
@@ -153,7 +178,7 @@ export default function MobileUpload({
 
       {files.length > 0 && (
         <div>
-          {!processing && !allProcessed && pendingCount > 0 && (
+          {!showBatchActive && !allProcessed && pendingCount > 0 && (
             <motion.button
               whileTap={{ scale: 0.97 }}
               onClick={processPhotos}
