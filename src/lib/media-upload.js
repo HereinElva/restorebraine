@@ -3,11 +3,13 @@ import { analyzeMedia } from '@/lib/media-analysis';
 import { enrichTags, tokenize } from '@/lib/media-tags';
 import { runConcurrent } from '@/lib/concurrency';
 import { withTimeout } from '@/lib/invoke-llm-retry';
+import { prepareUploadFiles } from '@/lib/upload-image-prep';
+import { runUploadSavePipeline } from '@/lib/upload-pipeline';
 import {
   BACKGROUND_ANALYSIS_CONCURRENCY,
   MAX_BATCH_SIZE,
   MAX_VIDEO_BYTES,
-  SAVE_CONCURRENCY,
+  SAVE_PIPELINE_CONCURRENCY,
   UPLOAD_ANALYSIS_TIMEOUT_MS,
   UPLOAD_BATCH_TIMEOUT_MS,
   UPLOAD_MAX_RETRIES,
@@ -19,7 +21,7 @@ export {
   BACKGROUND_ANALYSIS_CONCURRENCY,
   MAX_BATCH_SIZE,
   MAX_VIDEO_BYTES,
-  SAVE_CONCURRENCY,
+  SAVE_PIPELINE_CONCURRENCY,
   UPLOAD_ANALYSIS_TIMEOUT_MS,
   UPLOAD_BATCH_TIMEOUT_MS,
   UPLOAD_MAX_RETRIES,
@@ -120,7 +122,7 @@ async function uploadFile(file) {
       if (!isRetryableUploadError(error) || attempt === UPLOAD_MAX_RETRIES - 1) {
         throw error;
       }
-      await sleep(1200 * (attempt + 1));
+      await sleep(800 * (attempt + 1));
     }
   }
   throw lastError || new Error('Upload failed');
@@ -153,50 +155,8 @@ async function analyzeAndUpdatePhoto(photoId, fileUrl, fileType, filename) {
   }
 }
 
-async function processOneUploadItem(item, index, update) {
-  update(index, { status: 'processing', progress: 8, error: null, phase: 'uploading' });
-
-  try {
-    const uploadResult = await uploadFile(item.file);
-    const fileType = getFileType(item.file);
-    const quickMeta = quickMetadataFromFilename(item.file.name, fileType);
-
-    update(index, { progress: 72, file_url: uploadResult.file_url, phase: 'saving' });
-
-    const saved = await savePhoto({
-      file_url: uploadResult.file_url,
-      file_type: fileType,
-      ai_description: quickMeta.ai_description,
-      ai_tags: quickMeta.ai_tags,
-      original_filename: item.file.name,
-    });
-
-    update(index, {
-      status: 'success',
-      progress: 100,
-      ai_description: quickMeta.ai_description,
-      ai_tags: quickMeta.ai_tags,
-      phase: 'done',
-      photoId: saved?.id,
-    });
-
-    return {
-      index,
-      success: true,
-      photoId: saved?.id,
-      fileUrl: uploadResult.file_url,
-      fileType,
-      filename: item.file.name,
-    };
-  } catch (error) {
-    const message = error?.message || 'Upload failed';
-    update(index, { status: 'error', error: message, progress: 0, phase: 'error' });
-    return { index, success: false };
-  }
-}
-
 /**
- * Fast pipeline: upload + save each file immediately, analyze in background.
+ * Fast pipeline: compress → overlapping upload/save → background AI.
  */
 export async function processUploadBatch(queueItems, { onItemUpdate } = {}) {
   return withTimeout(
@@ -209,11 +169,76 @@ export async function processUploadBatch(queueItems, { onItemUpdate } = {}) {
 async function processUploadBatchInner(queueItems, { onItemUpdate } = {}) {
   const update = (index, patch) => onItemUpdate?.(index, patch);
 
-  const results = await runConcurrent(
-    queueItems.map((item, index) => () => processOneUploadItem(item, index, update)),
-    UPLOAD_PIPELINE_CONCURRENCY,
+  const preparedFiles = await prepareUploadFiles(
+    queueItems.map((item) => item.file),
+    { onItemProgress: (index, patch) => update(index, patch) },
   );
 
+  const preparedItems = queueItems.map((item, index) => ({
+    ...item,
+    file: preparedFiles[index] || item.file,
+  }));
+
+  const pipelineResults = await runUploadSavePipeline({
+    items: preparedItems,
+    uploadConcurrency: UPLOAD_PIPELINE_CONCURRENCY,
+    saveConcurrency: SAVE_PIPELINE_CONCURRENCY,
+    uploadOne: async (item, index) => {
+      update(index, { status: 'processing', progress: 12, error: null, phase: 'uploading' });
+      try {
+        const uploadResult = await uploadFile(item.file);
+        update(index, { progress: 62, file_url: uploadResult.file_url, phase: 'uploaded' });
+        return {
+          index,
+          file_url: uploadResult.file_url,
+          fileType: getFileType(item.file),
+          filename: item.file.name,
+        };
+      } catch (error) {
+        const message = error?.message || 'Upload failed';
+        update(index, { status: 'error', error: message, progress: 0, phase: 'error' });
+        return null;
+      }
+    },
+    saveOne: async ({ item, index, uploaded }) => {
+      update(index, { progress: 78, phase: 'saving' });
+      const quickMeta = quickMetadataFromFilename(item.file.name, uploaded.fileType);
+
+      try {
+        const saved = await savePhoto({
+          file_url: uploaded.file_url,
+          file_type: uploaded.fileType,
+          ai_description: quickMeta.ai_description,
+          ai_tags: quickMeta.ai_tags,
+          original_filename: item.file.name,
+        });
+
+        update(index, {
+          status: 'success',
+          progress: 100,
+          ai_description: quickMeta.ai_description,
+          ai_tags: quickMeta.ai_tags,
+          phase: 'done',
+          photoId: saved?.id,
+        });
+
+        return {
+          index,
+          success: true,
+          photoId: saved?.id,
+          fileUrl: uploaded.file_url,
+          fileType: uploaded.fileType,
+          filename: item.file.name,
+        };
+      } catch (error) {
+        const message = error?.message || 'Save failed';
+        update(index, { status: 'error', error: message, progress: 0, phase: 'error' });
+        return { index, success: false };
+      }
+    },
+  });
+
+  const results = pipelineResults.filter(Boolean);
   const backgroundJobs = results
     .filter((result) => result.success && result.photoId)
     .map(
@@ -239,21 +264,25 @@ async function processUploadBatchInner(queueItems, { onItemUpdate } = {}) {
 
 export async function processSingleUpload(item, { onUpdate } = {}) {
   const patch = (updates) => onUpdate?.(updates);
-  patch({ status: 'processing', progress: 8, error: null, phase: 'uploading' });
+  patch({ status: 'processing', progress: 8, error: null, phase: 'preparing' });
 
   try {
-    const uploadResult = await uploadFile(item.file);
-    const fileType = getFileType(item.file);
-    const quickMeta = quickMetadataFromFilename(item.file.name, fileType);
+    const [prepared] = await prepareUploadFiles([item.file]);
+    const file = prepared || item.file;
 
-    patch({ progress: 72, phase: 'saving' });
+    patch({ progress: 12, phase: 'uploading' });
+    const uploadResult = await uploadFile(file);
+    const fileType = getFileType(file);
+    const quickMeta = quickMetadataFromFilename(file.name, fileType);
+
+    patch({ progress: 78, phase: 'saving' });
 
     const saved = await savePhoto({
       file_url: uploadResult.file_url,
       file_type: fileType,
       ai_description: quickMeta.ai_description,
       ai_tags: quickMeta.ai_tags,
-      original_filename: item.file.name,
+      original_filename: file.name,
     });
 
     patch({
@@ -264,7 +293,7 @@ export async function processSingleUpload(item, { onUpdate } = {}) {
       phase: 'done',
     });
 
-    void analyzeAndUpdatePhoto(saved?.id, uploadResult.file_url, fileType, item.file.name);
+    void analyzeAndUpdatePhoto(saved?.id, uploadResult.file_url, fileType, file.name);
     return true;
   } catch (error) {
     patch({

@@ -1,5 +1,8 @@
-/** Per-item upload+save pipeline — runs upload and save in parallel across files. */
-export const UPLOAD_PIPELINE_CONCURRENCY = 4;
+/** Overlapping upload workers — bandwidth-bound. */
+export const UPLOAD_PIPELINE_CONCURRENCY = 6;
+
+/** Overlapping DB saves while uploads continue. */
+export const SAVE_PIPELINE_CONCURRENCY = 8;
 
 /** Background AI analysis after save — does not block the upload UI. */
 export const BACKGROUND_ANALYSIS_CONCURRENCY = 2;
@@ -11,7 +14,19 @@ export const UPLOAD_CONCURRENCY = UPLOAD_PIPELINE_CONCURRENCY;
 export const ANALYSIS_CONCURRENCY = 2;
 
 /** Parallel DB writes. */
-export const SAVE_CONCURRENCY = 6;
+export const SAVE_CONCURRENCY = SAVE_PIPELINE_CONCURRENCY;
+
+/** Compress camera-roll images above this size before upload. */
+export const IMAGE_COMPRESS_MIN_BYTES = 700 * 1024;
+
+/** Max long edge for uploaded photos — keeps quality, cuts upload time. */
+export const IMAGE_MAX_DIMENSION = 2048;
+
+/** JPEG quality for compressed uploads. */
+export const IMAGE_JPEG_QUALITY = 0.82;
+
+/** Parallel image prep before upload starts. */
+export const IMAGE_PREP_CONCURRENCY = 4;
 
 /** Max files accepted in one selection. */
 export const MAX_BATCH_SIZE = 100;

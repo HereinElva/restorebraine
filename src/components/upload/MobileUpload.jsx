@@ -155,7 +155,7 @@ export default function MobileUpload({
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-gray-800">AI-powered search</p>
-              <p className="text-xs text-gray-500">Search tags are added in the background right after save</p>
+              <p className="text-xs text-gray-500">Large photos are optimized before upload for faster saving</p>
             </div>
           </div>
           <div className="flex items-center gap-3 px-4 py-3.5">
