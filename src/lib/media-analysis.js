@@ -24,12 +24,22 @@ Return JSON:
 
 Be literal and specific — only describe what is actually visible.`;
 
-export async function analyzeMedia(fileUrl, fileType, filename, { timeoutMs = 55000 } = {}) {
+const FAST_ANALYSIS_PROMPT = (isVideo, filename) => `Briefly describe this ${isVideo ? 'video' : 'photo'} (${filename}) for search.
+
+Return JSON only:
+{
+  "ai_description": "1-2 concrete sentences about what is visible.",
+  "ai_tags": ["12-18 lowercase search keywords"]
+}`;
+
+export async function analyzeMedia(fileUrl, fileType, filename, { timeoutMs = 55000, fast = false } = {}) {
   const isVideo = fileType === 'video';
 
   const result = await invokeLLMWithRetry(
     {
-      prompt: ANALYSIS_PROMPT(isVideo, filename),
+      prompt: fast
+        ? FAST_ANALYSIS_PROMPT(isVideo, filename)
+        : ANALYSIS_PROMPT(isVideo, filename),
       file_urls: [fileUrl],
       response_json_schema: {
         type: 'object',
@@ -40,7 +50,7 @@ export async function analyzeMedia(fileUrl, fileType, filename, { timeoutMs = 55
         required: ['ai_description', 'ai_tags'],
       },
     },
-    { maxRetries: 1, baseDelayMs: 3000, timeoutMs },
+    { maxRetries: fast ? 0 : 1, baseDelayMs: 2000, timeoutMs },
   );
 
   const description = (result.ai_description || filename).trim();

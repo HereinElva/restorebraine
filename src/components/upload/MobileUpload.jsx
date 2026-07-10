@@ -120,11 +120,14 @@ export default function MobileUpload({
             <span className="absolute inset-0 flex items-center justify-center text-xs font-bold text-purple-600">{progress}%</span>
           </div>
           <div>
-            <p className="font-semibold text-gray-900">Processing...</p>
+            <p className="font-semibold text-gray-900">
+              {successCount === files.length ? 'Saving complete' : 'Saving memories...'}
+            </p>
             <p className="text-sm text-gray-500">
               {successCount} saved
-              {processingCount > 0 ? ` · ${processingCount} in progress` : ''}
+              {processingCount > 0 ? ` · ${processingCount} uploading` : ''}
               {errorCount > 0 ? ` · ${errorCount} failed` : ''}
+              {successCount > 0 && processingCount > 0 ? ' · AI tags added in background' : ''}
               {` · ${files.length} total`}
             </p>
           </div>
@@ -152,7 +155,7 @@ export default function MobileUpload({
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-gray-800">AI-powered search</p>
-              <p className="text-xs text-gray-500">Each upload is analyzed so you can search by description</p>
+              <p className="text-xs text-gray-500">Search tags are added in the background right after save</p>
             </div>
           </div>
           <div className="flex items-center gap-3 px-4 py-3.5">
@@ -185,7 +188,7 @@ export default function MobileUpload({
               className="w-full bg-gradient-to-r from-purple-500 to-blue-500 text-white rounded-2xl p-4 flex items-center justify-center gap-2 shadow-sm mb-4"
             >
               <Sparkles className="w-5 h-5" />
-              <span className="font-semibold">Analyze & Save {pendingCount} {pendingCount === 1 ? 'File' : 'Files'}</span>
+              <span className="font-semibold">Save {pendingCount} {pendingCount === 1 ? 'Memory' : 'Memories'}</span>
             </motion.button>
           )}
 

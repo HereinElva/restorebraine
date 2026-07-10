@@ -235,7 +235,7 @@ export default function Upload() {
                     onClick={processPhotos}
                     className="w-full mb-4 bg-gradient-to-r from-purple-500 to-blue-500 text-white rounded-2xl py-4 font-semibold"
                   >
-                    Analyze & Save {files.filter((f) => f.status === "pending").length} Files
+                    Save {files.filter((f) => f.status === "pending").length} Memories
                   </button>
                 )}
                 <MobileUpload
