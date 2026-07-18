@@ -28,6 +28,14 @@ sync_to_origin() {
 
 sync_to_origin
 
+if [[ ! -f src/lib/native-media-input.js ]]; then
+  echo
+  echo "ERROR: src/lib/native-media-input.js is missing on branch '$BRANCH'."
+  echo "       For the current iOS + upload build, run:"
+  echo "       bash scripts/mac-ios-setup.sh cursor/apple-privacy-plist-bacf"
+  exit 1
+fi
+
 echo "==> Installing npm dependencies (required after every pull)"
 npm install
 
@@ -76,6 +84,8 @@ echo "  1. Open App.xcworkspace (not .xcodeproj)"
 echo "  2. In Project Navigator → App → Assets.xcassets → AppIcon — icons should appear"
 echo "  3. Delete app from iPhone → Product → Clean Build Folder → Run"
 echo "Expected build stamp: $STAMP"
+echo
+echo "Branch synced: $BRANCH (use cursor/apple-privacy-plist-bacf for latest iOS build)"
 echo
 echo "If home screen icon is still blank after install:"
 echo "  1. Delete app from iPhone"
