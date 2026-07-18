@@ -7,6 +7,8 @@ import { getAppOrigin } from '@/lib/app-params';
 import { clearNativeSession, persistSessionToNativeStorage, restoreSessionFromNativeStorage } from '@/lib/session-bootstrap';
 import { isHostedAppOrigin } from '@/lib/native-hosted-redirect';
 
+const AUTH_BOOT_TIMEOUT_MS = 12000;
+
 const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
@@ -23,6 +25,15 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const checkAppState = async () => {
+    let finished = false;
+    const timeout = window.setTimeout(() => {
+      if (finished) return;
+      finished = true;
+      setIsLoadingPublicSettings(false);
+      setIsLoadingAuth(false);
+      setAuthError((current) => current ?? { type: 'auth_required', message: 'Session check timed out' });
+    }, AUTH_BOOT_TIMEOUT_MS);
+
     try {
       setIsLoadingPublicSettings(true);
       setAuthError(null);
@@ -41,6 +52,7 @@ export const AuthProvider = ({ children }) => {
 
       try {
         const publicSettings = await appClient.get(`/prod/public-settings/by-id/${appParams.appId}`);
+        if (finished) return;
         setAppPublicSettings(publicSettings);
 
         if (appParams.token) {
@@ -51,6 +63,7 @@ export const AuthProvider = ({ children }) => {
         }
         setIsLoadingPublicSettings(false);
       } catch (appError) {
+        if (finished) return;
         console.error('App state check failed:', appError);
 
         if (appError.status === 403 && appError.data?.extra_data?.reason) {
@@ -72,10 +85,14 @@ export const AuthProvider = ({ children }) => {
         setIsLoadingAuth(false);
       }
     } catch (error) {
+      if (finished) return;
       console.error('Unexpected error:', error);
       setAuthError({ type: 'unknown', message: error.message || 'An unexpected error occurred' });
       setIsLoadingPublicSettings(false);
       setIsLoadingAuth(false);
+    } finally {
+      finished = true;
+      window.clearTimeout(timeout);
     }
   };
 

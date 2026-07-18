@@ -39,13 +39,20 @@ export const installNativeOAuthDeepLinkHandler = async () => {
     const { isNativeShell } = await import('@/lib/native-hosted-redirect');
     if (!isNativeShell()) return;
 
+    const { waitForCapacitorBridge, withTimeout } = await import('@/lib/capacitor-ready');
+    await waitForCapacitorBridge();
+
     const { App } = await import('@capacitor/app');
     const { handleNativeOAuthCallback } = await import('@/lib/native-google-oauth');
 
-    await App.addListener('appUrlOpen', async ({ url }) => {
-      if (!url || !url.includes('access_token=')) return;
-      await handleNativeOAuthCallback(url);
-    });
+    await withTimeout(
+      App.addListener('appUrlOpen', async ({ url }) => {
+        if (!url || !url.includes('access_token=')) return;
+        await handleNativeOAuthCallback(url);
+      }),
+      5000,
+      'App.addListener(appUrlOpen)',
+    );
   } catch (error) {
     console.warn('Native OAuth deep link handler unavailable.', error);
   }
@@ -56,25 +63,32 @@ export const installNativeSessionPersistence = async () => {
     const { isNativeShell } = await import('@/lib/native-hosted-redirect');
     if (!isNativeShell()) return;
 
+    const { waitForCapacitorBridge, withTimeout } = await import('@/lib/capacitor-ready');
+    await waitForCapacitorBridge();
+
     await installNativeOAuthDeepLinkHandler();
 
     const { App } = await import('@capacitor/app');
 
-    await App.addListener('appStateChange', async ({ isActive }) => {
-      if (isActive) {
-        if (localStorage.getItem(SIGNED_OUT_KEY) !== '1') {
-          await restoreSessionFromNativeStorage();
+    await withTimeout(
+      App.addListener('appStateChange', async ({ isActive }) => {
+        if (isActive) {
+          if (localStorage.getItem(SIGNED_OUT_KEY) !== '1') {
+            await restoreSessionFromNativeStorage();
+          }
+          return;
         }
-        return;
-      }
 
-      if (localStorage.getItem(SIGNED_OUT_KEY) === '1') return;
+        if (localStorage.getItem(SIGNED_OUT_KEY) === '1') return;
 
-      const token = localStorage.getItem('base44_access_token') || localStorage.getItem('token');
-      if (token) {
-        await persistSessionToNativeStorage(token);
-      }
-    });
+        const token = localStorage.getItem('base44_access_token') || localStorage.getItem('token');
+        if (token) {
+          await persistSessionToNativeStorage(token);
+        }
+      }),
+      5000,
+      'App.addListener(appStateChange)',
+    );
   } catch (error) {
     console.warn('Native session persistence listener unavailable.', error);
   }

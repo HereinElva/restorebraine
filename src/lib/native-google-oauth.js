@@ -1,4 +1,3 @@
-import { InAppBrowser } from '@capacitor/inappbrowser';
 import {
   getGoogleOAuthUrl,
   getProviderOAuthUrl,
@@ -12,6 +11,14 @@ import { persistSessionToNativeStorage } from '@/lib/session-bootstrap';
 import { isNativeShell } from '@/lib/native-hosted-redirect';
 
 const GOOGLE_OAUTH_PATTERN = /accounts\.google\.com|google\.com\/o\/oauth|oauth2\.googleapis\.com|\/api\/apps\/auth\/login/i;
+
+let _InAppBrowser = null;
+async function getInAppBrowser() {
+  if (_InAppBrowser) return _InAppBrowser;
+  const mod = await import('@capacitor/inappbrowser');
+  _InAppBrowser = mod.InAppBrowser;
+  return _InAppBrowser;
+}
 
 const SYSTEM_BROWSER_OPTIONS = {
   iOS: { closeButtonText: 2, viewStyle: 2, animationEffect: 2, enableBarsCollapsing: true, enableReadersMode: false },
@@ -44,6 +51,7 @@ export const captureOAuthTokenFromUrl = async (url) => {
 let oauthListenerAttached = false;
 
 const finishOAuthLogin = async () => {
+  const InAppBrowser = await getInAppBrowser();
   await InAppBrowser.close().catch(() => {});
   window.location.replace(getAuthReturnOrigin());
 };
@@ -59,6 +67,7 @@ const attachOAuthCompletionListener = async () => {
   if (oauthListenerAttached) return;
   oauthListenerAttached = true;
 
+  const InAppBrowser = await getInAppBrowser();
   await InAppBrowser.addListener('browserClosed', async () => {
     const stored = localStorage.getItem('base44_access_token') || localStorage.getItem('token');
     if (stored) {
@@ -84,6 +93,7 @@ export const openLoginInSystemBrowser = async (url = getGoogleOAuthUrl(), provid
 
   oauthListenerAttached = false;
   await attachOAuthCompletionListener();
+  const InAppBrowser = await getInAppBrowser();
   await InAppBrowser.openInSystemBrowser({ url: normalizedUrl, options: SYSTEM_BROWSER_OPTIONS });
 };
 

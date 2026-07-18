@@ -2,6 +2,8 @@ import { redirectNativeToHostedApp } from '@/lib/native-hosted-redirect';
 import { installNativeOAuthFix } from '@/lib/native-oauth-fix';
 import { redirectBrokenCustomDomainLogin } from '@/lib/auth-urls';
 
+const BOOTSTRAP_TIMEOUT_MS = 15000;
+
 function showBootstrapError(message) {
   const root = document.getElementById('root');
   if (!root) return;
@@ -18,6 +20,23 @@ function showBootstrapError(message) {
   `;
 }
 
+function deferNativeSessionBootstrap() {
+  import('@/lib/capacitor-ready')
+    .then(({ waitForCapacitorBridge }) => waitForCapacitorBridge())
+    .then(() => import('@/lib/session-bootstrap'))
+    .then(({ restoreSessionFromNativeStorage, installNativeSessionPersistence }) => {
+      restoreSessionFromNativeStorage().catch((error) => {
+        console.warn('Session restore failed:', error);
+      });
+      installNativeSessionPersistence().catch((error) => {
+        console.warn('Native session listeners unavailable:', error);
+      });
+    })
+    .catch((error) => {
+      console.warn('Native session bootstrap skipped:', error);
+    });
+}
+
 async function bootstrapApp() {
   if (redirectBrokenCustomDomainLogin()) {
     return;
@@ -29,22 +48,35 @@ async function bootstrapApp() {
     return;
   }
 
-  const { restoreSessionFromNativeStorage, installNativeSessionPersistence } = await import('@/lib/session-bootstrap');
-  await restoreSessionFromNativeStorage();
-  await installNativeSessionPersistence();
-
-  const { default: React } = await import('react');
-  const { default: ReactDOM } = await import('react-dom/client');
-  const { default: App } = await import('@/App.jsx');
+  // Mount React immediately — never block UI on Capacitor plugin init (can hang on cold start).
+  const [{ default: React }, { default: ReactDOM }, { default: App }] = await Promise.all([
+    import('react'),
+    import('react-dom/client'),
+    import('@/App.jsx'),
+  ]);
   await import('@/index.css');
 
   ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  deferNativeSessionBootstrap();
 }
 
-bootstrapApp().catch((error) => {
-  console.error('Restorebraine bootstrap failed:', error);
-  showBootstrapError(error?.message || 'Unknown startup error');
-});
+let bootstrapFinished = false;
+const bootstrapTimer = window.setTimeout(() => {
+  if (bootstrapFinished) return;
+  showBootstrapError('Startup is taking too long. Check your network connection and tap Retry.');
+}, BOOTSTRAP_TIMEOUT_MS);
+
+bootstrapApp()
+  .then(() => {
+    bootstrapFinished = true;
+    window.clearTimeout(bootstrapTimer);
+  })
+  .catch((error) => {
+    bootstrapFinished = true;
+    window.clearTimeout(bootstrapTimer);
+    console.error('Restorebraine bootstrap failed:', error);
+    showBootstrapError(error?.message || 'Unknown startup error');
+  });
 
 if (import.meta.hot) {
   import.meta.hot.on('vite:beforeUpdate', () => {

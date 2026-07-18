@@ -33,8 +33,17 @@ export const persistentStorage = {
     if (isCapacitor()) {
       const Preferences = await getPreferences();
       if (Preferences) {
-        const { value } = await Preferences.get({ key });
-        return value ?? null;
+        try {
+          const result = await Promise.race([
+            Preferences.get({ key }),
+            new Promise((_, reject) => {
+              setTimeout(() => reject(new Error('Preferences.get timeout')), 3000);
+            }),
+          ]);
+          return result?.value ?? null;
+        } catch (error) {
+          console.warn(`persistentStorage.get(${key}) fallback to localStorage`, error);
+        }
       }
     }
     // Fallback to localStorage
