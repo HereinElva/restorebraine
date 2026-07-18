@@ -1,8 +1,15 @@
-import { redirectNativeToHostedApp } from '@/lib/native-hosted-redirect';
+import { redirectNativeToHostedApp, isNativeShell } from '@/lib/native-hosted-redirect';
 import { installNativeOAuthFix } from '@/lib/native-oauth-fix';
 import { redirectBrokenCustomDomainLogin } from '@/lib/auth-urls';
 
 const BOOTSTRAP_TIMEOUT_MS = 15000;
+const useLocalNativeBundle = () => {
+  try {
+    return typeof __RESTOREBRAINE_NATIVE_LOCAL__ !== 'undefined' && __RESTOREBRAINE_NATIVE_LOCAL__;
+  } catch {
+    return false;
+  }
+};
 
 function showBootstrapError(message) {
   const root = document.getElementById('root');
@@ -20,21 +27,18 @@ function showBootstrapError(message) {
   `;
 }
 
-function deferNativeSessionBootstrap() {
-  import('@/lib/capacitor-ready')
-    .then(({ waitForCapacitorBridge }) => waitForCapacitorBridge())
-    .then(() => import('@/lib/session-bootstrap'))
-    .then(({ restoreSessionFromNativeStorage, installNativeSessionPersistence }) => {
-      restoreSessionFromNativeStorage().catch((error) => {
-        console.warn('Session restore failed:', error);
-      });
-      installNativeSessionPersistence().catch((error) => {
-        console.warn('Native session listeners unavailable:', error);
-      });
-    })
-    .catch((error) => {
-      console.warn('Native session bootstrap skipped:', error);
+async function warmNativeSessionForLocalBundle() {
+  try {
+    const { waitForCapacitorBridge, withTimeout } = await import('@/lib/capacitor-ready');
+    await waitForCapacitorBridge(6000);
+    const { restoreSessionFromNativeStorage, installNativeSessionPersistence } = await import('@/lib/session-bootstrap');
+    await withTimeout(restoreSessionFromNativeStorage(), 4000, 'restoreSession');
+    installNativeSessionPersistence().catch((error) => {
+      console.warn('Native session listeners unavailable:', error);
     });
+  } catch (error) {
+    console.warn('Native session warm-up skipped:', error);
+  }
 }
 
 async function bootstrapApp() {
@@ -48,7 +52,11 @@ async function bootstrapApp() {
     return;
   }
 
-  // Mount React immediately — never block UI on Capacitor plugin init (can hang on cold start).
+  // Production native builds load restorebraine.base44.app (server.url) — this bundle is dev-only fallback.
+  if (useLocalNativeBundle() && isNativeShell()) {
+    await warmNativeSessionForLocalBundle();
+  }
+
   const [{ default: React }, { default: ReactDOM }, { default: App }] = await Promise.all([
     import('react'),
     import('react-dom/client'),
@@ -57,7 +65,6 @@ async function bootstrapApp() {
   await import('@/index.css');
 
   ReactDOM.createRoot(document.getElementById('root')).render(<App />);
-  deferNativeSessionBootstrap();
 }
 
 let bootstrapFinished = false;

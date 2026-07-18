@@ -5,9 +5,18 @@ import { createAxiosClient } from '@base44/sdk/dist/utils/axios-client';
 import { openRestorebraineLogin } from '@/lib/auth-urls';
 import { getAppOrigin } from '@/lib/app-params';
 import { clearNativeSession, persistSessionToNativeStorage, restoreSessionFromNativeStorage } from '@/lib/session-bootstrap';
-import { isHostedAppOrigin } from '@/lib/native-hosted-redirect';
+import { isHostedAppOrigin, isNativeShell } from '@/lib/native-hosted-redirect';
 
-const AUTH_BOOT_TIMEOUT_MS = 12000;
+const AUTH_BOOT_TIMEOUT_MS = 20000;
+
+const hasStoredAuthToken = () => {
+  try {
+    if (localStorage.getItem('b44_signed_out') === '1') return false;
+    return Boolean(localStorage.getItem('base44_access_token') || localStorage.getItem('token'));
+  } catch {
+    return false;
+  }
+};
 
 const AuthContext = createContext();
 
@@ -28,6 +37,7 @@ export const AuthProvider = ({ children }) => {
     let finished = false;
     const timeout = window.setTimeout(() => {
       if (finished) return;
+      if (hasStoredAuthToken()) return;
       finished = true;
       setIsLoadingPublicSettings(false);
       setIsLoadingAuth(false);
@@ -41,6 +51,8 @@ export const AuthProvider = ({ children }) => {
       const restoredToken = await restoreSessionFromNativeStorage();
       if (restoredToken) {
         appParams.token = restoredToken;
+      } else if (isNativeShell() && hasStoredAuthToken()) {
+        appParams.token = localStorage.getItem('base44_access_token') || localStorage.getItem('token');
       }
 
       const appClient = createAxiosClient({

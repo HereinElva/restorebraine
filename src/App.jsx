@@ -10,7 +10,6 @@ import { setupIframeMessaging } from './lib/iframe-messaging';
 import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
-import { getPlatformLoginUrl } from '@/lib/auth-urls';
 
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
@@ -25,6 +24,11 @@ const LayoutWrapper = ({ children, currentPageName }) => Layout ?
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, isAuthenticated, navigateToLogin, manuallyLoggedOut } = useAuth();
 
+  const handleSignIn = () => {
+    try { localStorage.removeItem('b44_signed_out'); } catch {}
+    navigateToLogin();
+  };
+
   // Check if user manually logged out FIRST before anything else
   if (manuallyLoggedOut) {
     return (
@@ -35,7 +39,7 @@ const AuthenticatedApp = () => {
           </div>
           <h1 style={{fontSize:'24px',fontWeight:'700',color:'#111',marginBottom:'8px'}}>Restorebraine</h1>
           <p style={{color:'#666',marginBottom:'32px',fontSize:'14px'}}>Sign in to access your memories</p>
-          <button onClick={() => { window.location.href = getPlatformLoginUrl(); }} style={{width:'100%',padding:'14px',background:'linear-gradient(135deg,#60a5fa,#a78bfa)',color:'white',border:'none',borderRadius:'14px',fontSize:'16px',fontWeight:'600',cursor:'pointer'}}>
+          <button onClick={handleSignIn} style={{width:'100%',padding:'14px',background:'linear-gradient(135deg,#60a5fa,#a78bfa)',color:'white',border:'none',borderRadius:'14px',fontSize:'16px',fontWeight:'600',cursor:'pointer'}}>
             Sign In
           </button>
         </div>
@@ -65,7 +69,7 @@ const AuthenticatedApp = () => {
             </div>
             <h1 style={{fontSize:'24px',fontWeight:'700',color:'#111',marginBottom:'8px'}}>Restorebraine</h1>
             <p style={{color:'#666',marginBottom:'32px',fontSize:'14px'}}>Sign in to access your memories</p>
-            <button onClick={() => { localStorage.removeItem('b44_signed_out'); window.location.href = getPlatformLoginUrl(); }} style={{width:'100%',padding:'14px',background:'linear-gradient(135deg,#60a5fa,#a78bfa)',color:'white',border:'none',borderRadius:'14px',fontSize:'16px',fontWeight:'600',cursor:'pointer'}}>
+            <button onClick={handleSignIn} style={{width:'100%',padding:'14px',background:'linear-gradient(135deg,#60a5fa,#a78bfa)',color:'white',border:'none',borderRadius:'14px',fontSize:'16px',fontWeight:'600',cursor:'pointer'}}>
               Sign In
             </button>
           </div>

@@ -44,20 +44,23 @@ node scripts/fetch-official-app-icon.mjs
 node scripts/generate-ios-app-icons.mjs
 node scripts/verify-ios-icons.mjs
 
-echo "==> Building local native bundle + syncing iOS (bundled UI — fixes white screen)"
-npm run build:native-local
+echo "==> Building web app + syncing iOS bundle (hosted app — native session + OAuth)"
+node scripts/use-local-native-bundle.mjs --hosted
+npm run ios:prepare
 
 STAMP="$(tr -d '\n' < ios/App/App/BUILD_STAMP.txt)"
 echo "Build stamp: $STAMP"
 
-if grep -q '"url".*restorebraine.base44.app' ios/App/App/capacitor.config.json 2>/dev/null; then
+if ! grep -q '"url".*restorebraine.base44.app' ios/App/App/capacitor.config.json 2>/dev/null; then
   echo
-  echo "ERROR: ios/App/App/capacitor.config.json still has server.url."
-  echo "       Native builds must use the bundled UI (npm run build:native-local)."
+  echo "ERROR: ios/App/App/capacitor.config.json is missing server.url."
+  echo "       Native app must load https://restorebraine.base44.app for OAuth + session."
+  echo "       Run: npm run ios:prepare"
   exit 1
 fi
 
-echo "==> Bundle mode: local (UI ships inside the app — no hosted server.url)"
+echo "==> server.url (native shell loads hosted Restorebraine — OAuth persists across launches):"
+grep -E '"url"' ios/App/App/capacitor.config.json || true
 
 echo "==> Info.plist app icon binding:"
 grep -A1 CFBundleIconName ios/App/App/Info.plist || { echo "ERROR: CFBundleIconName missing from Info.plist"; exit 1; }
@@ -85,6 +88,9 @@ echo "  3. Delete app from iPhone → Product → Clean Build Folder → Run"
 echo "Expected build stamp: $STAMP"
 echo
 echo "Branch synced: $BRANCH (use cursor/apple-privacy-plist-bacf for latest iOS build)"
+echo
+echo "Native model: WebView loads restorebraine.base44.app — sign in once via Google OAuth,"
+echo "session persists in the app. Dev-only bundled UI: npm run build:native-local"
 echo
 echo "If home screen icon is still blank after install:"
 echo "  1. Delete app from iPhone"
