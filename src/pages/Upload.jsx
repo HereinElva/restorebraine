@@ -5,12 +5,17 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import UploadZone from "@/components/upload/UploadZone";
 import MobileUpload from "@/components/upload/MobileUpload";
 import PaymentModal from "@/components/upload/PaymentModal";
+import AiUploadConsentModal from "@/components/upload/AiUploadConsentModal";
 import {
   getStorageLimit,
   getTiersNeeded,
   wouldExceedStorageLimit,
 } from "@/lib/storage-billing";
 import { installStripeReturnRefresh } from "@/lib/stripe-checkout";
+import {
+  hasAiUploadConsent,
+  grantAiUploadConsent,
+} from "@/lib/ai-upload-consent";
 import {
   MAX_BATCH_SIZE,
   processSingleUpload,
@@ -24,9 +29,11 @@ export default function Upload() {
   const [files, setFiles] = useState([]);
   const [processing, setProcessing] = useState(false);
   const [showPayment, setShowPayment] = useState(false);
+  const [showAiConsent, setShowAiConsent] = useState(false);
   const [pendingFiles, setPendingFiles] = useState(null);
   const autoProcessRef = useRef(false);
   const filesRef = useRef(files);
+  const afterConsentRef = useRef(null);
   filesRef.current = files;
 
   const { data: currentUser } = useQuery({
@@ -73,6 +80,15 @@ export default function Upload() {
     autoProcessRef.current = true;
   }, []);
 
+  const requireAiConsent = useCallback((action) => {
+    if (hasAiUploadConsent()) {
+      action();
+      return;
+    }
+    afterConsentRef.current = action;
+    setShowAiConsent(true);
+  }, []);
+
   const handleFileSelection = useCallback(
     (incoming) => {
       const { valid, error } = validateFiles(incoming);
@@ -88,17 +104,31 @@ export default function Upload() {
         return;
       }
 
-      addFilesToQueue(valid);
+      requireAiConsent(() => addFilesToQueue(valid));
     },
-    [addFilesToQueue, currentPhotoCount, currentPaidTier],
+    [addFilesToQueue, currentPhotoCount, currentPaidTier, requireAiConsent],
   );
+
+  const handleConsentAccept = () => {
+    grantAiUploadConsent();
+    setShowAiConsent(false);
+    afterConsentRef.current?.();
+    afterConsentRef.current = null;
+  };
+
+  const handleConsentDecline = () => {
+    setShowAiConsent(false);
+    afterConsentRef.current = null;
+  };
 
   const handlePaymentComplete = async () => {
     setShowPayment(false);
     await queryClient.invalidateQueries({ queryKey: ["current-user"] });
     if (pendingFiles?.length) {
-      addFilesToQueue(pendingFiles);
-      setPendingFiles(null);
+      requireAiConsent(() => {
+        addFilesToQueue(pendingFiles);
+        setPendingFiles(null);
+      });
     }
   };
 
@@ -136,20 +166,31 @@ export default function Upload() {
       queryClient.invalidateQueries({ queryKey: ["photos"] });
     } catch (error) {
       console.error("Batch upload failed:", error);
+      const message = error?.message || "Upload failed";
+      setFiles((prev) =>
+        prev.map((item, i) =>
+          indexes.includes(i) && item.status === "processing"
+            ? { ...item, status: "error", error: message, progress: 0, phase: "error" }
+            : item,
+        ),
+      );
+      if (/timed out/i.test(message)) {
+        alert("Upload took too long. Tap retry on failed items, or upload fewer files at once.");
+      }
     } finally {
       setProcessing(false);
     }
   }, [currentPhotoCount, currentPaidTier, processing, queryClient, updateFileAt]);
 
   useEffect(() => {
-    if (!autoProcessRef.current || processing || showPayment) return;
+    if (!autoProcessRef.current || processing || showPayment || showAiConsent) return;
 
     const hasPending = files.some((f) => f.status === "pending");
     if (hasPending) {
       autoProcessRef.current = false;
       processPhotos();
     }
-  }, [files, processing, showPayment, processPhotos]);
+  }, [files, processing, showPayment, showAiConsent, processPhotos]);
 
   const removeFile = (index) => {
     setFiles((prev) => prev.filter((_, i) => i !== index));
@@ -190,7 +231,7 @@ export default function Upload() {
               {currentPaidTier > 0 ? ` (${currentPaidTier} paid tier${currentPaidTier > 1 ? "s" : ""})` : ""}
             </p>
             <p className="text-sm text-gray-500 mt-0.5">
-              Up to {MAX_BATCH_SIZE} files per batch · processed in parallel
+              Up to {MAX_BATCH_SIZE} files per batch · saves fast, AI tags in background
             </p>
           </div>
         </div>
@@ -217,7 +258,7 @@ export default function Upload() {
                     onClick={processPhotos}
                     className="w-full mb-4 bg-gradient-to-r from-purple-500 to-blue-500 text-white rounded-2xl py-4 font-semibold"
                   >
-                    Analyze & Save {files.filter((f) => f.status === "pending").length} Files
+                    Save {files.filter((f) => f.status === "pending").length} Memories
                   </button>
                 )}
                 <MobileUpload
@@ -236,6 +277,12 @@ export default function Upload() {
           </>
         )}
       </div>
+
+      <AiUploadConsentModal
+        open={showAiConsent}
+        onAccept={handleConsentAccept}
+        onDecline={handleConsentDecline}
+      />
 
       {showPayment && (
         <PaymentModal

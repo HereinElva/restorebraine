@@ -8,6 +8,7 @@ import { useNavigate } from "react-router-dom";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useNavigation } from "@/components/NavigationContext";
 import { navigateToGallery } from "@/lib/gallery-nav";
+import { revokeAiUploadConsent, hasAiUploadConsent } from "@/lib/ai-upload-consent";
 
 export default function Account() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -17,6 +18,7 @@ export default function Account() {
   const navigate = useNavigate();
   const { popBack } = useNavigation();
   const { localLogout, resumeActiveSession } = useAuth();
+  const [consentGranted, setConsentGranted] = useState(() => hasAiUploadConsent());
 
   const { data: user } = useQuery({
     queryKey: ['user'],
@@ -81,6 +83,29 @@ export default function Account() {
               <p className="font-medium text-gray-900">{user.email}</p>
             </div>
           )}
+          <div className="mb-6 p-4 bg-gray-50 border border-gray-200 rounded-lg flex items-center justify-between gap-4">
+            <div className="min-w-0">
+              <h3 className="font-semibold text-gray-900">AI upload consent</h3>
+              <p className="text-sm text-gray-600 mt-0.5">
+                {consentGranted
+                  ? "You agreed to send uploads to OpenAI for search tags."
+                  : "Not granted — you will be asked before your first upload."}
+              </p>
+            </div>
+            {consentGranted && (
+              <Button
+                type="button"
+                variant="outline"
+                className="flex-shrink-0"
+                onClick={() => {
+                  revokeAiUploadConsent();
+                  setConsentGranted(false);
+                }}
+              >
+                Revoke
+              </Button>
+            )}
+          </div>
           <div data-rb-sign-out-row className="mb-6 p-4 bg-gray-50 border border-gray-200 rounded-lg flex items-center justify-between gap-4">
             <div className="min-w-0">
               <h3 className="font-semibold text-gray-900">Sign Out</h3>

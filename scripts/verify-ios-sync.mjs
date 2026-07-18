@@ -64,6 +64,16 @@ const checks = [
     test: () => existsSync(resolve('ios/App/App/public/assets')),
     message: 'ios/App/App/public/assets is missing — run npm run build',
   },
+  {
+    path: 'ios/App/App/Info.plist',
+    test: (content) =>
+      content.includes('NSCameraUsageDescription') &&
+      content.includes('Restorebraine uses the camera when you choose Take Photo') &&
+      content.includes('NSPhotoLibraryUsageDescription') &&
+      content.includes('organize them into folders'),
+    message:
+      'Info.plist missing App Store–compliant privacy usage descriptions — see ios/App/App/Info.plist',
+  },
 ];
 
 let failed = false;
