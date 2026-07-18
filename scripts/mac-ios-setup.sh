@@ -66,9 +66,9 @@ grep -A1 CFBundleIconName ios/App/App/Info.plist || { echo "ERROR: CFBundleIconN
 echo "==> Info.plist privacy usage descriptions (App Store 5.1.1):"
 bash scripts/verify-ios-privacy-plist.sh
 
-echo "==> App icon files (Xcode 16 universal -> AppIcon-512@2x.png):"
-ls ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png \
-  ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png
+echo "==> App icon files (classic grid + App Store 1024pt):"
+ls ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png
+node scripts/verify-ios-icons.mjs
 
 echo "==> Installing CocoaPods"
 cd ios/App
