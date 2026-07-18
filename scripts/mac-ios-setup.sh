@@ -44,21 +44,20 @@ node scripts/fetch-official-app-icon.mjs
 node scripts/generate-ios-app-icons.mjs
 node scripts/verify-ios-icons.mjs
 
-echo "==> Building web app + syncing iOS bundle"
-npm run ios:prepare
+echo "==> Building local native bundle + syncing iOS (bundled UI — fixes white screen)"
+npm run build:native-local
 
 STAMP="$(tr -d '\n' < ios/App/App/BUILD_STAMP.txt)"
 echo "Build stamp: $STAMP"
 
-if ! grep -q '"url".*restorebraine.base44.app' ios/App/App/capacitor.config.json 2>/dev/null; then
+if grep -q '"url".*restorebraine.base44.app' ios/App/App/capacitor.config.json 2>/dev/null; then
   echo
-  echo "ERROR: ios/App/App/capacitor.config.json is missing server.url."
-  echo "       Native app must load the hosted Restorebraine site. Run: npm run build"
+  echo "ERROR: ios/App/App/capacitor.config.json still has server.url."
+  echo "       Native builds must use the bundled UI (npm run build:native-local)."
   exit 1
 fi
 
-echo "==> server.url (must point at hosted Restorebraine app):"
-grep -E '"url"' ios/App/App/capacitor.config.json || true
+echo "==> Bundle mode: local (UI ships inside the app — no hosted server.url)"
 
 echo "==> Info.plist app icon binding:"
 grep -A1 CFBundleIconName ios/App/App/Info.plist || { echo "ERROR: CFBundleIconName missing from Info.plist"; exit 1; }

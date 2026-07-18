@@ -2,6 +2,15 @@
   "appId": "com.restorebraine.app",
   "appName": "Restorebraine",
   "webDir": "dist",
+  "ios": {
+    "contentInset": "automatic",
+    "backgroundColor": "#ffffff",
+    "infoPlist": {
+      "NSCameraUsageDescription": "Restorebraine uses the camera when you choose Take Photo or Take Video while adding memories. Your photo or video is saved to your Restorebraine library so you can search and organize it with AI.",
+      "NSPhotoLibraryUsageDescription": "Restorebraine accesses photos and videos you select from your library so you can upload them to your memory collection, organize them into folders, and search them with AI.",
+      "NSPhotoLibraryAddUsageDescription": "Restorebraine can save exported memories back to your photo library when you choose to download or save an item."
+    }
+  },
   "server": {
     "url": "https://restorebraine.base44.app",
     "cleartext": false,
@@ -19,14 +28,5 @@
       "m.stripe.com",
       "hooks.stripe.com"
     ]
-  },
-  "ios": {
-    "contentInset": "automatic",
-    "backgroundColor": "#ffffff",
-    "infoPlist": {
-      "NSCameraUsageDescription": "Restorebraine uses the camera when you choose Take Photo or Take Video while adding memories. Your photo or video is saved to your Restorebraine library so you can search and organize it with AI.",
-      "NSPhotoLibraryUsageDescription": "Restorebraine accesses photos and videos you select from your library so you can upload them to your memory collection, organize them into folders, and search them with AI.",
-      "NSPhotoLibraryAddUsageDescription": "Restorebraine can save exported memories back to your photo library when you choose to download or save an item."
-    }
   }
 }

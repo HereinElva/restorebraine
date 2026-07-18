@@ -2,10 +2,12 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 const useLocal = process.argv.includes('--local');
-const paths = [
-  resolve('capacitor.config.json'),
-  resolve('ios/App/App/capacitor.config.json'),
-];
+const paths = useLocal
+  ? [
+      resolve('capacitor.config.json'),
+      resolve('ios/App/App/capacitor.config.json'),
+    ]
+  : [resolve('capacitor.config.json')];
 
 for (const configPath of paths) {
   const config = JSON.parse(readFileSync(configPath, 'utf8'));

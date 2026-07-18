@@ -9,6 +9,9 @@ export default defineConfig(({ mode }) => {
   return {
     // Required for Capacitor — absolute /assets/ paths cause a white screen in the WebView.
     base: './',
+    define: {
+      __RESTOREBRAINE_NATIVE_LOCAL__: JSON.stringify(process.env.NATIVE_LOCAL === '1'),
+    },
     plugins: [
       mode === 'development' && visualEditPlugin(),
       react(),

@@ -22,9 +22,18 @@ export const isHostedAppOrigin = () => {
   }
 };
 
-/** Native installs should always use the live hosted app — same UI/login as kbrown9000@aol.com */
+const useLocalNativeBundle = () => {
+  try {
+    return typeof __RESTOREBRAINE_NATIVE_LOCAL__ !== 'undefined' && __RESTOREBRAINE_NATIVE_LOCAL__;
+  } catch {
+    return false;
+  }
+};
+
+/** Native installs load the hosted app unless built with NATIVE_LOCAL=1 (bundled UI in Xcode). */
 export const redirectNativeToHostedApp = () => {
   if (!isNativeShell() || isHostedAppOrigin()) return false;
+  if (useLocalNativeBundle()) return false;
 
   const suffix = `${window.location.pathname}${window.location.search}${window.location.hash}`;
   const target = suffix && suffix !== '/' ? `${HOSTED_APP_URL}${suffix}` : HOSTED_APP_URL;
