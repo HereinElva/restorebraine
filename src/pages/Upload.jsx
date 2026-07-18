@@ -5,17 +5,12 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import UploadZone from "@/components/upload/UploadZone";
 import MobileUpload from "@/components/upload/MobileUpload";
 import PaymentModal from "@/components/upload/PaymentModal";
-import AiUploadConsentModal from "@/components/upload/AiUploadConsentModal";
 import {
   getStorageLimit,
   getTiersNeeded,
   wouldExceedStorageLimit,
 } from "@/lib/storage-billing";
 import { installStripeReturnRefresh } from "@/lib/stripe-checkout";
-import {
-  hasAiUploadConsent,
-  grantAiUploadConsent,
-} from "@/lib/ai-upload-consent";
 import {
   MAX_BATCH_SIZE,
   processSingleUpload,
@@ -29,11 +24,9 @@ export default function Upload() {
   const [files, setFiles] = useState([]);
   const [processing, setProcessing] = useState(false);
   const [showPayment, setShowPayment] = useState(false);
-  const [showAiConsent, setShowAiConsent] = useState(false);
   const [pendingFiles, setPendingFiles] = useState(null);
   const autoProcessRef = useRef(false);
   const filesRef = useRef(files);
-  const afterConsentRef = useRef(null);
   filesRef.current = files;
 
   const { data: currentUser } = useQuery({
@@ -80,15 +73,6 @@ export default function Upload() {
     autoProcessRef.current = true;
   }, []);
 
-  const requireAiConsent = useCallback((action) => {
-    if (hasAiUploadConsent()) {
-      action();
-      return;
-    }
-    afterConsentRef.current = action;
-    setShowAiConsent(true);
-  }, []);
-
   const handleFileSelection = useCallback(
     (incoming) => {
       const { valid, error } = validateFiles(incoming);
@@ -104,22 +88,10 @@ export default function Upload() {
         return;
       }
 
-      requireAiConsent(() => addFilesToQueue(valid));
+      addFilesToQueue(valid);
     },
-    [addFilesToQueue, currentPhotoCount, currentPaidTier, requireAiConsent],
+    [addFilesToQueue, currentPhotoCount, currentPaidTier],
   );
-
-  const handleConsentAccept = () => {
-    grantAiUploadConsent();
-    setShowAiConsent(false);
-    afterConsentRef.current?.();
-    afterConsentRef.current = null;
-  };
-
-  const handleConsentDecline = () => {
-    setShowAiConsent(false);
-    afterConsentRef.current = null;
-  };
 
   const handlePaymentComplete = async () => {
     setShowPayment(false);
@@ -277,12 +249,6 @@ export default function Upload() {
           </>
         )}
       </div>
-
-      <AiUploadConsentModal
-        open={showAiConsent}
-        onAccept={handleConsentAccept}
-        onDecline={handleConsentDecline}
-      />
 
       {showPayment && (
         <PaymentModal

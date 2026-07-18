@@ -357,10 +357,7 @@ export default function Gallery() {
               Memories
             </span>
           </h1>
-          <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-            Search through your photos and videos using natural language.
-          </p>
- 
+
           {photos.length >= 2 && (
             <div className="mt-6 flex justify-center gap-3 flex-wrap">
               <OrganizeButton photos={photos} />
@@ -380,7 +377,7 @@ export default function Gallery() {
             </div>
           )}
         </div>
- 
+
         <div className="max-w-3xl mx-auto mb-12">
           <div className="relative group">
             <div className="absolute inset-0 bg-gradient-to-r from-blue-300 to-purple-400 rounded-2xl blur-xl opacity-20 group-hover:opacity-30 transition-opacity duration-300" />

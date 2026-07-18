@@ -10,6 +10,7 @@ import { setupIframeMessaging } from './lib/iframe-messaging';
 import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
+import SignedOutLanding from '@/components/auth/SignedOutLanding';
 
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
@@ -29,52 +30,35 @@ const AuthenticatedApp = () => {
     navigateToLogin();
   };
 
+  const signedOutView = (
+    <LayoutWrapper currentPageName={mainPageKey}>
+      <SignedOutLanding onSignIn={handleSignIn} />
+    </LayoutWrapper>
+  );
+
   // Check if user manually logged out FIRST before anything else
   if (manuallyLoggedOut) {
-    return (
-      <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'linear-gradient(135deg,#eff6ff,#f5f3ff,#fdf2f8)',padding:'24px'}}>
-        <div style={{background:'white',borderRadius:'24px',padding:'40px',boxShadow:'0 10px 40px rgba(0,0,0,0.1)',maxWidth:'360px',width:'100%',textAlign:'center'}}>
-          <div style={{width:'64px',height:'64px',background:'linear-gradient(135deg,#93c5fd,#a78bfa)',borderRadius:'20px',display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 20px'}}>
-            <span style={{fontSize:'28px'}}>🔍</span>
-          </div>
-          <h1 style={{fontSize:'24px',fontWeight:'700',color:'#111',marginBottom:'8px'}}>Restorebraine</h1>
-          <p style={{color:'#666',marginBottom:'32px',fontSize:'14px'}}>Sign in to access your memories</p>
-          <button onClick={handleSignIn} style={{width:'100%',padding:'14px',background:'linear-gradient(135deg,#60a5fa,#a78bfa)',color:'white',border:'none',borderRadius:'14px',fontSize:'16px',fontWeight:'600',cursor:'pointer'}}>
-            Sign In
-          </button>
-        </div>
-      </div>
-    );
+    return signedOutView;
   }
 
   // Show loading spinner while checking app public settings or auth
   if (isLoadingPublicSettings || isLoadingAuth) {
     return (
-      <div className="fixed inset-0 flex items-center justify-center">
-        <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin"></div>
-      </div>
+      <LayoutWrapper currentPageName={mainPageKey}>
+        <div className="pt-24 flex items-center justify-center min-h-[50vh]">
+          <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin" />
+        </div>
+      </LayoutWrapper>
     );
   }
 
   // Handle authentication errors
-  if (manuallyLoggedOut || authError) {
+  if (authError) {
     if (authError.type === 'user_not_registered') {
       return <UserNotRegisteredError />;
-    } else if (authError.type === 'auth_required') {
-      return (
-        <div style={{minHeight:'100vh',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',background:'linear-gradient(135deg,#eff6ff,#f5f3ff,#fdf2f8)',padding:'24px'}}>
-          <div style={{background:'white',borderRadius:'24px',padding:'40px',boxShadow:'0 10px 40px rgba(0,0,0,0.1)',maxWidth:'360px',width:'100%',textAlign:'center'}}>
-            <div style={{width:'64px',height:'64px',background:'linear-gradient(135deg,#93c5fd,#a78bfa)',borderRadius:'20px',display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 20px'}}>
-              <span style={{fontSize:'28px'}}>🔍</span>
-            </div>
-            <h1 style={{fontSize:'24px',fontWeight:'700',color:'#111',marginBottom:'8px'}}>Restorebraine</h1>
-            <p style={{color:'#666',marginBottom:'32px',fontSize:'14px'}}>Sign in to access your memories</p>
-            <button onClick={handleSignIn} style={{width:'100%',padding:'14px',background:'linear-gradient(135deg,#60a5fa,#a78bfa)',color:'white',border:'none',borderRadius:'14px',fontSize:'16px',fontWeight:'600',cursor:'pointer'}}>
-              Sign In
-            </button>
-          </div>
-        </div>
-      );
+    }
+    if (authError?.type === 'auth_required') {
+      return signedOutView;
     }
   }
 

@@ -428,7 +428,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                     return;
                   }
                   if (isPlatformLoginUrl(targetUrl)) {
-                    openLoginInSystemBrowser(getCanonicalOAuthUrl('google'), 'google');
+                    window.location.replace(RESTOREBRAINE);
                     return;
                   }
                   if (isAuthNavigationUrl(targetUrl)) {
@@ -469,7 +469,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                         return;
                       }
                       if (isPlatformLoginUrl(value)) {
-                        openLoginInSystemBrowser(getCanonicalOAuthUrl('google'), 'google');
+                        window.location.replace(RESTOREBRAINE);
                         return;
                       }
                       if (isAuthNavigationUrl(value)) {
@@ -643,8 +643,24 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             if (titleNode) fixLoginLogoNearTitle(titleNode);
           }
 
+          function hideNativeBuildStamp() {
+            try {
+              document.querySelectorAll('p, span, div, footer, small, label').forEach(function (node) {
+                if (node.id === 'rb-native-stamp') {
+                  node.remove();
+                  return;
+                }
+                var text = (node.textContent || '').replace(/\s+/g, ' ').trim();
+                if (/^kbrown native v\d+/i.test(text) || /^restorebraine web v\d+/i.test(text)) {
+                  node.remove();
+                }
+              });
+            } catch (e) {}
+          }
+
           function fixRestorebraineBranding() {
             try {
+              hideNativeBuildStamp();
               var stamp = document.getElementById('rb-native-stamp');
               if (stamp) stamp.remove();
               document.querySelectorAll('[id*="native-stamp"], [class*="native-stamp"]').forEach(function (n) { n.remove(); });
@@ -800,7 +816,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
           }
 
           if (!window.__rbBadgeObserver) {
-            window.__rbBadgeObserver = new MutationObserver(function () { blockBase44BadgeScript(); hideBase44EditorWidget(); fixRestorebraineBranding(); fixFolderActionButtons(); });
+            window.__rbBadgeObserver = new MutationObserver(function () { blockBase44BadgeScript(); hideBase44EditorWidget(); hideNativeBuildStamp(); fixRestorebraineBranding(); fixFolderActionButtons(); });
             window.__rbBadgeObserver.observe(document.documentElement, { childList: true, subtree: true });
           }
 
@@ -821,6 +837,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
               guardPlatformNavigation();
               guardGoogleOAuthInWebView();
               hideBase44EditorWidget();
+              hideNativeBuildStamp();
               fixRestorebraineBranding();
               fixFolderActionButtons();
               guardSignedOutLoginPage();

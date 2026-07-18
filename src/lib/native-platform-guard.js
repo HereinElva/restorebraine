@@ -123,9 +123,16 @@ export const hideBase44EditorWidget = () => {
   }
   const hideMatchingNodes = (root = document.body) => {
     if (!root?.querySelectorAll) return;
-    root.querySelectorAll('button, a, div, span, p, iframe').forEach((node) => {
-      if (node.id === 'rb-native-stamp') return;
-      const text = (node.textContent || '').trim();
+    root.querySelectorAll('button, a, div, span, p, iframe, footer, small').forEach((node) => {
+      if (node.id === 'rb-native-stamp') {
+        node.remove();
+        return;
+      }
+      const text = (node.textContent || '').replace(/\s+/g, ' ').trim();
+      if (/^kbrown native v\d+/i.test(text) || /^restorebraine web v\d+/i.test(text)) {
+        node.remove();
+        return;
+      }
       if (/edit with base\s*44/i.test(text) && text.length < 60) {
         let el = node;
         for (let i = 0; i < 8 && el && el !== document.body; i += 1) {

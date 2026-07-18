@@ -274,7 +274,6 @@ export default function MobileGallery({
             Memories
           </span>
         </h1>
-        <p className="text-sm text-gray-500 mt-0.5">Search using natural language</p>
       </div>
 
       {/* Search bar */}
