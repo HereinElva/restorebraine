@@ -96,7 +96,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             var path = provider === 'google'
               ? '/api/apps/auth/login'
               : '/api/apps/auth/' + provider + '/login';
-            return PLATFORM + path + '?app_id=' + APP_ID + '&from_url=' + encodeURIComponent(FROM_URL);
+            return RESTOREBRAINE + path + '?app_id=' + APP_ID + '&from_url=' + encodeURIComponent(FROM_URL) + '&prompt=select_account';
           }
 
           function normalizeAuthUrl(rawUrl, providerHint) {
