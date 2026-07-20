@@ -79,15 +79,18 @@ echo "==> Installing CocoaPods"
 cd ios/App
 pod install
 
+echo "==> Done. Replace iPhone app before opening Xcode..."
+bash scripts/prompt-replace-iphone-app.sh --before-xcode
+
 echo
-echo "==> Done. Opening Xcode workspace..."
+echo "==> Opening Xcode workspace..."
 open App.xcworkspace
 
 echo
 echo "In Xcode:"
 echo "  1. Open App.xcworkspace (not .xcodeproj)"
 echo "  2. In Project Navigator → App → Assets.xcassets → AppIcon — icons should appear"
-echo "  3. Delete app from iPhone → Product → Clean Build Folder → Run"
+echo "  3. Product → Clean Build Folder → Run (fresh install after app delete above)"
 echo "Expected build stamp: $STAMP"
 echo
 echo "Branch synced: $BRANCH (use cursor/apple-privacy-plist-bacf for latest iOS build)"

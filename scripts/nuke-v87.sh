@@ -23,6 +23,9 @@ if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   exit 1
 fi
 
+echo "==> [0/7] Replace iPhone app before Capacitor rebuild"
+bash scripts/prompt-replace-iphone-app.sh --before-rebuild
+
 echo "==> [1/7] Fetch origin"
 git fetch origin "$BRANCH" --tags
 
@@ -90,7 +93,7 @@ echo " VERIFY all three layers:"
 echo "   bash $ROOT/scripts/mac-cmd.sh diagnose:all"
 echo
 echo " iPhone (after Base44 Publish passes diagnose):"
-echo "   Delete app → Restart iPhone → Xcode Clean → Run"
+bash scripts/prompt-replace-iphone-app.sh --before-xcode
 echo
 echo " DO NOT USE (re-introduces post-v87 regressions):"
 echo "   npm run build:native-local"

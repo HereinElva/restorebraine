@@ -84,8 +84,9 @@ while true; do
     echo
     node scripts/diagnose-chunk-pair.mjs
     echo
-    echo " Next: npm run align:all -- --skip-build"
-    echo " Then: Delete app → Restart iPhone → Xcode Clean → Run"
+    bash scripts/prompt-replace-iphone-app.sh --before-xcode
+    echo " Next: npm run align:all -- --no-git-sync --skip-build"
+    echo " Then: Xcode → Clean Build Folder → Run"
     exit 0
   fi
 

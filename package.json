@@ -39,6 +39,7 @@
     "align:all": "bash scripts/align-all.sh",
     "align:watch": "bash scripts/align-watch-base44.sh",
     "hooks:install": "bash scripts/install-git-hooks.sh",
+    "prompt:replace-app": "bash scripts/prompt-replace-iphone-app.sh",
     "prove:live-oauth": "node scripts/prove-live-oauth.mjs",
     "diagnose:chunks": "node scripts/diagnose-chunk-pair.mjs",
     "postinstall": "node scripts/patch-native-purchases-podspec.mjs"

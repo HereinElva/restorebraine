@@ -58,6 +58,12 @@ if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   fail "Not inside restorebraine git repo."
 fi
 
+# ── REQUIRED: replace iPhone app before rebuild (not just Xcode update) ─────
+if [[ "$VERIFY_ONLY" != "1" ]]; then
+  banner "REQUIRED — Replace iPhone app before rebuild"
+  bash scripts/prompt-replace-iphone-app.sh --before-rebuild
+fi
+
 # ── PHASE 0: Pre-flight (read-only analysis) ───────────────────────────────
 banner "PHASE 0 — Pre-flight analysis (read-only)"
 echo "Checking current state before any changes..."
@@ -70,8 +76,11 @@ echo
 
 if [[ "$VERIFY_ONLY" == "1" ]]; then
   banner "VERIFY ONLY — running full diagnostics"
-  run_node scripts/diagnose-all.mjs
-  run_node scripts/gate-pre-update.mjs
+  run_node scripts/diagnose-all.mjs || fail "Diagnostics failed — fix layers before iPhone test"
+  run_node scripts/gate-five-patterns.mjs || fail "Five-pattern gate failed"
+  run_node scripts/gate-pre-update.mjs || fail "Pre-update gate failed"
+  banner "REQUIRED — Replace iPhone app before Xcode Run"
+  bash scripts/prompt-replace-iphone-app.sh --before-xcode
   exit 0
 fi
 
@@ -146,11 +155,14 @@ banner "v87 FULL RESET COMPLETE — all layers aligned"
 echo " HEAD: $(git rev-parse --short HEAD)"
 echo " BUILD_STAMP: $(tr -d '\n' < ios/App/App/BUILD_STAMP.txt 2>/dev/null || echo missing)"
 echo
-echo " iPhone (required even when diagnostics pass):"
-echo "   1. Delete Restorebraine app"
-echo "   2. Restart iPhone"
-echo "   3. Xcode → Clean Build Folder → Run"
-echo "   4. Tap Sign In on Find Your Memories"
+
+banner "REQUIRED — Replace iPhone app before Xcode Run"
+bash scripts/prompt-replace-iphone-app.sh --before-xcode
+
+echo " Xcode steps (after app replace confirmed above):"
+echo "   1. Product → Clean Build Folder"
+echo "   2. Run on iPhone (fresh install — not an update)"
+echo "   3. Tap Sign In on Find Your Memories"
 echo
 echo " Before ANY future update:"
 echo "   npm run gate:pre-update"

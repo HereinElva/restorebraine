@@ -8,6 +8,7 @@
 #   npm run align:all
 #   npm run align:all -- --skip-capacitor    # git + web build + probes only
 #   npm run align:all -- --skip-build        # probes only (fast)
+#   npm run align:all -- --no-git-sync       # skip fetch/reset (re-verify after Publish)
 #   npm run align:all -- --fix-hosted         # force cap:hosted before build
 set -euo pipefail
 
@@ -18,12 +19,14 @@ BRANCH="${ALIGN_BRANCH:-cursor/apple-privacy-plist-bacf}"
 SKIP_CAPACITOR=0
 SKIP_BUILD=0
 FIX_HOSTED=0
+NO_GIT_SYNC=0
 
 for arg in "$@"; do
   case "$arg" in
     --skip-capacitor) SKIP_CAPACITOR=1 ;;
     --skip-build) SKIP_BUILD=1 ;;
     --fix-hosted) FIX_HOSTED=1 ;;
+    --no-git-sync) NO_GIT_SYNC=1 ;;
     -h|--help)
       echo "Usage: bash scripts/align-all.sh [--skip-capacitor] [--skip-build] [--fix-hosted]"
       exit 0
@@ -62,6 +65,12 @@ echo " Branch: origin/$BRANCH"
 echo " Mode:   hosted Capacitor → https://restorebraine.base44.app"
 echo
 
+# Replace app on iPhone before Mac rebuild (skip on quick re-verify)
+if [[ "$NO_GIT_SYNC" != "1" ]] || [[ "$SKIP_CAPACITOR" != "1" ]]; then
+  banner "REQUIRED — Replace iPhone app before rebuild"
+  bash scripts/prompt-replace-iphone-app.sh --before-rebuild
+fi
+
 # ── PATTERN 4: Lock hosted mode ─────────────────────────────────────────────
 banner "PHASE 1 — Pattern 4: lock hosted mode (no bundled flip-flop)"
 if [[ "$FIX_HOSTED" == "1" ]]; then
@@ -75,9 +84,13 @@ echo "✓ Hosted mode (no appStartPath)"
 
 # ── PATTERN 1: GitHub sync ──────────────────────────────────────────────────
 banner "PHASE 2 — Pattern 1: GitHub sync (source of truth)"
-run git fetch origin "$BRANCH" --tags
-run git reset --hard "origin/$BRANCH"
-run git clean -fd -- dist ios/App/build node_modules/.vite 2>/dev/null || true
+if [[ "$NO_GIT_SYNC" == "1" ]]; then
+  echo "(skipped — --no-git-sync)"
+else
+  run git fetch origin "$BRANCH" --tags
+  run git reset --hard "origin/$BRANCH"
+  run git clean -fd -- dist ios/App/build node_modules/.vite 2>/dev/null || true
+fi
 run node scripts/verify-v87-baseline.mjs
 
 # ── PATTERN 5: No login rewrites ────────────────────────────────────────────
@@ -127,11 +140,14 @@ banner "ALL LAYERS ALIGNED"
 echo " HEAD: $(git rev-parse --short HEAD)"
 echo " BUILD_STAMP: $(tr -d '\n' < ios/App/App/BUILD_STAMP.txt 2>/dev/null || echo missing)"
 echo
-echo " iPhone checklist:"
-echo "   1. Delete Restorebraine app"
-echo "   2. Restart iPhone"
-echo "   3. Xcode → Clean Build Folder → Run"
-echo "   4. Tap Sign In on Find Your Memories"
+
+banner "REQUIRED — Replace iPhone app before Xcode Run"
+bash scripts/prompt-replace-iphone-app.sh --before-xcode
+
+echo " Xcode steps (after app replace confirmed above):"
+echo "   1. Product → Clean Build Folder"
+echo "   2. Run on iPhone (fresh install — not an update)"
+echo "   3. Tap Sign In on Find Your Memories"
 echo
 echo " Before future updates: npm run gate:patterns"
 echo "══════════════════════════════════════════════════════════════"
