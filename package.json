@@ -27,6 +27,8 @@
     "base44:nuke-oauth": "node scripts/print-base44-nuke-checklist.mjs --minimal",
     "base44:export-pack": "node scripts/export-base44-paste-pack.mjs",
     "base44:export-batches": "node scripts/export-base44-batches.mjs",
+    "base44:export-one-file": "node scripts/export-base44-one-file.mjs",
+    "base44:print-batch": "node scripts/print-base44-batch.mjs",
     "base44:copy-commands": "node scripts/print-base44-copy-commands.mjs",
     "verify:lingering": "node scripts/verify-no-post-v87-lingering.mjs",
     "verify:v87": "node scripts/verify-v87-baseline.mjs",

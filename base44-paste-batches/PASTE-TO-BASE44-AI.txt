@@ -1,0 +1,77 @@
+# Paste these messages into Base44 AI chat IN ORDER
+
+Base44 said "No file blocks came through" because the file **contents** must be in the **same message** as the prompt — or sent as a **second message** immediately after.
+
+---
+
+## Option A — Give Base44 the GitHub URLs (try this first)
+
+Paste this single message to Base44 AI:
+
+```
+Fetch each URL below, read the FILE blocks, and write every file to the Restorebraine code editor at the exact path shown. Do NOT Publish until all 8 batches are applied.
+
+Batch 1: https://raw.githubusercontent.com/HereinElva/restorebraine/cursor/apple-privacy-plist-bacf/base44-paste-batches/BASE44-BATCH-01-oauth-auth.txt
+Batch 2: https://raw.githubusercontent.com/HereinElva/restorebraine/cursor/apple-privacy-plist-bacf/base44-paste-batches/BASE44-BATCH-02-app-shell.txt
+Batch 3: https://raw.githubusercontent.com/HereinElva/restorebraine/cursor/apple-privacy-plist-bacf/base44-paste-batches/BASE44-BATCH-03-gallery-core.txt
+Batch 4: https://raw.githubusercontent.com/HereinElva/restorebraine/cursor/apple-privacy-plist-bacf/base44-paste-batches/BASE44-BATCH-04-gallery-components.txt
+Batch 5: https://raw.githubusercontent.com/HereinElva/restorebraine/cursor/apple-privacy-plist-bacf/base44-paste-batches/BASE44-BATCH-05-context-layout-css.txt
+Batch 6: https://raw.githubusercontent.com/HereinElva/restorebraine/cursor/apple-privacy-plist-bacf/base44-paste-batches/BASE44-BATCH-06-upload.txt
+Batch 7: https://raw.githubusercontent.com/HereinElva/restorebraine/cursor/apple-privacy-plist-bacf/base44-paste-batches/BASE44-BATCH-07-media-libs.txt
+Batch 8: https://raw.githubusercontent.com/HereinElva/restorebraine/cursor/apple-privacy-plist-bacf/base44-paste-batches/BASE44-BATCH-08-utils-pages.txt
+
+When all 8 are written, tell me to Publish once.
+```
+
+---
+
+## Option B — Two messages per batch (if URLs fail)
+
+**Message 1** (prompt only):
+```
+Apply every FILE block in my NEXT message to the Restorebraine code editor. Write each file at the exact path. Do NOT Publish yet. Reply "ready" when done with this batch.
+```
+
+**Message 2** (ONLY the batch contents — no extra text):
+
+On Mac Terminal:
+```bash
+cd ~/restorebraine
+git pull origin cursor/apple-privacy-plist-bacf
+npm run base44:print-batch -- 1 | pbcopy
+```
+Paste into Base44 chat (Cmd+V). Wait for Base44 to write files. Repeat for batches 2–8:
+```bash
+npm run base44:print-batch -- 2 | pbcopy
+# ... through 8
+```
+
+---
+
+## Option C — One file per message (if batches still truncate)
+
+71 small messages — most reliable for Base44 chat limits:
+
+```bash
+cd ~/restorebraine
+git pull origin cursor/apple-privacy-plist-bacf
+npm run base44:export-one-file
+cat base44-paste-one-file/README.txt
+```
+
+Copy each `001-...txt` file one at a time into Base44 chat.
+
+---
+
+## After all files applied
+
+Tell Base44:
+```
+All batches applied. Click Publish once now.
+```
+
+Mac:
+```bash
+npm run align:watch
+npm run diagnose:chunks
+```

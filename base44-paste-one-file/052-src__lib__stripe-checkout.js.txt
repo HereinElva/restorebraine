@@ -1,0 +1,48 @@
+# Paste this ENTIRE message into Base44 AI chat (file 52/71)
+
+Apply this single file to the Restorebraine code editor. Do NOT Publish yet.
+
+========================================================================
+FILE: src/lib/stripe-checkout.js
+========================================================================
+import { Capacitor } from '@capacitor/core';
+
+/** Open Stripe Checkout — same WebView on hosted mobile app, new tab on desktop. */
+export async function openStripeCheckout(checkoutUrl) {
+  if (!checkoutUrl) throw new Error('Missing Stripe checkout URL');
+  window.location.assign(checkoutUrl);
+}
+
+/** Refresh billing state when returning to the app after Stripe checkout. */
+export function installStripeReturnRefresh(onRefresh) {
+  if (typeof onRefresh !== 'function') return () => {};
+
+  let remove = () => {};
+
+  (async () => {
+    if (!Capacitor.isNativePlatform()) {
+      const onVisible = () => {
+        if (document.visibilityState === 'visible') onRefresh();
+      };
+      document.addEventListener('visibilitychange', onVisible);
+      remove = () => document.removeEventListener('visibilitychange', onVisible);
+      return;
+    }
+
+    try {
+      const { App } = await import('@capacitor/app');
+      const sub = await App.addListener('appStateChange', ({ isActive }) => {
+        if (isActive) onRefresh();
+      });
+      remove = () => sub.remove();
+    } catch {
+      const onVisible = () => {
+        if (document.visibilityState === 'visible') onRefresh();
+      };
+      document.addEventListener('visibilitychange', onVisible);
+      remove = () => document.removeEventListener('visibilitychange', onVisible);
+    }
+  })();
+
+  return () => remove();
+}

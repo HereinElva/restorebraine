@@ -1,0 +1,13 @@
+# Paste this ENTIRE message into Base44 AI chat (file 71/71)
+
+Apply this single file to the Restorebraine code editor. Do NOT Publish yet.
+
+========================================================================
+FILE: src/lib/forceLogout.js
+========================================================================
+// Clear all auth tokens on launch so user can log in fresh
+try {
+  Object.keys(localStorage)
+    .filter(k => k.includes('base44'))
+    .forEach(k => localStorage.removeItem(k));
+} catch {}
