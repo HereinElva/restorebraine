@@ -13,6 +13,7 @@ const steps = [
   { name: 'Post-v87 lingering scan', cmd: 'node', args: ['scripts/verify-no-post-v87-lingering.mjs', '--strict'] },
   { name: 'OAuth URLs (git + AppDelegate)', cmd: 'node', args: ['scripts/verify-oauth-urls.mjs'] },
   { name: 'AppDelegate Sign In fix', cmd: 'node', args: ['scripts/verify-appdelegate-signin.mjs'] },
+  { name: 'Chunk pair (index + App)', cmd: 'node', args: ['scripts/diagnose-chunk-pair.mjs'] },
   { name: 'OAuth trace (Sign In URL per layer)', cmd: 'node', args: ['scripts/diagnose-oauth-trace.mjs'] },
   { name: 'Deep sync (GitHub ↔ Base44 ↔ Capacitor)', cmd: 'node', args: ['scripts/diagnose-sync-depth.mjs'] },
   { name: 'Quick layers', cmd: 'node', args: ['scripts/diagnose-capacitor-base44.mjs'] },

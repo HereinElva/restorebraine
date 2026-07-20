@@ -35,6 +35,7 @@
     "diagnose:watch": "node scripts/diagnose-all.mjs --watch --interval=30",
     "gate:pre-update": "node scripts/gate-pre-update.mjs",
     "prove:live-oauth": "node scripts/prove-live-oauth.mjs",
+    "diagnose:chunks": "node scripts/diagnose-chunk-pair.mjs",
     "postinstall": "node scripts/patch-native-purchases-podspec.mjs"
   },
   "dependencies": {
