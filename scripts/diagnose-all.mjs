@@ -9,6 +9,7 @@ const INTERVAL = Number(process.argv.find((a) => a.startsWith('--interval='))?.s
 
 const steps = [
   { name: 'v87 baseline', cmd: 'node', args: ['scripts/verify-v87-baseline.mjs'] },
+  { name: 'Post-v87 lingering scan', cmd: 'node', args: ['scripts/verify-no-post-v87-lingering.mjs', '--strict'] },
   { name: 'OAuth URLs (git + AppDelegate)', cmd: 'node', args: ['scripts/verify-oauth-urls.mjs'] },
   { name: 'OAuth trace (Sign In URL per layer)', cmd: 'node', args: ['scripts/diagnose-oauth-trace.mjs'] },
   { name: 'Deep sync (GitHub ↔ Base44 ↔ Capacitor)', cmd: 'node', args: ['scripts/diagnose-sync-depth.mjs'] },
