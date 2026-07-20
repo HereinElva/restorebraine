@@ -20,6 +20,7 @@
     "v87:records": "node scripts/print-v87-records.mjs",
     "v87:playbook": "node scripts/print-v87-reset-playbook.mjs",
     "nuke:v87": "bash scripts/nuke-v87.sh",
+    "revert:v87-all": "bash scripts/revert-to-v87-everywhere.sh",
     "reset:v87-all": "bash scripts/reset-v87-all.sh",
     "sync:branch": "bash scripts/sync-branch.sh",
     "mac:cmd": "bash scripts/mac-cmd.sh",
