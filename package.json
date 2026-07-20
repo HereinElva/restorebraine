@@ -20,6 +20,7 @@
     "v87:records": "node scripts/print-v87-records.mjs",
     "v87:playbook": "node scripts/print-v87-reset-playbook.mjs",
     "nuke:v87": "bash scripts/nuke-v87.sh",
+    "mac:cmd": "bash scripts/mac-cmd.sh",
     "base44:nuke-list": "node scripts/print-base44-nuke-checklist.mjs",
     "base44:nuke-oauth": "node scripts/print-base44-nuke-checklist.mjs --minimal",
     "verify:lingering": "node scripts/verify-no-post-v87-lingering.mjs",

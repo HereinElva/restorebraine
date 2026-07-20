@@ -79,16 +79,15 @@ node scripts/verify-no-post-v87-lingering.mjs --strict || true
 echo
 echo "══════════════════════════════════════════════════════════════"
 echo " GITHUB + CAPACITOR NUKE COMPLETE"
+echo " BUILD_STAMP: $(tr -d '\n' < ios/App/App/BUILD_STAMP.txt 2>/dev/null || echo 'missing')"
 echo "══════════════════════════════════════════════════════════════"
 echo
-echo " NEXT — wipe live Base44 (required for Sign In on phone):"
-echo "   npm run base44:nuke-list"
+echo " NEXT — wipe live Base44 (browser, required for Sign In):"
+echo "   bash $ROOT/scripts/mac-cmd.sh base44:nuke-list"
 echo "   → paste ALL files in Base44 editor → Publish"
 echo
 echo " VERIFY all three layers:"
-echo "   npm run verify:lingering -- --strict"
-echo "   npm run diagnose:all"
-echo "   npm run diagnose:watch   (optional — while Publishing)"
+echo "   bash $ROOT/scripts/mac-cmd.sh diagnose:all"
 echo
 echo " iPhone (after Base44 Publish passes diagnose):"
 echo "   Delete app → Restart iPhone → Xcode Clean → Run"
@@ -96,5 +95,4 @@ echo
 echo " DO NOT USE (re-introduces post-v87 regressions):"
 echo "   npm run build:native-local"
 echo "   bash scripts/mac-ios-setup.sh --bundled"
-echo "   Any NativeLoginCard / SignInScreen / LoginPage experiments"
 echo "══════════════════════════════════════════════════════════════"
