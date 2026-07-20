@@ -5,6 +5,9 @@ export const HOSTED_APP_URL = DEFAULT_APP_ORIGIN;
 export const isNativeShell = () => {
   try {
     return typeof window !== 'undefined' && (
+      window.__restorebraineSessionBridgeInstalled ||
+      typeof window.__restorebraineOpenLogin === 'function' ||
+      typeof window.__RESTOREBRAINE_NATIVE_BUILD__ !== 'undefined' ||
       window.Capacitor?.isNativePlatform?.() ||
       window.location?.protocol === 'capacitor:' ||
       window.location?.protocol === 'ionic:'

@@ -353,6 +353,10 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             return window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.InAppBrowser;
           }
 
+          function getBrowserPlugin() {
+            return window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Browser;
+          }
+
           function attachOAuthBrowserListeners(ib) {
             if (oauthBrowserListenerAttached) return;
             oauthBrowserListenerAttached = true;
@@ -376,25 +380,40 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             });
           }
 
-          function openLoginInSystemBrowser(url, providerHint) {
-            url = normalizeAuthUrl(url || getCanonicalOAuthUrl(providerHint || 'google'), providerHint);
-            function launchSystemBrowser() {
-              try {
-                var ib = getInAppBrowserPlugin();
-                if (!ib) return false;
+          function launchOAuthInBrowser(url) {
+            try {
+              var ib = getInAppBrowserPlugin();
+              if (ib) {
                 oauthBrowserListenerAttached = false;
                 attachOAuthBrowserListeners(ib);
                 ib.openInSystemBrowser({ url: url, options: SYSTEM_BROWSER_OPTIONS });
                 return true;
-              } catch (e) {
-                return false;
               }
-            }
-            if (launchSystemBrowser()) return;
+            } catch (e) {}
+            try {
+              var browser = getBrowserPlugin();
+              if (browser && browser.open) {
+                browser.open({ url: url });
+                return true;
+              }
+            } catch (e) {}
+            return false;
+          }
+
+          function openLoginInSystemBrowser(url, providerHint) {
+            url = normalizeAuthUrl(url || getCanonicalOAuthUrl(providerHint || 'google'), providerHint);
+            if (launchOAuthInBrowser(url)) return;
             var attempts = 0;
             var timer = setInterval(function () {
               attempts += 1;
-              if (launchSystemBrowser() || attempts >= 60) clearInterval(timer);
+              if (launchOAuthInBrowser(url)) {
+                clearInterval(timer);
+                return;
+              }
+              if (attempts >= 80) {
+                clearInterval(timer);
+                try { window.location.assign(url); } catch (e) {}
+              }
             }, 100);
           }
 

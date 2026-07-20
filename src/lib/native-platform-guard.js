@@ -164,9 +164,10 @@ export const interceptNativeSignInClicks = () => {
     if (!target) return;
     const label = (target.textContent || '').trim();
     const href = target.href || target.getAttribute?.('href') || '';
+    const isSignInButton = /^sign in$/i.test(label.replace(/\s+/g, ' '));
     const isProvider = /continue with google|continue with apple|continue with microsoft|sign in with email|sign in with google|sign in with apple|sign in with microsoft/i.test(label);
     const isAuthLink = /auth\/login|auth\/apple|auth\/microsoft/i.test(href);
-    if (!isProvider && !isAuthLink) return;
+    if (!isSignInButton && !isProvider && !isAuthLink) return;
     event.preventDefault();
     event.stopPropagation();
     event.stopImmediatePropagation();

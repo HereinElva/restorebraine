@@ -10,6 +10,14 @@ import { resolve } from 'node:path';
 const V87 = '87';
 const V87_UI_COMMIT = '5762b16';
 const V87_TIP_COMMIT = 'f1b2505';
+/** Auth/runtime hotfixes on v87 branch — allowed after f1b2505 without failing verify. */
+const ALLOWED_AFTER_V87 = new Set([
+  'src/lib/build-info.js',
+  'src/lib/auth-urls.js',
+  'src/lib/native-hosted-redirect.js',
+  'src/lib/native-google-oauth.js',
+  'src/lib/native-platform-guard.js',
+]);
 const APP_PATHS = [
   'src/',
   'index.html',

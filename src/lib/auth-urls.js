@@ -25,6 +25,12 @@ export const getRestorebraineLoginUrl = getPlatformLoginUrl;
 export const openRestorebraineLogin = () => {
   if (typeof window === 'undefined') return;
 
+  // AppDelegate bridge (hosted Capacitor) — most reliable on iPhone.
+  if (typeof window.__restorebraineOpenLogin === 'function') {
+    window.__restorebraineOpenLogin();
+    return;
+  }
+
   if (isNativeShell()) {
     import('@/lib/native-google-oauth').then(({ openLoginInSystemBrowser }) => {
       openLoginInSystemBrowser(getGoogleOAuthUrl(), 'google');

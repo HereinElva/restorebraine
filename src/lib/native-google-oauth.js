@@ -94,7 +94,25 @@ export const openLoginInSystemBrowser = async (url = getGoogleOAuthUrl(), provid
   oauthListenerAttached = false;
   await attachOAuthCompletionListener();
   const InAppBrowser = await getInAppBrowser();
-  await InAppBrowser.openInSystemBrowser({ url: normalizedUrl, options: SYSTEM_BROWSER_OPTIONS });
+  if (InAppBrowser?.openInSystemBrowser) {
+    await InAppBrowser.openInSystemBrowser({ url: normalizedUrl, options: SYSTEM_BROWSER_OPTIONS });
+    return;
+  }
+
+  try {
+    const { Browser } = await import('@capacitor/browser');
+    await Browser.open({ url: normalizedUrl });
+    return;
+  } catch (error) {
+    console.warn('InAppBrowser/Browser plugins unavailable — falling back to navigation', error);
+  }
+
+  if (typeof window.__restorebraineOpenLogin === 'function') {
+    window.__restorebraineOpenLogin();
+    return;
+  }
+
+  window.location.assign(normalizedUrl);
 };
 
 const handleAuthNavigation = (url, providerHint) => {
