@@ -20,6 +20,7 @@
     "v87:records": "node scripts/print-v87-records.mjs",
     "verify:v87": "node scripts/verify-v87-baseline.mjs",
     "diagnose:layers": "node scripts/diagnose-capacitor-base44.mjs",
+    "diagnose:sync": "node scripts/diagnose-sync-depth.mjs",
     "postinstall": "node scripts/patch-native-purchases-podspec.mjs"
   },
   "dependencies": {

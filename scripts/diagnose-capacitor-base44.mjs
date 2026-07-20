@@ -160,6 +160,8 @@ Capacitor → Base44:  ✓ connected (server.url loads live site)
 GitHub → Capacitor:  ✓ mac-ios-setup builds native shell
 GitHub → Base44:     ✗ NO AUTO SYNC — Publish required
 
+Run deeper diagnosis (no build): npm run diagnose:sync
+
 FIX (Base44 browser only):
   Paste from ~/restorebraine and Publish:
     src/lib/native-platform-guard.js

@@ -115,5 +115,6 @@ console.log(`   UI from ${V87_UI_COMMIT} — Find Your Memories + Sign In`);
 console.log(`   OAuth: restorebraine.base44.app/api/apps/auth/*`);
 console.log('   Capacitor hosted → https://restorebraine.base44.app');
 console.log('');
-console.log('Run: npm run diagnose:layers  (checks if live Base44 matches GitHub)');
+console.log('Run: npm run diagnose:sync   (deep GitHub/Base44/Capacitor file sync — no build)');
+console.log('Run: npm run diagnose:layers  (quick three-layer check)');
 console.log('Phone loads LIVE Base44 JS — Publish in Base44 editor if diagnose shows ✗ Live JS OAuth');
