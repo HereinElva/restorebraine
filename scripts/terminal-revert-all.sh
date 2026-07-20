@@ -6,7 +6,8 @@
 #
 # Usage:
 #   npm run revert:terminal                    # bundled omega-3 (full terminal control)
-#   npm run revert:terminal -- --bundled-v87   # v87 source, bundled on phone
+#   npm run apply:v87-from-omega3              # omega-3 gallery + v87 corrections, bundled
+#   npm run revert:terminal -- --bundled-v87   # same as apply:v87-from-omega3
 #   npm run revert:terminal -- --hosted-v87    # v87 git + hosted shell only (UI still Base44)
 set -euo pipefail
 
@@ -114,8 +115,8 @@ case "$MODE" in
     npm run build:native-local
     echo "==> [4/6] CocoaPods"
     (cd ios/App && pod install)
-    echo "==> [5/6] Verify"
-    node scripts/verify-v87-baseline.mjs || echo "WARN: v87 baseline check failed on bundled path"
+    echo "==> [5/6] Verify bundled v87 (Omega 3 gallery + v87 corrections)"
+    node scripts/verify-bundled-v87.mjs
     STAMP="$(tr -d '\n' < ios/App/App/BUILD_STAMP.txt 2>/dev/null || echo 'see Xcode')"
     echo "==> [6/6] Sync ghost-build blocklist (optional)"
     sync_ghost_blocklist_optional

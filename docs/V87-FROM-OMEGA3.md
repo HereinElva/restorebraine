@@ -45,7 +45,20 @@ npm run diagnose:chunks        # must pass
 
 ## Restore commands
 
-**Reference only (bundled Omega 3):**
+**Omega 3 gallery + all v87 corrections — bundled on iPhone (recommended after omega-3 works):**
+```bash
+cd ~/restorebraine
+git fetch origin cursor/apple-privacy-plist-bacf
+git reset --hard origin/cursor/apple-privacy-plist-bacf
+npm install
+npm run apply:v87-from-omega3
+# Xcode: Delete app → Clean Build Folder → Run
+npm run verify:bundled-v87   # optional check
+```
+
+Same as `npm run revert:terminal -- --bundled-v87`, with explicit Omega 3 → v87 messaging and bundled verify.
+
+**Reference only (bundled Omega 3, no v87 UI/OAuth fixes):**
 ```bash
 git fetch origin --tags
 git reset --hard omega-3
