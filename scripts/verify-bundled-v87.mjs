@@ -91,6 +91,19 @@ if (!existsSync('src/components/auth/SignedOutLanding.jsx')) {
   errors.push('Missing SignedOutLanding.jsx');
 }
 
+if (!existsSync('src/lib/gallery-organize-snapshot.js')) {
+  errors.push('Missing gallery-organize-snapshot.js (Omega 3 folder persistence)');
+}
+if (!existsSync('src/lib/run-media-organize.js')) {
+  errors.push('Missing run-media-organize.js (Omega 3 multi-batch organize)');
+}
+if (!read('src/components/gallery/PullToRefresh.jsx').includes('REFRESH_SAFETY_MS')) {
+  errors.push('PullToRefresh missing 6s safety timeout (Omega 3 fix)');
+}
+if (read('src/pages/Gallery.jsx').includes('SignInScreen')) {
+  errors.push('Gallery.jsx still references SignInScreen (post-v87 login rewrite)');
+}
+
 if (!existsSync('src/lib/native-media-input.js')) {
   errors.push('Missing native-media-input.js (v83 upload picker fix)');
 }

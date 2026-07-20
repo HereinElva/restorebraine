@@ -6,6 +6,43 @@ import { persistentStorage } from '@/lib/persistentStorage';
 const TOKEN_KEYS = ['base44_access_token', 'token'];
 const SIGNED_OUT_KEY = 'b44_signed_out';
 
+const readSyncToken = () => {
+  try {
+    if (localStorage.getItem(SIGNED_OUT_KEY) === '1') return null;
+    return localStorage.getItem('base44_access_token') || localStorage.getItem('token');
+  } catch {
+    return null;
+  }
+};
+
+/** Apply stored token to base44 client synchronously — must run before gallery API queries. */
+export function ensureClientSessionToken() {
+  if (typeof window === 'undefined') return null;
+  try {
+    if (localStorage.getItem(SIGNED_OUT_KEY) === '1') return null;
+  } catch {}
+
+  let token = readSyncToken();
+  const injected = window.__RESTOREBRAINE_NATIVE_SYNC_TOKEN__;
+  if (
+    !token
+    && injected
+    && injected !== 'SYNC_TOKEN_PLACEHOLDER'
+    && !String(injected).includes('PLACEHOLDER')
+  ) {
+    token = injected;
+    persistentStorage._mirror('base44_access_token', token);
+    persistentStorage._mirror('token', token);
+  }
+
+  if (!token) return null;
+  appParams.token = token;
+  base44.auth.setToken(token, false);
+  return token;
+}
+
+export const hasStoredSessionToken = () => Boolean(readSyncToken());
+
 export const restoreSessionFromNativeStorage = async () => {
   const urlToken = captureAccessTokenFromUrl();
   if (urlToken) {

@@ -51,8 +51,8 @@ echo
 OPEN_XCODE="$OPEN_XCODE" TERMINAL_REVERT_MODE=bundled-v87 bash scripts/terminal-revert-all.sh --bundled-v87 --no-open
 
 echo
-echo "==> Final verify: bundled v87"
-node scripts/verify-bundled-v87.mjs
+echo "==> Final audit summary"
+node scripts/audit-v87-improvements.mjs
 
 echo
 echo "══════════════════════════════════════════════════════════════"

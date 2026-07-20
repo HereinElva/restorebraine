@@ -57,6 +57,7 @@ export const TIER_GALLERY = [
   'src/components/gallery/PhotoModal.jsx',
   'src/components/gallery/SelectablePhotoGrid.jsx',
   'src/components/gallery/SelectionToolbar.jsx',
+  'src/components/gallery/mobile-gallery-layout.css',
 ];
 
 /** Shared app context (Gallery + Layout depend on these) */
@@ -77,6 +78,13 @@ export const TIER_UPLOAD = [
 /** Media / organize libs (Omega 3 organize persistence + multi-batch) */
 export const TIER_LIB_MEDIA = [
   'src/lib/media-organize.js',
+  'src/lib/gallery-organize-snapshot.js',
+  'src/lib/run-media-organize.js',
+  'src/lib/folder-membership.js',
+  'src/lib/folder-membership-cache.js',
+  'src/lib/gallery-query-keys.js',
+  'src/lib/gallery-data.js',
+  'src/lib/scroll-reset.js',
   'src/lib/media-analysis.js',
   'src/lib/media-tags.js',
   'src/lib/media-search.js',

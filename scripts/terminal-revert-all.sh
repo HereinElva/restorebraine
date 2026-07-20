@@ -111,14 +111,16 @@ case "$MODE" in
     wipe_build_debris
     echo "==> [2/6] npm install"
     npm install
-    echo "==> [3/6] Bundled native build (v87 UI in Mac bundle — NOT live Base44)"
+    echo "==> [3/6] Port Omega 3 gallery stack (persistence + multi-batch organize)"
+    node scripts/port-omega3-gallery-to-v87.mjs
+    echo "==> [4/6] Bundled native build (v87 UI + Omega 3 gallery in Mac bundle)"
     npm run build:native-local
-    echo "==> [4/6] CocoaPods"
+    echo "==> [5/6] CocoaPods"
     (cd ios/App && pod install)
-    echo "==> [5/6] Verify bundled v87 (Omega 3 gallery + v87 corrections)"
+    echo "==> [6/6] Verify bundled v87 + improvements audit"
     node scripts/verify-bundled-v87.mjs
+    node scripts/audit-v87-improvements.mjs || echo "WARN: improvements audit had warnings"
     STAMP="$(tr -d '\n' < ios/App/App/BUILD_STAMP.txt 2>/dev/null || echo 'see Xcode')"
-    echo "==> [6/6] Sync ghost-build blocklist (optional)"
     sync_ghost_blocklist_optional
     echo " Done — v87 bundled revert complete"
     echo " BUILD_STAMP: $STAMP"
