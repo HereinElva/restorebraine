@@ -58,6 +58,8 @@ npm run verify:bundled-v87   # optional check
 
 Same as `npm run revert:terminal -- --bundled-v87`, with explicit Omega 3 → v87 messaging and bundled verify.
 
+Full inventory of included/excluded improvements: [V87-IMPROVEMENTS-AUDIT.md](./V87-IMPROVEMENTS-AUDIT.md)
+
 **Reference only (bundled Omega 3, no v87 UI/OAuth fixes):**
 ```bash
 git fetch origin --tags
