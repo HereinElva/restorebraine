@@ -27,6 +27,7 @@ if [[ "$CMD" == "help" || "$CMD" == "-h" ]]; then
   echo "  bash $ROOT/scripts/mac-cmd.sh pull   # git pull + diagnose:all"
   echo "  bash $ROOT/scripts/mac-cmd.sh reset:v87-all"
   echo "  bash $ROOT/scripts/mac-cmd.sh revert:v87-all"
+  echo "  bash $ROOT/scripts/mac-cmd.sh revert:terminal"
   exit 0
 fi
 echo "==> cd $ROOT"

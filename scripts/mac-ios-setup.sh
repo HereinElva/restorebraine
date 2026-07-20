@@ -79,8 +79,11 @@ echo "==> Installing CocoaPods"
 cd ios/App
 pod install
 
-echo "==> Done. Replace iPhone app before opening Xcode..."
-bash scripts/prompt-replace-iphone-app.sh --before-xcode
+echo "==> Done."
+if [[ "${REPLACE_APP_CONFIRMED:-}" != "1" ]]; then
+  echo "    Replace iPhone app before opening Xcode..."
+  bash scripts/prompt-replace-iphone-app.sh --before-xcode
+fi
 
 echo
 echo "==> Opening Xcode workspace..."
