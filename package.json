@@ -18,6 +18,7 @@
     "ios:prepare": "npm run build",
     "audit:capacitor": "node scripts/capacitor-audit.mjs",
     "v87:records": "node scripts/print-v87-records.mjs",
+    "v87:playbook": "node scripts/print-v87-reset-playbook.mjs",
     "verify:v87": "node scripts/verify-v87-baseline.mjs",
     "diagnose:layers": "node scripts/diagnose-capacitor-base44.mjs",
     "diagnose:sync": "node scripts/diagnose-sync-depth.mjs",
