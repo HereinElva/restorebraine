@@ -7,6 +7,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { execSync } from 'node:child_process';
 import { resolve } from 'node:path';
 import { extractOAuthHost } from './lib/oauth-bundle-detect.mjs';
+import { checkDiagnosticScriptsFreshness } from './lib/check-diagnostic-scripts.mjs';
 
 const HOSTED = 'https://restorebraine.base44.app';
 const APP_ID = '68fdc5f42768c4d045fe1bac';
@@ -28,6 +29,8 @@ const build = readFileSync('src/lib/build-info.js', 'utf8').match(/BUILD_NUMBER 
 console.log('═══════════════════════════════════════════════════════════════');
 console.log(' CAPACITOR ↔ GITHUB ↔ BASE44 — three-layer diagnosis');
 console.log('═══════════════════════════════════════════════════════════════\n');
+
+checkDiagnosticScriptsFreshness();
 
 // ── Layer 1: GitHub (source of truth for Mac builds) ──
 console.log('1. GITHUB (Mac repo)');
@@ -112,7 +115,10 @@ if (idx) {
     } else if (liveOAuth.fixed) {
       pass(`Live JS OAuth uses restorebraine.base44.app (${liveOAuth.pattern})`);
     } else {
-      fail('Live JS OAuth pattern unclear — republish native-platform-guard.js');
+      fail('Live JS OAuth pattern unclear — run: git pull origin cursor/apple-privacy-plist-bacf');
+      if (liveJs.includes('de="https://restorebraine.base44.app"') || liveJs.includes('fe="https://restorebraine.base44.app"')) {
+        pass('Live bundle contains restorebraine.base44.app origin (OAuth likely fixed — update diagnostic scripts)');
+      }
     }
 
     if (liveJs.includes('SignedOutLanding') || liveJs.includes('Find Your')) {
