@@ -56,7 +56,10 @@
     "diagnose:chunks": "node scripts/diagnose-chunk-pair.mjs",
     "diagnose:blockages": "node scripts/diagnose-blockages.mjs",
     "ghosts:scan": "node scripts/scan-ghost-builds.mjs",
+    "ghosts:discover": "node scripts/discover-ghost-builds.mjs",
     "ghosts:sync": "node scripts/sync-ghost-builds-native.mjs",
+    "ghosts:eliminate": "bash scripts/eliminate-ghost-builds.sh",
+    "ghosts:timeline": "node scripts/print-ghost-timeline.mjs",
     "postinstall": "node scripts/patch-native-purchases-podspec.mjs"
   },
   "dependencies": {

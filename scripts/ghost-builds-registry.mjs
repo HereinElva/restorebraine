@@ -1,19 +1,23 @@
 /**
  * Registry of known ghost/stale Base44 CDN assets.
- * Ghost = old hashed bundle still HTTP 200 but not referenced by live index.html.
- * Base44 CDN never deletes these — we block them on device and purge WKWebView cache.
+ * Run `npm run ghosts:discover` to refresh from git archaeology + live CDN probe.
  */
 export const HOSTED = 'https://restorebraine.base44.app';
 
 /** Primary stale App chunk from partial Publish (gallery/CSS frozen). */
 export const STALE_APP = 'App-B4VcOATW.js';
 
-/** Historical ghosts — still on CDN as of last scan. */
+/**
+ * Ghost builds confirmed on CDN (2026-07-20 full scan omega-3..HEAD).
+ * Live entry: index-BtNzh8Fh.js → App-DvoqTTOC.js
+ * 571+ historical index hashes return 404 — only these 5 still block cached phones.
+ */
 export const KNOWN_GHOST_ASSETS = [
-  { file: 'App-B4VcOATW.js', note: 'Stale gallery/CSS — partial Publish' },
-  { file: 'index-CLtZjYMv.js', note: 'Old index → App-BMryy2H5.js chain' },
+  { file: 'App-B4VcOATW.js', note: 'Stale gallery/CSS — partial Publish (primary blocker)' },
   { file: 'App-BMryy2H5.js', note: 'Ghost App from index-CLtZjYMv.js' },
-  { file: 'index-CLtZjYMv.js', note: 'Pre-v87 OAuth-only index publish' },
+  { file: 'index-CLtZjYMv.js', note: 'Pre-v87 OAuth-only index → App-BMryy2H5.js' },
+  { file: 'index-CJJVGreG.js', note: 'Alternate stale index → App-B4VcOATW.js' },
+  { file: 'index-Dzn3_rKv.js', note: 'Shared chunk in ghost index-CLtZjYMv chain (not in live index)' },
 ];
 
 export const GHOST_INDEX_FILES = KNOWN_GHOST_ASSETS
