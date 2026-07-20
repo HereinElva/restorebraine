@@ -58,7 +58,7 @@ if (basedOnV87 && head !== V87_TIP_COMMIT) {
   const appChanged = execSync(
     `git diff --name-only ${V87_TIP_COMMIT} HEAD -- ${APP_PATHS.join(' ')}`,
     { encoding: 'utf8' },
-  ).trim().split('\n').filter((f) => f && f !== 'src/lib/build-info.js').join('\n');
+  ).trim().split('\n').filter((f) => f && !ALLOWED_AFTER_V87.has(f)).join('\n');
   if (appChanged) {
     errors.push(`App source changed after ${V87_TIP_COMMIT}: ${appChanged.replace(/\n/g, ', ')}`);
   }
