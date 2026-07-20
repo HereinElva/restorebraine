@@ -11,6 +11,7 @@ import {
   POST_V87_FORBIDDEN_PATHS,
   HOSTED,
 } from './base44-v87-publish-manifest.mjs';
+import { extractOAuthHost } from './lib/oauth-bundle-detect.mjs';
 
 const strict = process.argv.includes('--strict');
 const issues = [];
@@ -66,10 +67,9 @@ if (existsSync(pubIndex)) {
   const mainJs = html.match(/assets\/(index-[^"]+\.js)/)?.[1];
   if (mainJs && existsSync(`ios/App/App/public/assets/${mainJs}`)) {
     const js = readFileSync(`ios/App/App/public/assets/${mainJs}`, 'utf8');
-    const broken = /\$\{dt\}\$\{e\}/.test(js) || (/\$\{it\}\$\{e\}/.test(js) && js.includes('app.base44.com'));
-    const fixed = js.includes('restorebraine.base44.app/api/apps/auth') || js.includes('fe="https://restorebraine.base44.app"');
-    if (broken) fail(`Mac fallback ${mainJs} has pre-f1b2505 OAuth — run mac-ios-setup after nuke`);
-    else if (fixed) pass(`Mac fallback ${mainJs} OAuth OK`);
+    const macOAuth = extractOAuthHost(js);
+    if (macOAuth.broken) fail(`Mac fallback ${mainJs} has pre-f1b2505 OAuth — run mac-ios-setup after nuke`);
+    else if (macOAuth.fixed) pass(`Mac fallback ${mainJs} OAuth OK`);
     scanText(mainJs, js);
   }
   // Orphan stale asset files from post-v87 builds
@@ -91,10 +91,13 @@ try {
   console.log(`   Live bundle: ${bundle ?? '?'}`);
   if (bundle) {
     const js = await (await fetch(`${HOSTED}/assets/${bundle}`, { headers: { 'cache-control': 'no-cache' } })).text();
-    if (/\$\{dt\}\$\{e\}/.test(js)) {
+    const liveOAuth = extractOAuthHost(js);
+    if (liveOAuth.broken) {
       fail(`Live ${bundle} = pre-f1b2505 OAuth — Base44 Publish required (nuke Tier OAUTH minimum)`);
-    } else if (js.includes('restorebraine.base44.app/api/apps/auth') || js.includes('fe="https://restorebraine.base44.app"')) {
-      pass(`Live ${bundle} OAuth fixed`);
+    } else if (liveOAuth.fixed) {
+      pass(`Live ${bundle} OAuth fixed (${liveOAuth.pattern})`);
+    } else {
+      fail(`Live ${bundle} OAuth unclear — verify with npm run diagnose:oauth`);
     }
     scanText(`live ${bundle}`, js);
     if (js.includes('NativeLoginCard') || js.includes('SignInScreen') || js.includes('NativeLoginProviders')) {

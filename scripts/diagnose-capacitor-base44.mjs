@@ -6,6 +6,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { execSync } from 'node:child_process';
 import { resolve } from 'node:path';
+import { extractOAuthHost } from './lib/oauth-bundle-detect.mjs';
 
 const HOSTED = 'https://restorebraine.base44.app';
 const APP_ID = '68fdc5f42768c4d045fe1bac';
@@ -71,10 +72,9 @@ const pubIndex = existsSync('ios/App/App/public/index.html')
 const mainJs = pubIndex.match(/assets\/(index-[^"]+\.js)/)?.[1];
 if (mainJs && existsSync(`ios/App/App/public/assets/${mainJs}`)) {
   const js = readFileSync(`ios/App/App/public/assets/${mainJs}`, 'utf8');
-  const macBroken = /\$\{dt\}\$\{e\}/.test(js) || (/\$\{it\}\$\{e\}/.test(js) && js.includes('app.base44.com'));
-  const macFixed = js.includes('fe="https://restorebraine.base44.app"') || js.includes('restorebraine.base44.app/api/apps/auth');
-  if (macFixed && !macBroken) pass(`Mac fallback bundle ${mainJs} OAuth OK (offline only)`);
-  else if (macBroken) fail(`Mac fallback ${mainJs} OAuth broken — re-run mac-ios-setup.sh`);
+  const macOAuth = extractOAuthHost(js);
+  if (macOAuth.fixed) pass(`Mac fallback bundle ${mainJs} OAuth OK (offline only)`);
+  else if (macOAuth.broken) fail(`Mac fallback ${mainJs} OAuth broken — re-run mac-ios-setup.sh`);
   else pass(`Mac fallback ${mainJs} (hosted mode — phone uses live site, not this file)`);
 }
 
@@ -105,13 +105,12 @@ console.log(`   JS bundle: ${idx ?? '?'}`);
 if (idx) {
   try {
     const liveJs = await fetchText(`${HOSTED}${idx}`);
-    const liveBroken = /\$\{dt\}\$\{e\}/.test(liveJs);
-    const liveFixed = liveJs.includes('fe="https://restorebraine.base44.app"');
-    if (liveBroken) {
+    const liveOAuth = extractOAuthHost(liveJs);
+    if (liveOAuth.broken) {
       fail('Live JS OAuth uses app.base44.com (404) — NOT synced with GitHub f1b2505 fix');
       fail('GitHub and Base44 are NOT talking — Publish native-platform-guard.js in Base44 editor');
-    } else if (liveFixed) {
-      pass('Live JS OAuth uses restorebraine.base44.app');
+    } else if (liveOAuth.fixed) {
+      pass(`Live JS OAuth uses restorebraine.base44.app (${liveOAuth.pattern})`);
     } else {
       fail('Live JS OAuth pattern unclear — republish native-platform-guard.js');
     }

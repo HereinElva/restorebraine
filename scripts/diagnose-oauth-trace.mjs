@@ -35,21 +35,7 @@ function findMacMainBundle() {
   return { name, js: readFileSync(`ios/App/App/public/assets/${name}`, 'utf8') };
 }
 
-function extractOAuthHost(js) {
-  if (!js) return { host: '?', pattern: 'missing' };
-  if (js.includes('fe="https://restorebraine.base44.app"') || js.includes('restorebraine.base44.app/api/apps/auth')) {
-    return { host: 'restorebraine.base44.app', pattern: 'fixed (DEFAULT_APP_ORIGIN)' };
-  }
-  if (/\$\{dt\}\$\{e\}/.test(js)) {
-    return { host: 'app.base44.com', pattern: 'broken template ${dt}${e}' };
-  }
-  if (/\$\{it\}\$\{e\}/.test(js) && js.includes('app.base44.com')) {
-    return { host: 'app.base44.com', pattern: 'broken template ${it}${e}' };
-  }
-  const m = js.match(/https:\/\/([a-z0-9.-]+)\/api\/apps\/auth\/login/);
-  if (m) return { host: m[1], pattern: 'literal in bundle' };
-  return { host: 'unknown', pattern: 'unclear' };
-}
+import { extractOAuthHost } from './lib/oauth-bundle-detect.mjs';
 
 console.log('═══════════════════════════════════════════════════════════════');
 console.log(' OAUTH TRACE — what Sign In opens on each layer');
@@ -115,10 +101,12 @@ try {
     const brokenUrl = `https://${liveOAuth.host}/api/apps/auth/login?app_id=${APP_ID}&from_url=…`;
     console.log(`   Would open: ${brokenUrl}`);
 
-    if (liveOAuth.host === 'restorebraine.base44.app') {
-      pass(`Live ${name} OAuth correct`);
-    } else {
+    if (liveOAuth.fixed) {
+      pass(`Live ${name} OAuth uses restorebraine.base44.app (${liveOAuth.pattern})`);
+    } else if (liveOAuth.broken) {
       fail(`Live ${name} OAuth uses ${liveOAuth.host} → HTTP 404`);
+    } else {
+      fail(`Live ${name} OAuth pattern unclear — republish native-platform-guard.js`);
     }
 
     // Show minified snippet if broken
@@ -163,11 +151,17 @@ console.log('══════════════════════�
 for (const m of ok) console.log(`  ✓ ${m}`);
 for (const m of issues) console.log(`  ✗ ${m}`);
 
-if (issues.some((i) => i.includes('Live'))) {
+if (issues.some((i) => i.includes('Live') && i.includes('404'))) {
   console.log(`
 BLOCKER: Live bundle still routes Sign In to app.base44.com (404).
 FIX: Base44 editor → paste src/lib/native-platform-guard.js → Publish
-VERIFY: npm run diagnose:oauth-trace  (live host must = restorebraine.base44.app)
+VERIFY: npm run diagnose:oauth  (live host must = restorebraine.base44.app)
+`);
+} else if (ok.some((m) => m.includes('Live') && m.includes('restorebraine'))) {
+  console.log(`
+SUCCESS: Live Base44 OAuth fixed. Next on iPhone:
+  Delete app → Restart iPhone → Xcode Clean → Run
+  npm run diagnose:all
 `);
 }
 

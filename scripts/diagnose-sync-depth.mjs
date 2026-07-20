@@ -48,14 +48,7 @@ function gitShort(ref = 'HEAD') {
   }
 }
 
-function analyzeOAuthInJs(js, label) {
-  const brokenTemplate = /\$\{dt\}\$\{e\}/.test(js) || /\$\{it\}\$\{e\}/.test(js);
-  const brokenPlatformAuth = /app\.base44\.com\/api\/apps\/auth/.test(js);
-  const fixedOrigin = js.includes('fe="https://restorebraine.base44.app"')
-    || js.includes('restorebraine.base44.app/api/apps/auth');
-  const usesDefaultOrigin = js.includes('DEFAULT_APP_ORIGIN') || fixedOrigin;
-  return { label, brokenTemplate, brokenPlatformAuth, fixedOrigin, usesDefaultOrigin, bytes: js.length };
-}
+import { analyzeOAuthInJs } from './lib/oauth-bundle-detect.mjs';
 
 function printMatrix() {
   console.log(`
