@@ -25,6 +25,10 @@ Remaining (${BASE44_REMAINING.length} files):
 
 Generate chat groups:
   npm run base44:export-chat
+
+Bulk paste (groups 10-34):
+  npm run base44:paste-rest
+  cat base44-paste-chat/CHAT-10-34-ALL.txt | pbcopy
 `);
   process.exit(0);
 }

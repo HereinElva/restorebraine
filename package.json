@@ -30,6 +30,7 @@
     "base44:export-one-file": "node scripts/export-base44-one-file.mjs",
     "base44:print-batch": "node scripts/print-base44-batch.mjs",
     "base44:export-chat": "node scripts/export-base44-chat-groups.mjs",
+    "base44:paste-rest": "node scripts/export-base44-chat-bulk.mjs",
     "base44:remaining": "node scripts/print-base44-remaining.mjs",
     "base44:copy-commands": "node scripts/print-base44-copy-commands.mjs",
     "verify:lingering": "node scripts/verify-no-post-v87-lingering.mjs",

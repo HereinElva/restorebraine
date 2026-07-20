@@ -24,6 +24,11 @@ For each CHAT-XX.txt:
   → wait for Base44 to write files
   → repeat CHAT-02 … CHAT-34
 
+Bulk (groups 10-34 in one paste):
+  npm run base44:paste-rest
+  cat ~/restorebraine/base44-paste-chat/CHAT-10-34-ALL.txt | pbcopy
+  → paste once into Base44 (if chat truncates, fall back to CHAT-10 … CHAT-34 one at a time)
+
 After last group:
   "All groups applied. Publish once now."
 
