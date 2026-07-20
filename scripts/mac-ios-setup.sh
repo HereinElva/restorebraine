@@ -28,6 +28,9 @@ sync_to_origin() {
 
 sync_to_origin
 
+echo "==> Verify GitHub v87 baseline (5762b16 UI + f1b2505 tip)"
+node scripts/verify-v87-baseline.mjs
+
 if [[ ! -f src/lib/native-media-input.js ]]; then
   echo
   echo "ERROR: src/lib/native-media-input.js is missing on branch '$BRANCH'."

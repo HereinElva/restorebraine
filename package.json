@@ -17,6 +17,8 @@
     "preview": "vite preview",
     "ios:prepare": "npm run build",
     "audit:capacitor": "node scripts/capacitor-audit.mjs",
+    "v87:records": "node scripts/print-v87-records.mjs",
+    "verify:v87": "node scripts/verify-v87-baseline.mjs",
     "postinstall": "node scripts/patch-native-purchases-podspec.mjs"
   },
   "dependencies": {
