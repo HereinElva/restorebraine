@@ -173,7 +173,7 @@ console.log(`
     Delete app → Restart iPhone → Xcode Clean → Run
 
   PHASE E — Verify all three layers agree
-    npm run diagnose:all     → 5/5 pass
+    npm run diagnose:all     → 6/6 pass
     npm run diagnose:oauth   → Live row = restorebraine.base44.app
 
   DO NOT during reset:

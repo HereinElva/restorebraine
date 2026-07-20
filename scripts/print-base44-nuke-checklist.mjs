@@ -67,7 +67,7 @@ MINIMUM IF SHORT ON TIME (Sign In only — may not wipe all post-v87 UI):
 AFTER PUBLISH — success looks like:
   • Live bundle hash ≠ index-CLtZjYMv.js
   • npm run diagnose:oauth → Live row = restorebraine.base44.app
-  • npm run diagnose:all → 5/5 passed
+  • npm run diagnose:all → 6/6 passed
 
 THEN iPhone:
   Delete app → Restart iPhone → Xcode Clean → Run
