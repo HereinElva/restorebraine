@@ -4,7 +4,7 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
-BRANCH="${1:-cursor/fix-native-xcode-coding-bacf}"
+BRANCH="${1:-cursor/apple-privacy-plist-bacf}"
 echo "Fetching and hard-resetting to origin/$BRANCH ..."
 git fetch origin "$BRANCH"
 git reset --hard "origin/$BRANCH"

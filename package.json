@@ -24,6 +24,7 @@
     "revert:v87-all": "bash scripts/revert-to-v87-everywhere.sh",
     "reset:v87-all": "bash scripts/reset-v87-all.sh",
     "sync:branch": "bash scripts/sync-branch.sh",
+    "sync:force": "bash scripts/sync-branch.sh",
     "mac:cmd": "bash scripts/mac-cmd.sh",
     "base44:nuke-list": "node scripts/print-base44-nuke-checklist.mjs",
     "base44:nuke-oauth": "node scripts/print-base44-nuke-checklist.mjs --minimal",
