@@ -125,7 +125,27 @@ export const TIER_FULL = [
   ]),
 ];
 
-/** Post-v87 artifacts — must NOT exist in git OR live Base44 after nuke */
+/** Files user already pasted clean into Base44 (skip in remaining paste list) */
+export const BASE44_ALREADY_SAVED = [
+  'index.html',
+  'src/lib/native-platform-guard.js',
+  'src/lib/auth-urls.js',
+  'src/lib/native-google-oauth.js',
+  'src/lib/AuthContext.jsx',
+  'src/App.jsx',
+  'src/components/auth/SignedOutLanding.jsx',
+];
+
+export const BASE44_REMAINING = TIER_FULL.filter((f) => !BASE44_ALREADY_SAVED.includes(f));
+
+export const GITHUB_RAW_BASE =
+  'https://raw.githubusercontent.com/HereinElva/restorebraine/cursor/apple-privacy-plist-bacf';
+
+/** Raw source URL — NOT .txt batch wrappers (Base44 markdown fetch mangles JSX) */
+export function githubRawUrl(relPath) {
+  return `${GITHUB_RAW_BASE}/${relPath}`;
+}
+
 export const POST_V87_FORBIDDEN = [
   { pattern: 'NativeLoginCard', label: 'v164+ bundled login card' },
   { pattern: 'SignInScreen', label: 'v123–v160 login rewrite' },

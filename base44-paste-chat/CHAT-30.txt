@@ -1,0 +1,125 @@
+# Base44 chat paste 30/34 (6 files)
+
+Apply every FILE block below to the Restorebraine code editor.
+Write each file at the exact path shown — replace entire file contents.
+Do NOT Publish until I confirm all chat groups are done.
+Do NOT fetch URLs — paste content only (JSX must stay intact).
+
+Files in this message:
+1. src/lib/storage-billing.js
+2. src/lib/concurrency.js
+3. src/utils/index.ts
+4. src/lib/utils.js
+5. src/hooks/use-mobile.jsx
+6. src/App.css
+
+========================================================================
+FILE: src/lib/storage-billing.js
+========================================================================
+/** Storage billing: first 250 media free, then $0.50 per additional 250. */
+
+export const MEDIA_PER_TIER = 250;
+export const PRICE_PER_TIER_USD = 0.5;
+
+/** App Store consumable product ID — only used if not on hosted web app. */
+export const IAP_STORAGE_PRODUCT_ID = 'com.restorebraine.storage.250';
+
+export function getStorageLimit(paidTier = 0) {
+  return (Number(paidTier) + 1) * MEDIA_PER_TIER;
+}
+
+export function getTiersNeeded(currentCount, additionalCount, paidTier = 0) {
+  const projected = Number(currentCount) + Number(additionalCount);
+  const limit = getStorageLimit(paidTier);
+  if (projected <= limit) return 0;
+  return Math.ceil((projected - limit) / MEDIA_PER_TIER);
+}
+
+export function getAmountDue(tiersNeeded) {
+  return tiersNeeded * PRICE_PER_TIER_USD;
+}
+
+export function wouldExceedStorageLimit(currentCount, additionalCount, paidTier = 0) {
+  return getTiersNeeded(currentCount, additionalCount, paidTier) > 0;
+}
+
+
+========================================================================
+FILE: src/lib/concurrency.js
+========================================================================
+/**
+ * Run async task factories with a max concurrency limit.
+ * Returns results in the same order as tasks.
+ */
+export async function runConcurrent(tasks, concurrency) {
+  if (!tasks.length) return [];
+
+  const results = new Array(tasks.length);
+  let index = 0;
+
+  async function runNext() {
+    while (index < tasks.length) {
+      const i = index++;
+      results[i] = await tasks[i]();
+    }
+  }
+
+  await Promise.all(
+    Array.from({ length: Math.min(concurrency, tasks.length) }, runNext),
+  );
+
+  return results;
+}
+
+
+========================================================================
+FILE: src/utils/index.ts
+========================================================================
+
+
+
+export function createPageUrl(pageName: string) {
+    return '/' + pageName.toLowerCase().replace(/ /g, '-');
+}
+
+========================================================================
+FILE: src/lib/utils.js
+========================================================================
+import { clsx } from "clsx"
+import { twMerge } from "tailwind-merge"
+
+export function cn(...inputs) {
+  return twMerge(clsx(inputs))
+} 
+
+
+export const isIframe = window.self !== window.top;
+
+
+========================================================================
+FILE: src/hooks/use-mobile.jsx
+========================================================================
+import * as React from "react"
+
+const MOBILE_BREAKPOINT = 768
+
+export function useIsMobile() {
+  const [isMobile, setIsMobile] = React.useState(undefined)
+
+  React.useEffect(() => {
+    const mql = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`)
+    const onChange = () => {
+      setIsMobile(window.innerWidth < MOBILE_BREAKPOINT)
+    }
+    mql.addEventListener("change", onChange)
+    setIsMobile(window.innerWidth < MOBILE_BREAKPOINT)
+    return () => mql.removeEventListener("change", onChange);
+  }, [])
+
+  return !!isMobile
+}
+
+
+========================================================================
+FILE: src/App.css
+========================================================================

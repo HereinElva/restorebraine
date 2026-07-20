@@ -1,77 +1,63 @@
-# Paste these messages into Base44 AI chat IN ORDER
+# Base44 paste — READ THIS FIRST
 
-Base44 said "No file blocks came through" because the file **contents** must be in the **same message** as the prompt — or sent as a **second message** immediately after.
+## DEAD END — do NOT use URL fetch
 
----
+Base44's fetcher runs batch .txt URLs through a **markdown filter** that:
+- Escapes `_` `*` `[` `|` as `\_` `\*` `\[` `\|`
+- **Strips JSX tags** (`<Route>`, `<button>`, etc. become blank lines)
+- Breaks template literals and image src
 
-## Option A — Give Base44 the GitHub URLs (try this first)
+**Writing fetched content would destroy the app.** Only **direct paste into chat** works (like your 7 clean files).
 
-Paste this single message to Base44 AI:
+## DO NOT USE
+- `base44-paste-batches/BASE44-BATCH-*.txt` via URL fetch
+- GitHub raw URLs to `.txt` wrapper files
 
-```
-Fetch each URL below, read the FILE blocks, and write every file to the Restorebraine code editor at the exact path shown. Do NOT Publish until all 8 batches are applied.
-
-Batch 1: https://raw.githubusercontent.com/HereinElva/restorebraine/cursor/apple-privacy-plist-bacf/base44-paste-batches/BASE44-BATCH-01-oauth-auth.txt
-Batch 2: https://raw.githubusercontent.com/HereinElva/restorebraine/cursor/apple-privacy-plist-bacf/base44-paste-batches/BASE44-BATCH-02-app-shell.txt
-Batch 3: https://raw.githubusercontent.com/HereinElva/restorebraine/cursor/apple-privacy-plist-bacf/base44-paste-batches/BASE44-BATCH-03-gallery-core.txt
-Batch 4: https://raw.githubusercontent.com/HereinElva/restorebraine/cursor/apple-privacy-plist-bacf/base44-paste-batches/BASE44-BATCH-04-gallery-components.txt
-Batch 5: https://raw.githubusercontent.com/HereinElva/restorebraine/cursor/apple-privacy-plist-bacf/base44-paste-batches/BASE44-BATCH-05-context-layout-css.txt
-Batch 6: https://raw.githubusercontent.com/HereinElva/restorebraine/cursor/apple-privacy-plist-bacf/base44-paste-batches/BASE44-BATCH-06-upload.txt
-Batch 7: https://raw.githubusercontent.com/HereinElva/restorebraine/cursor/apple-privacy-plist-bacf/base44-paste-batches/BASE44-BATCH-07-media-libs.txt
-Batch 8: https://raw.githubusercontent.com/HereinElva/restorebraine/cursor/apple-privacy-plist-bacf/base44-paste-batches/BASE44-BATCH-08-utils-pages.txt
-
-When all 8 are written, tell me to Publish once.
-```
-
----
-
-## Option B — Two messages per batch (if URLs fail)
-
-**Message 1** (prompt only):
-```
-Apply every FILE block in my NEXT message to the Restorebraine code editor. Write each file at the exact path. Do NOT Publish yet. Reply "ready" when done with this batch.
-```
-
-**Message 2** (ONLY the batch contents — no extra text):
-
-On Mac Terminal:
-```bash
-cd ~/restorebraine
-git pull origin cursor/apple-privacy-plist-bacf
-npm run base44:print-batch -- 1 | pbcopy
-```
-Paste into Base44 chat (Cmd+V). Wait for Base44 to write files. Repeat for batches 2–8:
-```bash
-npm run base44:print-batch -- 2 | pbcopy
-# ... through 8
-```
-
----
-
-## Option C — One file per message (if batches still truncate)
-
-71 small messages — most reliable for Base44 chat limits:
+## USE — direct chat paste
 
 ```bash
 cd ~/restorebraine
 git pull origin cursor/apple-privacy-plist-bacf
-npm run base44:export-one-file
-cat base44-paste-one-file/README.txt
+npm run base44:export-chat
 ```
 
-Copy each `001-...txt` file one at a time into Base44 chat.
+Opens **`base44-paste-chat/`** — 34 messages, 64 remaining files.
 
----
+### 1. Reply to Base44 (copy from REPLY-TO-BASE44.txt)
 
-## After all files applied
+### 2. For each CHAT-XX.txt
 
-Tell Base44:
-```
-All batches applied. Click Publish once now.
-```
-
-Mac:
 ```bash
-npm run align:watch
-npm run diagnose:chunks
+cat ~/restorebraine/base44-paste-chat/CHAT-01.txt | pbcopy
+# Paste ENTIRE contents into Base44 chat — wait for files written
+# Repeat 02 … 34
+npm run base44:remaining -- chat 2
 ```
+
+### 3. After CHAT-34
+
+Tell Base44: **"All groups done. Publish once now."**
+
+Mac: `npm run align:watch`
+
+## Already saved in Base44 (7 — skip)
+
+- index.html
+- src/lib/native-platform-guard.js
+- src/lib/auth-urls.js
+- src/lib/native-google-oauth.js
+- src/lib/AuthContext.jsx
+- src/App.jsx
+- src/components/auth/SignedOutLanding.jsx
+
+## Optional: test ONE raw source URL
+
+If Base44 offers to fetch raw `.jsx` from GitHub (not .txt):
+
+```bash
+npm run base44:remaining -- raw Gallery.jsx
+```
+
+See `RAW-GITHUB-SOURCE-URLS.txt` for all 64 remaining paths.
+
+If JSX still mangles → stick to CHAT-*.txt direct paste only.

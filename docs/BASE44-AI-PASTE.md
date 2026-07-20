@@ -1,6 +1,35 @@
 # Pasting v87 into Base44 when AI says "I can't access your Mac"
 
-Base44's in-app AI only sees files already in the Base44 editor. It **cannot** read your Mac repo. You already pasted **7 v87 files**; **64 more** are needed for gallery/CSS (Omega 3 stack).
+Base44's in-app AI only sees files already in the Base44 editor. It **cannot** read your Mac repo.
+
+If Base44 says **"No file blocks came through"** — you pasted instructions without the file **contents**. See `base44-paste-batches/PASTE-TO-BASE44-AI.txt`.
+
+## Option A — GitHub URLs (try first)
+
+Paste into Base44 AI chat (full text in `PASTE-TO-BASE44-AI.txt`):
+
+```
+Fetch each URL below, read the FILE blocks, and write every file to the Restorebraine code editor...
+Batch 1: https://raw.githubusercontent.com/HereinElva/restorebraine/cursor/apple-privacy-plist-bacf/base44-paste-batches/BASE44-BATCH-01-oauth-auth.txt
+... (batches 2–8)
+```
+
+## Option B — Two messages per batch
+
+**Message 1:** "Apply every FILE block in my NEXT message..."
+
+**Message 2:** ONLY batch contents from Mac:
+```bash
+npm run base44:print-batch -- 1 | pbcopy
+```
+Paste (no extra text). Repeat for batches 2–8.
+
+## Option C — One file per message (71 messages)
+
+```bash
+npm run base44:export-one-file
+cat base44-paste-one-file/001-src__lib__app-domains.js.txt | pbcopy
+```
 
 ## Fast path (Mac → Base44 AI chat)
 

@@ -1,0 +1,327 @@
+# Base44 chat paste 29/34 (4 files)
+
+Apply every FILE block below to the Restorebraine code editor.
+Write each file at the exact path shown — replace entire file contents.
+Do NOT Publish until I confirm all chat groups are done.
+Do NOT fetch URLs — paste content only (JSX must stay intact).
+
+Files in this message:
+1. src/lib/upload-pipeline.js
+2. src/lib/native-media-input.js
+3. src/lib/stripe-checkout.js
+4. src/lib/in-app-purchase.js
+
+========================================================================
+FILE: src/lib/upload-pipeline.js
+========================================================================
+/**
+ * Overlapping upload and save pools — uploads never wait on DB writes.
+ */
+export async function runUploadSavePipeline({
+  items,
+  uploadConcurrency,
+  saveConcurrency,
+  uploadOne,
+  saveOne,
+}) {
+  const results = new Array(items.length);
+  let nextUpload = 0;
+  let activeUploads = 0;
+  let activeSaves = 0;
+  const saveQueue = [];
+
+  return new Promise((resolve, reject) => {
+    const maybeDone = () => {
+      if (
+        nextUpload >= items.length &&
+        activeUploads === 0 &&
+        activeSaves === 0 &&
+        saveQueue.length === 0
+      ) {
+        resolve(results);
+      }
+    };
+
+    const pumpSaves = () => {
+      while (saveQueue.length > 0 && activeSaves < saveConcurrency) {
+        const job = saveQueue.shift();
+        activeSaves += 1;
+        saveOne(job)
+          .then((result) => {
+            results[job.index] = result;
+          })
+          .catch((error) => {
+            results[job.index] = {
+              index: job.index,
+              success: false,
+              error: error?.message || 'Save failed',
+            };
+          })
+          .finally(() => {
+            activeSaves -= 1;
+            pumpSaves();
+            maybeDone();
+          });
+      }
+    };
+
+    const startUpload = (item, index) => {
+      activeUploads += 1;
+      uploadOne(item, index)
+        .then((uploaded) => {
+          if (uploaded?.file_url) {
+            saveQueue.push({ item, index, uploaded });
+            pumpSaves();
+          } else {
+            results[index] = uploaded || { index, success: false };
+          }
+        })
+        .catch((error) => {
+          results[index] = {
+            index,
+            success: false,
+            error: error?.message || 'Upload failed',
+          };
+        })
+        .finally(() => {
+          activeUploads -= 1;
+          while (nextUpload < items.length && activeUploads < uploadConcurrency) {
+            const i = nextUpload;
+            nextUpload += 1;
+            startUpload(items[i], i);
+          }
+          maybeDone();
+        });
+    };
+
+    if (!items.length) {
+      resolve([]);
+      return;
+    }
+
+    try {
+      const initial = Math.min(uploadConcurrency, items.length);
+      for (let i = 0; i < initial; i++) {
+        const index = nextUpload;
+        nextUpload += 1;
+        startUpload(items[index], index);
+      }
+    } catch (error) {
+      reject(error);
+    }
+  });
+}
+
+
+========================================================================
+FILE: src/lib/native-media-input.js
+========================================================================
+import { useCallback, useEffect, useRef } from 'react';
+
+export function isNativeMediaShell() {
+  if (typeof window === 'undefined') return false;
+  return (
+    window.Capacitor?.isNativePlatform?.() ||
+    window.location.protocol === 'capacitor:' ||
+    window.location.protocol === 'ionic:'
+  );
+}
+
+/**
+ * iOS WKWebView often fails to fire change on <input type="file"> after PHPicker.
+ * Poll input.files on focus / app resume and keep the input mounted.
+ */
+export function useNativeMediaInput(onFilesSelected) {
+  const inputRef = useRef(null);
+  const pendingPollRef = useRef(false);
+  const onFilesRef = useRef(onFilesSelected);
+  onFilesRef.current = onFilesSelected;
+
+  const deliverFiles = useCallback((fileList) => {
+    if (!fileList?.length) return false;
+    onFilesRef.current?.(fileList);
+    return true;
+  }, []);
+
+  const drainInput = useCallback(() => {
+    const input = inputRef.current;
+    if (!input?.files?.length) return false;
+    const files = input.files;
+    input.value = '';
+    return deliverFiles(files);
+  }, [deliverFiles]);
+
+  const openPicker = useCallback(() => {
+    const input = inputRef.current;
+    if (!input) return;
+    input.value = '';
+    pendingPollRef.current = true;
+    input.click();
+  }, []);
+
+  const pollAfterPicker = useCallback(() => {
+    if (!pendingPollRef.current) return;
+    [100, 350, 700, 1200].forEach((delay) => {
+      window.setTimeout(() => {
+        if (!pendingPollRef.current) return;
+        if (drainInput()) pendingPollRef.current = false;
+      }, delay);
+    });
+    window.setTimeout(() => {
+      pendingPollRef.current = false;
+    }, 2500);
+  }, [drainInput]);
+
+  useEffect(() => {
+    if (!isNativeMediaShell()) return;
+
+    const onResume = () => pollAfterPicker();
+
+    window.addEventListener('focus', onResume);
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') onResume();
+    });
+
+    let appListener;
+    import('@capacitor/app')
+      .then(({ App }) =>
+        App.addListener('appStateChange', ({ isActive }) => {
+          if (isActive) onResume();
+        }),
+      )
+      .then((handle) => {
+        appListener = handle;
+      })
+      .catch(() => {});
+
+    return () => {
+      window.removeEventListener('focus', onResume);
+      appListener?.remove?.();
+    };
+  }, [pollAfterPicker]);
+
+  const handleInput = useCallback(
+    (event) => {
+      pendingPollRef.current = false;
+      const files = event.target.files;
+      if (files?.length) deliverFiles(files);
+      event.target.value = '';
+    },
+    [deliverFiles],
+  );
+
+  return { inputRef, openPicker, handleInput };
+}
+
+
+========================================================================
+FILE: src/lib/stripe-checkout.js
+========================================================================
+import { Capacitor } from '@capacitor/core';
+
+/** Open Stripe Checkout — same WebView on hosted mobile app, new tab on desktop. */
+export async function openStripeCheckout(checkoutUrl) {
+  if (!checkoutUrl) throw new Error('Missing Stripe checkout URL');
+  window.location.assign(checkoutUrl);
+}
+
+/** Refresh billing state when returning to the app after Stripe checkout. */
+export function installStripeReturnRefresh(onRefresh) {
+  if (typeof onRefresh !== 'function') return () => {};
+
+  let remove = () => {};
+
+  (async () => {
+    if (!Capacitor.isNativePlatform()) {
+      const onVisible = () => {
+        if (document.visibilityState === 'visible') onRefresh();
+      };
+      document.addEventListener('visibilitychange', onVisible);
+      remove = () => document.removeEventListener('visibilitychange', onVisible);
+      return;
+    }
+
+    try {
+      const { App } = await import('@capacitor/app');
+      const sub = await App.addListener('appStateChange', ({ isActive }) => {
+        if (isActive) onRefresh();
+      });
+      remove = () => sub.remove();
+    } catch {
+      const onVisible = () => {
+        if (document.visibilityState === 'visible') onRefresh();
+      };
+      document.addEventListener('visibilitychange', onVisible);
+      remove = () => document.removeEventListener('visibilitychange', onVisible);
+    }
+  })();
+
+  return () => remove();
+}
+
+
+========================================================================
+FILE: src/lib/in-app-purchase.js
+========================================================================
+import { Capacitor } from '@capacitor/core';
+import { IAP_STORAGE_PRODUCT_ID } from '@/lib/storage-billing';
+
+let billingReady = false;
+let cachedProduct = null;
+
+export async function isInAppPurchaseAvailable() {
+  if (!Capacitor.isNativePlatform() || Capacitor.getPlatform() !== 'ios') return false;
+  try {
+    const { NativePurchases } = await import('@capgo/native-purchases');
+    const { isBillingSupported } = await NativePurchases.isBillingSupported();
+    return isBillingSupported;
+  } catch {
+    return false;
+  }
+}
+
+export async function loadStorageProduct() {
+  if (cachedProduct) return cachedProduct;
+  const { NativePurchases, PURCHASE_TYPE } = await import('@capgo/native-purchases');
+  const { products } = await NativePurchases.getProducts({
+    productIdentifiers: [IAP_STORAGE_PRODUCT_ID],
+    productType: PURCHASE_TYPE.INAPP,
+  });
+  cachedProduct = products?.[0] || null;
+  return cachedProduct;
+}
+
+export async function initializeInAppPurchases() {
+  if (billingReady || !(await isInAppPurchaseAvailable())) return false;
+  await loadStorageProduct();
+  billingReady = true;
+  return true;
+}
+
+/**
+ * Purchase storage tier(s) via Apple In-App Purchase (consumable).
+ * @param {number} quantity - Number of 250-media blocks to buy
+ * @param {string} [appAccountToken] - Optional UUID linking purchase to user
+ */
+export async function purchaseStorageTiers(quantity = 1, appAccountToken) {
+  const { NativePurchases, PURCHASE_TYPE } = await import('@capgo/native-purchases');
+  const { isBillingSupported } = await NativePurchases.isBillingSupported();
+  if (!isBillingSupported) {
+    throw new Error('In-app purchases are not available on this device.');
+  }
+
+  const transaction = await NativePurchases.purchaseProduct({
+    productIdentifier: IAP_STORAGE_PRODUCT_ID,
+    productType: PURCHASE_TYPE.INAPP,
+    quantity: Math.max(1, quantity),
+    appAccountToken,
+  });
+
+  return {
+    transactionId: transaction.transactionId,
+    productIdentifier: transaction.productIdentifier,
+    receipt: transaction.receipt,
+    jwsRepresentation: transaction.jwsRepresentation,
+    purchaseToken: transaction.purchaseToken,
+  };
+}

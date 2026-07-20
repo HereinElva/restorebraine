@@ -1,0 +1,73 @@
+# Base44 chat paste 20/34 (2 files)
+
+Apply every FILE block below to the Restorebraine code editor.
+Write each file at the exact path shown — replace entire file contents.
+Do NOT Publish until I confirm all chat groups are done.
+Do NOT fetch URLs — paste content only (JSX must stay intact).
+
+Files in this message:
+1. src/components/NavigationContext.jsx
+2. src/components/TabStateContext.jsx
+
+========================================================================
+FILE: src/components/NavigationContext.jsx
+========================================================================
+import React, { createContext, useContext, useState, useCallback } from "react";
+
+const NavigationContext = createContext(null);
+
+export function NavigationProvider({ children }) {
+  const [backState, setBackState] = useState(null);
+  // backState: { label: string, onBack: () => void } | null
+
+  const pushBack = useCallback((label, onBack) => {
+    setBackState({ label, onBack });
+  }, []);
+
+  const popBack = useCallback(() => {
+    setBackState(null);
+  }, []);
+
+  return (
+    <NavigationContext.Provider value={{ backState, pushBack, popBack }}>
+      {children}
+    </NavigationContext.Provider>
+  );
+}
+
+export function useNavigation() {
+  return useContext(NavigationContext);
+}
+
+========================================================================
+FILE: src/components/TabStateContext.jsx
+========================================================================
+import React, { createContext, useContext, useRef } from "react";
+
+/**
+ * Persists arbitrary state per-tab so that switching tabs doesn't lose in-page state
+ * (e.g. which folder is open in Gallery).
+ * Usage:
+ *   const { getTabState, setTabState } = useTabState();
+ *   const state = getTabState("Gallery") ?? {};
+ *   setTabState("Gallery", { selectedFolder: ... });
+ */
+const TabStateContext = createContext(null);
+
+export function TabStateProvider({ children }) {
+  // Use a ref so updates don't re-render everything
+  const storeRef = useRef({});
+
+  const getTabState = (tab) => storeRef.current[tab] ?? null;
+  const setTabState = (tab, value) => { storeRef.current[tab] = value; };
+
+  return (
+    <TabStateContext.Provider value={{ getTabState, setTabState }}>
+      {children}
+    </TabStateContext.Provider>
+  );
+}
+
+export function useTabState() {
+  return useContext(TabStateContext);
+}

@@ -1,0 +1,261 @@
+# Base44 chat paste 8/34 (1 files)
+
+Apply every FILE block below to the Restorebraine code editor.
+Write each file at the exact path shown — replace entire file contents.
+Do NOT Publish until I confirm all chat groups are done.
+Do NOT fetch URLs — paste content only (JSX must stay intact).
+
+Files in this message:
+1. src/components/gallery/FolderView.jsx
+
+========================================================================
+FILE: src/components/gallery/FolderView.jsx
+========================================================================
+import React, { useState } from "react";
+import { motion } from "framer-motion";
+import { ArrowLeft, Folder, Trash2, MousePointer2, Pencil, Check, X, FolderOpen, Search } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { base44 } from "@/api/base44Client";
+import { useQueryClient } from "@tanstack/react-query";
+import SelectablePhotoGrid from "./SelectablePhotoGrid";
+import { DragDropContext, Droppable } from "@hello-pangea/dnd";
+import { filterAndRankPhotos } from "@/lib/media-search";
+
+export default function FolderView({ 
+  folder, 
+  photos, 
+  onBack, 
+  onPhotoClick,
+  selectionMode,
+  selectedIds,
+  onToggleSelect,
+  onToggleSelectionMode,
+  onRemoveFromFolder
+}) {
+  const queryClient = useQueryClient();
+  const [isEditing, setIsEditing] = useState(false);
+  const [newName, setNewName] = useState(folder.name);
+  const [folderSearch, setFolderSearch] = useState("");
+  
+  // Filter photos that belong to this folder - ensure photo_ids is an array
+  const photoIds = Array.isArray(folder.photo_ids) ? folder.photo_ids : [];
+  const allFolderPhotos = photos.filter(p => photoIds.includes(p.id));
+  const folderPhotos = folderSearch
+    ? allFolderPhotos.filter(p =>
+        p.ai_description?.toLowerCase().includes(folderSearch.toLowerCase()) ||
+        p.ai_tags?.some(t => t.toLowerCase().includes(folderSearch.toLowerCase()))
+      )
+    : allFolderPhotos;
+
+  const handleDeleteFolder = async () => {
+    if (!confirm(`Delete folder "${folder.name}"? Photos won't be deleted.`)) return;
+    
+    await base44.entities.Folder.delete(folder.id);
+    queryClient.invalidateQueries({ queryKey: ['folders'] });
+    onBack();
+  };
+
+  const handleSaveName = async () => {
+    if (!newName.trim()) return;
+    
+    await base44.entities.Folder.update(folder.id, { name: newName.trim() });
+    queryClient.invalidateQueries({ queryKey: ['folders'] });
+    setIsEditing(false);
+  };
+
+  const handleCancelEdit = () => {
+    setNewName(folder.name);
+    setIsEditing(false);
+  };
+
+  const handleDragEnd = async (result) => {
+    if (!result.destination) return;
+    
+    // Dropped in the "remove from folder" zone
+    if (result.destination.droppableId === 'remove-zone') {
+      const photoId = result.draggableId;
+      await onRemoveFromFolder(photoId);
+      
+      // Update cover photo if the removed photo was the cover
+      if (folder.cover_photo_url) {
+        const removedPhoto = photos.find(p => p.id === photoId);
+        if (removedPhoto && removedPhoto.file_url === folder.cover_photo_url) {
+          const remainingPhotos = folder.photo_ids.filter(id => id !== photoId);
+          const newCoverPhoto = remainingPhotos.length > 0 
+            ? photos.find(p => p.id === remainingPhotos[0]) 
+            : null;
+          
+          await base44.entities.Folder.update(folder.id, {
+            cover_photo_url: newCoverPhoto?.file_url || ""
+          });
+          queryClient.invalidateQueries({ queryKey: ['folders'] });
+        }
+      }
+    }
+  };
+
+  return (
+    <DragDropContext onDragEnd={handleDragEnd}>
+      <motion.div
+        initial={{ opacity: 0, x: 20 }}
+        animate={{ opacity: 1, x: 0 }}
+        exit={{ opacity: 0, x: -20 }}
+        className="pb-32"
+      >
+        {/* Header */}
+        <div className="mb-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <Button
+              variant="ghost"
+              onClick={onBack}
+              className="gap-2"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Back
+            </Button>
+            
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleDeleteFolder}
+                className="text-red-600 hover:text-red-700 hover:bg-red-50"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span className="hidden sm:inline">Delete Folder</span>
+              </Button>
+
+              <Button
+                onClick={onToggleSelectionMode}
+                size="sm"
+                className={`${selectionMode ? 'bg-purple-600 hover:bg-purple-700' : 'bg-gradient-to-r from-blue-400 to-purple-500 hover:from-blue-500 hover:to-purple-600'} text-white`}
+              >
+                <MousePointer2 className="w-4 h-4" />
+                <span className="hidden sm:inline">{selectionMode ? 'Exit Select' : 'Select'}</span>
+              </Button>
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-orange-100 rounded-xl">
+              <Folder className="w-6 h-6 text-orange-500" />
+            </div>
+            <div className="flex-1 min-w-0">
+              {isEditing ? (
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={newName}
+                    onChange={(e) => setNewName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleSaveName();
+                      if (e.key === 'Escape') handleCancelEdit();
+                    }}
+                    className="text-xl font-bold"
+                    autoFocus
+                  />
+                  <Button
+                    size="sm"
+                    onClick={handleSaveName}
+                    className="bg-green-600 hover:bg-green-700 shrink-0"
+                  >
+                    <Check className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleCancelEdit}
+                    className="shrink-0"
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <h2 className="text-xl sm:text-2xl font-bold text-gray-900 truncate">{folder.name}</h2>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setIsEditing(true)}
+                    className="hover:bg-gray-100 shrink-0"
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </Button>
+                </div>
+              )}
+              {folder.description && (
+                <p className="text-sm text-gray-600 truncate">{folder.description}</p>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Photo count */}
+        <p className="text-sm text-gray-600 mb-4">
+          {folderSearch
+            ? `${folderPhotos.length} result${folderPhotos.length !== 1 ? 's' : ''} in this folder`
+            : `${allFolderPhotos.length} item${allFolderPhotos.length !== 1 ? 's' : ''} in this folder`}
+        </p>
+
+        {/* In-folder search */}
+        <div className="flex items-center gap-2 bg-gray-100 rounded-2xl px-4 py-2.5 mb-4">
+          <Search className="w-4 h-4 text-gray-400 flex-shrink-0" />
+          <input
+            type="text"
+            placeholder="Search within folder..."
+            value={folderSearch}
+            onChange={e => setFolderSearch(e.target.value)}
+            className="flex-1 bg-transparent text-sm outline-none placeholder:text-gray-400 text-gray-900"
+          />
+          {folderSearch && (
+            <button onClick={() => setFolderSearch("")}>
+              <X className="w-4 h-4 text-gray-400" />
+            </button>
+          )}
+        </div>
+
+        {/* Remove from Folder Drop Zone */}
+        {!selectionMode && !isEditing && allFolderPhotos.length > 0 && (
+          <Droppable droppableId="remove-zone">
+            {(provided, snapshot) => (
+              <div
+                ref={provided.ref}
+                {...provided.droppableProps}
+                className={`mb-6 p-6 rounded-2xl border-2 border-dashed transition-all ${
+                  snapshot.isDraggingOver 
+                    ? 'border-red-400 bg-red-50' 
+                    : 'border-gray-300 bg-gray-50'
+                }`}
+              >
+                <div className="flex items-center justify-center gap-2 text-gray-600">
+                  <FolderOpen className="w-5 h-5" />
+                  <span className="font-medium">
+                    {snapshot.isDraggingOver 
+                      ? 'Drop to remove from folder' 
+                      : 'Drag photos here to remove from folder'}
+                  </span>
+                </div>
+                {provided.placeholder}
+              </div>
+            )}
+          </Droppable>
+        )}
+
+        {/* Photos */}
+        {folderPhotos.length > 0 ? (
+          <SelectablePhotoGrid 
+            photos={folderPhotos} 
+            onPhotoClick={onPhotoClick}
+            selectionMode={selectionMode}
+            selectedIds={selectedIds || []}
+            onToggleSelect={onToggleSelect}
+          />
+        ) : (
+          <div className="text-center py-12 text-gray-500">
+            No photos in this folder
+          </div>
+        )}
+      </motion.div>
+    </DragDropContext>
+  );
+}
