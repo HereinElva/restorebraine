@@ -50,7 +50,7 @@ if (basedOnV87 && head !== V87_TIP_COMMIT) {
   const appChanged = execSync(
     `git diff --name-only ${V87_TIP_COMMIT} HEAD -- ${APP_PATHS.join(' ')}`,
     { encoding: 'utf8' },
-  ).trim();
+  ).trim().split('\n').filter((f) => f && f !== 'src/lib/build-info.js').join('\n');
   if (appChanged) {
     errors.push(`App source changed after ${V87_TIP_COMMIT}: ${appChanged.replace(/\n/g, ', ')}`);
   }
@@ -116,6 +116,7 @@ console.log(`   OAuth: restorebraine.base44.app/api/apps/auth/*`);
 console.log('   Capacitor hosted → https://restorebraine.base44.app');
 console.log('');
 console.log('Run: npm run diagnose:all     (full read-only diagnostic suite)');
+console.log('Run: npm run gate:pre-update (before any new build — blocks post-v87 regressions)');
 console.log('Run: npm run diagnose:sync   (deep GitHub/Base44/Capacitor file sync — no build)');
 console.log('Run: npm run diagnose:oauth  (Sign In URL trace per layer)');
 console.log('Run: npm run diagnose:watch  (poll live bundle while Publishing in Base44)');

@@ -16,6 +16,37 @@ export function extractOAuthHost(js) {
     return { host: 'app.base44.com', pattern: 'broken template ${it}${e}', fixed: false, broken: true };
   }
 
+  // Fast path: known minifier names for DEFAULT_APP_ORIGIN after Base44 Publish
+  const knownOrigins = [
+    ['de', 'de="https://restorebraine.base44.app"'],
+    ['fe', 'fe="https://restorebraine.base44.app"'],
+    ['ye', 'ye="https://restorebraine.base44.app"'],
+  ];
+  for (const [varName, assign] of knownOrigins) {
+    if (js.includes(assign) && new RegExp(`\\$\\{${varName}\\}\\$\\{e\\}\\?\\$\\{`).test(js)) {
+      return {
+        host: 'restorebraine.base44.app',
+        pattern: `fixed minified \${${varName}} → https://restorebraine.base44.app`,
+        fixed: true,
+        broken: false,
+      };
+    }
+  }
+
+  // Any restorebraine origin + canonical OAuth URL builder in same bundle
+  if (/[a-z$][a-z0-9$]*="https:\/\/restorebraine\.base44\.app"/.test(js)
+    && /\/api\/apps\/auth\/login/.test(js)
+    && /\$\{[a-z$][a-z0-9$]*\}\$\{e\}\?\$\{/.test(js)
+    && !/\$\{it\}\$\{e\}/.test(js)
+    && !/\$\{dt\}\$\{e\}/.test(js)) {
+    return {
+      host: 'restorebraine.base44.app',
+      pattern: 'fixed (restorebraine origin + /api/apps/auth/login builder)',
+      fixed: true,
+      broken: false,
+    };
+  }
+
   // Minified getCanonicalOAuthUrl: return`${de}${e}?${n.toString()}`
   const tmpl = js.match(/return`\$\{([a-z$][a-z0-9$]*)\}\$\{([a-z$][a-z0-9$]*)\}\?\$\{/i);
   if (tmpl) {

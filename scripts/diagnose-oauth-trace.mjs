@@ -36,11 +36,17 @@ function findMacMainBundle() {
 }
 
 import { extractOAuthHost } from './lib/oauth-bundle-detect.mjs';
+import { checkDiagnosticScriptsFreshness } from './lib/check-diagnostic-scripts.mjs';
 
 console.log('═══════════════════════════════════════════════════════════════');
 console.log(' OAUTH TRACE — what Sign In opens on each layer');
 console.log(' (read-only — no builds)');
 console.log('═══════════════════════════════════════════════════════════════\n');
+
+const freshness = checkDiagnosticScriptsFreshness();
+if (freshness.stale) {
+  console.log('⚠ Pull latest scripts first — old versions report "unknown" for fixed live bundles.\n');
+}
 
 console.log('When user taps "Sign In" on iPhone (hosted Capacitor mode):\n');
 console.log('  Step 1: WKWebView loads live Base44 JS');
@@ -106,7 +112,10 @@ try {
     } else if (liveOAuth.broken) {
       fail(`Live ${name} OAuth uses ${liveOAuth.host} → HTTP 404`);
     } else {
-      fail(`Live ${name} OAuth pattern unclear — republish native-platform-guard.js`);
+      fail(`Live ${name} OAuth pattern unclear — run: git pull origin cursor/apple-privacy-plist-bacf`);
+      if (js.includes('de="https://restorebraine.base44.app"') || js.includes('fe="https://restorebraine.base44.app"')) {
+        console.log('   Note: bundle contains restorebraine.base44.app origin — likely fixed; update diagnostic scripts');
+      }
     }
 
     // Show minified snippet if broken

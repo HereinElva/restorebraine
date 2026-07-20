@@ -3,6 +3,7 @@
  * Run all read-only diagnostics in sequence. Optional --watch polls live bundle.
  */
 import { spawnSync } from 'node:child_process';
+import { checkDiagnosticScriptsFreshness } from './lib/check-diagnostic-scripts.mjs';
 
 const WATCH = process.argv.includes('--watch');
 const INTERVAL = Number(process.argv.find((a) => a.startsWith('--interval='))?.split('=')[1] ?? 30);
@@ -20,6 +21,11 @@ function runOnce() {
   console.log(`\n${'═'.repeat(63)}`);
   console.log(` DIAGNOSTIC RUN — ${new Date().toISOString()}`);
   console.log(`${'═'.repeat(63)}\n`);
+
+  const freshness = checkDiagnosticScriptsFreshness();
+  if (freshness.stale) {
+    console.log('Pull latest scripts before trusting ✗ Live OAuth failures.\n');
+  }
 
   let failed = 0;
   for (const step of steps) {
