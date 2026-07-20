@@ -56,11 +56,11 @@ console.log(' PRE-UPDATE GATE — block post-v87 regressions before new builds')
 console.log('═══════════════════════════════════════════════════════════════\n');
 
 console.log('WHY PAST BUILDS FAILED (do not repeat):\n');
-console.log('  1. Updated GitHub + Xcode but not Base44 Publish → phone ran stale live JS');
-console.log('  2. Flipped hosted ↔ bundled mode ~12 times → white screens, broken OAuth');
-console.log('  3. Rewrote login UI ~15 times → session bridge + AppDelegate conflicts');
-console.log('  4. Partial Publish (HTML meta only) → v87 label but broken OAuth bundle');
-console.log('  5. BUILD_NUMBER bumps without three-layer sync → false sense of progress\n');
+console.log('  1. Three layers, one updated — GitHub/Xcode reset but live Base44 JS stale');
+console.log('  2. Partial Publish — mixed index-*.js + App-*.js from different builds');
+console.log('  3. OAuth-only fixes masked UI — gallery/CSS stale while OAuth passed');
+console.log('  4. Hosted ↔ bundled flip-flop ~12 times → white screens, broken OAuth');
+console.log('  5. Login rewrites stacked on UI changes — 15 experiments broke session bridge\n');
 
 console.log('HARD RULES:\n');
 let rulesOk = true;
@@ -74,6 +74,7 @@ console.log('\nRUNNING DIAGNOSTICS:\n');
 const steps = [
   ['verify:v87', ['scripts/verify-v87-baseline.mjs']],
   ['verify:lingering', ['scripts/verify-no-post-v87-lingering.mjs', '--strict']],
+  ['diagnose:chunks', ['scripts/diagnose-chunk-pair.mjs']],
   ['diagnose:oauth', ['scripts/diagnose-oauth-trace.mjs']],
   ['diagnose:sync', ['scripts/diagnose-sync-depth.mjs']],
 ];
@@ -94,5 +95,6 @@ if (!rulesOk || failed) {
 }
 
 console.log(' GATE PASSED — safe to proceed with updates.');
-console.log(' After ANY src/ change: Base44 Publish → npm run diagnose:all');
+console.log(' After ANY src/ change: Base44 Publish ALL files → npm run align:all');
+console.log(' Full pattern gate: npm run gate:patterns');
 console.log('═══════════════════════════════════════════════════════════════\n');

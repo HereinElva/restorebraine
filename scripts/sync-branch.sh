@@ -20,5 +20,5 @@ git clean -fd -- dist ios/App/build node_modules/.vite 2>/dev/null || true
 
 echo
 echo "✓ Synced to $(git rev-parse --short HEAD) on $BRANCH"
-echo "  Next: Xcode Clean Build Folder → Run on iPhone"
-echo "  If Sign In still no-op: Base44 Publish oauth files (npm run base44:nuke-oauth)"
+echo "  Next: npm run align:all -- --skip-capacitor"
+echo "  If Base44 stale: npm run align:watch (after browser Publish)"

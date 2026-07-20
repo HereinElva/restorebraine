@@ -35,6 +35,10 @@
     "diagnose:all": "node scripts/diagnose-all.mjs",
     "diagnose:watch": "node scripts/diagnose-all.mjs --watch --interval=30",
     "gate:pre-update": "node scripts/gate-pre-update.mjs",
+    "gate:patterns": "node scripts/gate-five-patterns.mjs",
+    "align:all": "bash scripts/align-all.sh",
+    "align:watch": "bash scripts/align-watch-base44.sh",
+    "hooks:install": "bash scripts/install-git-hooks.sh",
     "prove:live-oauth": "node scripts/prove-live-oauth.mjs",
     "diagnose:chunks": "node scripts/diagnose-chunk-pair.mjs",
     "postinstall": "node scripts/patch-native-purchases-podspec.mjs"

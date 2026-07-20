@@ -21,7 +21,9 @@ if [[ "$CMD" == "help" || "$CMD" == "-h" ]]; then
   echo "  bash $ROOT/scripts/mac-cmd.sh nuke:v87"
   echo "  bash $ROOT/scripts/mac-cmd.sh base44:nuke-list"
   echo "  bash $ROOT/scripts/mac-cmd.sh diagnose:all"
-  echo "  bash $ROOT/scripts/mac-cmd.sh gate:pre-update"
+  echo "  bash $ROOT/scripts/mac-cmd.sh gate:patterns"
+  echo "  bash $ROOT/scripts/mac-cmd.sh align:all"
+  echo "  bash $ROOT/scripts/mac-cmd.sh align:watch"
   echo "  bash $ROOT/scripts/mac-cmd.sh pull   # git pull + diagnose:all"
   echo "  bash $ROOT/scripts/mac-cmd.sh reset:v87-all"
   exit 0

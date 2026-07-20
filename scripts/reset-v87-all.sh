@@ -100,30 +100,46 @@ fi
 
 # ── PHASE 3: Base44 live probe ─────────────────────────────────────────────
 banner "PHASE 3 — Base44 live probe (what iPhone actually runs)"
-if run_node scripts/prove-live-oauth.mjs; then
-  echo
-  echo "✓ Live Base44 OAuth already on restorebraine.base44.app"
+echo "Building dist for chunk comparison..."
+npm run build:web >/dev/null 2>&1 || npm run build:web
+
+BASE44_OK=1
+if ! run_node scripts/prove-live-oauth.mjs; then
+  echo "✗ Live OAuth NOT fixed"
+  BASE44_OK=0
 else
+  echo "✓ Live OAuth on restorebraine.base44.app"
+fi
+
+if ! run_node scripts/diagnose-chunk-pair.mjs; then
+  echo "✗ Mixed index/App chunks (Pattern 2 — partial Publish)"
+  BASE44_OK=0
+else
+  echo "✓ Chunk pair aligned"
+fi
+
+if [[ "$BASE44_OK" != "1" ]]; then
   echo
-  echo "✗ Live Base44 OAuth NOT fixed — browser Publish required (cannot automate from terminal)"
+  echo "✗ Live Base44 NOT fully aligned — browser Publish required (no CLI exists)"
   echo
-  echo "  1. Open Base44 code editor for Restorebraine"
-  echo "  2. Run: npm run base44:nuke-list"
-  echo "  3. Paste EVERY listed file → click Publish ONCE"
-  echo "  4. Watch: npm run diagnose:watch"
-  echo "  5. Re-run: npm run reset:v87-all -- --verify-only"
+  echo "  Terminal while you Publish:"
+  echo "    npm run base44:export-pack"
+  echo "    npm run align:watch          # polls until chunks match"
   echo
-  echo "  Quick OAuth-only paste pack: cat BASE44-PASTE-PACK-v87.txt"
-  echo "  Or export fresh: npm run base44:export-pack"
+  echo "  Browser:"
+  echo "    1. Open Base44 code editor for Restorebraine"
+  echo "    2. Paste ALL 43 files from export pack → Publish ONCE"
+  echo "    3. Re-run: npm run reset:v87-all -- --verify-only"
   echo
-  npm run base44:nuke-list -- --minimal 2>/dev/null || true
-  fail "Stop here — complete Base44 Publish, then: npm run reset:v87-all -- --verify-only" 2
+  npm run base44:nuke-list 2>/dev/null || true
+  fail "Stop here — complete Base44 Publish, then: npm run align:watch" 2
 fi
 
 # ── PHASE 4: Full three-layer verification ─────────────────────────────────
 banner "PHASE 4 — Full verification (all three layers must agree)"
 run_node scripts/verify-no-post-v87-lingering.mjs --strict
 run_node scripts/diagnose-all.mjs
+run_node scripts/gate-five-patterns.mjs
 run_node scripts/gate-pre-update.mjs
 
 banner "v87 FULL RESET COMPLETE — all layers aligned"

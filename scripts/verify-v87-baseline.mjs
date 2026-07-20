@@ -17,6 +17,7 @@ const ALLOWED_AFTER_V87 = new Set([
   'src/lib/native-hosted-redirect.js',
   'src/lib/native-google-oauth.js',
   'src/lib/native-platform-guard.js',
+  'ios/App/App/AppDelegate.swift', // 36cbafa Sign In Browser fallback
 ]);
 const APP_PATHS = [
   'src/',
