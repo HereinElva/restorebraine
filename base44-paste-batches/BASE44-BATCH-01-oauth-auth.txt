@@ -1,0 +1,1056 @@
+# Base44 AI — apply batch 1/8: OAuth + auth (paste first)
+
+Write EVERY file below into the Restorebraine Base44 code editor at the exact path shown.
+Do NOT Publish until batch 8 is done — user will Publish once after all batches.
+
+For each FILE block:
+1. Open or create that path in the code editor
+2. Replace entire file contents with the code below
+3. Save
+
+1. src/lib/app-domains.js
+2. src/lib/native-platform-guard.js
+3. src/lib/native-google-oauth.js
+4. src/lib/auth-urls.js
+5. src/lib/native-hosted-redirect.js
+6. src/lib/session-bootstrap.js
+7. src/lib/native-oauth-fix.js
+8. src/lib/AuthContext.jsx
+9. src/api/base44Client.js
+
+========================================================================
+FILE: src/lib/app-domains.js
+========================================================================
+/** Default hosted URL — also used by native Capacitor shell. */
+export const DEFAULT_APP_ORIGIN = 'https://restorebraine.base44.app';
+
+export const APP_HOSTS = new Set([
+  'restorebraine.base44.app',
+  'restorebraine.com',
+  'www.restorebraine.com',
+  'localhost',
+]);
+
+export function isAppHost(hostname = '') {
+  return APP_HOSTS.has(String(hostname).toLowerCase());
+}
+
+/** Current app origin in the browser, or the default hosted URL on native/server. */
+export function getAppOrigin() {
+  if (typeof window !== 'undefined') {
+    const { protocol, hostname, host } = window.location;
+    if (isAppHost(hostname)) {
+      return `${protocol}//${host}`;
+    }
+  }
+  return DEFAULT_APP_ORIGIN;
+}
+
+/** OAuth redirect target — native shell always uses the default hosted URL. */
+export function getAuthReturnOrigin() {
+  if (typeof window === 'undefined') return DEFAULT_APP_ORIGIN;
+  try {
+    const isNative =
+      window.Capacitor?.isNativePlatform?.() ||
+      window.location?.protocol === 'capacitor:' ||
+      window.location?.protocol === 'ionic:';
+    if (isNative) return DEFAULT_APP_ORIGIN;
+  } catch {}
+  return getAppOrigin();
+}
+
+
+========================================================================
+FILE: src/lib/native-platform-guard.js
+========================================================================
+import { DEFAULT_APP_ORIGIN, getAppOrigin, getAuthReturnOrigin, isAppHost } from './app-domains';
+
+export const RESTOREBRAINE_FROM_URL = DEFAULT_APP_ORIGIN;
+export const BASE44_APP_ID = '68fdc5f42768c4d045fe1bac';
+export const BASE44_PLATFORM_URL = 'https://app.base44.com';
+/** Native OAuth callback stays on the default hosted URL — not custom schemes. */
+export const NATIVE_OAUTH_CALLBACK = RESTOREBRAINE_FROM_URL;
+
+const PLATFORM_HOSTS = new Set(['app.base44.com', 'base44.com']);
+
+export const isBase44PlatformHost = (hostname) => PLATFORM_HOSTS.has(hostname);
+
+const providerFromPath = (pathname = '') => {
+  if (/\/apple\//i.test(pathname)) return 'apple';
+  if (/\/microsoft\//i.test(pathname)) return 'microsoft';
+  return 'google';
+};
+
+const providerFromLabel = (label = '') => {
+  if (/apple/i.test(label)) return 'apple';
+  if (/microsoft/i.test(label)) return 'microsoft';
+  return 'google';
+};
+
+export const getCanonicalOAuthUrl = (provider = 'google') => {
+  const path = provider === 'google'
+    ? '/api/apps/auth/login'
+    : `/api/apps/auth/${provider}/login`;
+  const params = new URLSearchParams({
+    app_id: BASE44_APP_ID,
+    from_url: getAuthReturnOrigin(),
+    prompt: 'select_account',
+  });
+  // app.base44.com/api/apps/auth/* returns 404 — auth lives on the hosted app domain.
+  return `${DEFAULT_APP_ORIGIN}${path}?${params.toString()}`;
+};
+
+/** Force a valid OAuth URL — blocks capacitor://, restorebraine://, and app.base44.com from_url values. */
+export const normalizeAuthUrl = (rawUrl, providerHint) => {
+  try {
+    const parsed = new URL(String(rawUrl || ''), typeof window !== 'undefined' ? window.location.href : DEFAULT_APP_ORIGIN);
+    if (!isAuthNavigationUrl(rawUrl) && !providerHint) return String(rawUrl);
+    const provider = providerHint || providerFromPath(parsed.pathname);
+    return getCanonicalOAuthUrl(provider);
+  } catch {
+    return getCanonicalOAuthUrl(providerHint || 'google');
+  }
+};
+
+export const getAppScopedLoginUrl = () => {
+  const params = new URLSearchParams({
+    from_url: getAuthReturnOrigin(),
+    app_id: BASE44_APP_ID,
+    prompt: 'select_account',
+  });
+  return `${BASE44_PLATFORM_URL}/login?${params.toString()}`;
+};
+
+export const getGoogleOAuthUrl = () => getCanonicalOAuthUrl('google');
+
+export const getProviderOAuthUrl = (label = '') => getCanonicalOAuthUrl(providerFromLabel(label));
+
+export const isAuthNavigationUrl = (url) => {
+  if (!url) return false;
+  try {
+    const parsed = new URL(String(url), typeof window !== 'undefined' ? window.location.href : DEFAULT_APP_ORIGIN);
+    if (/accounts\.google\.com|google\.com\/o\/oauth|oauth2\.googleapis\.com/i.test(parsed.href)) return true;
+    if (isBase44PlatformHost(parsed.hostname) && parsed.pathname.startsWith('/api/apps/auth')) return true;
+    if (isAppHost(parsed.hostname) && parsed.pathname.startsWith('/api/apps/auth')) return true;
+  } catch {}
+  return false;
+};
+
+
+export const isAuthLogoutUrl = (url) => {
+  if (!url) return false;
+  try {
+    const parsed = new URL(String(url), typeof window !== 'undefined' ? window.location.href : DEFAULT_APP_ORIGIN);
+    return /\/api\/apps\/auth\/logout/i.test(parsed.pathname);
+  } catch {}
+  return false;
+};
+
+export const guardSignedOutLoginPage = () => {
+  if (typeof window === 'undefined') return;
+  try {
+    const path = window.location.pathname.replace(/\/$/, '') || '/';
+    if (path !== '/login') return;
+    const params = new URLSearchParams({
+      from_url: getAuthReturnOrigin(),
+      app_id: BASE44_APP_ID,
+      prompt: 'select_account',
+    });
+    window.location.replace(`${BASE44_PLATFORM_URL}/login?${params.toString()}`);
+  } catch {}
+};
+
+export const guardPlatformNavigation = () => {
+  if (typeof window === 'undefined') return;
+  const { hostname, search, pathname } = window.location;
+  if (!isBase44PlatformHost(hostname)) return;
+  const token = new URLSearchParams(search).get('access_token');
+  if (token) {
+    import('@/lib/session-bootstrap').then(({ persistSessionToNativeStorage }) => {
+      persistSessionToNativeStorage(token);
+    });
+  }
+  if (pathname.startsWith('/api/apps/auth')) return;
+  window.location.replace(getAppOrigin());
+};
+
+const blockBase44BadgeScript = () => {
+  if (typeof document === 'undefined') return;
+  document.querySelectorAll('script[src*="badge.js"]').forEach((node) => node.remove());
+};
+
+export const hideBase44EditorWidget = () => {
+  if (typeof document === 'undefined') return;
+  blockBase44BadgeScript();
+  if (!document.getElementById('rb-hide-base44')) {
+    const style = document.createElement('style');
+    style.id = 'rb-hide-base44';
+    style.textContent = '[href*="app.base44.com"], iframe[src*="base44"], script[src*="badge.js"] { display:none !important; visibility:hidden !important; pointer-events:none !important; }';
+    (document.head || document.documentElement).appendChild(style);
+  }
+  const hideMatchingNodes = (root = document.body) => {
+    if (!root?.querySelectorAll) return;
+    root.querySelectorAll('button, a, div, span, p, iframe, footer, small').forEach((node) => {
+      if (node.id === 'rb-native-stamp') {
+        node.remove();
+        return;
+      }
+      const text = (node.textContent || '').replace(/\s+/g, ' ').trim();
+      if (/^kbrown native v\d+/i.test(text) || /^restorebraine web v\d+/i.test(text)) {
+        node.remove();
+        return;
+      }
+      if (/edit with base\s*44/i.test(text) && text.length < 60) {
+        let el = node;
+        for (let i = 0; i < 8 && el && el !== document.body; i += 1) {
+          el.style.setProperty('display', 'none', 'important');
+          el.style.setProperty('visibility', 'hidden', 'important');
+          el.style.setProperty('opacity', '0', 'important');
+          el.style.setProperty('pointer-events', 'none', 'important');
+          el = el.parentElement;
+        }
+      }
+    });
+  };
+  hideMatchingNodes();
+  if (window.__restorebraineEditorObserver) return;
+  window.__restorebraineEditorObserver = new MutationObserver(() => {
+    blockBase44BadgeScript();
+    hideMatchingNodes();
+  });
+  window.__restorebraineEditorObserver.observe(document.documentElement, { childList: true, subtree: true });
+};
+
+export const interceptNativeSignInClicks = () => {
+  if (typeof document === 'undefined' || window.__restorebraineSignInInterceptor) return;
+  window.__restorebraineSignInInterceptor = true;
+  document.addEventListener('click', (event) => {
+    const target = event.target.closest('button, a, [role="button"], div[role="button"], [data-provider]');
+    if (!target) return;
+    const label = (target.textContent || '').trim();
+    const href = target.href || target.getAttribute?.('href') || '';
+    const isSignInButton = /^sign in$/i.test(label.replace(/\s+/g, ' '));
+    const isProvider = /continue with google|continue with apple|continue with microsoft|sign in with email|sign in with google|sign in with apple|sign in with microsoft/i.test(label);
+    const isAuthLink = /auth\/login|auth\/apple|auth\/microsoft/i.test(href);
+    if (!isSignInButton && !isProvider && !isAuthLink) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation();
+    const provider = providerFromLabel(label);
+    const authUrl = href && isAuthNavigationUrl(href) ? href : getCanonicalOAuthUrl(provider);
+    import('@/lib/native-google-oauth').then(({ openLoginInSystemBrowser }) => {
+      openLoginInSystemBrowser(authUrl, provider);
+    });
+  }, true);
+};
+
+export const guardGoogleOAuthInWebView = () => {
+  if (typeof window === 'undefined') return;
+  if (/accounts\.google\.com/i.test(window.location.hostname)) {
+    import('@/lib/native-google-oauth').then(({ openLoginInSystemBrowser }) => {
+      window.history.length > 1 ? window.history.back() : window.location.replace(getAppOrigin());
+      openLoginInSystemBrowser(getGoogleOAuthUrl(), 'google');
+    });
+  }
+};
+
+export const installNativePlatformGuard = () => {
+  if (typeof window === 'undefined' || window.__restorebrainePlatformGuardInstalled) return;
+  window.__restorebrainePlatformGuardInstalled = true;
+  guardPlatformNavigation();
+  guardSignedOutLoginPage();
+  hideBase44EditorWidget();
+  interceptNativeSignInClicks();
+  guardGoogleOAuthInWebView();
+  window.addEventListener('popstate', () => {
+    guardPlatformNavigation();
+    guardSignedOutLoginPage();
+    guardGoogleOAuthInWebView();
+  });
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      guardPlatformNavigation();
+      guardSignedOutLoginPage();
+      guardGoogleOAuthInWebView();
+      hideBase44EditorWidget();
+    }
+  });
+  setInterval(() => {
+    guardPlatformNavigation();
+    guardSignedOutLoginPage();
+    guardGoogleOAuthInWebView();
+    hideBase44EditorWidget();
+  }, 500);
+};
+
+
+========================================================================
+FILE: src/lib/native-google-oauth.js
+========================================================================
+import {
+  getGoogleOAuthUrl,
+  getProviderOAuthUrl,
+  NATIVE_OAUTH_CALLBACK,
+  isBase44PlatformHost,
+  isAuthNavigationUrl,
+  normalizeAuthUrl,
+} from '@/lib/native-platform-guard';
+import { getAuthReturnOrigin } from '@/lib/app-domains';
+import { persistSessionToNativeStorage } from '@/lib/session-bootstrap';
+import { isNativeShell } from '@/lib/native-hosted-redirect';
+
+const GOOGLE_OAUTH_PATTERN = /accounts\.google\.com|google\.com\/o\/oauth|oauth2\.googleapis\.com|\/api\/apps\/auth\/login/i;
+
+let _InAppBrowser = null;
+async function getInAppBrowser() {
+  if (_InAppBrowser) return _InAppBrowser;
+  const mod = await import('@capacitor/inappbrowser');
+  _InAppBrowser = mod.InAppBrowser;
+  return _InAppBrowser;
+}
+
+const SYSTEM_BROWSER_OPTIONS = {
+  iOS: { closeButtonText: 2, viewStyle: 2, animationEffect: 2, enableBarsCollapsing: true, enableReadersMode: false },
+  android: { showTitle: false, hideToolbarOnScroll: false, viewStyle: 0, startAnimation: 0, exitAnimation: 1 },
+};
+
+export const isGoogleOAuthUrl = (url) => {
+  if (!url || typeof url !== 'string') return false;
+  try {
+    const { hostname, href, pathname } = new URL(url, window.location.href);
+    return GOOGLE_OAUTH_PATTERN.test(hostname) || GOOGLE_OAUTH_PATTERN.test(href) || GOOGLE_OAUTH_PATTERN.test(pathname);
+  } catch {
+    return GOOGLE_OAUTH_PATTERN.test(url);
+  }
+};
+
+export const captureOAuthTokenFromUrl = async (url) => {
+  if (!url) return null;
+  try {
+    const parsed = new URL(url, getAuthReturnOrigin());
+    const token = parsed.searchParams.get('access_token');
+    if (!token) return null;
+    await persistSessionToNativeStorage(token);
+    return token;
+  } catch {
+    return null;
+  }
+};
+
+let oauthListenerAttached = false;
+
+const finishOAuthLogin = async () => {
+  const InAppBrowser = await getInAppBrowser();
+  await InAppBrowser.close().catch(() => {});
+  window.location.replace(getAuthReturnOrigin());
+};
+
+export const handleNativeOAuthCallback = async (url) => {
+  const token = await captureOAuthTokenFromUrl(url);
+  if (!token) return false;
+  await finishOAuthLogin();
+  return true;
+};
+
+const attachOAuthCompletionListener = async () => {
+  if (oauthListenerAttached) return;
+  oauthListenerAttached = true;
+
+  const InAppBrowser = await getInAppBrowser();
+  await InAppBrowser.addListener('browserClosed', async () => {
+    const stored = localStorage.getItem('base44_access_token') || localStorage.getItem('token');
+    if (stored) {
+      window.location.replace(getAuthReturnOrigin());
+      return;
+    }
+    try {
+      const { App } = await import('@capacitor/app');
+      const launch = await App.getLaunchUrl();
+      if (launch?.url) await handleNativeOAuthCallback(launch.url);
+    } catch {}
+    window.location.replace(getAuthReturnOrigin());
+  });
+};
+
+/** Google blocks embedded WebViews — must use SFSafariViewController (openInSystemBrowser). */
+export const openLoginInSystemBrowser = async (url = getGoogleOAuthUrl(), providerHint) => {
+  const normalizedUrl = normalizeAuthUrl(url, providerHint);
+  if (!isNativeShell()) {
+    window.location.replace(normalizedUrl);
+    return;
+  }
+
+  oauthListenerAttached = false;
+  await attachOAuthCompletionListener();
+  const InAppBrowser = await getInAppBrowser();
+  if (InAppBrowser?.openInSystemBrowser) {
+    await InAppBrowser.openInSystemBrowser({ url: normalizedUrl, options: SYSTEM_BROWSER_OPTIONS });
+    return;
+  }
+
+  try {
+    const { Browser } = await import('@capacitor/browser');
+    await Browser.open({ url: normalizedUrl });
+    return;
+  } catch (error) {
+    console.warn('InAppBrowser/Browser plugins unavailable — falling back to navigation', error);
+  }
+
+  if (typeof window.__restorebraineOpenLogin === 'function') {
+    window.__restorebraineOpenLogin();
+    return;
+  }
+
+  window.location.assign(normalizedUrl);
+};
+
+const handleAuthNavigation = (url, providerHint) => {
+  openLoginInSystemBrowser(url, providerHint);
+};
+
+export const installLocationNavigationGuard = () => {
+  if (typeof window === 'undefined' || window.__restorebraineLocationGuardInstalled) return;
+  window.__restorebraineLocationGuardInstalled = true;
+
+  ['assign', 'replace'].forEach((method) => {
+    const original = Location.prototype[method];
+    Location.prototype[method] = function guardedNavigation(url) {
+      try {
+        const parsed = new URL(String(url), window.location.href);
+        if (parsed.searchParams.get('access_token')) {
+          captureOAuthTokenFromUrl(parsed.href).then((token) => {
+            if (token) window.location.replace(getAuthReturnOrigin());
+          });
+          return;
+        }
+        if (isAuthNavigationUrl(url)) {
+          handleAuthNavigation(url);
+          return;
+        }
+        if (isBase44PlatformHost(parsed.hostname)) {
+          window.location.replace(getAuthReturnOrigin());
+          return;
+        }
+      } catch {}
+
+      if (isAuthNavigationUrl(url)) {
+        handleAuthNavigation(url);
+        return;
+      }
+      return original.call(this, url);
+    };
+  });
+
+  try {
+    const hrefDescriptor = Object.getOwnPropertyDescriptor(Location.prototype, 'href')
+      || Object.getOwnPropertyDescriptor(Object.getPrototypeOf(window.location), 'href');
+    if (hrefDescriptor?.set) {
+      Object.defineProperty(window.location, 'href', {
+        configurable: true,
+        enumerable: hrefDescriptor.enumerable,
+        get: hrefDescriptor.get?.bind(window.location),
+        set(value) {
+          try {
+            const parsed = new URL(String(value), window.location.href);
+            if (parsed.searchParams.get('access_token')) {
+              captureOAuthTokenFromUrl(parsed.href).then((token) => {
+                if (token) window.location.replace(getAuthReturnOrigin());
+              });
+              return;
+            }
+            if (isAuthNavigationUrl(value)) {
+              handleAuthNavigation(value);
+              return;
+            }
+            if (isBase44PlatformHost(parsed.hostname)) {
+              window.location.replace(getAuthReturnOrigin());
+              return;
+            }
+          } catch {}
+          if (isAuthNavigationUrl(value)) {
+            handleAuthNavigation(value);
+            return;
+          }
+          hrefDescriptor.set.call(window.location, value);
+        },
+      });
+    }
+  } catch (error) {
+    console.warn('Could not patch window.location.href for OAuth guard.', error);
+  }
+};
+
+export const installNativeGoogleOAuthBrowser = () => {
+  if (typeof window === 'undefined' || window.__restorebraineGoogleOAuthBrowserInstalled) return;
+  window.__restorebraineGoogleOAuthBrowserInstalled = true;
+
+  installLocationNavigationGuard();
+
+  const originalOpen = window.open;
+  window.open = function openWithSystemBrowser(url, target, features) {
+    if (typeof url === 'string' && url.length > 0) {
+      if (isAuthNavigationUrl(url)) {
+        handleAuthNavigation(url);
+        return window;
+      }
+      window.location.assign(url);
+      return window;
+    }
+    return originalOpen ? originalOpen.call(window, url, target, features) : null;
+  };
+};
+
+export { NATIVE_OAUTH_CALLBACK, getProviderOAuthUrl };
+
+
+========================================================================
+FILE: src/lib/auth-urls.js
+========================================================================
+import { isNativeShell } from '@/lib/native-hosted-redirect';
+import { getAuthReturnOrigin } from '@/lib/app-domains';
+import { BASE44_APP_ID, BASE44_PLATFORM_URL, getGoogleOAuthUrl } from '@/lib/native-platform-guard';
+
+export { RESTOREBRAINE_FROM_URL, getGoogleOAuthUrl } from '@/lib/native-platform-guard';
+export { getAuthReturnOrigin } from '@/lib/app-domains';
+
+/**
+ * Base44 platform login — always app.base44.com, never {origin}/login.
+ * Custom domains serve a broken platform /login page that redirects to
+ * base44.app/login and returns "App not found".
+ */
+export const getPlatformLoginUrl = (fromUrl) => {
+  const params = new URLSearchParams({
+    from_url: fromUrl || getAuthReturnOrigin(),
+    app_id: BASE44_APP_ID,
+    prompt: 'select_account',
+  });
+  return `${BASE44_PLATFORM_URL}/login?${params.toString()}`;
+};
+
+export const getRestorebraineLoginUrl = getPlatformLoginUrl;
+
+/** Native: Google OAuth in system browser (required by Google). Web: platform login page. */
+export const openRestorebraineLogin = () => {
+  if (typeof window === 'undefined') return;
+
+  // AppDelegate bridge (hosted Capacitor) — most reliable on iPhone.
+  if (typeof window.__restorebraineOpenLogin === 'function') {
+    window.__restorebraineOpenLogin();
+    return;
+  }
+
+  if (isNativeShell()) {
+    import('@/lib/native-google-oauth').then(({ openLoginInSystemBrowser }) => {
+      openLoginInSystemBrowser(getGoogleOAuthUrl(), 'google');
+    });
+    return;
+  }
+
+  window.location.href = getPlatformLoginUrl();
+};
+
+/** If the user lands on /login on a custom domain, escape the broken platform page. */
+export const redirectBrokenCustomDomainLogin = () => {
+  if (typeof window === 'undefined') return false;
+  const { hostname, pathname, search } = window.location;
+  if (pathname.replace(/\/$/, '') !== '/login') return false;
+  if (hostname === 'restorebraine.base44.app' || hostname === 'localhost') return false;
+
+  const params = new URLSearchParams(search);
+  if (!params.get('app_id')) params.set('app_id', BASE44_APP_ID);
+  if (!params.get('from_url')) params.set('from_url', getAuthReturnOrigin());
+  if (!params.get('prompt')) params.set('prompt', 'select_account');
+
+  window.location.replace(`${BASE44_PLATFORM_URL}/login?${params.toString()}`);
+  return true;
+};
+
+
+========================================================================
+FILE: src/lib/native-hosted-redirect.js
+========================================================================
+import { DEFAULT_APP_ORIGIN, isAppHost } from './app-domains';
+
+export const HOSTED_APP_URL = DEFAULT_APP_ORIGIN;
+
+export const isNativeShell = () => {
+  try {
+    return typeof window !== 'undefined' && (
+      window.__restorebraineSessionBridgeInstalled ||
+      typeof window.__restorebraineOpenLogin === 'function' ||
+      typeof window.__RESTOREBRAINE_NATIVE_BUILD__ !== 'undefined' ||
+      window.Capacitor?.isNativePlatform?.() ||
+      window.location?.protocol === 'capacitor:' ||
+      window.location?.protocol === 'ionic:'
+    );
+  } catch {
+    return false;
+  }
+};
+
+export const isHostedAppOrigin = () => {
+  try {
+    return typeof window !== 'undefined' && isAppHost(window.location.hostname);
+  } catch {
+    return false;
+  }
+};
+
+const useLocalNativeBundle = () => {
+  try {
+    return typeof __RESTOREBRAINE_NATIVE_LOCAL__ !== 'undefined' && __RESTOREBRAINE_NATIVE_LOCAL__;
+  } catch {
+    return false;
+  }
+};
+
+/** Native installs load the hosted app unless built with NATIVE_LOCAL=1 (bundled UI in Xcode). */
+export const redirectNativeToHostedApp = () => {
+  if (!isNativeShell() || isHostedAppOrigin()) return false;
+  if (useLocalNativeBundle()) return false;
+
+  const suffix = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+  const target = suffix && suffix !== '/' ? `${HOSTED_APP_URL}${suffix}` : HOSTED_APP_URL;
+  window.location.replace(target);
+  return true;
+};
+
+
+========================================================================
+FILE: src/lib/session-bootstrap.js
+========================================================================
+import { base44 } from '@/api/base44Client';
+import { appParams } from '@/lib/app-params';
+import { captureAccessTokenFromUrl } from '@/lib/native-oauth-fix';
+import { persistentStorage } from '@/lib/persistentStorage';
+
+const TOKEN_KEYS = ['base44_access_token', 'token'];
+const SIGNED_OUT_KEY = 'b44_signed_out';
+
+export const restoreSessionFromNativeStorage = async () => {
+  const urlToken = captureAccessTokenFromUrl();
+  if (urlToken) {
+    await persistSessionToNativeStorage(urlToken);
+    return urlToken;
+  }
+
+  try {
+    if (typeof window !== 'undefined' && localStorage.getItem(SIGNED_OUT_KEY) === '1') return null;
+  } catch {}
+  const signedOut = await persistentStorage.get(SIGNED_OUT_KEY);
+  if (signedOut === '1') return null;
+
+  for (const key of TOKEN_KEYS) {
+    const storedToken = await persistentStorage.get(key);
+    if (!storedToken) continue;
+
+    appParams.token = storedToken;
+    persistentStorage._mirror('base44_access_token', storedToken);
+    persistentStorage._mirror('token', storedToken);
+    base44.auth.setToken(storedToken, false);
+    return storedToken;
+  }
+
+  return null;
+};
+
+
+export const installNativeOAuthDeepLinkHandler = async () => {
+  try {
+    const { isNativeShell } = await import('@/lib/native-hosted-redirect');
+    if (!isNativeShell()) return;
+
+    const { waitForCapacitorBridge, withTimeout } = await import('@/lib/capacitor-ready');
+    await waitForCapacitorBridge();
+
+    const { App } = await import('@capacitor/app');
+    const { handleNativeOAuthCallback } = await import('@/lib/native-google-oauth');
+
+    await withTimeout(
+      App.addListener('appUrlOpen', async ({ url }) => {
+        if (!url || !url.includes('access_token=')) return;
+        await handleNativeOAuthCallback(url);
+      }),
+      5000,
+      'App.addListener(appUrlOpen)',
+    );
+  } catch (error) {
+    console.warn('Native OAuth deep link handler unavailable.', error);
+  }
+};
+
+export const installNativeSessionPersistence = async () => {
+  try {
+    const { isNativeShell } = await import('@/lib/native-hosted-redirect');
+    if (!isNativeShell()) return;
+
+    const { waitForCapacitorBridge, withTimeout } = await import('@/lib/capacitor-ready');
+    await waitForCapacitorBridge();
+
+    await installNativeOAuthDeepLinkHandler();
+
+    const { App } = await import('@capacitor/app');
+
+    await withTimeout(
+      App.addListener('appStateChange', async ({ isActive }) => {
+        if (isActive) {
+          if (localStorage.getItem(SIGNED_OUT_KEY) !== '1') {
+            await restoreSessionFromNativeStorage();
+          }
+          return;
+        }
+
+        if (localStorage.getItem(SIGNED_OUT_KEY) === '1') return;
+
+        const token = localStorage.getItem('base44_access_token') || localStorage.getItem('token');
+        if (token) {
+          await persistSessionToNativeStorage(token);
+        }
+      }),
+      5000,
+      'App.addListener(appStateChange)',
+    );
+  } catch (error) {
+    console.warn('Native session persistence listener unavailable.', error);
+  }
+};
+
+export const persistSessionToNativeStorage = async (token) => {
+  if (!token) return;
+  await persistentStorage.remove(SIGNED_OUT_KEY);
+  try { localStorage.removeItem(SIGNED_OUT_KEY); } catch {}
+  appParams.token = token;
+  base44.auth.setToken(token, false);
+  persistentStorage._mirror('base44_access_token', token);
+  persistentStorage._mirror('token', token);
+  await Promise.all(TOKEN_KEYS.map((key) => persistentStorage.set(key, token)));
+};
+
+export const clearNativeSession = async () => {
+  appParams.token = null;
+  await persistentStorage.set(SIGNED_OUT_KEY, '1');
+  try {
+    localStorage.setItem(SIGNED_OUT_KEY, '1');
+    localStorage.removeItem('base44_access_token');
+    localStorage.removeItem('token');
+    localStorage.removeItem('base44_logged_out');
+    base44.auth.setToken(null, false);
+  } catch {}
+  if (typeof window !== 'undefined' && window.__restorebraineClearSession) {
+    window.__restorebraineClearSession();
+  }
+  for (const key of TOKEN_KEYS) {
+    await persistentStorage.remove(key);
+  }
+};
+
+
+========================================================================
+FILE: src/lib/native-oauth-fix.js
+========================================================================
+/** Keep OAuth in the main WebView — Capacitor iOS opens popups in Safari by default. */
+import { isNativeShell } from '@/lib/native-hosted-redirect';
+import { installNativePlatformGuard } from '@/lib/native-platform-guard';
+import { installNativeGoogleOAuthBrowser } from '@/lib/native-google-oauth';
+
+export const captureAccessTokenFromUrl = () => {
+  if (typeof window === 'undefined') return null;
+
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('access_token');
+    if (!token) return null;
+
+    localStorage.setItem('base44_access_token', token);
+    localStorage.setItem('token', token);
+    params.delete('access_token');
+    const cleanUrl = `${window.location.pathname}${params.toString() ? `?${params.toString()}` : ''}${window.location.hash}`;
+    window.history.replaceState({}, document.title, cleanUrl);
+    return token;
+  } catch (error) {
+    console.warn('Failed to capture OAuth token from URL', error);
+    return null;
+  }
+};
+
+export const installNativeOAuthFix = () => {
+  if (typeof window === 'undefined' || window.__restorebraineOAuthFixInstalled) return;
+  window.__restorebraineOAuthFixInstalled = true;
+
+  captureAccessTokenFromUrl();
+
+  if (isNativeShell()) {
+    installNativeGoogleOAuthBrowser();
+    installNativePlatformGuard();
+  }
+};
+
+
+========================================================================
+FILE: src/lib/AuthContext.jsx
+========================================================================
+import React, { createContext, useState, useContext, useEffect } from 'react';
+import { base44 } from '@/api/base44Client';
+import { appParams } from '@/lib/app-params';
+import { createAxiosClient } from '@base44/sdk/dist/utils/axios-client';
+import { openRestorebraineLogin } from '@/lib/auth-urls';
+import { getAppOrigin } from '@/lib/app-params';
+import { clearNativeSession, persistSessionToNativeStorage, restoreSessionFromNativeStorage } from '@/lib/session-bootstrap';
+import { isHostedAppOrigin, isNativeShell } from '@/lib/native-hosted-redirect';
+
+const AUTH_BOOT_TIMEOUT_MS = 20000;
+
+const hasStoredAuthToken = () => {
+  try {
+    if (localStorage.getItem('b44_signed_out') === '1') return false;
+    return Boolean(localStorage.getItem('base44_access_token') || localStorage.getItem('token'));
+  } catch {
+    return false;
+  }
+};
+
+const AuthContext = createContext();
+
+export const AuthProvider = ({ children }) => {
+  const [user, setUser] = useState(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isLoadingAuth, setIsLoadingAuth] = useState(true);
+  const [isLoadingPublicSettings, setIsLoadingPublicSettings] = useState(true);
+  const [authError, setAuthError] = useState(null);
+  const [appPublicSettings, setAppPublicSettings] = useState(null);
+  const [manuallyLoggedOut, setManuallyLoggedOut] = useState(false);
+
+  useEffect(() => {
+    checkAppState();
+  }, []);
+
+  const checkAppState = async () => {
+    let finished = false;
+    const timeout = window.setTimeout(() => {
+      if (finished) return;
+      if (hasStoredAuthToken()) return;
+      finished = true;
+      setIsLoadingPublicSettings(false);
+      setIsLoadingAuth(false);
+      setAuthError((current) => current ?? { type: 'auth_required', message: 'Session check timed out' });
+    }, AUTH_BOOT_TIMEOUT_MS);
+
+    try {
+      setIsLoadingPublicSettings(true);
+      setAuthError(null);
+
+      const restoredToken = await restoreSessionFromNativeStorage();
+      if (restoredToken) {
+        appParams.token = restoredToken;
+      } else if (isNativeShell() && hasStoredAuthToken()) {
+        appParams.token = localStorage.getItem('base44_access_token') || localStorage.getItem('token');
+      }
+
+      const appClient = createAxiosClient({
+        baseURL: `${appParams.serverUrl}/api/apps/public`,
+        headers: { 'X-App-Id': appParams.appId },
+        token: appParams.token,
+        interceptResponses: true,
+      });
+
+      try {
+        const publicSettings = await appClient.get(`/prod/public-settings/by-id/${appParams.appId}`);
+        if (finished) return;
+        setAppPublicSettings(publicSettings);
+
+        if (appParams.token) {
+          await checkUserAuth();
+        } else {
+          setIsLoadingAuth(false);
+          setIsAuthenticated(false);
+        }
+        setIsLoadingPublicSettings(false);
+      } catch (appError) {
+        if (finished) return;
+        console.error('App state check failed:', appError);
+
+        if (appError.status === 403 && appError.data?.extra_data?.reason) {
+          const reason = appError.data.extra_data.reason;
+          if (reason === 'auth_required') {
+            setAuthError({ type: 'auth_required', message: 'Authentication required' });
+          } else if (reason === 'user_not_registered') {
+            setAuthError({ type: 'user_not_registered', message: 'User not registered for this app' });
+          } else {
+            setAuthError({ type: reason, message: appError.message });
+          }
+        } else if (appError.status === 403) {
+          setAuthError({ type: 'auth_required', message: 'Authentication required' });
+        } else if (appParams.token) {
+          await checkUserAuth();
+        }
+
+        setIsLoadingPublicSettings(false);
+        setIsLoadingAuth(false);
+      }
+    } catch (error) {
+      if (finished) return;
+      console.error('Unexpected error:', error);
+      setAuthError({ type: 'unknown', message: error.message || 'An unexpected error occurred' });
+      setIsLoadingPublicSettings(false);
+      setIsLoadingAuth(false);
+    } finally {
+      finished = true;
+      window.clearTimeout(timeout);
+    }
+  };
+
+  const checkUserAuth = async ({ ignoreManualLogout = false } = {}) => {
+    if (manuallyLoggedOut && !ignoreManualLogout) return;
+
+    try {
+      setIsLoadingAuth(true);
+      const currentUser = await base44.auth.me();
+      setUser(currentUser);
+      setIsAuthenticated(true);
+      setIsLoadingAuth(false);
+
+      const token = appParams.token || localStorage.getItem('base44_access_token') || localStorage.getItem('token');
+      if (token) {
+        await persistSessionToNativeStorage(token);
+      }
+    } catch (error) {
+      console.error('User auth check failed:', error);
+
+      if (error.status === 401) {
+        const restoredToken = await restoreSessionFromNativeStorage();
+        if (restoredToken) {
+          try {
+            const currentUser = await base44.auth.me();
+            setUser(currentUser);
+            setIsAuthenticated(true);
+            setIsLoadingAuth(false);
+            await persistSessionToNativeStorage(restoredToken);
+            return;
+          } catch (retryError) {
+            console.warn('Auth retry after session restore failed:', retryError);
+          }
+        }
+      }
+
+      setIsLoadingAuth(false);
+      setIsAuthenticated(false);
+
+      if (error.status === 401) {
+        setAuthError({ type: 'auth_required', message: 'Authentication required' });
+      } else if (error.status === 403) {
+        setAuthError({ type: 'user_not_registered', message: 'User not registered for this app' });
+      }
+    }
+  };
+
+  const localLogout = async () => {
+    setManuallyLoggedOut(true);
+    await clearNativeSession();
+    setUser(null);
+    setIsAuthenticated(false);
+    setIsLoadingAuth(false);
+    setIsLoadingPublicSettings(false);
+    setAuthError({ type: 'auth_required', message: 'Authentication required' });
+  };
+
+  const resumeActiveSession = async () => {
+    setManuallyLoggedOut(false);
+    setAuthError(null);
+
+    const restoredToken = await restoreSessionFromNativeStorage();
+    if (restoredToken) {
+      appParams.token = restoredToken;
+    }
+
+    const token =
+      appParams.token ||
+      localStorage.getItem('base44_access_token') ||
+      localStorage.getItem('token');
+
+    if (!token) return false;
+
+    try {
+      localStorage.removeItem('b44_signed_out');
+    } catch {}
+
+    await persistSessionToNativeStorage(token);
+    await checkUserAuth({ ignoreManualLogout: true });
+    return true;
+  };
+
+  const logout = async () => {
+    await localLogout();
+    if (isHostedAppOrigin()) {
+      window.location.href = `${getAppOrigin()}/api/apps/auth/logout?from_url=${encodeURIComponent(window.location.href)}`;
+    }
+  };
+
+  const navigateToLogin = () => {
+    setManuallyLoggedOut(false);
+    openRestorebraineLogin();
+  };
+
+  return (
+    <AuthContext.Provider value={{
+      user,
+      isAuthenticated,
+      isLoadingAuth,
+      isLoadingPublicSettings,
+      authError,
+      appPublicSettings,
+      logout,
+      localLogout,
+      resumeActiveSession,
+      manuallyLoggedOut,
+      navigateToLogin,
+      checkAppState,
+    }}>
+      {children}
+    </AuthContext.Provider>
+  );
+};
+
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
+};
+
+
+========================================================================
+FILE: src/api/base44Client.js
+========================================================================
+import { createClient } from '@base44/sdk';
+import { appParams, getAppOrigin } from '@/lib/app-params';
+import { getPlatformLoginUrl, openRestorebraineLogin } from '@/lib/auth-urls';
+import { isNativeShell } from '@/lib/native-hosted-redirect';
+
+const { appId, serverUrl, token, functionsVersion } = appParams;
+
+//Create a client with authentication required
+export const base44 = createClient({
+  appId,
+  serverUrl,
+  appBaseUrl: getAppOrigin(),
+  token,
+  functionsVersion,
+  requiresAuth: false
+});
+
+// Custom-domain /login is a broken Base44 platform page — always use app.base44.com.
+const originalRedirectToLogin = base44.auth.redirectToLogin.bind(base44.auth);
+base44.auth.redirectToLogin = (nextUrl) => {
+  if (typeof window === 'undefined') {
+    return originalRedirectToLogin(nextUrl);
+  }
+  if (isNativeShell()) {
+    openRestorebraineLogin();
+    return;
+  }
+  const returnTo = nextUrl
+    ? new URL(nextUrl, window.location.origin).toString()
+    : window.location.href;
+  window.location.href = getPlatformLoginUrl(returnTo);
+};

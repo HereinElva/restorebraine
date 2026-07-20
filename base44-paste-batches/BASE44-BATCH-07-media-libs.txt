@@ -1,0 +1,1268 @@
+# Base44 AI — apply batch 7/8: Media organize + upload libs (Omega 3)
+
+Write EVERY file below into the Restorebraine Base44 code editor at the exact path shown.
+Do NOT Publish until batch 8 is done — user will Publish once after all batches.
+
+For each FILE block:
+1. Open or create that path in the code editor
+2. Replace entire file contents with the code below
+3. Save
+
+1. src/lib/media-organize.js
+2. src/lib/media-analysis.js
+3. src/lib/media-tags.js
+4. src/lib/media-search.js
+5. src/lib/media-constants.js
+6. src/lib/invoke-llm-retry.js
+7. src/lib/ai-upload-consent.js
+8. src/lib/media-upload.js
+9. src/lib/upload-pipeline.js
+10. src/lib/native-media-input.js
+11. src/lib/stripe-checkout.js
+12. src/lib/in-app-purchase.js
+13. src/lib/storage-billing.js
+14. src/lib/concurrency.js
+
+========================================================================
+FILE: src/lib/media-organize.js
+========================================================================
+export const CANONICAL_FOLDERS = [
+  'People & Portraits',
+  'Outdoor Activities',
+  'Food & Dining',
+  'Travel & Landmarks',
+  'Celebrations & Events',
+  'Home & Indoor',
+  'Nature & Landscapes',
+  'Animals & Pets',
+  'Quotes & Text Screenshots',
+  'Artwork & Illustrations',
+  'Miscellaneous',
+];
+
+export function photoDataForOrganize(photo) {
+  const tags = (photo.ai_tags || []).slice(0, 20);
+  return {
+    id: photo.id,
+    type: photo.file_type || 'image',
+    desc: (photo.ai_description || '').substring(0, 320),
+    tags,
+    top_tags: tags.slice(0, 8),
+  };
+}
+
+export function buildFolderOptions(existingFolderNames = []) {
+  const existingLower = existingFolderNames.map((n) => n.toLowerCase());
+  return [
+    ...existingFolderNames,
+    ...CANONICAL_FOLDERS.filter((c) => !existingLower.includes(c.toLowerCase())),
+  ];
+}
+
+export const ORGANIZE_LABEL_RULES = `GROUP BY WHAT ITEMS LOOK LIKE — use descriptions and tags:
+
+• Grass, fields, meadows, farms, skies, mountains, beaches, plants, flowers, lakes → "Nature & Landscapes"
+• Faces, selfies, groups, family, portraits, people → "People & Portraits"
+• Dogs, cats, birds, wildlife, pets → "Animals & Pets"
+• Meals, restaurants, drinks, cooking, groceries → "Food & Dining"
+• Landmarks, cities, vacations, monuments, airports → "Travel & Landmarks"
+• Parties, birthdays, weddings, holidays, concerts → "Celebrations & Events"
+• Rooms, furniture, kitchen, bedroom, indoor spaces → "Home & Indoor"
+• Sports, hiking, gym, biking, running, swimming → "Outdoor Activities"
+• Screenshots, quotes, text, memes, documents → "Quotes & Text Screenshots"
+• Art, drawings, paintings, illustrations, cartoons → "Artwork & Illustrations"
+
+Match items with similar VISIBLE subjects into the same folder.`;
+
+export const ORGANIZE_MERGE_RULES = `MERGE BY VISUAL SIMILARITY:
+• grass, field, meadow, lawn, pasture, nature, landscape, sky, forest, beach, mountain, flower → "Nature & Landscapes"
+• quote, quotes, text, screenshot, meme, document → "Quotes & Text Screenshots"
+• food, meal, restaurant, dining, drink, coffee, cooking → "Food & Dining"
+• people, portrait, selfie, face, family, friends, baby, child → "People & Portraits"
+• dog, cat, pet, animal, bird, wildlife → "Animals & Pets"
+• travel, landmark, vacation, city, tourist, hotel → "Travel & Landmarks"
+• party, birthday, wedding, celebration, event, holiday → "Celebrations & Events"
+• home, indoor, room, kitchen, bedroom, living, house → "Home & Indoor"
+• sport, gym, fitness, hike, bike, run, workout → "Outdoor Activities"
+• art, drawing, painting, illustration, cartoon → "Artwork & Illustrations"
+• else → "Miscellaneous"
+
+When user instructions specify grouping, follow them over default rules.`;
+
+export function buildLabelPrompt({ photoData, folderOptions, customInstructions }) {
+  return `You organize a searchable photo/video library by PHYSICAL VISUAL CONTENT.
+
+Assign each item to exactly ONE folder based on what is visible in its description and tags.
+
+AVAILABLE FOLDERS (prefer existing names when content matches):
+${folderOptions.map((n) => `- "${n}"`).join('\n')}
+
+${ORGANIZE_LABEL_RULES}
+
+RULES:
+- Use EXACTLY folder names from the list above.
+- Every item MUST get a label — return exactly ${photoData.length} labels.
+- Read ALL tags — they list visible objects, settings, and colors.
+- Items with similar visible subjects belong in the same folder.
+${customInstructions ? `\nUSER INSTRUCTIONS (highest priority):\n${customInstructions}` : ''}
+
+Items: ${JSON.stringify(photoData)}
+
+Return JSON: { "labels": [{ "id": "...", "folder": "..." }, ...] }`;
+}
+
+export function buildMergePrompt({ groups, existingFolderNames, customInstructions }) {
+  return `Consolidate folder groups by visual similarity. Merge near-duplicates.
+
+EXISTING FOLDER NAMES:
+${existingFolderNames.map((n) => `- "${n}"`).join('\n')}
+
+${ORGANIZE_MERGE_RULES}
+
+Every photo ID must appear exactly once in the output.
+${customInstructions ? `\nUSER INSTRUCTIONS (highest priority):\n${customInstructions}` : ''}
+
+Groups: ${JSON.stringify(groups)}
+
+Return JSON: { "folders": [{ "name": "...", "ids": ["..."] }, ...] }`;
+}
+
+
+========================================================================
+FILE: src/lib/media-analysis.js
+========================================================================
+import { base44 } from '@/api/base44Client';
+import { enrichTags, isWeakMetadata } from '@/lib/media-tags';
+import { invokeLLMWithRetry } from '@/lib/invoke-llm-retry';
+import { runConcurrent } from '@/lib/concurrency';
+
+const ANALYSIS_PROMPT = (isVideo, filename) => `You are a precise visual analyst for Restorebraine. Users search and organize their library by what they SEE.
+
+Analyze this ${isVideo ? 'VIDEO — describe 3-5 key scenes in order, then summarize overall' : 'PHOTO'} (${filename}).
+
+Inspect the actual pixels carefully. List every visible detail:
+• Main subject(s) and what they are doing
+• People: count, approximate age, clothing colors, expressions, activities
+• Animals/pets: species, breed if visible, activity
+• Objects: food, vehicles, furniture, sports equipment, screens, documents
+• Environment: indoor/outdoor, room type, landscape (grass, beach, forest, city, etc.)
+• Weather, lighting, time of day, dominant colors
+• For videos: note motion/action across scenes
+
+Return JSON:
+{
+  "ai_description": "3-5 specific sentences. Sentence 1: main subject + setting. Then list visible objects, colors, environment, and activity using concrete nouns users would search (e.g. iced tea, glass mug, kitchen counter, golden retriever, green grass field, birthday cake). No filename. No guessing beyond what is visible.",
+  "ai_tags": ["30-40 lowercase search keywords and 2-word phrases. Include: subjects, objects, materials, colors, setting, activities, AND synonyms (grass/field/meadow, ocean/beach/sea, dog/puppy/pet). Prioritize what is literally visible."]
+}
+
+Be literal and specific — only describe what is actually visible.`;
+
+const FAST_ANALYSIS_PROMPT = (isVideo, filename) => `Briefly describe this ${isVideo ? 'video' : 'photo'} (${filename}) for search.
+
+Return JSON only:
+{
+  "ai_description": "1-2 concrete sentences about what is visible.",
+  "ai_tags": ["12-18 lowercase search keywords"]
+}`;
+
+export async function analyzeMedia(fileUrl, fileType, filename, { timeoutMs = 55000, fast = false } = {}) {
+  const isVideo = fileType === 'video';
+
+  const result = await invokeLLMWithRetry(
+    {
+      prompt: fast
+        ? FAST_ANALYSIS_PROMPT(isVideo, filename)
+        : ANALYSIS_PROMPT(isVideo, filename),
+      file_urls: [fileUrl],
+      response_json_schema: {
+        type: 'object',
+        properties: {
+          ai_description: { type: 'string' },
+          ai_tags: { type: 'array', items: { type: 'string' } },
+        },
+        required: ['ai_description', 'ai_tags'],
+      },
+    },
+    { maxRetries: fast ? 0 : 1, baseDelayMs: 2000, timeoutMs },
+  );
+
+  const description = (result.ai_description || filename).trim();
+  const rawTags = (Array.isArray(result.ai_tags) ? result.ai_tags : [])
+    .map((tag) => String(tag).toLowerCase().trim())
+    .filter(Boolean);
+
+  const ai_tags = enrichTags(description, rawTags);
+
+  return { ai_description: description, ai_tags };
+}
+
+/** Re-run vision analysis for an existing library item (e.g. before organize). */
+export async function reanalyzePhoto(photo) {
+  if (!photo?.file_url) {
+    throw new Error('Missing file URL for re-analysis');
+  }
+  return analyzeMedia(
+    photo.file_url,
+    photo.file_type || 'image',
+    photo.original_filename || 'media',
+  );
+}
+
+export async function reanalyzeWeakPhotos(photos, {
+  onProgress,
+  concurrency = 1,
+  delayMs = 1500,
+  forceAll = false,
+  timeoutMs = 55000,
+} = {}) {
+  const weak = forceAll ? photos : photos.filter(isWeakMetadata);
+
+  if (!weak.length) return photos;
+
+  const updated = new Map(photos.map((p) => [p.id, p]));
+  let completed = 0;
+
+  const tasks = weak.map((photo) => async () => {
+    if (completed > 0 && delayMs > 0) {
+      await new Promise((r) => setTimeout(r, delayMs));
+    }
+    try {
+      const analysis = await analyzeMedia(
+        photo.file_url,
+        photo.file_type || 'image',
+        photo.original_filename || 'media',
+        { timeoutMs },
+      );
+      await base44.entities.Photo.update(photo.id, {
+        ai_description: analysis.ai_description,
+        ai_tags: analysis.ai_tags,
+      });
+      updated.set(photo.id, { ...photo, ...analysis });
+    } catch (error) {
+      console.warn('Re-analysis failed for', photo.id, error);
+    } finally {
+      completed += 1;
+      onProgress?.(`Re-reading ${completed}/${weak.length}…`);
+    }
+  });
+
+  await runConcurrent(tasks, concurrency);
+
+  return photos.map((p) => updated.get(p.id) || p);
+}
+
+export function normalizePhotoTags(tags = []) {
+  return enrichTags('', tags);
+}
+
+
+========================================================================
+FILE: src/lib/media-tags.js
+========================================================================
+/** Synonym groups — any term in a group matches searches for siblings. */
+export const SYNONYM_GROUPS = [
+  ['grass', 'field', 'meadow', 'lawn', 'pasture', 'greenery', 'prairie', 'turf'],
+  ['beach', 'ocean', 'sea', 'sand', 'shore', 'coast', 'waves', 'waterfront'],
+  ['forest', 'woods', 'trees', 'woodland', 'grove'],
+  ['mountain', 'mountains', 'hills', 'peak', 'summit', 'alps'],
+  ['dog', 'puppy', 'canine', 'dogs'],
+  ['cat', 'kitten', 'feline', 'cats'],
+  ['car', 'vehicle', 'automobile', 'truck', 'suv'],
+  ['food', 'meal', 'dish', 'cuisine', 'dining', 'restaurant'],
+  ['baby', 'infant', 'toddler', 'child', 'kid'],
+  ['sunset', 'sunrise', 'dusk', 'dawn', 'golden hour'],
+  ['snow', 'winter', 'snowy', 'ice', 'frost'],
+  ['flower', 'flowers', 'bloom', 'blossom', 'garden'],
+  ['city', 'urban', 'downtown', 'street', 'skyline'],
+  ['pool', 'swimming', 'swim'],
+  ['wedding', 'bride', 'groom', 'marriage'],
+  ['birthday', 'cake', 'party', 'celebration'],
+  ['selfie', 'portrait', 'face', 'headshot'],
+  ['screenshot', 'screen', 'text', 'quote', 'meme'],
+];
+
+const synonymIndex = new Map();
+for (const group of SYNONYM_GROUPS) {
+  const normalized = group.map((w) => w.toLowerCase());
+  for (const word of normalized) {
+    synonymIndex.set(word, normalized);
+  }
+}
+
+export function expandTermVariants(term) {
+  const lower = term.toLowerCase().trim();
+  const variants = new Set([lower]);
+
+  const group = synonymIndex.get(lower);
+  if (group) group.forEach((w) => variants.add(w));
+
+  if (lower.length > 4 && lower.endsWith('ing')) variants.add(lower.slice(0, -3));
+  if (lower.length > 3 && lower.endsWith('es')) variants.add(lower.slice(0, -2));
+  if (lower.length > 3 && lower.endsWith('s')) variants.add(lower.slice(0, -1));
+  if (lower.length > 3 && lower.endsWith('ed')) variants.add(lower.slice(0, -2));
+  if (lower.length >= 3) variants.add(`${lower}s`);
+
+  return [...variants];
+}
+
+export function enrichTags(description, tags = []) {
+  const merged = new Set(
+    tags.map((t) => String(t).toLowerCase().trim()).filter(Boolean),
+  );
+
+  for (const word of tokenize(description)) {
+    if (word.length < 3) continue;
+    merged.add(word);
+    expandTermVariants(word).forEach((v) => merged.add(v));
+  }
+
+  for (const tag of [...merged]) {
+    expandTermVariants(tag).forEach((v) => merged.add(v));
+  }
+
+  return [...merged].slice(0, 35);
+}
+
+export function expandQueryTerms(rawQuery) {
+  const terms = tokenize(rawQuery);
+  const expanded = new Set();
+
+  for (const term of terms) {
+    expandTermVariants(term).forEach((v) => expanded.add(v));
+  }
+
+  return { terms, expanded: [...expanded] };
+}
+
+export function tokenize(str = '') {
+  return str
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, ' ')
+    .split(/\s+/)
+    .filter((w) => w.length >= 2);
+}
+
+export function isWeakMetadata(photo) {
+  const tagCount = (photo.ai_tags || []).length;
+  const descLen = (photo.ai_description || '').trim().length;
+  return tagCount < 10 || descLen < 40;
+}
+
+
+========================================================================
+FILE: src/lib/media-search.js
+========================================================================
+import { expandQueryTerms, tokenize } from '@/lib/media-tags';
+
+const VIDEO_KEYWORDS = new Set(['video', 'videos']);
+const IMAGE_KEYWORDS = new Set(['picture', 'pictures', 'image', 'images', 'photo', 'photos']);
+
+function termMatchesText(term, text) {
+  const lower = text.toLowerCase();
+  const variants = expandQueryTerms(term).expanded;
+
+  for (const variant of variants) {
+    if (variant.length < 2) continue;
+    if (lower.includes(variant)) return true;
+
+    for (const word of tokenize(lower)) {
+      if (word === variant) return true;
+      if (variant.length >= 3 && word.startsWith(variant)) return true;
+      if (word.length >= 3 && variant.startsWith(word)) return true;
+    }
+  }
+
+  return false;
+}
+
+function scoreTerm(term, photo, tags) {
+  let score = 0;
+  const desc = photo.ai_description || '';
+  const filename = photo.original_filename || '';
+  const variants = expandQueryTerms(term).expanded;
+
+  for (const variant of variants) {
+    for (const tag of tags) {
+      if (tag === variant) score += 8;
+      else if (tag.includes(variant) || variant.includes(tag)) score += 5;
+    }
+    if (termMatchesText(variant, desc)) score += 3;
+    if (termMatchesText(variant, filename)) score += 1;
+  }
+
+  return score;
+}
+
+export function scorePhoto(photo, rawQuery) {
+  const queryTokens = tokenize(rawQuery);
+  if (queryTokens.length === 0) return 1;
+
+  const typeTokens = queryTokens.filter((t) => VIDEO_KEYWORDS.has(t) || IMAGE_KEYWORDS.has(t));
+  const contentTokens = queryTokens.filter((t) => !VIDEO_KEYWORDS.has(t) && !IMAGE_KEYWORDS.has(t));
+
+  if (typeTokens.some((t) => VIDEO_KEYWORDS.has(t)) && photo.file_type !== 'video') return 0;
+  if (typeTokens.some((t) => IMAGE_KEYWORDS.has(t)) && photo.file_type !== 'image') return 0;
+  if (contentTokens.length === 0) return 1;
+
+  const tags = (photo.ai_tags || []).map((t) => String(t).toLowerCase());
+  let totalScore = 0;
+  let matchedTerms = 0;
+
+  for (const term of contentTokens) {
+    const termScore = scoreTerm(term, photo, tags);
+    if (termScore > 0) {
+      matchedTerms += 1;
+      totalScore += termScore;
+    }
+  }
+
+  if (matchedTerms === 0) return 0;
+
+  const phrase = contentTokens.join(' ');
+  if (termMatchesText(phrase, photo.ai_description || '')) totalScore += 15;
+
+  const allTagsText = tags.join(' ');
+  if (contentTokens.every((t) => termMatchesText(t, allTagsText))) totalScore += 10;
+
+  const minMatches = contentTokens.length <= 2
+    ? contentTokens.length
+    : Math.ceil(contentTokens.length * 0.5);
+
+  if (matchedTerms < minMatches) return 0;
+
+  return totalScore;
+}
+
+export function filterAndRankPhotos(photos, rawQuery) {
+  if (!rawQuery?.trim()) return photos;
+
+  return photos
+    .map((photo) => ({ photo, score: scorePhoto(photo, rawQuery) }))
+    .filter(({ score }) => score > 0)
+    .sort((a, b) => b.score - a.score)
+    .map(({ photo }) => photo);
+}
+
+
+========================================================================
+FILE: src/lib/media-constants.js
+========================================================================
+/** Overlapping upload workers — bandwidth-bound. */
+export const UPLOAD_PIPELINE_CONCURRENCY = 6;
+
+/** Overlapping DB saves while uploads continue. */
+export const SAVE_PIPELINE_CONCURRENCY = 8;
+
+/** Background AI analysis after save — does not block the upload UI. */
+export const BACKGROUND_ANALYSIS_CONCURRENCY = 2;
+
+/** Parallel uploads within each item (legacy phased batch). */
+export const UPLOAD_CONCURRENCY = UPLOAD_PIPELINE_CONCURRENCY;
+
+/** Parallel AI vision calls when analysis blocks save (retries only). */
+export const ANALYSIS_CONCURRENCY = 2;
+
+/** Parallel DB writes. */
+export const SAVE_CONCURRENCY = SAVE_PIPELINE_CONCURRENCY;
+
+/** Compress camera-roll images above this size before upload. */
+export const IMAGE_COMPRESS_MIN_BYTES = 1536 * 1024;
+
+/** Max long edge for uploaded photos — keeps quality, cuts upload time. */
+export const IMAGE_MAX_DIMENSION = 2048;
+
+/** JPEG quality for compressed uploads. */
+export const IMAGE_JPEG_QUALITY = 0.82;
+
+/** Parallel image prep before upload starts. */
+export const IMAGE_PREP_CONCURRENCY = 4;
+
+/** Max files accepted in one selection. */
+export const MAX_BATCH_SIZE = 100;
+
+/** Max video file size (~5 min). */
+export const MAX_VIDEO_BYTES = 500 * 1024 * 1024;
+
+/** Per-file upload timeout (large videos on LTE). */
+export const UPLOAD_TIMEOUT_MS = 90000;
+
+/** Retries for transient network failures. */
+export const UPLOAD_MAX_RETRIES = 2;
+
+/** Background vision analysis timeout — runs after save. */
+export const UPLOAD_ANALYSIS_TIMEOUT_MS = 35000;
+
+/** Overall batch watchdog — prevents infinite stall. */
+export const UPLOAD_BATCH_TIMEOUT_MS = 600000;
+
+
+========================================================================
+FILE: src/lib/invoke-llm-retry.js
+========================================================================
+import { base44 } from '@/api/base44Client';
+
+function isRateLimitError(error) {
+  const msg = String(error?.message || error?.data?.message || error || '').toLowerCase();
+  return msg.includes('rate limit') || msg.includes('too many requests') || msg.includes('429');
+}
+
+export function withTimeout(promise, ms, label = 'Request') {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      setTimeout(() => reject(new Error(`${label} timed out — try again`)), ms);
+    }),
+  ]);
+}
+
+export function formatLLMError(error) {
+  const msg = String(error?.message || error || '');
+  if (isRateLimitError(error)) {
+    return 'Organize could not finish — AI is temporarily busy. Wait about a minute and try again. (This is not your 250-photo storage limit.)';
+  }
+  if (/timed out/i.test(msg)) {
+    return 'Organize took too long — try again with fewer loose photos.';
+  }
+  return error?.message || 'Organize failed. Please try again.';
+}
+
+/** InvokeLLM with backoff and per-attempt timeout. */
+export async function invokeLLMWithRetry(
+  args,
+  { maxRetries = 2, baseDelayMs = 2000, timeoutMs = 45000 } = {},
+) {
+  let lastError;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await withTimeout(
+        base44.integrations.Core.InvokeLLM(args),
+        timeoutMs,
+        'AI request',
+      );
+    } catch (error) {
+      lastError = error;
+      if (!isRateLimitError(error) || attempt === maxRetries) {
+        throw error;
+      }
+      await new Promise((resolve) => setTimeout(resolve, baseDelayMs * (attempt + 1)));
+    }
+  }
+  throw lastError;
+}
+
+
+========================================================================
+FILE: src/lib/ai-upload-consent.js
+========================================================================
+const CONSENT_KEY = 'restorebraine_ai_upload_consent_v1';
+
+export function hasAiUploadConsent() {
+  try {
+    return localStorage.getItem(CONSENT_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+export function grantAiUploadConsent() {
+  try {
+    localStorage.setItem(CONSENT_KEY, '1');
+  } catch {
+    /* ignore */
+  }
+}
+
+export function revokeAiUploadConsent() {
+  try {
+    localStorage.removeItem(CONSENT_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+
+========================================================================
+FILE: src/lib/media-upload.js
+========================================================================
+import { base44 } from '@/api/base44Client';
+import { analyzeMedia } from '@/lib/media-analysis';
+import { enrichTags, tokenize } from '@/lib/media-tags';
+import { runConcurrent } from '@/lib/concurrency';
+import { withTimeout } from '@/lib/invoke-llm-retry';
+import { prepareUploadFiles } from '@/lib/upload-image-prep';
+import { runUploadSavePipeline } from '@/lib/upload-pipeline';
+import {
+  BACKGROUND_ANALYSIS_CONCURRENCY,
+  MAX_BATCH_SIZE,
+  MAX_VIDEO_BYTES,
+  SAVE_PIPELINE_CONCURRENCY,
+  UPLOAD_ANALYSIS_TIMEOUT_MS,
+  UPLOAD_BATCH_TIMEOUT_MS,
+  UPLOAD_MAX_RETRIES,
+  UPLOAD_PIPELINE_CONCURRENCY,
+  UPLOAD_TIMEOUT_MS,
+} from '@/lib/media-constants';
+
+export {
+  BACKGROUND_ANALYSIS_CONCURRENCY,
+  MAX_BATCH_SIZE,
+  MAX_VIDEO_BYTES,
+  SAVE_PIPELINE_CONCURRENCY,
+  UPLOAD_ANALYSIS_TIMEOUT_MS,
+  UPLOAD_BATCH_TIMEOUT_MS,
+  UPLOAD_MAX_RETRIES,
+  UPLOAD_PIPELINE_CONCURRENCY,
+  UPLOAD_TIMEOUT_MS,
+} from '@/lib/media-constants';
+
+export function getFileType(file) {
+  const type = file?.type || '';
+  if (type.startsWith('video/')) return 'video';
+  if (type.startsWith('image/')) return 'image';
+  const name = (file?.name || '').toLowerCase();
+  if (/\.(mp4|mov|m4v|avi|webm|mkv)$/.test(name)) return 'video';
+  return 'image';
+}
+
+export function validateFiles(files) {
+  const list = Array.from(files || []).filter((f) => f && (f.size > 0 || f.name));
+  if (!list.length) {
+    return {
+      valid: [],
+      error: 'No files received from picker. Try again or allow full photo access in Settings.',
+    };
+  }
+
+  const readable = list.filter((f) => f.size > 0);
+  if (!readable.length) {
+    return {
+      valid: [],
+      error: 'Selected files could not be read. In Settings → Restorebraine → Photos, try Full Access.',
+    };
+  }
+
+  if (readable.length > MAX_BATCH_SIZE) {
+    return {
+      valid: [],
+      error: `Please select up to ${MAX_BATCH_SIZE} files at a time. You can add more after this batch starts.`,
+    };
+  }
+
+  const oversized = readable.find(
+    (f) => getFileType(f) === 'video' && f.size > MAX_VIDEO_BYTES,
+  );
+  if (oversized) {
+    return {
+      valid: [],
+      error: `${oversized.name} is too large. Videos must be under 5 minutes / 500MB.`,
+    };
+  }
+
+  return { valid: readable, error: null };
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isRetryableUploadError(error) {
+  const msg = String(error?.message || error || '').toLowerCase();
+  return (
+    msg.includes('network') ||
+    msg.includes('timeout') ||
+    msg.includes('timed out') ||
+    msg.includes('fetch') ||
+    msg.includes('failed to fetch') ||
+    msg.includes('connection') ||
+    msg.includes('abort') ||
+    msg.includes('503') ||
+    msg.includes('502') ||
+    msg.includes('504')
+  );
+}
+
+function quickMetadataFromFilename(filename, fileType) {
+  const base = (filename || '')
+    .replace(/\.[^.]+$/, '')
+    .replace(/[_-]+/g, ' ')
+    .trim();
+  const label = base || (fileType === 'video' ? 'Video memory' : 'Photo memory');
+  const tags = enrichTags(label, [fileType, ...tokenize(label)]);
+  return {
+    ai_description: label,
+    ai_tags: tags,
+  };
+}
+
+async function uploadFile(file) {
+  let lastError;
+  for (let attempt = 0; attempt < UPLOAD_MAX_RETRIES; attempt++) {
+    try {
+      return await withTimeout(
+        base44.integrations.Core.UploadFile({ file }),
+        UPLOAD_TIMEOUT_MS,
+        'Upload',
+      );
+    } catch (error) {
+      lastError = error;
+      if (!isRetryableUploadError(error) || attempt === UPLOAD_MAX_RETRIES - 1) {
+        throw error;
+      }
+      await sleep(800 * (attempt + 1));
+    }
+  }
+  throw lastError || new Error('Upload failed');
+}
+
+async function savePhoto({ file_url, file_type, ai_description, ai_tags, original_filename }) {
+  return base44.entities.Photo.create({
+    file_url,
+    file_type,
+    ai_description,
+    ai_tags,
+    upload_date: new Date().toISOString(),
+    original_filename,
+  });
+}
+
+async function analyzeAndUpdatePhoto(photoId, fileUrl, fileType, filename) {
+  if (!photoId) return;
+  try {
+    const analysis = await analyzeMedia(fileUrl, fileType, filename, {
+      fast: true,
+      timeoutMs: UPLOAD_ANALYSIS_TIMEOUT_MS,
+    });
+    await base44.entities.Photo.update(photoId, {
+      ai_description: analysis.ai_description,
+      ai_tags: analysis.ai_tags,
+    });
+  } catch (error) {
+    console.warn('Background analysis failed for photo', photoId, error);
+  }
+}
+
+/**
+ * Fast pipeline: compress → overlapping upload/save → background AI.
+ */
+export async function processUploadBatch(queueItems, { onItemUpdate } = {}) {
+  return withTimeout(
+    processUploadBatchInner(queueItems, { onItemUpdate }),
+    UPLOAD_BATCH_TIMEOUT_MS,
+    'Upload batch',
+  );
+}
+
+async function processUploadBatchInner(queueItems, { onItemUpdate } = {}) {
+  const update = (index, patch) => onItemUpdate?.(index, patch);
+
+  const preparedFiles = await prepareUploadFiles(
+    queueItems.map((item) => item.file),
+    { onItemProgress: (index, patch) => update(index, patch) },
+  );
+
+  const preparedItems = queueItems.map((item, index) => ({
+    ...item,
+    file: preparedFiles[index] || item.file,
+  }));
+
+  const pipelineResults = await runUploadSavePipeline({
+    items: preparedItems,
+    uploadConcurrency: UPLOAD_PIPELINE_CONCURRENCY,
+    saveConcurrency: SAVE_PIPELINE_CONCURRENCY,
+    uploadOne: async (item, index) => {
+      update(index, { status: 'processing', progress: 12, error: null, phase: 'uploading' });
+      try {
+        const uploadResult = await uploadFile(item.file);
+        update(index, { progress: 62, file_url: uploadResult.file_url, phase: 'uploaded' });
+        return {
+          index,
+          file_url: uploadResult.file_url,
+          fileType: getFileType(item.file),
+          filename: item.file.name,
+        };
+      } catch (error) {
+        const message = error?.message || 'Upload failed';
+        update(index, { status: 'error', error: message, progress: 0, phase: 'error' });
+        return null;
+      }
+    },
+    saveOne: async ({ item, index, uploaded }) => {
+      update(index, { progress: 78, phase: 'saving' });
+      const quickMeta = quickMetadataFromFilename(item.file.name, uploaded.fileType);
+
+      try {
+        const saved = await savePhoto({
+          file_url: uploaded.file_url,
+          file_type: uploaded.fileType,
+          ai_description: quickMeta.ai_description,
+          ai_tags: quickMeta.ai_tags,
+          original_filename: item.file.name,
+        });
+
+        update(index, {
+          status: 'success',
+          progress: 100,
+          ai_description: quickMeta.ai_description,
+          ai_tags: quickMeta.ai_tags,
+          phase: 'done',
+          photoId: saved?.id,
+        });
+
+        return {
+          index,
+          success: true,
+          photoId: saved?.id,
+          fileUrl: uploaded.file_url,
+          fileType: uploaded.fileType,
+          filename: item.file.name,
+        };
+      } catch (error) {
+        const message = error?.message || 'Save failed';
+        update(index, { status: 'error', error: message, progress: 0, phase: 'error' });
+        return { index, success: false };
+      }
+    },
+  });
+
+  const results = pipelineResults.filter(Boolean);
+  const backgroundJobs = results
+    .filter((result) => result.success && result.photoId)
+    .map(
+      (result) => () =>
+        analyzeAndUpdatePhoto(
+          result.photoId,
+          result.fileUrl,
+          result.fileType,
+          result.filename,
+        ),
+    );
+
+  if (backgroundJobs.length) {
+    void runConcurrent(backgroundJobs, BACKGROUND_ANALYSIS_CONCURRENCY);
+  }
+
+  const successCount = results.filter((result) => result.success).length;
+  return {
+    successCount,
+    errorCount: queueItems.length - successCount,
+  };
+}
+
+export async function processSingleUpload(item, { onUpdate } = {}) {
+  const patch = (updates) => onUpdate?.(updates);
+  patch({ status: 'processing', progress: 8, error: null, phase: 'preparing' });
+
+  try {
+    const [prepared] = await prepareUploadFiles([item.file]);
+    const file = prepared || item.file;
+
+    patch({ progress: 12, phase: 'uploading' });
+    const uploadResult = await uploadFile(file);
+    const fileType = getFileType(file);
+    const quickMeta = quickMetadataFromFilename(file.name, fileType);
+
+    patch({ progress: 78, phase: 'saving' });
+
+    const saved = await savePhoto({
+      file_url: uploadResult.file_url,
+      file_type: fileType,
+      ai_description: quickMeta.ai_description,
+      ai_tags: quickMeta.ai_tags,
+      original_filename: file.name,
+    });
+
+    patch({
+      status: 'success',
+      progress: 100,
+      ai_description: quickMeta.ai_description,
+      ai_tags: quickMeta.ai_tags,
+      phase: 'done',
+    });
+
+    void analyzeAndUpdatePhoto(saved?.id, uploadResult.file_url, fileType, file.name);
+    return true;
+  } catch (error) {
+    patch({
+      status: 'error',
+      error: error?.message || 'Upload failed',
+      progress: 0,
+      phase: 'error',
+    });
+    return false;
+  }
+}
+
+
+========================================================================
+FILE: src/lib/upload-pipeline.js
+========================================================================
+/**
+ * Overlapping upload and save pools — uploads never wait on DB writes.
+ */
+export async function runUploadSavePipeline({
+  items,
+  uploadConcurrency,
+  saveConcurrency,
+  uploadOne,
+  saveOne,
+}) {
+  const results = new Array(items.length);
+  let nextUpload = 0;
+  let activeUploads = 0;
+  let activeSaves = 0;
+  const saveQueue = [];
+
+  return new Promise((resolve, reject) => {
+    const maybeDone = () => {
+      if (
+        nextUpload >= items.length &&
+        activeUploads === 0 &&
+        activeSaves === 0 &&
+        saveQueue.length === 0
+      ) {
+        resolve(results);
+      }
+    };
+
+    const pumpSaves = () => {
+      while (saveQueue.length > 0 && activeSaves < saveConcurrency) {
+        const job = saveQueue.shift();
+        activeSaves += 1;
+        saveOne(job)
+          .then((result) => {
+            results[job.index] = result;
+          })
+          .catch((error) => {
+            results[job.index] = {
+              index: job.index,
+              success: false,
+              error: error?.message || 'Save failed',
+            };
+          })
+          .finally(() => {
+            activeSaves -= 1;
+            pumpSaves();
+            maybeDone();
+          });
+      }
+    };
+
+    const startUpload = (item, index) => {
+      activeUploads += 1;
+      uploadOne(item, index)
+        .then((uploaded) => {
+          if (uploaded?.file_url) {
+            saveQueue.push({ item, index, uploaded });
+            pumpSaves();
+          } else {
+            results[index] = uploaded || { index, success: false };
+          }
+        })
+        .catch((error) => {
+          results[index] = {
+            index,
+            success: false,
+            error: error?.message || 'Upload failed',
+          };
+        })
+        .finally(() => {
+          activeUploads -= 1;
+          while (nextUpload < items.length && activeUploads < uploadConcurrency) {
+            const i = nextUpload;
+            nextUpload += 1;
+            startUpload(items[i], i);
+          }
+          maybeDone();
+        });
+    };
+
+    if (!items.length) {
+      resolve([]);
+      return;
+    }
+
+    try {
+      const initial = Math.min(uploadConcurrency, items.length);
+      for (let i = 0; i < initial; i++) {
+        const index = nextUpload;
+        nextUpload += 1;
+        startUpload(items[index], index);
+      }
+    } catch (error) {
+      reject(error);
+    }
+  });
+}
+
+
+========================================================================
+FILE: src/lib/native-media-input.js
+========================================================================
+import { useCallback, useEffect, useRef } from 'react';
+
+export function isNativeMediaShell() {
+  if (typeof window === 'undefined') return false;
+  return (
+    window.Capacitor?.isNativePlatform?.() ||
+    window.location.protocol === 'capacitor:' ||
+    window.location.protocol === 'ionic:'
+  );
+}
+
+/**
+ * iOS WKWebView often fails to fire change on <input type="file"> after PHPicker.
+ * Poll input.files on focus / app resume and keep the input mounted.
+ */
+export function useNativeMediaInput(onFilesSelected) {
+  const inputRef = useRef(null);
+  const pendingPollRef = useRef(false);
+  const onFilesRef = useRef(onFilesSelected);
+  onFilesRef.current = onFilesSelected;
+
+  const deliverFiles = useCallback((fileList) => {
+    if (!fileList?.length) return false;
+    onFilesRef.current?.(fileList);
+    return true;
+  }, []);
+
+  const drainInput = useCallback(() => {
+    const input = inputRef.current;
+    if (!input?.files?.length) return false;
+    const files = input.files;
+    input.value = '';
+    return deliverFiles(files);
+  }, [deliverFiles]);
+
+  const openPicker = useCallback(() => {
+    const input = inputRef.current;
+    if (!input) return;
+    input.value = '';
+    pendingPollRef.current = true;
+    input.click();
+  }, []);
+
+  const pollAfterPicker = useCallback(() => {
+    if (!pendingPollRef.current) return;
+    [100, 350, 700, 1200].forEach((delay) => {
+      window.setTimeout(() => {
+        if (!pendingPollRef.current) return;
+        if (drainInput()) pendingPollRef.current = false;
+      }, delay);
+    });
+    window.setTimeout(() => {
+      pendingPollRef.current = false;
+    }, 2500);
+  }, [drainInput]);
+
+  useEffect(() => {
+    if (!isNativeMediaShell()) return;
+
+    const onResume = () => pollAfterPicker();
+
+    window.addEventListener('focus', onResume);
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') onResume();
+    });
+
+    let appListener;
+    import('@capacitor/app')
+      .then(({ App }) =>
+        App.addListener('appStateChange', ({ isActive }) => {
+          if (isActive) onResume();
+        }),
+      )
+      .then((handle) => {
+        appListener = handle;
+      })
+      .catch(() => {});
+
+    return () => {
+      window.removeEventListener('focus', onResume);
+      appListener?.remove?.();
+    };
+  }, [pollAfterPicker]);
+
+  const handleInput = useCallback(
+    (event) => {
+      pendingPollRef.current = false;
+      const files = event.target.files;
+      if (files?.length) deliverFiles(files);
+      event.target.value = '';
+    },
+    [deliverFiles],
+  );
+
+  return { inputRef, openPicker, handleInput };
+}
+
+
+========================================================================
+FILE: src/lib/stripe-checkout.js
+========================================================================
+import { Capacitor } from '@capacitor/core';
+
+/** Open Stripe Checkout — same WebView on hosted mobile app, new tab on desktop. */
+export async function openStripeCheckout(checkoutUrl) {
+  if (!checkoutUrl) throw new Error('Missing Stripe checkout URL');
+  window.location.assign(checkoutUrl);
+}
+
+/** Refresh billing state when returning to the app after Stripe checkout. */
+export function installStripeReturnRefresh(onRefresh) {
+  if (typeof onRefresh !== 'function') return () => {};
+
+  let remove = () => {};
+
+  (async () => {
+    if (!Capacitor.isNativePlatform()) {
+      const onVisible = () => {
+        if (document.visibilityState === 'visible') onRefresh();
+      };
+      document.addEventListener('visibilitychange', onVisible);
+      remove = () => document.removeEventListener('visibilitychange', onVisible);
+      return;
+    }
+
+    try {
+      const { App } = await import('@capacitor/app');
+      const sub = await App.addListener('appStateChange', ({ isActive }) => {
+        if (isActive) onRefresh();
+      });
+      remove = () => sub.remove();
+    } catch {
+      const onVisible = () => {
+        if (document.visibilityState === 'visible') onRefresh();
+      };
+      document.addEventListener('visibilitychange', onVisible);
+      remove = () => document.removeEventListener('visibilitychange', onVisible);
+    }
+  })();
+
+  return () => remove();
+}
+
+
+========================================================================
+FILE: src/lib/in-app-purchase.js
+========================================================================
+import { Capacitor } from '@capacitor/core';
+import { IAP_STORAGE_PRODUCT_ID } from '@/lib/storage-billing';
+
+let billingReady = false;
+let cachedProduct = null;
+
+export async function isInAppPurchaseAvailable() {
+  if (!Capacitor.isNativePlatform() || Capacitor.getPlatform() !== 'ios') return false;
+  try {
+    const { NativePurchases } = await import('@capgo/native-purchases');
+    const { isBillingSupported } = await NativePurchases.isBillingSupported();
+    return isBillingSupported;
+  } catch {
+    return false;
+  }
+}
+
+export async function loadStorageProduct() {
+  if (cachedProduct) return cachedProduct;
+  const { NativePurchases, PURCHASE_TYPE } = await import('@capgo/native-purchases');
+  const { products } = await NativePurchases.getProducts({
+    productIdentifiers: [IAP_STORAGE_PRODUCT_ID],
+    productType: PURCHASE_TYPE.INAPP,
+  });
+  cachedProduct = products?.[0] || null;
+  return cachedProduct;
+}
+
+export async function initializeInAppPurchases() {
+  if (billingReady || !(await isInAppPurchaseAvailable())) return false;
+  await loadStorageProduct();
+  billingReady = true;
+  return true;
+}
+
+/**
+ * Purchase storage tier(s) via Apple In-App Purchase (consumable).
+ * @param {number} quantity - Number of 250-media blocks to buy
+ * @param {string} [appAccountToken] - Optional UUID linking purchase to user
+ */
+export async function purchaseStorageTiers(quantity = 1, appAccountToken) {
+  const { NativePurchases, PURCHASE_TYPE } = await import('@capgo/native-purchases');
+  const { isBillingSupported } = await NativePurchases.isBillingSupported();
+  if (!isBillingSupported) {
+    throw new Error('In-app purchases are not available on this device.');
+  }
+
+  const transaction = await NativePurchases.purchaseProduct({
+    productIdentifier: IAP_STORAGE_PRODUCT_ID,
+    productType: PURCHASE_TYPE.INAPP,
+    quantity: Math.max(1, quantity),
+    appAccountToken,
+  });
+
+  return {
+    transactionId: transaction.transactionId,
+    productIdentifier: transaction.productIdentifier,
+    receipt: transaction.receipt,
+    jwsRepresentation: transaction.jwsRepresentation,
+    purchaseToken: transaction.purchaseToken,
+  };
+}
+
+
+========================================================================
+FILE: src/lib/storage-billing.js
+========================================================================
+/** Storage billing: first 250 media free, then $0.50 per additional 250. */
+
+export const MEDIA_PER_TIER = 250;
+export const PRICE_PER_TIER_USD = 0.5;
+
+/** App Store consumable product ID — only used if not on hosted web app. */
+export const IAP_STORAGE_PRODUCT_ID = 'com.restorebraine.storage.250';
+
+export function getStorageLimit(paidTier = 0) {
+  return (Number(paidTier) + 1) * MEDIA_PER_TIER;
+}
+
+export function getTiersNeeded(currentCount, additionalCount, paidTier = 0) {
+  const projected = Number(currentCount) + Number(additionalCount);
+  const limit = getStorageLimit(paidTier);
+  if (projected <= limit) return 0;
+  return Math.ceil((projected - limit) / MEDIA_PER_TIER);
+}
+
+export function getAmountDue(tiersNeeded) {
+  return tiersNeeded * PRICE_PER_TIER_USD;
+}
+
+export function wouldExceedStorageLimit(currentCount, additionalCount, paidTier = 0) {
+  return getTiersNeeded(currentCount, additionalCount, paidTier) > 0;
+}
+
+
+========================================================================
+FILE: src/lib/concurrency.js
+========================================================================
+/**
+ * Run async task factories with a max concurrency limit.
+ * Returns results in the same order as tasks.
+ */
+export async function runConcurrent(tasks, concurrency) {
+  if (!tasks.length) return [];
+
+  const results = new Array(tasks.length);
+  let index = 0;
+
+  async function runNext() {
+    while (index < tasks.length) {
+      const i = index++;
+      results[i] = await tasks[i]();
+    }
+  }
+
+  await Promise.all(
+    Array.from({ length: Math.min(concurrency, tasks.length) }, runNext),
+  );
+
+  return results;
+}

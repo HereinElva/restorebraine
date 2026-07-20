@@ -1,0 +1,1942 @@
+# Base44 AI — apply batch 3/8: Gallery pages + MobileGallery + Organize
+
+Write EVERY file below into the Restorebraine Base44 code editor at the exact path shown.
+Do NOT Publish until batch 8 is done — user will Publish once after all batches.
+
+For each FILE block:
+1. Open or create that path in the code editor
+2. Replace entire file contents with the code below
+3. Save
+
+1. src/pages/Gallery.jsx
+2. src/components/gallery/MobileGallery.jsx
+3. src/components/gallery/OrganizeButton.jsx
+4. src/components/gallery/EmptyState.jsx
+5. src/components/gallery/FolderView.jsx
+6. src/components/gallery/folderActionStyles.js
+7. src/components/gallery/PullToRefresh.jsx
+
+========================================================================
+FILE: src/pages/Gallery.jsx
+========================================================================
+import React, { useState, useEffect, useRef } from "react";
+import { base44 } from "@/api/base44Client";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Search, Image as ImageIcon, Sparkles, MousePointer2 } from "lucide-react";
+import PullToRefresh from "../components/gallery/PullToRefresh";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import SelectablePhotoGrid from "../components/gallery/SelectablePhotoGrid";
+import PhotoModal from "../components/gallery/PhotoModal";
+import EmptyState from "../components/gallery/EmptyState";
+import OrganizeButton from "../components/gallery/OrganizeButton";
+import CustomFolderButton from "../components/gallery/CustomFolderButton";
+import FolderGrid from "../components/gallery/FolderGrid";
+import FolderView from "../components/gallery/FolderView";
+import SelectionToolbar from "../components/gallery/SelectionToolbar";
+import DuplicateDetector from "../components/gallery/DuplicateDetector";
+import { DragDropContext } from "@hello-pangea/dnd";
+import { useNavigation } from "../components/NavigationContext";
+import { useTabState } from "../components/TabStateContext";
+import MobileGallery from "../components/gallery/MobileGallery";
+ 
+// ---------------------------------------------------------------------------
+// Search helpers
+// ---------------------------------------------------------------------------
+ 
+const VIDEO_KEYWORDS = new Set(['video', 'videos']);
+const IMAGE_KEYWORDS = new Set(['picture', 'pictures', 'image', 'images', 'photo', 'photos']);
+ 
+function tokenise(str = '') {
+  return str
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter(Boolean);
+}
+ 
+function scorePhoto(photo, rawQuery) {
+  const queryTokens = tokenise(rawQuery);
+  if (queryTokens.length === 0) return 1;
+ 
+  const typeTokens = queryTokens.filter(t => VIDEO_KEYWORDS.has(t) || IMAGE_KEYWORDS.has(t));
+  const contentTokens = queryTokens.filter(t => !VIDEO_KEYWORDS.has(t) && !IMAGE_KEYWORDS.has(t));
+ 
+  if (typeTokens.some(t => VIDEO_KEYWORDS.has(t)) && photo.file_type !== 'video') return 0;
+  if (typeTokens.some(t => IMAGE_KEYWORDS.has(t)) && photo.file_type !== 'image') return 0;
+  if (contentTokens.length === 0) return 1;
+ 
+  const desc = (photo.ai_description || '').toLowerCase();
+  const tags = (photo.ai_tags || []).map(t => t.toLowerCase());
+  const tagText = tags.join(' ');
+ 
+  let score = 0;
+  for (const term of contentTokens) {
+    const inDesc = desc.includes(term);
+    const inTags = tagText.includes(term);
+    if (!inDesc && !inTags) return 0;
+    if (inTags) score += 3;
+    if (inDesc) score += 1;
+  }
+ 
+  const phrase = contentTokens.join(' ');
+  if (desc.includes(phrase)) score += 10;
+  const allInTags = contentTokens.every(t => tags.some(tag => tag.includes(t)));
+  if (allInTags) score += 5;
+ 
+  return score;
+}
+ 
+// ---------------------------------------------------------------------------
+// Cache durations
+// staleTime: show cached data immediately, re-fetch in background after this
+// gcTime:    keep data in memory for this long after component unmounts
+// ---------------------------------------------------------------------------
+const CACHE = {
+  user:    { staleTime: 5  * 60 * 1000, gcTime: 10 * 60 * 1000 }, // 5 min stale, 10 min gc
+  photos:  { staleTime: 2  * 60 * 1000, gcTime: 10 * 60 * 1000 }, // 2 min stale
+  folders: { staleTime: 2  * 60 * 1000, gcTime: 10 * 60 * 1000 },
+};
+ 
+// ---------------------------------------------------------------------------
+ 
+export default function Gallery() {
+  const { pushBack, popBack } = useNavigation();
+  const { getTabState, setTabState } = useTabState();
+  const isIOS = true;
+ 
+  const saved = getTabState("Gallery") ?? {};
+ 
+  const [searchQuery, setSearchQuery] = useState(saved.searchQuery ?? "");
+  const [selectedPhoto, setSelectedPhoto] = useState(null);
+  const [debouncedQuery, setDebouncedQuery] = useState(saved.debouncedQuery ?? "");
+  const [selectedFolder, setSelectedFolder] = useState(saved.selectedFolder ?? null);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [selectedFolderIds, setSelectedFolderIds] = useState([]);
+  const [isMoving, setIsMoving] = useState(false);
+  const queryClient = useQueryClient();
+ 
+  useEffect(() => {
+    setTabState("Gallery", { searchQuery, debouncedQuery, selectedFolder });
+  }, [searchQuery, debouncedQuery, selectedFolder]);
+ 
+  useEffect(() => {
+    if (selectedFolder) {
+      pushBack(selectedFolder.name, () => {
+        setSelectedFolder(null);
+        setSelectionMode(false);
+        setSelectedIds([]);
+      });
+    } else {
+      popBack();
+    }
+    return () => popBack();
+  }, [selectedFolder?.id]);
+ 
+  // ── Queries with stale-while-revalidate caching ──────────────────────────
+  // currentUser is fetched once and cached — no blocking on re-opens
+  const { data: currentUser } = useQuery({
+    queryKey: ['current-user'],
+    queryFn: () => base44.auth.me(),
+    staleTime: CACHE.user.staleTime,
+    gcTime: CACHE.user.gcTime,
+    // Show stale data immediately while re-fetching in background
+    placeholderData: (prev) => prev,
+  });
+ 
+  const { data: photos = [], isLoading: photosLoading } = useQuery({
+    queryKey: ['photos', currentUser?.email],
+    queryFn: () => base44.entities.Photo.filter({ created_by: currentUser.email }, '-created_date'),
+    enabled: !!currentUser?.email,
+    staleTime: CACHE.photos.staleTime,
+    gcTime: CACHE.photos.gcTime,
+    // Keep showing previous data while new data loads — no blank flash
+    placeholderData: (prev) => prev,
+    initialData: [],
+  });
+ 
+  const { data: folders = [] } = useQuery({
+    queryKey: ['folders', currentUser?.email],
+    queryFn: async () => {
+      const result = await base44.entities.Folder.list('-created_date', 200);
+      return (result || []).filter(f => !f.created_by || f.created_by === currentUser.email);
+    },
+    enabled: !!currentUser?.email,
+    staleTime: CACHE.folders.staleTime,
+    gcTime: CACHE.folders.gcTime,
+    placeholderData: (prev) => prev,
+    initialData: [],
+  });
+ 
+  // Only show the loading spinner on the very first load (no cached data yet)
+  const isLoading = photosLoading && photos.length === 0;
+ 
+  // Auto-update folders without cover photos
+  useEffect(() => {
+    const updateFolderCovers = async () => {
+      const foldersNeedingCovers = folders.filter(
+        f => (!f.cover_photo_url || f.cover_photo_url === '') && f.photo_ids?.length > 0
+      );
+      if (foldersNeedingCovers.length === 0) return;
+      let updated = false;
+      for (const folder of foldersNeedingCovers) {
+        const coverPhoto = photos.find(p => p.id === folder.photo_ids[0]);
+        if (coverPhoto) {
+          await base44.entities.Folder.update(folder.id, { cover_photo_url: coverPhoto.file_url });
+          updated = true;
+        }
+      }
+      if (updated) queryClient.invalidateQueries({ queryKey: ['folders'] });
+    };
+    if (photos.length > 0 && folders.length > 0) updateFolderCovers();
+  }, [folders, photos, queryClient]);
+ 
+  // Debounce + content moderation
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const query = searchQuery.toLowerCase().trim();
+      const bannedCombinations = [
+        { terms: ['child', 'porn'] },
+        { terms: ['sexual', 'assault'] },
+      ];
+      const isBanned = bannedCombinations.some(combo =>
+        combo.terms.every(term => query.includes(term))
+      );
+      if (isBanned) {
+        alert('This search is not allowed.');
+        setSearchQuery('');
+        return;
+      }
+      setDebouncedQuery(searchQuery);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+ 
+  const photosInFolders = new Set(folders.flatMap(f => f.photo_ids || []));
+  const availablePhotos = debouncedQuery
+    ? photos
+    : photos.filter(p => !photosInFolders.has(p.id));
+ 
+  const filteredPhotos = debouncedQuery
+    ? availablePhotos
+        .map(photo => ({ photo, score: scorePhoto(photo, debouncedQuery) }))
+        .filter(({ score }) => score > 0)
+        .sort((a, b) => b.score - a.score)
+        .map(({ photo }) => photo)
+    : availablePhotos;
+ 
+  const filteredFolders = debouncedQuery
+    ? folders.filter(folder =>
+        folder.name.toLowerCase().includes(debouncedQuery.toLowerCase().trim())
+      )
+    : folders;
+ 
+  const toggleSelect = (id) => {
+    setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
+ 
+  const toggleFolderSelect = (id) => {
+    setSelectedFolderIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
+ 
+  const handleMoveToFolder = async (folderId) => {
+    if (selectedIds.length === 0 && selectedFolderIds.length === 0) return;
+    if (selectedFolderIds.includes(folderId)) {
+      alert("Cannot move a folder into itself");
+      return;
+    }
+    setIsMoving(true);
+ 
+    let allPhotoIds = [...selectedIds];
+    for (const selectedFolderId of selectedFolderIds) {
+      const sourceFolder = folders.find(f => f.id === selectedFolderId);
+      if (sourceFolder?.photo_ids) allPhotoIds = [...allPhotoIds, ...sourceFolder.photo_ids];
+    }
+ 
+    const targetFolder = folders.find(f => f.id === folderId);
+    const existingPhotoIds = Array.isArray(targetFolder?.photo_ids) ? targetFolder.photo_ids : [];
+    const mergedIds = [...new Set([...existingPhotoIds, ...allPhotoIds])];
+    const coverPhoto = !targetFolder?.cover_photo_url && mergedIds.length > 0
+      ? photos.find(p => p.id === mergedIds[0])
+      : null;
+ 
+    const prevFolders = queryClient.getQueryData(['folders']);
+    queryClient.setQueryData(['folders'], (old = []) =>
+      old
+        .filter(f => !selectedFolderIds.includes(f.id))
+        .map(f => f.id === folderId
+          ? { ...f, photo_ids: mergedIds, ...(coverPhoto && { cover_photo_url: coverPhoto.file_url }) }
+          : f
+        )
+    );
+    setSelectedIds([]);
+    setSelectedFolderIds([]);
+    setSelectionMode(false);
+ 
+    try {
+      await base44.entities.Folder.update(folderId, {
+        photo_ids: mergedIds,
+        ...(coverPhoto && { cover_photo_url: coverPhoto.file_url })
+      });
+      for (const selectedFolderId of selectedFolderIds) {
+        await base44.entities.Folder.delete(selectedFolderId);
+      }
+      queryClient.invalidateQueries({ queryKey: ['folders'] });
+    } catch (error) {
+      console.error("Error moving items:", error);
+      queryClient.setQueryData(['folders'], prevFolders);
+    } finally {
+      setIsMoving(false);
+    }
+  };
+ 
+  const handleRemoveFromFolder = async () => {
+    if (!selectedFolder || selectedIds.length === 0) return;
+    setIsMoving(true);
+    try {
+      const updatedIds = selectedFolder.photo_ids.filter(id => !selectedIds.includes(id));
+      await base44.entities.Folder.update(selectedFolder.id, { photo_ids: updatedIds });
+      setSelectedFolder({ ...selectedFolder, photo_ids: updatedIds });
+      queryClient.invalidateQueries({ queryKey: ['folders'] });
+      setSelectedIds([]);
+      setSelectionMode(false);
+    } catch (error) {
+      console.error("Error removing photos:", error);
+    } finally {
+      setIsMoving(false);
+    }
+  };
+ 
+  const handleDeletePhotos = async () => {
+    if (selectedIds.length === 0) return;
+    const count = selectedIds.length;
+    if (!confirm(`Delete ${count} ${count === 1 ? 'item' : 'items'}? This action cannot be undone.`)) return;
+    setIsMoving(true);
+    const prevPhotos = queryClient.getQueryData(['photos']);
+    queryClient.setQueryData(['photos'], (old = []) => old.filter(p => !selectedIds.includes(p.id)));
+    setSelectedIds([]);
+    setSelectionMode(false);
+    try {
+      await Promise.all(selectedIds.map(id => base44.entities.Photo.delete(id)));
+      queryClient.invalidateQueries({ queryKey: ['folders'] });
+    } catch (error) {
+      console.error("Error deleting photos:", error);
+      queryClient.setQueryData(['photos'], prevPhotos);
+      alert('Failed to delete some items. Please try again.');
+    } finally {
+      setIsMoving(false);
+    }
+  };
+ 
+  // Pull-to-refresh forces a fresh fetch bypassing the cache
+  const handleRefresh = async () => {
+    await queryClient.invalidateQueries({ queryKey: ['photos'] });
+    await queryClient.invalidateQueries({ queryKey: ['folders'] });
+    await queryClient.invalidateQueries({ queryKey: ['current-user'] });
+  };
+ 
+  if (isIOS) {
+    return (
+      <PullToRefresh onRefresh={handleRefresh}>
+        <MobileGallery
+          photos={photos}
+          folders={folders}
+          isLoading={isLoading}
+          filteredPhotos={filteredPhotos}
+          filteredFolders={filteredFolders}
+          searchQuery={searchQuery}
+          setSearchQuery={setSearchQuery}
+          debouncedQuery={debouncedQuery}
+          selectedFolder={selectedFolder}
+          setSelectedFolder={setSelectedFolder}
+          selectionMode={selectionMode}
+          setSelectionMode={setSelectionMode}
+          selectedIds={selectedIds}
+          setSelectedIds={setSelectedIds}
+          selectedFolderIds={selectedFolderIds}
+          setSelectedFolderIds={setSelectedFolderIds}
+          toggleSelect={toggleSelect}
+          toggleFolderSelect={toggleFolderSelect}
+          queryClient={queryClient}
+          pushBack={pushBack}
+          popBack={popBack}
+          onDeletePhotos={handleDeletePhotos}
+          onMoveToFolder={handleMoveToFolder}
+        />
+      </PullToRefresh>
+    );
+  }
+ 
+  const content = (
+    <div className="min-h-screen pb-20">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-12">
+        <div className="text-center mb-12">
+          <h1 className="text-4xl sm:text-5xl font-bold text-gray-900 mb-4">
+            Find Your{" "}
+            <span className="bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
+              Memories
+            </span>
+          </h1>
+
+          {photos.length >= 2 && (
+            <div className="mt-6 flex justify-center gap-3 flex-wrap">
+              <OrganizeButton photos={photos} />
+              <CustomFolderButton photos={photos} />
+              <DuplicateDetector photos={photos} folders={folders} />
+              <Button
+                onClick={() => {
+                  setSelectionMode(!selectionMode);
+                  setSelectedIds([]);
+                  setSelectedFolderIds([]);
+                }}
+                className={`gap-2 ${selectionMode ? 'bg-purple-600 hover:bg-purple-700' : 'bg-gradient-to-r from-blue-400 to-purple-500 hover:from-blue-500 hover:to-purple-600'} text-white`}
+              >
+                <MousePointer2 className="w-4 h-4" />
+                {selectionMode ? 'Exit Select' : 'Select'}
+              </Button>
+            </div>
+          )}
+        </div>
+
+        <div className="max-w-3xl mx-auto mb-12">
+          <div className="relative group">
+            <div className="absolute inset-0 bg-gradient-to-r from-blue-300 to-purple-400 rounded-2xl blur-xl opacity-20 group-hover:opacity-30 transition-opacity duration-300" />
+            <div className="relative bg-white rounded-2xl shadow-lg border border-purple-100 p-2">
+              <div className="flex items-center gap-3 px-4 py-3">
+                <Search className="w-5 h-5 text-gray-400" />
+                <Input
+                  type="text"
+                  placeholder='Try "sunset on the beach" or "people laughing" or "red car"...'
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="border-0 text-lg focus-visible:ring-0 focus-visible:ring-offset-0 placeholder:text-gray-400"
+                />
+                {searchQuery && <Sparkles className="w-5 h-5 text-purple-400 animate-pulse" />}
+              </div>
+            </div>
+          </div>
+ 
+          {debouncedQuery && (
+            <div className="mt-4 text-center">
+              <p className="text-sm text-gray-600">
+                Found <span className="font-semibold text-purple-500">{filteredPhotos.length}</span> item{filteredPhotos.length !== 1 ? 's' : ''}
+                {filteredFolders.length > 0 && <> and <span className="font-semibold text-purple-500">{filteredFolders.length}</span> folder{filteredFolders.length !== 1 ? 's' : ''}</>} matching "{debouncedQuery}"
+                {filteredPhotos.length > 0 && <span className="ml-1 text-purple-400 text-xs">(sorted by relevance)</span>}
+              </p>
+            </div>
+          )}
+        </div>
+ 
+        {filteredFolders.length > 0 && (
+          <FolderGrid
+            folders={filteredFolders}
+            onFolderClick={setSelectedFolder}
+            selectionMode={selectionMode}
+            selectedFolderIds={selectedFolderIds}
+            onToggleFolderSelect={toggleFolderSelect}
+          />
+        )}
+ 
+        {isLoading ? (
+          <div className="flex items-center justify-center py-20">
+            <div className="flex flex-col items-center gap-4">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-400" />
+              <p className="text-gray-600">Loading your media...</p>
+            </div>
+          </div>
+        ) : photos.length === 0 ? (
+          <EmptyState />
+        ) : filteredPhotos.length === 0 ? (
+          <div className="text-center py-20">
+            <ImageIcon className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+            <h3 className="text-xl font-semibold text-gray-900 mb-2">No matching items</h3>
+            <p className="text-gray-600">Try a different search term</p>
+          </div>
+        ) : (
+          <SelectablePhotoGrid
+            photos={filteredPhotos}
+            onPhotoClick={setSelectedPhoto}
+            selectionMode={selectionMode}
+            selectedIds={selectedIds}
+            onToggleSelect={toggleSelect}
+          />
+        )}
+      </div>
+ 
+      {selectionMode && !selectedFolder && (
+        <SelectionToolbar
+          selectedCount={selectedIds.length}
+          selectedFolderCount={selectedFolderIds.length}
+          onCancel={() => { setSelectionMode(false); setSelectedIds([]); setSelectedFolderIds([]); }}
+          onSelectAll={() => { setSelectedIds(filteredPhotos.map(p => p.id)); setSelectedFolderIds(folders.map(f => f.id)); }}
+          onDeselectAll={() => { setSelectedIds([]); setSelectedFolderIds([]); }}
+          folders={folders}
+          onMoveToFolder={handleMoveToFolder}
+          onDelete={handleDeletePhotos}
+          onDeleteFolders={async () => {
+            if (selectedFolderIds.length === 0) return;
+            if (!confirm(`Delete ${selectedFolderIds.length} folder(s)?`)) return;
+            setIsMoving(true);
+            try {
+              await Promise.all(selectedFolderIds.map(id => base44.entities.Folder.delete(id)));
+              queryClient.invalidateQueries({ queryKey: ['folders'] });
+              setSelectedFolderIds([]);
+              setSelectionMode(false);
+            } catch (error) {
+              console.error("Error deleting folders:", error);
+            } finally {
+              setIsMoving(false);
+            }
+          }}
+          isMoving={isMoving}
+          selectedPhotos={filteredPhotos.filter(p => selectedIds.includes(p.id))}
+        />
+      )}
+ 
+      {selectedPhoto && (
+        <PhotoModal photo={selectedPhoto} onClose={() => setSelectedPhoto(null)} />
+      )}
+    </div>
+  );
+ 
+  const wrappedContent = (
+    <PullToRefresh onRefresh={handleRefresh}>{content}</PullToRefresh>
+  );
+ 
+  return wrappedContent;
+}
+
+========================================================================
+FILE: src/components/gallery/MobileGallery.jsx
+========================================================================
+import React, { useState, useRef } from "react";
+import { Search, X, Sparkles, ImageIcon, Grid3x3, Layers, MousePointer2, Check, Pencil, Loader2, FolderInput, Folder } from "lucide-react";
+
+import SelectablePhotoGrid from "./SelectablePhotoGrid";
+import MobilePhotoModal from "./MobilePhotoModal";
+import EmptyState from "./EmptyState";
+import OrganizeButton from "./OrganizeButton";
+import { SQUARE_FOLDER_ACTION_ACTIVE_CLASS, SQUARE_FOLDER_ACTION_ACTIVE_STYLE, SQUARE_FOLDER_ACTION_CLASS, SQUARE_FOLDER_ACTION_STYLE } from "./folderActionStyles";
+import CustomFolderButton from "./CustomFolderButton";
+import DuplicateDetector from "./DuplicateDetector";
+import MobileFolderCard from "./MobileFolderCard";
+import MobileDrawerMenu from "./MobileDrawerMenu";
+import { base44 } from "@/api/base44Client";
+import { DEPLOY_BUILD } from "@/deploy-marker";
+
+export default function MobileGallery({
+  photos,
+  folders,
+  isLoading,
+  filteredPhotos,
+  filteredFolders,
+  searchQuery,
+  setSearchQuery,
+  debouncedQuery,
+  selectedFolder,
+  setSelectedFolder,
+  selectionMode,
+  setSelectionMode,
+  selectedIds,
+  setSelectedIds,
+  selectedFolderIds,
+  setSelectedFolderIds,
+  toggleSelect,
+  toggleFolderSelect,
+  queryClient,
+  pushBack,
+  popBack,
+  onDeletePhotos,
+  onMoveToFolder,
+}) {
+  const [selectedPhoto, setSelectedPhoto] = useState(null);
+  const [searchFocused, setSearchFocused] = useState(false);
+  const [activeTab, setActiveTab] = useState("all");
+  const [renameFolder, setRenameFolder] = useState(null); // folder being renamed
+  const [renameName, setRenameName] = useState("");
+  const [renaming, setRenaming] = useState(false);
+  const [mergeDrawerOpen, setMergeDrawerOpen] = useState(false);
+  const [merging, setMerging] = useState(false);
+  const [folderMoveDrawerOpen, setFolderMoveDrawerOpen] = useState(false);
+  const inputRef = useRef(null);
+
+  const photosInFolders = new Set(folders.flatMap(f => f.photo_ids || []));
+  const unorganizedPhotos = photos.filter(p => !photosInFolders.has(p.id));
+
+  const exitSelection = () => {
+    setSelectionMode(false);
+    setSelectedIds([]);
+    setSelectedFolderIds([]);
+  };
+
+  // Rename selected folder (only works when exactly 1 folder selected)
+  const handleRenameOpen = () => {
+    if (selectedFolderIds.length !== 1) return;
+    const folder = folders.find(f => f.id === selectedFolderIds[0]);
+    if (folder) { setRenameFolder(folder); setRenameName(folder.name); }
+  };
+
+  const handleRenameSave = async () => {
+    if (!renameFolder || !renameName.trim()) return;
+    setRenaming(true);
+    await base44.entities.Folder.update(renameFolder.id, { name: renameName.trim() });
+    queryClient.invalidateQueries({ queryKey: ['folders'] });
+    setRenaming(false);
+    setRenameFolder(null);
+    exitSelection();
+  };
+
+  // Merge selected folders into a target folder
+  const handleMerge = async (targetFolderId) => {
+    setMergeDrawerOpen(false);
+    setMerging(true);
+    const targetFolder = folders.find(f => f.id === targetFolderId);
+    const sourceIds = selectedFolderIds; // all selected folders merge INTO target
+    let allPhotoIds = [...(targetFolder.photo_ids || [])];
+    for (const srcId of sourceIds) {
+      const src = folders.find(f => f.id === srcId);
+      if (src) allPhotoIds = [...allPhotoIds, ...(src.photo_ids || [])];
+    }
+    const uniqueIds = [...new Set(allPhotoIds)];
+    const coverPhoto = photos.find(p => p.id === uniqueIds[0]);
+    await base44.entities.Folder.update(targetFolderId, {
+      photo_ids: uniqueIds,
+      ...(coverPhoto && { cover_photo_url: coverPhoto.file_url }),
+    });
+    for (const srcId of sourceIds) {
+      await base44.entities.Folder.delete(srcId);
+    }
+    queryClient.invalidateQueries({ queryKey: ['folders'] });
+    setMerging(false);
+    exitSelection();
+  };
+
+  const handleDeleteFolders = async () => {
+    if (!selectedFolderIds.length) return;
+    if (!confirm(`Delete ${selectedFolderIds.length} folder(s)? Photos will not be deleted.`)) return;
+    for (const id of selectedFolderIds) await base44.entities.Folder.delete(id);
+    queryClient.invalidateQueries({ queryKey: ['folders'] });
+    exitSelection();
+  };
+
+  // Folder view
+  if (selectedFolder) {
+    const folderPhotos = photos.filter(p => (selectedFolder.photo_ids || []).includes(p.id));
+
+    const handleFolderPhotoMove = async (targetFolderId) => {
+      setMergeDrawerOpen(false);
+      const targetFolder = folders.find(f => f.id === targetFolderId);
+      if (!targetFolder) return;
+      // Add selected photos to target folder
+      const updatedTargetIds = [...new Set([...(targetFolder.photo_ids || []), ...selectedIds])];
+      await base44.entities.Folder.update(targetFolderId, {
+        photo_ids: updatedTargetIds,
+        cover_photo_url: targetFolder.cover_photo_url || photos.find(p => p.id === updatedTargetIds[0])?.file_url,
+      });
+      // Remove selected photos from current folder
+      const updatedSourceIds = (selectedFolder.photo_ids || []).filter(id => !selectedIds.includes(id));
+      await base44.entities.Folder.update(selectedFolder.id, { photo_ids: updatedSourceIds });
+      queryClient.invalidateQueries({ queryKey: ['folders'] });
+      exitSelection();
+    };
+
+    const handleFolderPhotoDelete = async () => {
+      if (!confirm(`Delete ${selectedIds.length} item(s)? This cannot be undone.`)) return;
+      await Promise.all(selectedIds.map(id => base44.entities.Photo.delete(id)));
+      queryClient.invalidateQueries({ queryKey: ['photos'] });
+      queryClient.invalidateQueries({ queryKey: ['folders'] });
+      exitSelection();
+    };
+
+    return (
+      <div className="min-h-screen pb-24 px-3 pt-20">
+        <div className="flex items-center justify-between mb-3 px-1">
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+            {folderPhotos.length} item{folderPhotos.length !== 1 ? 's' : ''}
+          </p>
+          {folderPhotos.length > 0 && (
+            <button
+              onClick={() => { setSelectionMode(!selectionMode); setSelectedIds([]); }}
+              className={`text-xs font-semibold px-3 py-1 rounded-full transition-colors ${selectionMode ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-600'}`}
+            >
+              {selectionMode ? 'Cancel' : 'Select'}
+            </button>
+          )}
+        </div>
+        {folderPhotos.length === 0 ? (
+          <div className="text-center py-16 text-gray-400">No photos in this folder</div>
+        ) : (
+          <div className="grid grid-cols-3 gap-1">
+            {folderPhotos.map(photo => {
+              const isSelected = selectedIds.includes(photo.id);
+              return (
+                <div
+                  key={photo.id}
+                  className="relative aspect-square bg-gray-100 overflow-hidden rounded-lg"
+                  onClick={() => selectionMode ? toggleSelect(photo.id) : setSelectedPhoto(photo)}
+                >
+                  {photo.file_type === 'video' ? (
+                    <video src={photo.file_url} className="w-full h-full object-cover" preload="metadata" />
+                  ) : (
+                    <img src={photo.file_url} alt="" className="w-full h-full object-cover" />
+                  )}
+                  {selectionMode && (
+                    <div className={`absolute top-1 right-1 w-5 h-5 rounded-full border-2 flex items-center justify-center z-10 ${isSelected ? 'bg-purple-600 border-purple-600' : 'bg-white/80 border-gray-400'}`}>
+                      {isSelected && <Check className="w-3 h-3 text-white" />}
+                    </div>
+                  )}
+                  {selectionMode && isSelected && (
+                    <div className="absolute inset-0 bg-purple-500/20 pointer-events-none" />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {selectedPhoto && (
+          <MobilePhotoModal photo={selectedPhoto} onClose={() => setSelectedPhoto(null)} folders={folders} />
+        )}
+
+        {/* Selection toolbar for folder view */}
+        {selectionMode && selectedIds.length > 0 && (
+          <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 w-[calc(100vw-2rem)]">
+            <div className="bg-white rounded-2xl shadow-2xl border border-purple-200 px-4 py-3 flex flex-col gap-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-semibold text-purple-700">
+                  {selectedIds.length} photo{selectedIds.length !== 1 ? 's' : ''} selected
+                </span>
+                <button onClick={exitSelection} className="text-gray-400 text-sm font-medium flex items-center gap-1">
+                  <X className="w-4 h-4" /> Cancel
+                </button>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setFolderMoveDrawerOpen(true)}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-purple-600 text-white text-sm font-semibold"
+                >
+                  <FolderInput className="w-4 h-4" /> Move to Folder
+                </button>
+                <button
+                  onClick={handleFolderPhotoDelete}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-red-50 text-red-600 text-sm font-semibold"
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Move to folder drawer (folder view) */}
+        <MobileDrawerMenu open={folderMoveDrawerOpen} onOpenChange={setFolderMoveDrawerOpen} title="Move to Folder">
+          {folders.filter(f => f.id !== selectedFolder.id).map(folder => (
+            <button
+              key={folder.id}
+              onClick={() => handleFolderPhotoMove(folder.id)}
+              className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 rounded-lg"
+            >
+              <Folder className="w-4 h-4 text-orange-500 flex-shrink-0" />
+              <span className="text-sm text-gray-800 truncate">{folder.name}</span>
+            </button>
+          ))}
+        </MobileDrawerMenu>
+      </div>
+    );
+  }
+
+  // Selectable folder card
+  const SelectableFolderCard = ({ folder }) => {
+    const isSelected = selectedFolderIds.includes(folder.id);
+    return (
+      <div
+        className="relative"
+        onClick={() => {
+          if (selectionMode) {
+            toggleFolderSelect(folder.id);
+          } else {
+            setSelectedFolder(folder);
+            pushBack(folder.name, () => { setSelectedFolder(null); setSelectionMode(false); setSelectedIds([]); });
+          }
+        }}
+      >
+        <MobileFolderCard folder={folder} photos={photos} onClick={() => {}} />
+        {selectionMode && (
+          <div className={`absolute top-1 right-1 w-5 h-5 rounded-full border-2 flex items-center justify-center z-10 ${
+            isSelected ? 'bg-purple-600 border-purple-600' : 'bg-white/80 border-gray-400'
+          }`}>
+            {isSelected && <Check className="w-3 h-3 text-white" />}
+          </div>
+        )}
+        {selectionMode && isSelected && (
+          <div className="absolute inset-0 rounded-xl bg-purple-500/20 pointer-events-none" />
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <div className="min-h-screen pb-24" data-rb-deploy={`v${DEPLOY_BUILD}`}>
+      {/* Hero Title */}
+      <div className="px-4 pt-5 pb-2">
+        <h1 className="text-2xl font-bold text-gray-900">
+          Find Your{" "}
+          <span className="bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
+            Memories
+          </span>
+        </h1>
+      </div>
+
+      {/* Search bar */}
+      <div className="px-4 pb-2">
+        <div className={`flex items-center gap-2 bg-blue-50 rounded-2xl px-4 py-3 transition-all duration-200 border border-blue-100 ${searchFocused ? 'bg-blue-100 ring-2 ring-blue-300' : ''}`}>
+          <Search className={`w-4 h-4 flex-shrink-0 transition-colors ${searchFocused ? 'text-blue-500' : 'text-blue-300'}`} />
+          <input
+            ref={inputRef}
+            type="text"
+            placeholder="Search memories..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onFocus={() => setSearchFocused(true)}
+            onBlur={() => setSearchFocused(false)}
+            className="flex-1 bg-transparent text-base outline-none placeholder:text-gray-400 text-gray-900"
+          />
+          {searchQuery ? (
+            <button onClick={() => setSearchQuery("")}>
+              <X className="w-4 h-4 text-gray-400" />
+            </button>
+          ) : searchFocused ? (
+            <Sparkles className="w-4 h-4 text-purple-400 animate-pulse" />
+          ) : null}
+        </div>
+        {debouncedQuery && (
+          <p className="text-xs text-gray-500 mt-1.5 text-center">
+            {filteredPhotos.length} result{filteredPhotos.length !== 1 ? 's' : ''} for "{debouncedQuery}"
+          </p>
+        )}
+      </div>
+
+      {/* Tabs */}
+      {!debouncedQuery && (
+        <div className="flex px-4 gap-1 mb-1 sticky top-14 z-20 bg-white/95 backdrop-blur-md pb-2">
+          <button
+            onClick={() => { setActiveTab("all"); exitSelection(); }}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-sm font-medium transition-colors ${activeTab === "all" ? "bg-purple-100 text-purple-700" : "text-gray-500"}`}
+          >
+            <Grid3x3 className="w-3.5 h-3.5" />
+            All ({photos.length})
+          </button>
+          <button
+            onClick={() => setActiveTab("folders")}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-sm font-medium transition-colors ${activeTab === "folders" ? "bg-purple-100 text-purple-700" : "text-gray-500"}`}
+          >
+            <Layers className="w-3.5 h-3.5" />
+            Folders ({folders.length})
+          </button>
+        </div>
+      )}
+
+      <div className="px-3 pt-1">
+        {debouncedQuery ? (
+          <>
+            {filteredFolders.length > 0 && (
+              <div className="mb-4">
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 px-1">Folders</p>
+                <div className="grid grid-cols-4 gap-2">
+                  {filteredFolders.map(folder => (
+                    <SelectableFolderCard key={folder.id} folder={folder} />
+                  ))}
+                </div>
+              </div>
+            )}
+            {filteredPhotos.length === 0 ? (
+              <div className="text-center py-16">
+                <ImageIcon className="w-12 h-12 text-gray-200 mx-auto mb-3" />
+                <p className="text-gray-500 font-medium">No results</p>
+                <p className="text-gray-400 text-sm">Try a different search</p>
+              </div>
+            ) : (
+              <SelectablePhotoGrid photos={filteredPhotos} onPhotoClick={setSelectedPhoto} selectionMode={false} selectedIds={[]} onToggleSelect={() => {}} />
+            )}
+          </>
+        ) : activeTab === "folders" ? (
+          <div>
+            {/* Action buttons — direct grid cells, no wrapper rim */}
+            <div className="grid grid-cols-2 gap-1.5 mb-5">
+              <OrganizeButton photos={photos} squareStyle />
+              <CustomFolderButton photos={photos} squareStyle />
+              <DuplicateDetector photos={photos} folders={folders} squareStyle />
+              <button
+                type="button"
+                data-rb-folder-action="select"
+                onClick={() => { setSelectionMode(!selectionMode); setSelectedIds([]); setSelectedFolderIds([]); }}
+                className={selectionMode ? SQUARE_FOLDER_ACTION_ACTIVE_CLASS : SQUARE_FOLDER_ACTION_CLASS}
+                style={selectionMode ? SQUARE_FOLDER_ACTION_ACTIVE_STYLE : SQUARE_FOLDER_ACTION_STYLE}
+              >
+                <MousePointer2 className="w-5 h-5" />
+                <span>{selectionMode ? 'Exit Select' : 'Select'}</span>
+              </button>
+            </div>
+
+            {folders.length === 0 ? (
+              <div className="text-center py-16">
+                <Layers className="w-12 h-12 text-gray-200 mx-auto mb-3" />
+                <p className="text-gray-500 font-medium">No folders yet</p>
+                <p className="text-gray-400 text-sm">Tap Organize Media to create smart folders</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-4 gap-2">
+                {folders.map(folder => (
+                  <SelectableFolderCard key={folder.id} folder={folder} />
+                ))}
+              </div>
+            )}
+          </div>
+        ) : (
+          // All tab
+          <>
+            {isLoading ? (
+              <div className="flex flex-col items-center justify-center py-20 gap-3">
+                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-purple-400" />
+                <p className="text-gray-500 text-sm">Loading memories...</p>
+              </div>
+            ) : photos.length === 0 ? (
+              <EmptyState />
+            ) : (
+              <>
+                {folders.length > 0 && (
+                  <div className="mb-4">
+                    <div className="flex items-center justify-between mb-2 px-1">
+                      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Folders</p>
+                      <button onClick={() => setActiveTab("folders")} className="text-xs text-purple-500 font-medium">See all</button>
+                    </div>
+                    <div className="grid grid-cols-4 gap-2">
+                      {folders.slice(0, 8).map(folder => (
+                        <MobileFolderCard
+                          key={folder.id}
+                          folder={folder}
+                          photos={photos}
+                          onClick={() => {
+                            setSelectedFolder(folder);
+                            pushBack(folder.name, () => { setSelectedFolder(null); setSelectionMode(false); setSelectedIds([]); });
+                          }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {unorganizedPhotos.length > 0 && (
+                  <div>
+                    {folders.length > 0 && (
+                      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 px-1">
+                        Recents ({unorganizedPhotos.length})
+                      </p>
+                    )}
+                    <SelectablePhotoGrid
+                      photos={unorganizedPhotos}
+                      onPhotoClick={setSelectedPhoto}
+                      selectionMode={selectionMode}
+                      selectedIds={selectedIds}
+                      onToggleSelect={toggleSelect}
+                    />
+                  </div>
+                )}
+              </>
+            )}
+          </>
+        )}
+      </div>
+
+      {selectedPhoto && (
+        <MobilePhotoModal photo={selectedPhoto} onClose={() => setSelectedPhoto(null)} folders={folders} />
+      )}
+
+      {/* Folder selection toolbar */}
+      {selectionMode && (selectedFolderIds.length > 0 || selectedIds.length > 0) && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 w-[calc(100vw-2rem)]">
+          <div className="bg-white rounded-2xl shadow-2xl border border-purple-200 px-4 py-3 flex flex-col gap-3">
+            {/* Status row */}
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-semibold text-purple-700">
+                {selectedFolderIds.length > 0 && `${selectedFolderIds.length} folder${selectedFolderIds.length !== 1 ? 's' : ''}`}
+                {selectedFolderIds.length > 0 && selectedIds.length > 0 && ', '}
+                {selectedIds.length > 0 && `${selectedIds.length} photo${selectedIds.length !== 1 ? 's' : ''}`}
+                {' '}selected
+              </span>
+              <button onClick={exitSelection} className="text-gray-400 text-sm font-medium flex items-center gap-1">
+                <X className="w-4 h-4" /> Cancel
+              </button>
+            </div>
+
+            {/* Actions row */}
+            <div className="flex gap-2 flex-wrap">
+              {/* Rename — only when exactly 1 folder selected */}
+              {selectedFolderIds.length === 1 && selectedIds.length === 0 && (
+                <button
+                  onClick={handleRenameOpen}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-blue-50 text-blue-700 text-sm font-semibold"
+                >
+                  <Pencil className="w-4 h-4" /> Rename
+                </button>
+              )}
+
+              {/* Merge — when 1+ folders selected */}
+              {selectedFolderIds.length >= 1 && selectedIds.length === 0 && (
+                <button
+                  onClick={() => setMergeDrawerOpen(true)}
+                  disabled={merging}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-purple-600 text-white text-sm font-semibold disabled:opacity-50"
+                >
+                  {merging ? <Loader2 className="w-4 h-4 animate-spin" /> : <FolderInput className="w-4 h-4" />}
+                  Merge Folders
+                </button>
+              )}
+
+              {/* Move photos to folder */}
+              {selectedIds.length > 0 && (
+                <button
+                  onClick={() => setFolderMoveDrawerOpen(true)}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-purple-600 text-white text-sm font-semibold"
+                >
+                  <FolderInput className="w-4 h-4" /> Move to Folder
+                </button>
+              )}
+
+              {/* Delete */}
+              {(selectedFolderIds.length > 0 || selectedIds.length > 0) && (
+                <button
+                  onClick={() => {
+                    if (selectedFolderIds.length > 0) handleDeleteFolders();
+                    if (selectedIds.length > 0) onDeletePhotos();
+                  }}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-red-50 text-red-600 text-sm font-semibold"
+                >
+                  Delete
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Merge folders drawer */}
+      <MobileDrawerMenu open={mergeDrawerOpen} onOpenChange={setMergeDrawerOpen} title="Merge into folder">
+        {folders
+          .filter(f => !selectedFolderIds.includes(f.id))
+          .map(folder => (
+            <button
+              key={folder.id}
+              onClick={() => handleMerge(folder.id)}
+              className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 rounded-lg"
+            >
+              <Folder className="w-4 h-4 text-orange-500 flex-shrink-0" />
+              <span className="text-sm text-gray-800 truncate">{folder.name}</span>
+            </button>
+          ))
+        }
+      </MobileDrawerMenu>
+
+      {/* Move photos to folder drawer */}
+      <MobileDrawerMenu open={folderMoveDrawerOpen} onOpenChange={setFolderMoveDrawerOpen} title="Move to Folder">
+        {folders.map(folder => (
+          <button
+            key={folder.id}
+            onClick={() => { setFolderMoveDrawerOpen(false); onMoveToFolder(folder.id); }}
+            className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 rounded-lg"
+          >
+            <Folder className="w-4 h-4 text-orange-500 flex-shrink-0" />
+            <span className="text-sm text-gray-800 truncate">{folder.name}</span>
+          </button>
+        ))}
+      </MobileDrawerMenu>
+
+      {/* Rename modal */}
+      {renameFolder && (
+        <div className="fixed inset-0 z-[100] bg-black/50 flex items-end justify-center" onClick={() => setRenameFolder(null)}>
+          <div className="bg-white w-full rounded-t-3xl p-6 pb-10" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-gray-900 mb-4">Rename Folder</h3>
+            <input
+              autoFocus
+              value={renameName}
+              onChange={e => setRenameName(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleRenameSave()}
+              className="w-full border-2 border-purple-300 rounded-xl px-4 py-3 text-base outline-none focus:border-purple-500 mb-4"
+            />
+            <div className="flex gap-3">
+              <button onClick={() => setRenameFolder(null)} className="flex-1 py-3 rounded-xl border border-gray-200 text-gray-600 font-semibold">
+                Cancel
+              </button>
+              <button
+                onClick={handleRenameSave}
+                disabled={renaming || !renameName.trim()}
+                className="flex-1 py-3 rounded-xl bg-purple-600 text-white font-semibold disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {renaming ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+========================================================================
+FILE: src/components/gallery/OrganizeButton.jsx
+========================================================================
+import React, { useState } from "react";
+import { base44 } from "@/api/base44Client";
+import { Button } from "@/components/ui/button";
+import { FolderPlus, Loader2, Sparkles } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import { reanalyzeWeakPhotos } from "@/lib/media-analysis";
+import { isWeakMetadata } from "@/lib/media-tags";
+import {
+  buildFolderOptions,
+  buildLabelPrompt,
+  buildMergePrompt,
+  photoDataForOrganize,
+} from "@/lib/media-organize";
+import { ORGANIZE_ICON_CLASS, ORGANIZE_LABEL_CLASS, SQUARE_FOLDER_ACTION_CLASS, SQUARE_FOLDER_ACTION_STYLE } from "./folderActionStyles";
+
+const CHUNK_SIZE = 40;
+const CONCURRENCY = 4;
+const MERGE_CHUNK = 25;
+
+async function runConcurrent(tasks, concurrency) {
+  const results = new Array(tasks.length);
+  let index = 0;
+  async function runNext() {
+    while (index < tasks.length) {
+      const i = index++;
+      results[i] = await tasks[i]();
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(concurrency, tasks.length) }, runNext));
+  return results;
+}
+
+async function labelChunk(chunk, existingFolderNames, customInstructions) {
+  const photoData = chunk.map(photoDataForOrganize);
+  const folderOptions = buildFolderOptions(existingFolderNames);
+
+  const result = await base44.integrations.Core.InvokeLLM({
+    prompt: buildLabelPrompt({ photoData, folderOptions, customInstructions }),
+    response_json_schema: {
+      type: "object",
+      properties: {
+        labels: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              id: { type: "string" },
+              folder: { type: "string" },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  return result.labels || [];
+}
+
+async function mergeGroupBatch(groups, existingFolderNames, customInstructions) {
+  const result = await base44.integrations.Core.InvokeLLM({
+    prompt: buildMergePrompt({ groups, existingFolderNames, customInstructions }),
+    response_json_schema: {
+      type: "object",
+      properties: {
+        folders: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              name: { type: "string" },
+              ids: { type: "array", items: { type: "string" } },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  return (result.folders || []).map((f) => ({ name: f.name, ids: f.ids || [] }));
+}
+
+async function consolidateGroups(initialGroups, existingFolderNames, customInstructions, onProgress) {
+  let groups = initialGroups;
+  let pass = 1;
+
+  while (groups.length > MERGE_CHUNK) {
+    onProgress(`Phase 2 (pass ${pass}): merging ${groups.length} groups…`);
+    const batches = [];
+    for (let i = 0; i < groups.length; i += MERGE_CHUNK) {
+      batches.push(groups.slice(i, i + MERGE_CHUNK));
+    }
+    const batchResults = await runConcurrent(
+      batches.map((batch) => () => mergeGroupBatch(batch, existingFolderNames, customInstructions)),
+      CONCURRENCY
+    );
+    const merged = new Map();
+    for (const batch of batchResults) {
+      for (const { name, ids } of batch) {
+        const key = name.toLowerCase().trim();
+        if (!merged.has(key)) merged.set(key, { name, ids: new Set(ids) });
+        else ids.forEach((id) => merged.get(key).ids.add(id));
+      }
+    }
+    groups = Array.from(merged.values()).map((g) => ({ name: g.name, ids: [...g.ids] }));
+    pass++;
+  }
+
+  onProgress(`Phase 2: final consolidation of ${groups.length} groups…`);
+  const finalGroups = await mergeGroupBatch(groups, existingFolderNames, customInstructions);
+
+  const finalMap = new Map();
+  for (const { name, ids } of finalGroups) {
+    const key = name.toLowerCase().trim();
+    if (!finalMap.has(key)) finalMap.set(key, { name, ids: new Set(ids) });
+    else ids.forEach((id) => finalMap.get(key).ids.add(id));
+  }
+
+  return Array.from(finalMap.values()).map((g) => ({
+    name: g.name,
+    photo_ids: [...g.ids],
+  }));
+}
+
+export default function OrganizeButton({ photos, squareStyle = false }) {
+  const [organizing, setOrganizing] = useState(false);
+  const [progress, setProgress] = useState("");
+  const [showDialog, setShowDialog] = useState(false);
+  const [customInstructions, setCustomInstructions] = useState("");
+  const [includeOrganized, setIncludeOrganized] = useState(false);
+  const [sharpenTags, setSharpenTags] = useState(true);
+  const queryClient = useQueryClient();
+
+  const weakCount = photos.filter(isWeakMetadata).length;
+
+  const handleOrganize = async () => {
+    if (photos.length < 2) {
+      alert("You need at least 2 photos to organize.");
+      return;
+    }
+
+    setShowDialog(false);
+    setOrganizing(true);
+
+    try {
+      const existingFolders = await base44.entities.Folder.list();
+      const organizedPhotoIds = new Set(existingFolders.flatMap((f) => f.photo_ids || []));
+      const existingFolderNames = existingFolders.map((f) => f.name);
+
+      let photosToOrganize = includeOrganized
+        ? photos
+        : photos.filter((p) => !organizedPhotoIds.has(p.id));
+
+      if (photosToOrganize.length < 2) {
+        alert(
+          photosToOrganize.length === 0
+            ? "All photos are already in folders. Check 'Re-organize everything' to re-sort."
+            : "Only 1 loose photo found — need at least 2 to organize."
+        );
+        setOrganizing(false);
+        return;
+      }
+
+      if (includeOrganized && existingFolders.length > 0) {
+        setProgress(`Clearing ${existingFolders.length} existing folders for re-organization…`);
+        await runConcurrent(
+          existingFolders.map((f) => () => base44.entities.Folder.delete(f.id)),
+          5
+        );
+      }
+
+      if (sharpenTags) {
+        const weakInBatch = photosToOrganize.filter(isWeakMetadata).length;
+        if (weakInBatch > 0) {
+          setProgress(`Sharpening visual tags for ${weakInBatch} item${weakInBatch !== 1 ? "s" : ""}…`);
+          photosToOrganize = await reanalyzeWeakPhotos(photosToOrganize, { onProgress: setProgress });
+        }
+      }
+
+      const chunks = [];
+      for (let i = 0; i < photosToOrganize.length; i += CHUNK_SIZE) {
+        chunks.push(photosToOrganize.slice(i, i + CHUNK_SIZE));
+      }
+
+      const totalChunks = chunks.length;
+      let completedChunks = 0;
+      setProgress(
+        `Phase 1: labelling ${photosToOrganize.length} item${photosToOrganize.length !== 1 ? "s" : ""} (${totalChunks} batch${totalChunks !== 1 ? "es" : ""})…`
+      );
+
+      const labelTasks = chunks.map((chunk) => async () => {
+        const labels = await labelChunk(
+          chunk,
+          includeOrganized ? [] : existingFolderNames,
+          customInstructions
+        );
+        completedChunks++;
+        setProgress(`Phase 1: ${completedChunks}/${totalChunks} batches done…`);
+        return labels;
+      });
+
+      const labelResults = await runConcurrent(labelTasks, CONCURRENCY);
+      const allLabels = labelResults.flat();
+
+      const labelledIds = new Set(allLabels.map((l) => l.id));
+      for (const photo of photosToOrganize) {
+        if (!labelledIds.has(photo.id)) {
+          allLabels.push({ id: photo.id, folder: "Miscellaneous" });
+        }
+      }
+
+      const groupMap = new Map();
+      for (const { id, folder } of allLabels) {
+        const display = (folder || "Miscellaneous").trim();
+        const key = display.toLowerCase();
+        if (!groupMap.has(key)) groupMap.set(key, { name: display, ids: new Set() });
+        groupMap.get(key).ids.add(id);
+      }
+      const initialGroups = Array.from(groupMap.values()).map((g) => ({
+        name: g.name,
+        ids: [...g.ids],
+      }));
+
+      const finalFolders = await consolidateGroups(
+        initialGroups,
+        includeOrganized ? [] : existingFolderNames,
+        customInstructions,
+        setProgress
+      );
+
+      setProgress(`Saving ${finalFolders.length} folders…`);
+
+      const currentFolders = includeOrganized ? [] : existingFolders;
+
+      const seenThisRun = new Set();
+      const foldersToSave = [];
+      for (const folder of finalFolders) {
+        const uniqueIds = (folder.photo_ids || []).filter((id) => {
+          if (seenThisRun.has(id)) return false;
+          seenThisRun.add(id);
+          return true;
+        });
+        if (uniqueIds.length >= 1) {
+          foldersToSave.push({ ...folder, photo_ids: uniqueIds });
+        }
+      }
+
+      const folderTasks = foldersToSave.map((folder) => async () => {
+        const matchingFolder = currentFolders.find(
+          (f) => f.name.toLowerCase() === folder.name.toLowerCase()
+        );
+
+        if (matchingFolder) {
+          const mergedIds = [...new Set([...(matchingFolder.photo_ids || []), ...folder.photo_ids])];
+          const coverPhoto =
+            !matchingFolder.cover_photo_url && mergedIds.length > 0
+              ? photos.find((p) => p.id === mergedIds[0])
+              : null;
+          await base44.entities.Folder.update(matchingFolder.id, {
+            photo_ids: mergedIds,
+            ...(coverPhoto && { cover_photo_url: coverPhoto.file_url }),
+          });
+        } else {
+          const coverPhoto = photos.find((p) => p.id === folder.photo_ids[0]);
+          await base44.entities.Folder.create({
+            name: folder.name,
+            description: "",
+            photo_ids: folder.photo_ids,
+            cover_photo_url: coverPhoto?.file_url || "",
+          });
+        }
+      });
+
+      await runConcurrent(folderTasks, 5);
+
+      const totalSaved = foldersToSave.reduce((sum, f) => sum + f.photo_ids.length, 0);
+      const missed = photosToOrganize.length - totalSaved;
+
+      setProgress("");
+      queryClient.invalidateQueries({ queryKey: ["folders"] });
+      queryClient.invalidateQueries({ queryKey: ["photos"] });
+
+      if (foldersToSave.length === 0) {
+        alert("No groups found to organize.");
+      } else if (missed > 0) {
+        alert(
+          `Done! ${totalSaved} of ${photosToOrganize.length} items organized into ${foldersToSave.length} folders. ${missed} items had no clear group — press Organize again to retry.`
+        );
+      }
+    } catch (error) {
+      console.error("Error organizing:", error);
+      alert(error?.message || "Failed to organize photos. Please try again.");
+      setProgress("");
+    } finally {
+      setOrganizing(false);
+    }
+  };
+
+  return (
+    <>
+      {squareStyle ? (
+        <button
+          type="button"
+          data-rb-folder-action="organize"
+          onClick={() => setShowDialog(true)}
+          disabled={organizing || photos.length < 2}
+          className={`relative ${SQUARE_FOLDER_ACTION_CLASS}`}
+          style={SQUARE_FOLDER_ACTION_STYLE}
+        >
+          {organizing ? (
+            <Loader2 className={`${ORGANIZE_ICON_CLASS} animate-spin`} />
+          ) : (
+            <Sparkles className={ORGANIZE_ICON_CLASS} />
+          )}
+          <span className={ORGANIZE_LABEL_CLASS} data-rb-organize-label>
+            {organizing ? "Organizing..." : "Organize"}
+          </span>
+          {progress && (
+            <div className="absolute top-full left-0 right-0 mt-2 p-2 bg-white rounded-lg shadow-lg border border-orange-200 whitespace-nowrap z-10">
+              <div className="flex items-center gap-2 text-sm text-orange-600">
+                <Sparkles className="w-3 h-3 animate-pulse" />
+                {progress}
+              </div>
+            </div>
+          )}
+        </button>
+      ) : (
+        <div className="relative">
+          <Button
+            onClick={() => setShowDialog(true)}
+            disabled={organizing || photos.length < 2}
+            className="bg-gradient-to-r from-blue-400 to-purple-500 hover:from-blue-500 hover:to-purple-600 text-white gap-2"
+          >
+            {organizing ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Organizing...
+              </>
+            ) : (
+              <>
+                <FolderPlus className="w-4 h-4" />
+                Organize
+              </>
+            )}
+          </Button>
+          {progress && (
+            <div className="absolute top-full left-0 right-0 mt-2 p-2 bg-white rounded-lg shadow-lg border border-orange-200 whitespace-nowrap z-10">
+              <div className="flex items-center gap-2 text-sm text-orange-600">
+                <Sparkles className="w-3 h-3 animate-pulse" />
+                {progress}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      <Dialog open={showDialog} onOpenChange={setShowDialog}>
+        <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Organize Media</DialogTitle>
+            <DialogDescription>
+              AI groups photos and videos by what they look like — grass fields, beaches, pets, food, and more
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="instructions">
+                Custom Instructions (Optional)
+                {customInstructions && (
+                  <span className="ml-2 text-xs text-purple-600 font-semibold">✓ Instructions added</span>
+                )}
+              </Label>
+              <Textarea
+                id="instructions"
+                placeholder="e.g., 'Group by month and year' or 'Keep vacation photos separate' or 'Put all grass and field photos together'"
+                value={customInstructions}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setCustomInstructions(value);
+                  const needsOrganized = value
+                    .toLowerCase()
+                    .match(/\b(consolidate|merge|combine|take all folders|move folders|reorganize folders)\b/);
+                  if (needsOrganized && !includeOrganized) setIncludeOrganized(true);
+                }}
+                className="min-h-[100px]"
+              />
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="sharpen-tags"
+                checked={sharpenTags}
+                onCheckedChange={setSharpenTags}
+              />
+              <Label htmlFor="sharpen-tags" className="text-sm font-normal cursor-pointer">
+                Sharpen visual tags before organizing
+                {weakCount > 0 && (
+                  <span className="text-gray-500 ml-1">({weakCount} item{weakCount !== 1 ? "s" : ""} need better tags)</span>
+                )}
+              </Label>
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="include-organized"
+                checked={includeOrganized}
+                onCheckedChange={setIncludeOrganized}
+              />
+              <Label htmlFor="include-organized" className="text-sm font-normal cursor-pointer">
+                Re-organize everything — consolidate all existing folders and re-sort all media from scratch.
+              </Label>
+            </div>
+
+            {includeOrganized && (
+              <p className="text-xs text-orange-600 font-medium ml-6">
+                ⚠️ This will delete all existing folders and rebuild them. Your photos won&apos;t be deleted.
+              </p>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDialog(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleOrganize}
+              className="bg-gradient-to-r from-blue-400 to-purple-500 hover:from-blue-500 hover:to-purple-600"
+            >
+              <Sparkles className="w-4 h-4 mr-2" />
+              Auto Organize
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+
+========================================================================
+FILE: src/components/gallery/EmptyState.jsx
+========================================================================
+import React from "react";
+import { Upload, Sparkles } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Link } from "react-router-dom";
+import { createPageUrl } from "@/utils";
+
+export default function EmptyState() {
+  return (
+    <div className="text-center py-20">
+      <div className="max-w-md mx-auto">
+        <div className="relative mb-8">
+          <div className="w-24 h-24 mx-auto bg-gradient-to-br from-blue-100 to-purple-200 rounded-3xl flex items-center justify-center">
+            <Upload className="w-12 h-12 text-purple-500" />
+          </div>
+          <div className="absolute -top-2 -right-2 w-8 h-8 bg-purple-400 rounded-full flex items-center justify-center animate-bounce">
+            <Sparkles className="w-4 h-4 text-white" />
+          </div>
+        </div>
+
+        <h3 className="text-2xl font-bold text-gray-900 mb-3">
+          No Media Yet
+        </h3>
+        <p className="text-gray-600 mb-8">
+          Upload photos and videos — AI tags what it sees so you can search by physical description. Type &quot;grass&quot; to find field photos, or &quot;beach&quot; for ocean scenes.
+        </p>
+
+        <Link to={createPageUrl("Upload")}>
+          <Button className="bg-gradient-to-r from-blue-400 to-purple-500 hover:from-blue-500 hover:to-purple-600 gap-2">
+            <Upload className="w-4 h-4" />
+            Upload Your First Files
+          </Button>
+        </Link>
+
+        <div className="mt-12 p-6 bg-gradient-to-br from-blue-50 to-purple-100 rounded-2xl text-left">
+          <h4 className="font-semibold text-gray-900 mb-3">What you can search for:</h4>
+          <ul className="space-y-2 text-sm text-gray-700">
+            <li className="flex items-start gap-2">
+              <span className="text-purple-500 mt-0.5">•</span>
+              <span>"Beach sunset with palm trees"</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="text-purple-500 mt-0.5">•</span>
+              <span>"People laughing at a party"</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="text-purple-500 mt-0.5">•</span>
+              <span>"Red car parked on street"</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="text-purple-500 mt-0.5">•</span>
+              <span>"Dog playing in snow"</span>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+========================================================================
+FILE: src/components/gallery/FolderView.jsx
+========================================================================
+import React, { useState } from "react";
+import { motion } from "framer-motion";
+import { ArrowLeft, Folder, Trash2, MousePointer2, Pencil, Check, X, FolderOpen, Search } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { base44 } from "@/api/base44Client";
+import { useQueryClient } from "@tanstack/react-query";
+import SelectablePhotoGrid from "./SelectablePhotoGrid";
+import { DragDropContext, Droppable } from "@hello-pangea/dnd";
+import { filterAndRankPhotos } from "@/lib/media-search";
+
+export default function FolderView({ 
+  folder, 
+  photos, 
+  onBack, 
+  onPhotoClick,
+  selectionMode,
+  selectedIds,
+  onToggleSelect,
+  onToggleSelectionMode,
+  onRemoveFromFolder
+}) {
+  const queryClient = useQueryClient();
+  const [isEditing, setIsEditing] = useState(false);
+  const [newName, setNewName] = useState(folder.name);
+  const [folderSearch, setFolderSearch] = useState("");
+  
+  // Filter photos that belong to this folder - ensure photo_ids is an array
+  const photoIds = Array.isArray(folder.photo_ids) ? folder.photo_ids : [];
+  const allFolderPhotos = photos.filter(p => photoIds.includes(p.id));
+  const folderPhotos = folderSearch
+    ? allFolderPhotos.filter(p =>
+        p.ai_description?.toLowerCase().includes(folderSearch.toLowerCase()) ||
+        p.ai_tags?.some(t => t.toLowerCase().includes(folderSearch.toLowerCase()))
+      )
+    : allFolderPhotos;
+
+  const handleDeleteFolder = async () => {
+    if (!confirm(`Delete folder "${folder.name}"? Photos won't be deleted.`)) return;
+    
+    await base44.entities.Folder.delete(folder.id);
+    queryClient.invalidateQueries({ queryKey: ['folders'] });
+    onBack();
+  };
+
+  const handleSaveName = async () => {
+    if (!newName.trim()) return;
+    
+    await base44.entities.Folder.update(folder.id, { name: newName.trim() });
+    queryClient.invalidateQueries({ queryKey: ['folders'] });
+    setIsEditing(false);
+  };
+
+  const handleCancelEdit = () => {
+    setNewName(folder.name);
+    setIsEditing(false);
+  };
+
+  const handleDragEnd = async (result) => {
+    if (!result.destination) return;
+    
+    // Dropped in the "remove from folder" zone
+    if (result.destination.droppableId === 'remove-zone') {
+      const photoId = result.draggableId;
+      await onRemoveFromFolder(photoId);
+      
+      // Update cover photo if the removed photo was the cover
+      if (folder.cover_photo_url) {
+        const removedPhoto = photos.find(p => p.id === photoId);
+        if (removedPhoto && removedPhoto.file_url === folder.cover_photo_url) {
+          const remainingPhotos = folder.photo_ids.filter(id => id !== photoId);
+          const newCoverPhoto = remainingPhotos.length > 0 
+            ? photos.find(p => p.id === remainingPhotos[0]) 
+            : null;
+          
+          await base44.entities.Folder.update(folder.id, {
+            cover_photo_url: newCoverPhoto?.file_url || ""
+          });
+          queryClient.invalidateQueries({ queryKey: ['folders'] });
+        }
+      }
+    }
+  };
+
+  return (
+    <DragDropContext onDragEnd={handleDragEnd}>
+      <motion.div
+        initial={{ opacity: 0, x: 20 }}
+        animate={{ opacity: 1, x: 0 }}
+        exit={{ opacity: 0, x: -20 }}
+        className="pb-32"
+      >
+        {/* Header */}
+        <div className="mb-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <Button
+              variant="ghost"
+              onClick={onBack}
+              className="gap-2"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Back
+            </Button>
+            
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleDeleteFolder}
+                className="text-red-600 hover:text-red-700 hover:bg-red-50"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span className="hidden sm:inline">Delete Folder</span>
+              </Button>
+
+              <Button
+                onClick={onToggleSelectionMode}
+                size="sm"
+                className={`${selectionMode ? 'bg-purple-600 hover:bg-purple-700' : 'bg-gradient-to-r from-blue-400 to-purple-500 hover:from-blue-500 hover:to-purple-600'} text-white`}
+              >
+                <MousePointer2 className="w-4 h-4" />
+                <span className="hidden sm:inline">{selectionMode ? 'Exit Select' : 'Select'}</span>
+              </Button>
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-orange-100 rounded-xl">
+              <Folder className="w-6 h-6 text-orange-500" />
+            </div>
+            <div className="flex-1 min-w-0">
+              {isEditing ? (
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={newName}
+                    onChange={(e) => setNewName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleSaveName();
+                      if (e.key === 'Escape') handleCancelEdit();
+                    }}
+                    className="text-xl font-bold"
+                    autoFocus
+                  />
+                  <Button
+                    size="sm"
+                    onClick={handleSaveName}
+                    className="bg-green-600 hover:bg-green-700 shrink-0"
+                  >
+                    <Check className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleCancelEdit}
+                    className="shrink-0"
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <h2 className="text-xl sm:text-2xl font-bold text-gray-900 truncate">{folder.name}</h2>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setIsEditing(true)}
+                    className="hover:bg-gray-100 shrink-0"
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </Button>
+                </div>
+              )}
+              {folder.description && (
+                <p className="text-sm text-gray-600 truncate">{folder.description}</p>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Photo count */}
+        <p className="text-sm text-gray-600 mb-4">
+          {folderSearch
+            ? `${folderPhotos.length} result${folderPhotos.length !== 1 ? 's' : ''} in this folder`
+            : `${allFolderPhotos.length} item${allFolderPhotos.length !== 1 ? 's' : ''} in this folder`}
+        </p>
+
+        {/* In-folder search */}
+        <div className="flex items-center gap-2 bg-gray-100 rounded-2xl px-4 py-2.5 mb-4">
+          <Search className="w-4 h-4 text-gray-400 flex-shrink-0" />
+          <input
+            type="text"
+            placeholder="Search within folder..."
+            value={folderSearch}
+            onChange={e => setFolderSearch(e.target.value)}
+            className="flex-1 bg-transparent text-sm outline-none placeholder:text-gray-400 text-gray-900"
+          />
+          {folderSearch && (
+            <button onClick={() => setFolderSearch("")}>
+              <X className="w-4 h-4 text-gray-400" />
+            </button>
+          )}
+        </div>
+
+        {/* Remove from Folder Drop Zone */}
+        {!selectionMode && !isEditing && allFolderPhotos.length > 0 && (
+          <Droppable droppableId="remove-zone">
+            {(provided, snapshot) => (
+              <div
+                ref={provided.ref}
+                {...provided.droppableProps}
+                className={`mb-6 p-6 rounded-2xl border-2 border-dashed transition-all ${
+                  snapshot.isDraggingOver 
+                    ? 'border-red-400 bg-red-50' 
+                    : 'border-gray-300 bg-gray-50'
+                }`}
+              >
+                <div className="flex items-center justify-center gap-2 text-gray-600">
+                  <FolderOpen className="w-5 h-5" />
+                  <span className="font-medium">
+                    {snapshot.isDraggingOver 
+                      ? 'Drop to remove from folder' 
+                      : 'Drag photos here to remove from folder'}
+                  </span>
+                </div>
+                {provided.placeholder}
+              </div>
+            )}
+          </Droppable>
+        )}
+
+        {/* Photos */}
+        {folderPhotos.length > 0 ? (
+          <SelectablePhotoGrid 
+            photos={folderPhotos} 
+            onPhotoClick={onPhotoClick}
+            selectionMode={selectionMode}
+            selectedIds={selectedIds || []}
+            onToggleSelect={onToggleSelect}
+          />
+        ) : (
+          <div className="text-center py-12 text-gray-500">
+            No photos in this folder
+          </div>
+        )}
+      </motion.div>
+    </DragDropContext>
+  );
+}
+
+========================================================================
+FILE: src/components/gallery/folderActionStyles.js
+========================================================================
+/** Compact tile — mostly white with a subtle purple hint at the corner */
+export const SQUARE_FOLDER_ACTION_CLASS =
+  'w-full min-h-[4.25rem] flex flex-col items-center justify-center gap-1 py-3 rounded-2xl bg-gradient-to-br from-white via-white to-purple-50/60 text-gray-700 border border-gray-200/80 shadow-sm text-sm font-semibold disabled:opacity-50';
+
+export const ORGANIZE_ICON_CLASS = 'w-5 h-5 text-purple-500';
+export const ORGANIZE_LABEL_CLASS = 'text-purple-600 font-semibold';
+
+export const SQUARE_FOLDER_ACTION_STYLE = {
+  width: '100%',
+  minHeight: '4.25rem',
+  boxSizing: 'border-box',
+};
+
+export const SQUARE_FOLDER_ACTION_ACTIVE_CLASS =
+  'w-full min-h-[4.25rem] flex flex-col items-center justify-center gap-1 py-3 rounded-2xl text-sm font-semibold shadow-sm border-0 transition-colors bg-purple-600 text-white';
+
+export const SQUARE_FOLDER_ACTION_ACTIVE_STYLE = SQUARE_FOLDER_ACTION_STYLE;
+
+
+========================================================================
+FILE: src/components/gallery/PullToRefresh.jsx
+========================================================================
+import React, { useRef, useState } from "react";
+import { RefreshCw } from "lucide-react";
+
+const THRESHOLD = 70;
+
+export default function PullToRefresh({ onRefresh, children }) {
+  const [pullDistance, setPullDistance] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
+  const startY = useRef(null);
+  const containerRef = useRef(null);
+
+  const isModalOpen = () => document.body.classList.contains('modal-open');
+
+  const handleTouchStart = (e) => {
+    if (isModalOpen()) return;
+    if (containerRef.current?.scrollTop === 0) {
+      startY.current = e.touches[0].clientY;
+    }
+  };
+
+  const handleTouchMove = (e) => {
+    if (isModalOpen()) return;
+    if (startY.current === null) return;
+    const delta = e.touches[0].clientY - startY.current;
+    if (delta > 0) {
+      setPullDistance(Math.min(delta * 0.5, THRESHOLD + 20));
+    }
+  };
+
+  const handleTouchEnd = async () => {
+    if (isModalOpen()) return;
+    if (pullDistance >= THRESHOLD && !refreshing) {
+      setRefreshing(true);
+      await onRefresh();
+      setRefreshing(false);
+    }
+    setPullDistance(0);
+    startY.current = null;
+  };
+
+  const indicatorVisible = pullDistance > 10 || refreshing;
+
+  return (
+    <div
+      ref={containerRef}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+      className="relative"
+    >
+      {indicatorVisible && (
+        <div
+          className="flex items-center justify-center transition-all duration-200"
+          style={{ height: refreshing ? 48 : pullDistance }}
+        >
+          <RefreshCw
+            className={`w-5 h-5 text-purple-500 ${refreshing ? "animate-spin" : ""}`}
+            style={{ transform: `rotate(${(pullDistance / THRESHOLD) * 180}deg)` }}
+          />
+        </div>
+      )}
+      {children}
+    </div>
+  );
+}

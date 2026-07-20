@@ -1,0 +1,588 @@
+# Base44 AI — apply batch 2/8: App shell + signed-out UI
+
+Write EVERY file below into the Restorebraine Base44 code editor at the exact path shown.
+Do NOT Publish until batch 8 is done — user will Publish once after all batches.
+
+For each FILE block:
+1. Open or create that path in the code editor
+2. Replace entire file contents with the code below
+3. Save
+
+1. index.html
+2. src/main.jsx
+3. src/App.jsx
+4. src/Layout.jsx
+5. src/components/auth/SignedOutLanding.jsx
+6. public/native-oauth-return.js
+7. public/login-redirect.js
+8. src/deploy-marker.js
+9. src/lib/build-info.js
+
+========================================================================
+FILE: index.html
+========================================================================
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" href="https://media.base44.com/images/public/68fdc5f42768c4d045fe1bac/e76571efc_appstore.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="restorebraine-deploy" content="v87" />
+    <title>Restorebraine</title>
+    <script>
+(function(){var APP_ID='68fdc5f42768c4d045fe1bac',PLATFORM='https://app.base44.com',APP_ORIGIN=location.protocol+'//'+location.host,host=location.hostname,path=location.pathname.replace(/\/$/,'')||'/';function platformLogin(fromUrl){var params=new URLSearchParams({from_url:fromUrl||'https://restorebraine.com',app_id:APP_ID,prompt:'select_account'});location.replace(PLATFORM+'/login?'+params.toString());}if(host==='base44.app'&&path==='/login'){platformLogin('https://restorebraine.com');return;}if((host==='restorebraine.com'||host==='www.restorebraine.com')&&path==='/login'){platformLogin(APP_ORIGIN);return;}var originalAssign=Location.prototype.assign,originalReplace=Location.prototype.replace;function guard(url){var value=String(url||'');if(/^https:\/\/base44\.app\/login/i.test(value)){platformLogin('https://restorebraine.com');return true;}if(/^https:\/\/restorebraine\.com\/login/i.test(value)||/^https:\/\/www\.restorebraine\.com\/login/i.test(value)){platformLogin('https://restorebraine.com');return true;}return false;}Location.prototype.assign=function(url){if(guard(url))return;return originalAssign.call(this,url);};Location.prototype.replace=function(url){if(guard(url))return;return originalReplace.call(this,url);};})();
+    </script>
+    <script src="./native-oauth-return.js"></script>
+    <script src="./login-redirect.js"></script>
+  </head>
+  <body>
+    <svg aria-hidden="true" focusable="false" style="position:absolute;width:0;height:0;overflow:hidden">
+      <defs>
+        <linearGradient id="rb-brand-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stopColor="#60a5fa" />
+          <stop offset="100%" stopColor="#a855f7" />
+        </linearGradient>
+      </defs>
+    </svg>
+    <div id="root">
+      <div id="rb-boot-fallback" style="min-height:100vh;display:flex;align-items:center;justify-content:center;font-family:system-ui,sans-serif;color:#666;background:#fff">
+        Loading Restorebraine…
+      </div>
+    </div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
+
+
+========================================================================
+FILE: src/main.jsx
+========================================================================
+import { redirectNativeToHostedApp, isNativeShell } from '@/lib/native-hosted-redirect';
+import { installNativeOAuthFix } from '@/lib/native-oauth-fix';
+import { redirectBrokenCustomDomainLogin } from '@/lib/auth-urls';
+
+const BOOTSTRAP_TIMEOUT_MS = 15000;
+const useLocalNativeBundle = () => {
+  try {
+    return typeof __RESTOREBRAINE_NATIVE_LOCAL__ !== 'undefined' && __RESTOREBRAINE_NATIVE_LOCAL__;
+  } catch {
+    return false;
+  }
+};
+
+function showBootstrapError(message) {
+  const root = document.getElementById('root');
+  if (!root) return;
+  root.innerHTML = `
+    <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;font-family:system-ui,sans-serif;background:#fff;">
+      <div style="max-width:420px;text-align:center;">
+        <h1 style="font-size:20px;font-weight:700;color:#111;margin-bottom:8px;">Restorebraine failed to start</h1>
+        <p style="font-size:14px;color:#666;margin-bottom:16px;">${message}</p>
+        <button onclick="location.reload()" style="padding:12px 20px;border:none;border-radius:12px;background:#7c3aed;color:#fff;font-weight:600;cursor:pointer;">
+          Retry
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+async function warmNativeSessionForLocalBundle() {
+  try {
+    const { waitForCapacitorBridge, withTimeout } = await import('@/lib/capacitor-ready');
+    await waitForCapacitorBridge(6000);
+    const { restoreSessionFromNativeStorage, installNativeSessionPersistence } = await import('@/lib/session-bootstrap');
+    await withTimeout(restoreSessionFromNativeStorage(), 4000, 'restoreSession');
+    installNativeSessionPersistence().catch((error) => {
+      console.warn('Native session listeners unavailable:', error);
+    });
+  } catch (error) {
+    console.warn('Native session warm-up skipped:', error);
+  }
+}
+
+async function bootstrapApp() {
+  if (redirectBrokenCustomDomainLogin()) {
+    return;
+  }
+
+  installNativeOAuthFix();
+
+  if (redirectNativeToHostedApp()) {
+    return;
+  }
+
+  // Production native builds load restorebraine.base44.app (server.url) — this bundle is dev-only fallback.
+  if (useLocalNativeBundle() && isNativeShell()) {
+    await warmNativeSessionForLocalBundle();
+  }
+
+  const [{ default: React }, { default: ReactDOM }, { default: App }] = await Promise.all([
+    import('react'),
+    import('react-dom/client'),
+    import('@/App.jsx'),
+  ]);
+  await import('@/index.css');
+
+  ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+}
+
+let bootstrapFinished = false;
+const bootstrapTimer = window.setTimeout(() => {
+  if (bootstrapFinished) return;
+  showBootstrapError('Startup is taking too long. Check your network connection and tap Retry.');
+}, BOOTSTRAP_TIMEOUT_MS);
+
+bootstrapApp()
+  .then(() => {
+    bootstrapFinished = true;
+    window.clearTimeout(bootstrapTimer);
+  })
+  .catch((error) => {
+    bootstrapFinished = true;
+    window.clearTimeout(bootstrapTimer);
+    console.error('Restorebraine bootstrap failed:', error);
+    showBootstrapError(error?.message || 'Unknown startup error');
+  });
+
+if (import.meta.hot) {
+  import.meta.hot.on('vite:beforeUpdate', () => {
+    window.parent?.postMessage({ type: 'sandbox:beforeUpdate' }, '*');
+  });
+  import.meta.hot.on('vite:afterUpdate', () => {
+    window.parent?.postMessage({ type: 'sandbox:afterUpdate' }, '*');
+  });
+}
+
+
+========================================================================
+FILE: src/App.jsx
+========================================================================
+import './App.css'
+import { Toaster } from "@/components/ui/toaster"
+import { QueryClientProvider } from '@tanstack/react-query'
+import { queryClientInstance } from '@/lib/query-client'
+
+import NavigationTracker from '@/lib/NavigationTracker'
+import { pagesConfig } from './pages.config'
+import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
+import { setupIframeMessaging } from './lib/iframe-messaging';
+import PageNotFound from './lib/PageNotFound';
+import { AuthProvider, useAuth } from '@/lib/AuthContext';
+import UserNotRegisteredError from '@/components/UserNotRegisteredError';
+import SignedOutLanding from '@/components/auth/SignedOutLanding';
+
+const { Pages, Layout, mainPage } = pagesConfig;
+const mainPageKey = mainPage ?? Object.keys(Pages)[0];
+const MainPage = mainPageKey ? Pages[mainPageKey] : <></>;
+
+setupIframeMessaging();
+
+const LayoutWrapper = ({ children, currentPageName }) => Layout ?
+  <Layout currentPageName={currentPageName}>{children}</Layout>
+  : <>{children}</>;
+
+const AuthenticatedApp = () => {
+  const { isLoadingAuth, isLoadingPublicSettings, authError, isAuthenticated, navigateToLogin, manuallyLoggedOut } = useAuth();
+
+  const handleSignIn = () => {
+    try { localStorage.removeItem('b44_signed_out'); } catch {}
+    navigateToLogin();
+  };
+
+  const signedOutView = (
+    <LayoutWrapper currentPageName={mainPageKey}>
+      <SignedOutLanding onSignIn={handleSignIn} />
+    </LayoutWrapper>
+  );
+
+  // Check if user manually logged out FIRST before anything else
+  if (manuallyLoggedOut) {
+    return signedOutView;
+  }
+
+  // Show loading spinner while checking app public settings or auth
+  if (isLoadingPublicSettings || isLoadingAuth) {
+    return (
+      <LayoutWrapper currentPageName={mainPageKey}>
+        <div className="pt-24 flex items-center justify-center min-h-[50vh]">
+          <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin" />
+        </div>
+      </LayoutWrapper>
+    );
+  }
+
+  // Handle authentication errors
+  if (authError) {
+    if (authError.type === 'user_not_registered') {
+      return <UserNotRegisteredError />;
+    }
+    if (authError?.type === 'auth_required') {
+      return signedOutView;
+    }
+  }
+
+  // Render the main app
+  return (
+    <LayoutWrapper currentPageName={mainPageKey}>
+      <Routes>
+        <Route path="/" element={<MainPage />} />
+        {Object.entries(Pages).map(([path, Page]) => (
+          <Route key={path} path={`/${path.toLowerCase()}`} element={<Page />} />
+        ))}
+        <Route path="*" element={<PageNotFound />} />
+      </Routes>
+    </LayoutWrapper>
+  );
+};
+
+
+function App() {
+
+  return (
+    <AuthProvider>
+      <QueryClientProvider client={queryClientInstance}>
+        <Router>
+          <NavigationTracker />
+          <AuthenticatedApp />
+        </Router>
+        <Toaster />
+      </QueryClientProvider>
+    </AuthProvider>
+  )
+}
+
+export default App
+
+========================================================================
+FILE: src/Layout.jsx
+========================================================================
+import React, { useEffect, useRef } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { createPageUrl } from "@/utils";
+import { isGalleryPath, navigateToGallery, persistActiveSession } from "@/lib/gallery-nav";
+import { useAuth } from "@/lib/AuthContext";
+import { Search, Upload, User, ChevronLeft } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
+import { NavigationProvider, useNavigation } from "./components/NavigationContext";
+import { TabStateProvider } from "./components/TabStateContext";
+import { BrandGradientDefs } from "@/components/ui/BrandGradientIcon";
+const TAB_ORDER = ["Gallery", "Upload", "Account"];
+
+function LayoutInner({ children, currentPageName }) {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const prevIndexRef = useRef(0);
+  const { backState, popBack } = useNavigation();
+  const { resumeActiveSession } = useAuth();
+
+  const isTabActive = (name) => {
+    if (name === 'Gallery') return isGalleryPath(location.pathname);
+    return location.pathname === createPageUrl(name);
+  };
+
+  const currentIndex = TAB_ORDER.findIndex((name) => isTabActive(name));
+  const activeIndex = currentIndex === -1 ? 0 : currentIndex;
+  const direction = activeIndex >= prevIndexRef.current ? 1 : -1;
+
+  useEffect(() => {
+    prevIndexRef.current = activeIndex;
+  }, [activeIndex]);
+
+  // Dark mode detection
+  useEffect(() => {
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    const apply = (e) => document.documentElement.classList.toggle("dark", e.matches);
+    apply(mq);
+    mq.addEventListener("change", apply);
+    return () => mq.removeEventListener("change", apply);
+  }, []);
+
+  // Prevent overscroll bounce
+  useEffect(() => {
+    document.body.style.overscrollBehaviorY = "none";
+    return () => { document.body.style.overscrollBehaviorY = ""; };
+  }, []);
+
+  const tabs = [
+    { name: "Gallery", icon: Search, label: "Search" },
+    { name: "Upload", icon: Upload, label: "Upload" },
+    { name: "Account", icon: User, label: "Account" },
+  ];
+
+  const variants = {
+    enter: (dir) => ({ x: dir > 0 ? "100%" : "-100%", opacity: 0 }),
+    center: { x: 0, opacity: 1 },
+    exit: (dir) => ({ x: dir > 0 ? "-100%" : "100%", opacity: 0 }),
+  };
+
+  const handleBack = () => {
+    if (!backState) return;
+
+    if (isGalleryPath(location.pathname)) {
+      backState.onBack();
+      popBack();
+      return;
+    }
+
+    popBack();
+    navigateToGallery(navigate, { resumeActiveSession });
+  };
+
+  useEffect(() => {
+    if (!isGalleryPath(location.pathname)) popBack();
+  }, [location.pathname, popBack]);
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
+      <BrandGradientDefs />
+      <style>{`
+        :root {
+          --primary: 250 70% 75%;
+          --primary-dark: 250 65% 65%;
+        }
+        .safe-top { padding-top: env(safe-area-inset-top); }
+        .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+        * { -webkit-tap-highlight-color: transparent; }
+        button, a, [role="button"] { user-select: none; -webkit-user-select: none; }
+      `}</style>
+
+      {/* Top brand header */}
+      <header className="fixed top-0 left-0 right-0 z-50 bg-white/70 backdrop-blur-xl border-b border-purple-100 shadow-sm safe-top select-none">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center h-14 relative">
+            {/* Back button — shown on child routes */}
+            {backState ? (
+              <button
+                type="button"
+                data-rb-gallery-nav
+                onClick={handleBack}
+                className="flex items-center gap-1 text-purple-600 font-medium select-none absolute left-0"
+              >
+                <ChevronLeft className="w-5 h-5" />
+                <span className="text-sm">{backState.label}</span>
+              </button>
+            ) : null}
+
+            {/* Centered brand logo — hide when back button is shown to avoid overlap */}
+            <div className={`flex-1 flex justify-center ${backState ? 'invisible' : ''}`}>
+              <Link to={createPageUrl("Gallery")} className="flex items-center gap-2 select-none group">
+                <div className="w-8 h-8 bg-gradient-to-br from-blue-300 to-purple-400 rounded-xl flex items-center justify-center transform group-hover:scale-105 transition-transform duration-200 shadow-md">
+                  <Search className="w-4 h-4 text-white" />
+                </div>
+                <span className="text-lg font-semibold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent select-none">
+                  Restorebraine
+                </span>
+              </Link>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Content with slide transition */}
+      <main className="pt-14 pb-20 safe-bottom overflow-hidden">
+        <AnimatePresence custom={direction} mode="wait">
+          <motion.div
+            key={location.pathname}
+            custom={direction}
+            variants={variants}
+            initial="enter"
+            animate="center"
+            exit="exit"
+            transition={{ type: "tween", duration: 0.22, ease: "easeInOut" }}
+          >
+            {children}
+          </motion.div>
+        </AnimatePresence>
+      </main>
+
+      {/* Bottom Tab Bar — always visible (hide toggle removed; broken on iOS) */}
+      <nav
+        className="fixed bottom-0 left-0 right-0 z-[100] select-none"
+        aria-label="App navigation"
+      >
+        <div className="bg-white/90 backdrop-blur-xl border-t border-purple-100 shadow-lg safe-bottom">
+          <div className="flex items-stretch max-w-lg mx-auto">
+            {tabs.map(({ name, icon: Icon, label }) => {
+              const isActive = isTabActive(name);
+              return (
+                <Link
+                  key={name}
+                  to={name === 'Gallery' ? createPageUrl('Gallery') : createPageUrl(name)}
+                  replace={isActive}
+                  data-rb-gallery-nav={name === 'Gallery' ? 'tab' : undefined}
+                  onClick={name === 'Gallery' ? () => {
+                    persistActiveSession().then(() => resumeActiveSession?.());
+                  } : undefined}
+                  className="flex-1 flex flex-col items-center justify-center py-3 gap-0.5 select-none relative"
+                >
+                  <Icon
+                    className={`w-5 h-5 transition-colors select-none ${
+                      isActive ? "text-purple-600" : "text-gray-400"
+                    }`}
+                  />
+                  <span
+                    className={`text-xs font-medium transition-colors select-none ${
+                      isActive ? "text-purple-600" : "text-gray-400"
+                    }`}
+                  >
+                    {label}
+                  </span>
+                  {isActive && (
+                    <span className="absolute bottom-0 w-8 h-0.5 bg-purple-500 rounded-full" />
+                  )}
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+      </nav>
+    </div>
+  );
+}
+
+export default function Layout({ children, currentPageName }) {
+  return (
+    <TabStateProvider>
+      <NavigationProvider>
+        <LayoutInner currentPageName={currentPageName} children={children} />
+      </NavigationProvider>
+    </TabStateProvider>
+  );
+}
+
+========================================================================
+FILE: src/components/auth/SignedOutLanding.jsx
+========================================================================
+import React from "react";
+import { Search } from "lucide-react";
+
+/** Signed-out home — fixed header via Layout; hero stays visible (no login sheet overlay). */
+export default function SignedOutLanding({ onSignIn }) {
+  return (
+    <div className="min-h-[calc(100vh-8rem)] pb-28">
+      <div className="px-4 pt-5 pb-2">
+        <h1 className="text-2xl font-bold text-gray-900">
+          Find Your{" "}
+          <span className="bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
+            Memories
+          </span>
+        </h1>
+      </div>
+
+      <div className="px-4 pb-4">
+        <div className="flex items-center gap-2 bg-blue-50 rounded-2xl px-4 py-3 border border-blue-100 opacity-80">
+          <Search className="w-4 h-4 text-blue-300 flex-shrink-0" />
+          <span className="text-base text-gray-400">Search memories...</span>
+        </div>
+      </div>
+
+      <div className="px-4 text-center py-12">
+        <p className="text-gray-600 text-sm max-w-xs mx-auto">
+          Sign in to upload photos and videos, organize folders, and search your library.
+        </p>
+      </div>
+
+      <div
+        className="fixed left-0 right-0 z-[90] px-4"
+        style={{ bottom: "calc(4.5rem + env(safe-area-inset-bottom, 0px))" }}
+      >
+        <button
+          type="button"
+          onClick={onSignIn}
+          className="w-full max-w-lg mx-auto block py-3.5 rounded-2xl bg-gradient-to-r from-blue-400 to-purple-500 text-white font-semibold text-base shadow-lg"
+        >
+          Sign In
+        </button>
+      </div>
+    </div>
+  );
+}
+
+
+========================================================================
+FILE: public/native-oauth-return.js
+========================================================================
+/** Redirect OAuth token from hosted callback into the native app deep link. */
+(function () {
+  if (typeof window === 'undefined') return;
+  var proto = location.protocol;
+  if (proto === 'capacitor:' || proto === 'ionic:') return;
+  if (location.hostname !== 'restorebraine.base44.app') return;
+  var token = new URLSearchParams(location.search).get('access_token');
+  if (!token) return;
+  location.replace('restorebraine://oauth/callback?access_token=' + encodeURIComponent(token));
+})();
+
+
+========================================================================
+FILE: public/login-redirect.js
+========================================================================
+/** Runs before the React app — fixes broken Base44 login redirects on custom domains. */
+(function () {
+  var APP_ID = '68fdc5f42768c4d045fe1bac';
+  var PLATFORM = 'https://app.base44.com';
+  var APP_ORIGIN = location.protocol + '//' + location.host;
+  var host = location.hostname;
+  var path = location.pathname.replace(/\/$/, '') || '/';
+
+  function platformLogin(fromUrl) {
+    var params = new URLSearchParams({
+      from_url: fromUrl || 'https://restorebraine.com',
+      app_id: APP_ID,
+      prompt: 'select_account',
+    });
+    location.replace(PLATFORM + '/login?' + params.toString());
+  }
+
+  if (host === 'base44.app' && path === '/login') {
+    platformLogin('https://restorebraine.com');
+    return;
+  }
+
+  if ((host === 'restorebraine.com' || host === 'www.restorebraine.com') && path === '/login') {
+    platformLogin(APP_ORIGIN);
+    return;
+  }
+
+  var originalAssign = Location.prototype.assign;
+  var originalReplace = Location.prototype.replace;
+
+  function guard(url) {
+    var value = String(url || '');
+    if (/^https:\/\/base44\.app\/login/i.test(value)) {
+      platformLogin('https://restorebraine.com');
+      return true;
+    }
+    if (/^https:\/\/restorebraine\.com\/login/i.test(value) || /^https:\/\/www\.restorebraine\.com\/login/i.test(value)) {
+      platformLogin('https://restorebraine.com');
+      return true;
+    }
+    return false;
+  }
+
+  Location.prototype.assign = function (url) {
+    if (guard(url)) return;
+    return originalAssign.call(this, url);
+  };
+
+  Location.prototype.replace = function (url) {
+    if (guard(url)) return;
+    return originalReplace.call(this, url);
+  };
+})();
+
+
+========================================================================
+FILE: src/deploy-marker.js
+========================================================================
+// Base44: update these files in the Code editor, then click Publish (GitHub alone is not enough).
+export const DEPLOY_BUILD = 87;
+
+
+========================================================================
+FILE: src/lib/build-info.js
+========================================================================
+export const BASE44_APP_ID = '68fdc5f42768c4d045fe1bac';
+export const BUILD_NUMBER = 87;
+export const NATIVE_BUILD_LABEL = 'kbrown native v87 · 2026-07-20 04:37';
+export const WEB_BUILD_LABEL = 'restorebraine web v87';

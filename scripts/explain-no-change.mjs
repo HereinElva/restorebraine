@@ -71,7 +71,14 @@ console.log(`
  THE ONLY FIX THAT CHANGES THE SCREEN
 ───────────────────────────────────────────────────────────────
   Mac terminal:
-    npm run base44:export-pack
+    npm run base44:export-batches   # 8 files for Base44 AI chat (paste one at a time)
+    npm run base44:export-pack      # or one 71-file dump
+
+  Base44 AI chat (cannot read your Mac — paste batch contents):
+    See docs/BASE44-AI-PASTE.md
+    Prompt: "Apply every FILE block below... Do not Publish yet."
+    cat base44-paste-batches/BASE44-BATCH-01-oauth-auth.txt | pbcopy
+    # repeat batches 01–08, then Publish once
 
   Browser (required — no terminal alternative):
     1. https://app.base44.com → Restorebraine → Code editor
