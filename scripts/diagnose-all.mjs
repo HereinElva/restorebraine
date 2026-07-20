@@ -32,11 +32,13 @@ function runOnce() {
   console.log(`\n${'═'.repeat(63)}`);
   console.log(` RUN COMPLETE — ${steps.length - failed}/${steps.length} passed`);
   if (failed) {
-    console.log(' Failures above — live Base44 JS likely still stale until Publish.');
+    console.log(' Failures above — see npm run v87:playbook for root causes.');
+    console.log(' Critical: live Base44 OAuth must use restorebraine.base44.app');
     console.log(' Re-run: npm run diagnose:all');
     console.log(' Watch live bundle: npm run diagnose:watch');
   } else {
     console.log(' All layers aligned — safe to Xcode Run on iPhone.');
+    console.log(' After src/ changes: Base44 Publish → diagnose:all again.');
   }
   console.log(`${'═'.repeat(63)}\n`);
   return failed;

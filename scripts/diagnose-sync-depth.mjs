@@ -137,8 +137,7 @@ if (pubIndex) {
     if (macBundle.fixedOrigin && !macBundle.brokenTemplate) {
       pass(`${macBundle.label} OAuth matches GitHub f1b2505 fix`);
     } else if (macBundle.brokenTemplate) {
-      fail(`${macBundle.label} OAuth still uses app.base44.com template — stale ios/public`);
-      note('Fix requires mac-ios-setup.sh (build) — skip if diagnosing only');
+      note(`${macBundle.label} OAuth still uses app.base44.com — stale ios/public (offline fallback only)`);
     } else {
       note(`${macBundle.label} OAuth pattern unclear`);
     }
@@ -277,27 +276,43 @@ for (const m of issues) console.log(`  ✗ ${m}`);
 
 const capTalksBase44 = ok.some((m) => m.includes('Capacitor ios config points'));
 const gitTalksCap = ok.some((m) => m.includes('Hosted mode'));
-const gitTalksBase44 = ok.some((m) => m.includes('native-platform-guard.js') && m.includes('DEFAULT_APP_ORIGIN'))
-  && issues.some((m) => m.includes('NOT in live bundle') || m.includes('Base44 Publish'));
+const liveOAuthOk = ok.some((m) => m.includes('Live ') && m.includes('OAuth uses restorebraine.base44.app'));
+const liveOAuthBroken = issues.some((m) => m.includes('NOT in live bundle') || m.includes('builds OAuth as'));
+const macFallbackBroken = issues.some((m) => m.includes('Mac fallback') && m.includes('app.base44.com'));
+const gitTalksBase44 = liveOAuthOk && !liveOAuthBroken;
 
 console.log(`
 LINK STATUS:
   Capacitor → Base44:  ${capTalksBase44 ? '✓ CONNECTED' : '?'}  (server.url HTTP load works)
   GitHub → Capacitor:  ${gitTalksCap ? '✓ CONFIG OK' : '?'}     (mac-ios-setup syncs shell; optional build)
-  GitHub → Base44:     ${gitTalksBase44 ? '✗ NOT SYNCED' : issues.length ? '✗ GAPS' : '✓'}     (no git push → live JS)
-
-WHY "NO CHANGE" ON PHONE (without new Xcode build):
-  • Capacitor already loads live Base44 — rebuilding Xcode does NOT change live JS
-  • Live bundle ${liveBundleName ?? '?'} is stale (pre-f1b2505 OAuth)
-  • HTML says v${build} but JS bundle hash unchanged since last Base44 Publish of HTML only
-  • Static files (native-oauth-return.js) may match git while main bundle does not
-
-FIX THAT ACTUALLY CHANGES SIGN IN (no Mac build required):
-  Base44 browser editor → paste src/lib/native-platform-guard.js → Publish
-  Re-run: npm run diagnose:sync
-
-Mac build only needed for: ios/App/App/public fallback + BUILD_STAMP (offline edge case)
+  GitHub → Base44:     ${gitTalksBase44 ? '✓ SYNCED' : liveOAuthBroken ? '✗ NOT SYNCED' : '?'}     (live bundle must match f1b2505 OAuth)
 `);
 
+if (liveOAuthBroken) {
+  console.log(`WHY "NO CHANGE" ON PHONE (without Base44 Publish):
+  • Capacitor loads live Base44 — Xcode rebuild does NOT change live JS
+  • Live bundle ${liveBundleName ?? '?'} still has pre-f1b2505 OAuth (app.base44.com → 404)
+  • HTML meta v${build} can pass while JS bundle hash is unchanged
+
+FIX THAT ACTUALLY CHANGES SIGN IN (no Mac build required):
+  Base44 browser editor → paste src/lib/native-platform-guard.js (+ oauth files) → Publish
+  Re-run: npm run diagnose:sync
+`);
+} else if (liveOAuthOk) {
+  console.log(`LIVE BASE44 ALIGNED — Sign In runs on restorebraine.base44.app OAuth.
+  iPhone: Delete app → Restart iPhone → Xcode Clean Build Folder → Run
+  Re-run: npm run diagnose:all to confirm all layers
+`);
+  if (macFallbackBroken) {
+    console.log(`OPTIONAL (offline fallback only — does not block hosted Sign In):
+  Mac fallback ios/public still stale → bash scripts/nuke-v87.sh or npm run mac-ios-setup
+`);
+  }
+} else {
+  console.log(`Could not fully probe live Base44 — re-run: npm run diagnose:sync
+`);
+}
+
 console.log('═══════════════════════════════════════════════════════════════');
-if (issues.length) process.exit(1);
+const criticalIssues = issues.filter((m) => !m.includes('Mac fallback'));
+if (criticalIssues.length) process.exit(1);

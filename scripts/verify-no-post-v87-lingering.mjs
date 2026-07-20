@@ -15,9 +15,13 @@ import { extractOAuthHost } from './lib/oauth-bundle-detect.mjs';
 
 const strict = process.argv.includes('--strict');
 const issues = [];
+const warnings = [];
 const ok = [];
 
-function fail(msg) { issues.push(msg); }
+function fail(msg, { critical = true } = {}) {
+  if (critical) issues.push(msg);
+  else warnings.push(msg);
+}
 function pass(msg) { ok.push(msg); }
 
 function scanText(label, text) {
@@ -68,15 +72,16 @@ if (existsSync(pubIndex)) {
   if (mainJs && existsSync(`ios/App/App/public/assets/${mainJs}`)) {
     const js = readFileSync(`ios/App/App/public/assets/${mainJs}`, 'utf8');
     const macOAuth = extractOAuthHost(js);
-    if (macOAuth.broken) fail(`Mac fallback ${mainJs} has pre-f1b2505 OAuth — run mac-ios-setup after nuke`);
-    else if (macOAuth.fixed) pass(`Mac fallback ${mainJs} OAuth OK`);
+    if (macOAuth.broken) {
+      fail(`Mac fallback ${mainJs} has pre-f1b2505 OAuth — run mac-ios-setup after nuke`, { critical: false });
+    } else if (macOAuth.fixed) pass(`Mac fallback ${mainJs} OAuth OK`);
     scanText(mainJs, js);
   }
   // Orphan stale asset files from post-v87 builds
   const assetsDir = 'ios/App/App/public/assets';
   if (existsSync(assetsDir)) {
     const count = readdirSync(assetsDir).filter((f) => f.endsWith('.js')).length;
-    if (count > 25) fail(`${count} JS chunks in ios/public — likely post-v87 build debris (nuke.sh cleans this)`);
+    if (count > 25) fail(`${count} JS chunks in ios/public — likely post-v87 build debris (nuke.sh cleans this)`, { critical: false });
     else pass(`ios/public assets: ${count} JS files`);
   }
 } else {
@@ -121,6 +126,7 @@ console.log('\n═════════════════════�
 console.log(' VERDICT');
 console.log('═══════════════════════════════════════════════════════════════\n');
 for (const m of ok) console.log(`  ✓ ${m}`);
+for (const m of warnings) console.log(`  ⚠ ${m} (optional — offline fallback only in hosted mode)`);
 for (const m of issues) console.log(`  ✗ ${m}`);
 
 if (issues.length) {
@@ -131,6 +137,11 @@ NUKE ORDER (all three layers):
   Verify: npm run verify:lingering && npm run diagnose:all
 `);
   if (strict) process.exit(1);
+} else if (warnings.length) {
+  console.log(`
+  Critical layers clean. Optional warnings above (Mac fallback) do not block hosted Sign In.
+  Fix optional items: bash scripts/nuke-v87.sh or npm run mac-ios-setup
+`);
 } else {
   console.log('\n  No post-v87 lingering artifacts detected.\n');
 }

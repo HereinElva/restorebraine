@@ -31,6 +31,7 @@
     "diagnose:oauth": "node scripts/diagnose-oauth-trace.mjs",
     "diagnose:all": "node scripts/diagnose-all.mjs",
     "diagnose:watch": "node scripts/diagnose-all.mjs --watch --interval=30",
+    "gate:pre-update": "node scripts/gate-pre-update.mjs",
     "postinstall": "node scripts/patch-native-purchases-podspec.mjs"
   },
   "dependencies": {
