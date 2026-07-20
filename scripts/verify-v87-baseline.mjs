@@ -10,6 +10,15 @@ import { resolve } from 'node:path';
 const V87 = '87';
 const V87_UI_COMMIT = '5762b16';
 const V87_TIP_COMMIT = 'f1b2505';
+const APP_PATHS = [
+  'src/',
+  'index.html',
+  'capacitor.config.json',
+  'ios/App/App/AppDelegate.swift',
+  'ios/App/App/Info.plist',
+  'public/native-oauth-return.js',
+  'public/login-redirect.js',
+];
 const errors = [];
 
 function read(rel) {
@@ -29,11 +38,22 @@ try {
   /* offline */
 }
 
-if (head !== V87_TIP_COMMIT) {
-  errors.push(`HEAD is ${head}, need ${V87_TIP_COMMIT} — run: git fetch origin cursor/apple-privacy-plist-bacf && git reset --hard origin/cursor/apple-privacy-plist-bacf`);
+let basedOnV87 = false;
+try {
+  execSync(`git merge-base --is-ancestor ${V87_TIP_COMMIT} HEAD`, { stdio: 'ignore' });
+  basedOnV87 = true;
+} catch {
+  errors.push(`HEAD ${head} is not based on v87 tip ${V87_TIP_COMMIT} — run: git reset --hard v87-baseline`);
 }
-if (originShort !== V87_TIP_COMMIT) {
-  errors.push(`origin/cursor/apple-privacy-plist-bacf is ${originShort}, need ${V87_TIP_COMMIT}`);
+
+if (basedOnV87 && head !== V87_TIP_COMMIT) {
+  const appChanged = execSync(
+    `git diff --name-only ${V87_TIP_COMMIT} HEAD -- ${APP_PATHS.join(' ')}`,
+    { encoding: 'utf8' },
+  ).trim();
+  if (appChanged) {
+    errors.push(`App source changed after ${V87_TIP_COMMIT}: ${appChanged.replace(/\n/g, ', ')}`);
+  }
 }
 
 const build = read('src/lib/build-info.js').match(/BUILD_NUMBER = (\d+)/)?.[1];
@@ -90,10 +110,10 @@ Restore:
 }
 
 console.log('OK: GitHub v87 baseline verified');
-console.log(`   HEAD ${head} = v87 tip (${V87_TIP_COMMIT})`);
+console.log(`   HEAD ${head} (app code = ${V87_TIP_COMMIT})`);
 console.log(`   UI from ${V87_UI_COMMIT} — Find Your Memories + Sign In`);
 console.log(`   OAuth: restorebraine.base44.app/api/apps/auth/*`);
 console.log('   Capacitor hosted → https://restorebraine.base44.app');
 console.log('');
-console.log('Phone still loads LIVE Base44 JS — Publish these files in Base44 editor:');
-console.log('   src/lib/native-platform-guard.js, index.html, src/App.jsx, SignedOutLanding.jsx');
+console.log('Run: npm run diagnose:layers  (checks if live Base44 matches GitHub)');
+console.log('Phone loads LIVE Base44 JS — Publish in Base44 editor if diagnose shows ✗ Live JS OAuth');
