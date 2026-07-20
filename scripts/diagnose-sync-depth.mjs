@@ -225,7 +225,7 @@ try {
         note(`Could not fetch App chunk ${appChunk}`);
       }
     }
-    markers[2].live = /Find Your[\s\S]{0,40}Memories/.test(appChunkText)
+    markers[2].live = (appChunkText.includes('Find Your') && appChunkText.includes('Memories'))
       || liveJs.text.includes('Find Your');
 
     if (liveBundleAnalysis.brokenTemplate) {
