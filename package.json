@@ -59,6 +59,7 @@
     "ghosts:discover": "node scripts/discover-ghost-builds.mjs",
     "ghosts:sync": "node scripts/sync-ghost-builds-native.mjs",
     "ghosts:eliminate": "bash scripts/eliminate-ghost-builds.sh",
+    "ghosts:audit-all": "node scripts/audit-ghost-builds-all.mjs",
     "ghosts:timeline": "node scripts/print-ghost-timeline.mjs",
     "postinstall": "node scripts/patch-native-purchases-podspec.mjs"
   },

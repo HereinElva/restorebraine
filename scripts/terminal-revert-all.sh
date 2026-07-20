@@ -97,6 +97,7 @@ case "$MODE" in
     fi
     STAMP="$(tr -d '\n' < ios/App/App/BUILD_STAMP.txt 2>/dev/null || echo 'see Xcode')"
     echo "==> [6/6] Done — omega-3 bundled revert complete"
+    sync_ghost_blocklist_optional || true
     echo " BUILD_STAMP: $STAMP"
     echo " Phone loads: capacitor:// bundled ios/public (terminal-controlled)"
     echo " Ghost CDN scripts skipped (omega-3 tag — bundled mode does not load Base44)"
