@@ -54,6 +54,8 @@
     "prove:live-oauth": "node scripts/prove-live-oauth.mjs",
     "diagnose:chunks": "node scripts/diagnose-chunk-pair.mjs",
     "diagnose:blockages": "node scripts/diagnose-blockages.mjs",
+    "ghosts:scan": "node scripts/scan-ghost-builds.mjs",
+    "ghosts:sync": "node scripts/sync-ghost-builds-native.mjs",
     "postinstall": "node scripts/patch-native-purchases-podspec.mjs"
   },
   "dependencies": {

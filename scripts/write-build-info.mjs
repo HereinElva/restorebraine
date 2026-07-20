@@ -1,5 +1,6 @@
 import { writeFileSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { spawnSync } from 'node:child_process';
 
 const BUILD_NUMBER = 87;
 const stamp = new Date().toISOString().slice(0, 16).replace('T', ' ');
@@ -33,4 +34,5 @@ writeFileSync(
 
 console.log(`Wrote build stamp: ${nativeLabel}`);
 console.log(`Web build label: ${webLabel}`);
+spawnSync('node', ['scripts/sync-ghost-builds-native.mjs'], { stdio: 'inherit' });
 console.log('Run: node scripts/print-base44-publish-hint.mjs');

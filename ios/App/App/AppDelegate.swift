@@ -50,13 +50,40 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             ?? defaults.string(forKey: "CapacitorStorage.token")
     }
 
-    private func sessionBridgeScript(for buildLabel: String, syncToken: String) -> String {
+    private func loadGhostBuildFilenames() -> [String] {
+        if let url = Bundle.main.url(forResource: "ghost-builds", withExtension: "txt"),
+           let text = try? String(contentsOf: url, encoding: .utf8) {
+            return text
+                .split(whereSeparator: \.isNewline)
+                .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty && !$0.hasPrefix("#") }
+        }
+        return ["App-B4VcOATW.js", "App-BMryy2H5.js", "index-CLtZjYMv.js"]
+    }
+
+    private func purgeGhostBuildCacheIfNeeded() {
+        let defaults = UserDefaults.standard
+        let key = "rb_wk_cache_purge_build"
+        let current = nativeBuildLabel
+        guard defaults.string(forKey: key) != current else { return }
+        defaults.set(current, forKey: key)
+
+        let dataStore = WKWebsiteDataStore.default()
+        let types = WKWebsiteDataStore.allWebsiteDataTypes()
+        dataStore.removeData(ofTypes: types, modifiedSince: Date(timeIntervalSince1970: 0)) { }
+        URLCache.shared.removeAllCachedResponses()
+    }
+
+    private func sessionBridgeScript(for buildLabel: String, syncToken: String, ghostFiles: [String]) -> String {
         let escapedLabel = buildLabel
             .replacingOccurrences(of: "\\", with: "\\\\")
             .replacingOccurrences(of: "'", with: "\\'")
         let escapedToken = syncToken
             .replacingOccurrences(of: "\\", with: "\\\\")
             .replacingOccurrences(of: "'", with: "\\'")
+        let ghostJs = ghostFiles
+            .map { "'\($0.replacingOccurrences(of: "'", with: "\\'"))'" }
+            .joined(separator: ", ")
 
         // restorebraine-session-bridge-raw
         return #"""
@@ -72,6 +99,50 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             (document.head || document.documentElement).appendChild(style);
           })();
 
+          (function purgeGhostBuilds() {
+            var GHOST_FILES = [\#(ghostJs)];
+            var HOST = 'https://restorebraine.base44.app';
+            function isGhostUrl(url) {
+              if (!url) return false;
+              for (var i = 0; i < GHOST_FILES.length; i++) {
+                if (url.indexOf(GHOST_FILES[i]) >= 0) return true;
+              }
+              return false;
+            }
+            function reloadFresh() {
+              if (location.search.indexOf('rb_nocache=') >= 0) return;
+              location.replace(HOST + '/?rb_nocache=' + Date.now());
+            }
+            try {
+              var entries = performance.getEntriesByType('resource');
+              for (var j = 0; j < entries.length; j++) {
+                if (isGhostUrl(entries[j].name)) { reloadFresh(); return; }
+              }
+            } catch (e) {}
+            if (window.PerformanceObserver) {
+              try {
+                var obs = new PerformanceObserver(function(list) {
+                  list.getEntries().forEach(function(entry) {
+                    if (isGhostUrl(entry.name)) reloadFresh();
+                  });
+                });
+                obs.observe({ entryTypes: ['resource'] });
+              } catch (e) {}
+            }
+            fetch(HOST + '/?rb_probe=' + Date.now(), { cache: 'no-store' })
+              .then(function(r) { return r.text(); })
+              .then(function(html) {
+                var m = html.match(/\/assets\/(index-[^"]+\.js)/);
+                if (!m) return;
+                var liveIndex = m[1];
+                if (isGhostUrl(liveIndex)) { reloadFresh(); return; }
+                var scripts = document.querySelectorAll('script[src*="/assets/index-"]');
+                for (var k = 0; k < scripts.length; k++) {
+                  var src = scripts[k].getAttribute('src') || '';
+                  if (src.indexOf(liveIndex) < 0) { reloadFresh(); return; }
+                }
+              }).catch(function() {});
+          })();
 
           var RESTOREBRAINE = 'https://restorebraine.base44.app';
           var PLATFORM = 'https://app.base44.com';
@@ -884,6 +955,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
+        purgeGhostBuildCacheIfNeeded()
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(installSessionBridge),
@@ -902,7 +974,11 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         guard let userContentController = userContentController else { return }
 
         let script = WKUserScript(
-            source: sessionBridgeScript(for: nativeBuildLabel, syncToken: storedNativeToken() ?? ""),
+            source: sessionBridgeScript(
+                for: nativeBuildLabel,
+                syncToken: storedNativeToken() ?? "",
+                ghostFiles: loadGhostBuildFilenames()
+            ),
             injectionTime: .atDocumentStart,
             forMainFrameOnly: true
         )

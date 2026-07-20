@@ -7,16 +7,12 @@ import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { execSync } from 'node:child_process';
 
-const HOSTED = 'https://restorebraine.base44.app';
-
-/** Known stale/ghost assets still served on Base44 CDN (HTTP 200 forever). */
-const GHOST_ASSETS = [
-  { file: 'App-B4VcOATW.js', note: 'Stale gallery/CSS from partial Publish (primary blocker)' },
-  { file: 'index-CLtZjYMv.js', note: 'Old index bundle → pointed at pre-v87 App chunks' },
-  { file: 'App-BMryy2H5.js', note: 'Ghost App chunk linked from index-CLtZjYMv.js' },
-];
-
-export const STALE_APP = 'App-B4VcOATW.js';
+import {
+  HOSTED,
+  STALE_APP,
+  KNOWN_GHOST_ASSETS,
+  probeGhostAssets,
+} from './ghost-builds-registry.mjs';
 
 function sha(text) {
   return createHash('sha256').update(text).digest('hex').slice(0, 12);
@@ -123,7 +119,7 @@ if (liveAppName === STALE_APP) {
 
 // ── BLOCKER 4: Ghost builds on CDN ──────────────────────────────────────────
 console.log('GHOST BUILDS (old chunks still on CDN — cached phones can load them):');
-for (const { file, note } of GHOST_ASSETS) {
+for (const { file, note } of KNOWN_GHOST_ASSETS) {
   const h = await head(`${HOSTED}/assets/${file}`);
   const marker = h.ok ? '✗ STILL LIVE' : '✓ gone';
   console.log(`  ${marker}  ${file}  — ${note}`);

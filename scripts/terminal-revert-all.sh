@@ -87,7 +87,9 @@ case "$MODE" in
       npx cap sync ios 2>/dev/null || true
     fi
     STAMP="$(tr -d '\n' < ios/App/App/BUILD_STAMP.txt 2>/dev/null || echo 'see Xcode')"
-    echo "==> [6/6] Done — omega-3 bundled revert complete"
+    echo "==> [6/6] Sync ghost-build blocklist + scan CDN"
+    node scripts/sync-ghost-builds-native.mjs
+    node scripts/scan-ghost-builds.mjs || true
     echo " BUILD_STAMP: $STAMP"
     echo " Phone loads: capacitor:// bundled ios/public (terminal-controlled)"
     ;;
@@ -106,7 +108,10 @@ case "$MODE" in
     echo "==> [5/6] Verify"
     node scripts/verify-v87-baseline.mjs || echo "WARN: v87 baseline check failed on bundled path"
     STAMP="$(tr -d '\n' < ios/App/App/BUILD_STAMP.txt 2>/dev/null || echo 'see Xcode')"
-    echo "==> [6/6] Done — v87 bundled revert complete"
+    echo "==> [6/6] Sync ghost-build blocklist"
+    node scripts/sync-ghost-builds-native.mjs
+    node scripts/scan-ghost-builds.mjs || true
+    echo " Done — v87 bundled revert complete"
     echo " BUILD_STAMP: $STAMP"
     echo " Phone loads: capacitor:// bundled ios/public (terminal-controlled)"
     ;;
