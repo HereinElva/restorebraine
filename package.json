@@ -41,6 +41,8 @@
     "hooks:install": "bash scripts/install-git-hooks.sh",
     "prompt:replace-app": "bash scripts/prompt-replace-iphone-app.sh",
     "why:no-change": "node scripts/explain-no-change.mjs",
+    "omega:v87-ref": "node scripts/print-omega-to-v87-reference.mjs",
+    "verify:manifest": "node scripts/verify-base44-manifest.mjs",
     "prove:live-oauth": "node scripts/prove-live-oauth.mjs",
     "diagnose:chunks": "node scripts/diagnose-chunk-pair.mjs",
     "postinstall": "node scripts/patch-native-purchases-podspec.mjs"

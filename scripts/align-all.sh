@@ -60,6 +60,8 @@ fail_with_base44() {
   echo " TERMINAL DONE — GitHub + Capacitor aligned. Browser Publish required."
   echo
   echo " 1. npm run base44:export-pack     # or base44:copy-commands"
+  echo "    npm run omega:v87-ref           # Omega 3 → v87 reference"
+  echo "    npm run verify:manifest         # confirm gallery deps included"
   echo " 2. Open Base44 code editor → paste ALL 43 files → Publish ONCE"
   echo " 3. npm run align:watch            # terminal polls until chunks match"
   echo " 4. npm run align:all -- --skip-build   # re-verify all layers"
@@ -122,6 +124,7 @@ if [[ "$SKIP_BUILD" == "1" ]]; then
 else
   banner "PHASE 5 — Web build (dist for chunk pair comparison)"
   run npm run build:web
+  run node scripts/verify-base44-manifest.mjs
 fi
 
 # ── Live Base44 probes ──────────────────────────────────────────────────────

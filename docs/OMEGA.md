@@ -6,7 +6,11 @@ Known-good Restorebraine native iOS builds. Use these to revert if a later chang
 |-----|-------------|-------|
 | `omega-v55` | `kbrown native v55` | Login worked; sign-out showed native overlay |
 | `omega-v57` | `kbrown native v57` | Login + logout perfect; home screen icon still missing |
-| **`omega`** | **`kbrown native v58`** | **Current Omega — login, logout, official app icon** |
+| **`omega-3`** | **`kbrown v4-core v261`** | **Bundled gallery/organize reference — folder persistence, PullToRefresh** |
+| **`omega`** | **`kbrown native v58`** | **Hosted login, logout, official app icon** |
+| **`v87-baseline`** | **v87** | **Current target — hosted + SignedOutLanding + OAuth fix** |
+
+See [OMEGA-3.md](./OMEGA-3.md) and [V87-FROM-OMEGA3.md](./V87-FROM-OMEGA3.md) for the full Omega 3 → v87 correction path.
 
 ## Revert to current Omega (recommended)
 

@@ -34,19 +34,21 @@ console.log(`
 ═══════════════════════════════════════════════════════════════
 
 WHY FULL PUBLISH IS REQUIRED
-  Past failures published index.html or static JS only → deploy meta said v87
-  but main bundle stayed index-CLtZjYMv.js with broken OAuth.
-  Base44 rebuilds index-*.js from SOURCE files in the editor — not from GitHub.
+  Past failures published index.html or OAuth only → deploy meta said v87
+  but App chunk stayed App-B4VcOATW.js with stale gallery/CSS (Omega 3 fixes missing).
+  Old 43-file list omitted PullToRefresh, PhotoModal, media-organize.js, etc.
+  Reference: npm run omega:v87-ref  (Omega 3 archived → v87 corrections)
 
 STEPS
   1. Open https://app.base44.com → Restorebraine → Code editor
   2. For EACH file below: open path in editor → paste FULL contents from Mac
   3. After ALL files pasted → click Publish (top right) ONCE
-  4. Mac: npm run diagnose:chunks  (App chunk MUST change from App-B4VcOATW.js)
-  5. Mac: npm run diagnose:all
+  4. Mac: npm run verify:manifest
+  5. Mac: npm run diagnose:chunks  (App chunk MUST change from App-B4VcOATW.js)
+  6. Mac: npm run diagnose:all
 
 Faster paste workflow:
-  npm run base44:export-pack     → BASE44-PASTE-PACK-v87.txt (all 43 files)
+  npm run base44:export-pack     → BASE44-PASTE-PACK-v87.txt (all ${TIER_FULL.length} files)
   npm run base44:copy-commands   → numbered cat ... | pbcopy for each file
 
 Files to paste (${tier.length} total):

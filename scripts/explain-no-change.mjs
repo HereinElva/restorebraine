@@ -75,12 +75,14 @@ console.log(`
 
   Browser (required — no terminal alternative):
     1. https://app.base44.com → Restorebraine → Code editor
-    2. Paste ALL 43 files from the export pack
+    2. Paste ALL files from export pack (Omega 3 gallery + v87 auth — see omega:v87-ref)
     3. Click Publish ONCE (top right)
 
   Mac terminal (confirms it worked):
+    npm run verify:manifest
     npm run align:watch
     → waits until live App chunk is NO LONGER ${STALE_APP}
+    Reference: npm run omega:v87-ref  (Omega 3 → v87 lineage)
 
   Then iPhone:
     Delete Restorebraine → Restart iPhone → Xcode Clean → Run
