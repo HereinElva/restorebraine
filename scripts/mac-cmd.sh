@@ -23,6 +23,7 @@ if [[ "$CMD" == "help" || "$CMD" == "-h" ]]; then
   echo "  bash $ROOT/scripts/mac-cmd.sh diagnose:all"
   echo "  bash $ROOT/scripts/mac-cmd.sh gate:pre-update"
   echo "  bash $ROOT/scripts/mac-cmd.sh pull   # git pull + diagnose:all"
+  echo "  bash $ROOT/scripts/mac-cmd.sh reset:v87-all"
   exit 0
 fi
 echo "==> cd $ROOT"
