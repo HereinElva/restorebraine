@@ -58,6 +58,15 @@ wipe_build_debris() {
   fi
 }
 
+sync_ghost_blocklist_optional() {
+  if [[ -f scripts/sync-ghost-builds-native.mjs ]]; then
+    node scripts/sync-ghost-builds-native.mjs
+    node scripts/scan-ghost-builds.mjs || true
+  else
+    echo "    (skip ghost CDN scan — not on diagnostic branch; bundled mode ignores CDN anyway)"
+  fi
+}
+
 banner "TERMINAL REVERT — mode: $MODE"
 echo " Repo: $ROOT"
 echo " No Base44 browser · No nuke script · No interactive prompts"
@@ -87,11 +96,10 @@ case "$MODE" in
       npx cap sync ios 2>/dev/null || true
     fi
     STAMP="$(tr -d '\n' < ios/App/App/BUILD_STAMP.txt 2>/dev/null || echo 'see Xcode')"
-    echo "==> [6/6] Sync ghost-build blocklist + scan CDN"
-    node scripts/sync-ghost-builds-native.mjs
-    node scripts/scan-ghost-builds.mjs || true
+    echo "==> [6/6] Done — omega-3 bundled revert complete"
     echo " BUILD_STAMP: $STAMP"
     echo " Phone loads: capacitor:// bundled ios/public (terminal-controlled)"
+    echo " Ghost CDN scripts skipped (omega-3 tag — bundled mode does not load Base44)"
     ;;
 
   bundled-v87)
@@ -108,9 +116,8 @@ case "$MODE" in
     echo "==> [5/6] Verify"
     node scripts/verify-v87-baseline.mjs || echo "WARN: v87 baseline check failed on bundled path"
     STAMP="$(tr -d '\n' < ios/App/App/BUILD_STAMP.txt 2>/dev/null || echo 'see Xcode')"
-    echo "==> [6/6] Sync ghost-build blocklist"
-    node scripts/sync-ghost-builds-native.mjs
-    node scripts/scan-ghost-builds.mjs || true
+    echo "==> [6/6] Sync ghost-build blocklist (optional)"
+    sync_ghost_blocklist_optional
     echo " Done — v87 bundled revert complete"
     echo " BUILD_STAMP: $STAMP"
     echo " Phone loads: capacitor:// bundled ios/public (terminal-controlled)"
