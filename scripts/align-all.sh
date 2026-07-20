@@ -50,7 +50,14 @@ fail_with_base44() {
   echo
   echo "✗ $1"
   echo
-  echo " TERMINAL DONE — GitHub + Capacitor aligned. Live Base44 needs browser Publish."
+  echo " ══════════════════════════════════════════════════════════════"
+  echo " NOTHING WILL CHANGE ON YOUR IPHONE UNTIL BASE44 PUBLISH"
+  echo " ══════════════════════════════════════════════════════════════"
+  echo " iPhone loads https://restorebraine.base44.app — NOT your Mac."
+  echo " Live App chunk is still App-B4VcOATW.js (stale gallery/CSS)."
+  echo " Run: npm run why:no-change   (live proof + exact fix)"
+  echo
+  echo " TERMINAL DONE — GitHub + Capacitor aligned. Browser Publish required."
   echo
   echo " 1. npm run base44:export-pack     # or base44:copy-commands"
   echo " 2. Open Base44 code editor → paste ALL 43 files → Publish ONCE"
