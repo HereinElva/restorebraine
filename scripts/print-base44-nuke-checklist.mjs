@@ -42,8 +42,12 @@ STEPS
   1. Open https://app.base44.com → Restorebraine → Code editor
   2. For EACH file below: open path in editor → paste FULL contents from Mac
   3. After ALL files pasted → click Publish (top right) ONCE
-  4. Mac: npm run diagnose:sync  (bundle hash MUST change)
-  5. Mac: npm run verify:lingering -- --strict
+  4. Mac: npm run diagnose:chunks  (App chunk MUST change from App-B4VcOATW.js)
+  5. Mac: npm run diagnose:all
+
+Faster paste workflow:
+  npm run base44:export-pack     → BASE44-PASTE-PACK-v87.txt (all 43 files)
+  npm run base44:copy-commands   → numbered cat ... | pbcopy for each file
 
 Files to paste (${tier.length} total):
 `);
@@ -65,9 +69,11 @@ MINIMUM IF SHORT ON TIME (Sign In only — may not wipe all post-v87 UI):
   npm run base44:nuke-list -- --minimal
 
 AFTER PUBLISH — success looks like:
-  • Live bundle hash ≠ index-CLtZjYMv.js
+  • npm run diagnose:chunks → ✓ (live App chunk ≠ App-B4VcOATW.js)
   • npm run diagnose:oauth → Live row = restorebraine.base44.app
-  • npm run diagnose:all → 6/6 passed
+  • npm run diagnose:all → 7/7 passed (includes chunk pair check)
+
+BEFORE Publish, diagnose:chunks will FAIL — that is expected (you are here now).
 
 THEN iPhone:
   Delete app → Restart iPhone → Xcode Clean → Run

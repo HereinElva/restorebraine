@@ -68,7 +68,7 @@ if (git && liveIndexName !== git.index) {
 
 console.log('\n───────────────────────────────────────────────────────────────');
 if (issues.length) {
-  console.log(' ✗ MIXED PUBLISH DETECTED');
+  console.log(' ✗ MIXED PUBLISH DETECTED (or Publish not done yet)');
   for (const i of issues) console.log(`   • ${i}`);
   console.log(`
 WHY UI LOOKS WRONG (formatting off, blank gallery feel):
@@ -76,11 +76,14 @@ WHY UI LOOKS WRONG (formatting off, blank gallery feel):
   from an older build. Gallery, CSS imports, and layout live in App chunk.
   OAuth diagnostics pass while gallery/CSS are stale — "no change" on UI fixes.
 
+If you ran base44:nuke-list but have NOT clicked Publish yet:
+  → This failure is EXPECTED. Paste all 43 files → Publish ONCE → re-run this.
+
 FIX (one full Publish — not OAuth-only):
-  npm run base44:nuke-list
-  Paste ALL files → Publish ONCE
+  npm run base44:copy-commands   (or base44:export-pack)
+  Paste ALL files in Base44 editor → Publish ONCE
   npm run diagnose:chunks
-  Expect: live App hash matches git App hash
+  Expect: live App chunk changes from App-B4VcOATW.js
 `);
   process.exit(1);
 }

@@ -2,6 +2,115 @@
 # Paste each FILE block into Base44 code editor, then Publish once.
 
 ========================================================================
+FILE: index.html
+========================================================================
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" href="https://media.base44.com/images/public/68fdc5f42768c4d045fe1bac/e76571efc_appstore.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="restorebraine-deploy" content="v87" />
+    <title>Restorebraine</title>
+    <script>
+(function(){var APP_ID='68fdc5f42768c4d045fe1bac',PLATFORM='https://app.base44.com',APP_ORIGIN=location.protocol+'//'+location.host,host=location.hostname,path=location.pathname.replace(/\/$/,'')||'/';function platformLogin(fromUrl){var params=new URLSearchParams({from_url:fromUrl||'https://restorebraine.com',app_id:APP_ID,prompt:'select_account'});location.replace(PLATFORM+'/login?'+params.toString());}if(host==='base44.app'&&path==='/login'){platformLogin('https://restorebraine.com');return;}if((host==='restorebraine.com'||host==='www.restorebraine.com')&&path==='/login'){platformLogin(APP_ORIGIN);return;}var originalAssign=Location.prototype.assign,originalReplace=Location.prototype.replace;function guard(url){var value=String(url||'');if(/^https:\/\/base44\.app\/login/i.test(value)){platformLogin('https://restorebraine.com');return true;}if(/^https:\/\/restorebraine\.com\/login/i.test(value)||/^https:\/\/www\.restorebraine\.com\/login/i.test(value)){platformLogin('https://restorebraine.com');return true;}return false;}Location.prototype.assign=function(url){if(guard(url))return;return originalAssign.call(this,url);};Location.prototype.replace=function(url){if(guard(url))return;return originalReplace.call(this,url);};})();
+    </script>
+    <script src="./native-oauth-return.js"></script>
+    <script src="./login-redirect.js"></script>
+  </head>
+  <body>
+    <svg aria-hidden="true" focusable="false" style="position:absolute;width:0;height:0;overflow:hidden">
+      <defs>
+        <linearGradient id="rb-brand-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stopColor="#60a5fa" />
+          <stop offset="100%" stopColor="#a855f7" />
+        </linearGradient>
+      </defs>
+    </svg>
+    <div id="root">
+      <div id="rb-boot-fallback" style="min-height:100vh;display:flex;align-items:center;justify-content:center;font-family:system-ui,sans-serif;color:#666;background:#fff">
+        Loading Restorebraine…
+      </div>
+    </div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
+
+
+========================================================================
+FILE: public/login-redirect.js
+========================================================================
+/** Runs before the React app — fixes broken Base44 login redirects on custom domains. */
+(function () {
+  var APP_ID = '68fdc5f42768c4d045fe1bac';
+  var PLATFORM = 'https://app.base44.com';
+  var APP_ORIGIN = location.protocol + '//' + location.host;
+  var host = location.hostname;
+  var path = location.pathname.replace(/\/$/, '') || '/';
+
+  function platformLogin(fromUrl) {
+    var params = new URLSearchParams({
+      from_url: fromUrl || 'https://restorebraine.com',
+      app_id: APP_ID,
+      prompt: 'select_account',
+    });
+    location.replace(PLATFORM + '/login?' + params.toString());
+  }
+
+  if (host === 'base44.app' && path === '/login') {
+    platformLogin('https://restorebraine.com');
+    return;
+  }
+
+  if ((host === 'restorebraine.com' || host === 'www.restorebraine.com') && path === '/login') {
+    platformLogin(APP_ORIGIN);
+    return;
+  }
+
+  var originalAssign = Location.prototype.assign;
+  var originalReplace = Location.prototype.replace;
+
+  function guard(url) {
+    var value = String(url || '');
+    if (/^https:\/\/base44\.app\/login/i.test(value)) {
+      platformLogin('https://restorebraine.com');
+      return true;
+    }
+    if (/^https:\/\/restorebraine\.com\/login/i.test(value) || /^https:\/\/www\.restorebraine\.com\/login/i.test(value)) {
+      platformLogin('https://restorebraine.com');
+      return true;
+    }
+    return false;
+  }
+
+  Location.prototype.assign = function (url) {
+    if (guard(url)) return;
+    return originalAssign.call(this, url);
+  };
+
+  Location.prototype.replace = function (url) {
+    if (guard(url)) return;
+    return originalReplace.call(this, url);
+  };
+})();
+
+
+========================================================================
+FILE: public/native-oauth-return.js
+========================================================================
+/** Redirect OAuth token from hosted callback into the native app deep link. */
+(function () {
+  if (typeof window === 'undefined') return;
+  var proto = location.protocol;
+  if (proto === 'capacitor:' || proto === 'ionic:') return;
+  if (location.hostname !== 'restorebraine.base44.app') return;
+  var token = new URLSearchParams(location.search).get('access_token');
+  if (!token) return;
+  location.replace('restorebraine://oauth/callback?access_token=' + encodeURIComponent(token));
+})();
+
+
+========================================================================
 FILE: src/lib/app-domains.js
 ========================================================================
 /** Default hosted URL — also used by native Capacitor shell. */
@@ -212,9 +321,10 @@ export const interceptNativeSignInClicks = () => {
     if (!target) return;
     const label = (target.textContent || '').trim();
     const href = target.href || target.getAttribute?.('href') || '';
+    const isSignInButton = /^sign in$/i.test(label.replace(/\s+/g, ' '));
     const isProvider = /continue with google|continue with apple|continue with microsoft|sign in with email|sign in with google|sign in with apple|sign in with microsoft/i.test(label);
     const isAuthLink = /auth\/login|auth\/apple|auth\/microsoft/i.test(href);
-    if (!isProvider && !isAuthLink) return;
+    if (!isSignInButton && !isProvider && !isAuthLink) return;
     event.preventDefault();
     event.stopPropagation();
     event.stopImmediatePropagation();
@@ -365,7 +475,25 @@ export const openLoginInSystemBrowser = async (url = getGoogleOAuthUrl(), provid
   oauthListenerAttached = false;
   await attachOAuthCompletionListener();
   const InAppBrowser = await getInAppBrowser();
-  await InAppBrowser.openInSystemBrowser({ url: normalizedUrl, options: SYSTEM_BROWSER_OPTIONS });
+  if (InAppBrowser?.openInSystemBrowser) {
+    await InAppBrowser.openInSystemBrowser({ url: normalizedUrl, options: SYSTEM_BROWSER_OPTIONS });
+    return;
+  }
+
+  try {
+    const { Browser } = await import('@capacitor/browser');
+    await Browser.open({ url: normalizedUrl });
+    return;
+  } catch (error) {
+    console.warn('InAppBrowser/Browser plugins unavailable — falling back to navigation', error);
+  }
+
+  if (typeof window.__restorebraineOpenLogin === 'function') {
+    window.__restorebraineOpenLogin();
+    return;
+  }
+
+  window.location.assign(normalizedUrl);
 };
 
 const handleAuthNavigation = (url, providerHint) => {
@@ -497,6 +625,12 @@ export const getRestorebraineLoginUrl = getPlatformLoginUrl;
 export const openRestorebraineLogin = () => {
   if (typeof window === 'undefined') return;
 
+  // AppDelegate bridge (hosted Capacitor) — most reliable on iPhone.
+  if (typeof window.__restorebraineOpenLogin === 'function') {
+    window.__restorebraineOpenLogin();
+    return;
+  }
+
   if (isNativeShell()) {
     import('@/lib/native-google-oauth').then(({ openLoginInSystemBrowser }) => {
       openLoginInSystemBrowser(getGoogleOAuthUrl(), 'google');
@@ -534,6 +668,9 @@ export const HOSTED_APP_URL = DEFAULT_APP_ORIGIN;
 export const isNativeShell = () => {
   try {
     return typeof window !== 'undefined' && (
+      window.__restorebraineSessionBridgeInstalled ||
+      typeof window.__restorebraineOpenLogin === 'function' ||
+      typeof window.__RESTOREBRAINE_NATIVE_BUILD__ !== 'undefined' ||
       window.Capacitor?.isNativePlatform?.() ||
       window.location?.protocol === 'capacitor:' ||
       window.location?.protocol === 'ionic:'
@@ -975,42 +1112,6 @@ export const useAuth = () => {
 
 
 ========================================================================
-FILE: index.html
-========================================================================
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" href="https://media.base44.com/images/public/68fdc5f42768c4d045fe1bac/e76571efc_appstore.png" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="restorebraine-deploy" content="v87" />
-    <title>Restorebraine</title>
-    <script>
-(function(){var APP_ID='68fdc5f42768c4d045fe1bac',PLATFORM='https://app.base44.com',APP_ORIGIN=location.protocol+'//'+location.host,host=location.hostname,path=location.pathname.replace(/\/$/,'')||'/';function platformLogin(fromUrl){var params=new URLSearchParams({from_url:fromUrl||'https://restorebraine.com',app_id:APP_ID,prompt:'select_account'});location.replace(PLATFORM+'/login?'+params.toString());}if(host==='base44.app'&&path==='/login'){platformLogin('https://restorebraine.com');return;}if((host==='restorebraine.com'||host==='www.restorebraine.com')&&path==='/login'){platformLogin(APP_ORIGIN);return;}var originalAssign=Location.prototype.assign,originalReplace=Location.prototype.replace;function guard(url){var value=String(url||'');if(/^https:\/\/base44\.app\/login/i.test(value)){platformLogin('https://restorebraine.com');return true;}if(/^https:\/\/restorebraine\.com\/login/i.test(value)||/^https:\/\/www\.restorebraine\.com\/login/i.test(value)){platformLogin('https://restorebraine.com');return true;}return false;}Location.prototype.assign=function(url){if(guard(url))return;return originalAssign.call(this,url);};Location.prototype.replace=function(url){if(guard(url))return;return originalReplace.call(this,url);};})();
-    </script>
-    <script src="./native-oauth-return.js"></script>
-    <script src="./login-redirect.js"></script>
-  </head>
-  <body>
-    <svg aria-hidden="true" focusable="false" style="position:absolute;width:0;height:0;overflow:hidden">
-      <defs>
-        <linearGradient id="rb-brand-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" stopColor="#60a5fa" />
-          <stop offset="100%" stopColor="#a855f7" />
-        </linearGradient>
-      </defs>
-    </svg>
-    <div id="root">
-      <div id="rb-boot-fallback" style="min-height:100vh;display:flex;align-items:center;justify-content:center;font-family:system-ui,sans-serif;color:#666;background:#fff">
-        Loading Restorebraine…
-      </div>
-    </div>
-    <script type="module" src="/src/main.jsx"></script>
-  </body>
-</html>
-
-
-========================================================================
 FILE: src/main.jsx
 ========================================================================
 import { redirectNativeToHostedApp, isNativeShell } from '@/lib/native-hosted-redirect';
@@ -1210,6 +1311,241 @@ function App() {
 export default App
 
 ========================================================================
+FILE: src/App.css
+========================================================================
+
+
+========================================================================
+FILE: src/index.css
+========================================================================
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+
+/* :root {
+  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+
+  color-scheme: light dark;
+  color: rgba(255, 255, 255, 0.87);
+  background-color: #242424;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+a {
+  font-weight: 500;
+  color: #646cff;
+  text-decoration: inherit;
+}
+a:hover {
+  color: #535bf2;
+}
+
+body {
+  margin: 0;
+  display: flex;
+  place-items: center;
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+h1 {
+  font-size: 3.2em;
+  line-height: 1.1;
+}
+
+button {
+  border-radius: 8px;
+  border: 1px solid transparent;
+  padding: 0.6em 1.2em;
+  font-size: 1em;
+  font-weight: 500;
+  font-family: inherit;
+  background-color: #1a1a1a;
+  cursor: pointer;
+  transition: border-color 0.25s;
+}
+button:hover {
+  border-color: #646cff;
+}
+button:focus,
+button:focus-visible {
+  outline: 4px auto -webkit-focus-ring-color;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    color: #213547;
+    background-color: #ffffff;
+  }
+  a:hover {
+    color: #747bff;
+  }
+  button {
+    background-color: #f9f9f9;
+  }
+} */
+
+
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 0 0% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 3.9%;
+    --primary: 0 0% 9%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 0 0% 96.1%;
+    --secondary-foreground: 0 0% 9%;
+    --muted: 0 0% 96.1%;
+    --muted-foreground: 0 0% 45.1%;
+    --accent: 0 0% 96.1%;
+    --accent-foreground: 0 0% 9%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 89.8%;
+    --input: 0 0% 89.8%;
+    --ring: 0 0% 3.9%;
+    --chart-1: 12 76% 61%;
+    --chart-2: 173 58% 39%;
+    --chart-3: 197 37% 24%;
+    --chart-4: 43 74% 66%;
+    --chart-5: 27 87% 67%;
+    --radius: 0.5rem;
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 240 5.9% 10%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+  .dark {
+    --background: 0 0% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 0 0% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 0 0% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 0 0% 9%;
+    --secondary: 0 0% 14.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 0 0% 14.9%;
+    --muted-foreground: 0 0% 63.9%;
+    --accent: 0 0% 14.9%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 14.9%;
+    --input: 0 0% 14.9%;
+    --ring: 0 0% 83.1%;
+    --chart-1: 220 70% 50%;
+    --chart-2: 160 60% 45%;
+    --chart-3: 30 80% 55%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 340 75% 55%;
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}
+
+
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Folders tab: compact tiles — fill is the button, no outer border rim */
+div.grid.grid-cols-2.gap-1\.5.mb-5 > button,
+div.grid.grid-cols-2.gap-1\.5.mb-5 [data-rb-folder-action],
+div.grid.grid-cols-2.gap-2.mb-5 > button,
+div.grid.grid-cols-2.gap-2.mb-5 [data-rb-folder-action] {
+  box-sizing: border-box !important;
+  width: 100% !important;
+  height: auto !important;
+  min-height: 4.25rem !important;
+  max-width: none !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 0.25rem !important;
+  padding: 0.75rem !important;
+  border-radius: 1rem !important;
+  background: linear-gradient(to bottom right, #ffffff 0%, #ffffff 70%, rgb(250 245 255) 100%) !important;
+  border: 1px solid rgb(229 231 235) !important;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.08), 0 1px 2px -1px rgba(0, 0, 0, 0.04) !important;
+  font-size: 0.875rem !important;
+  font-weight: 600 !important;
+  outline: none !important;
+  -webkit-appearance: none !important;
+  appearance: none !important;
+}
+
+div.grid.grid-cols-2.gap-1\.5.mb-5 > button:not([data-rb-folder-action="organize"]),
+div.grid.grid-cols-2.gap-1\.5.mb-5 [data-rb-folder-action]:not([data-rb-folder-action="organize"]),
+div.grid.grid-cols-2.gap-2.mb-5 > button:not([data-rb-folder-action="organize"]),
+div.grid.grid-cols-2.gap-2.mb-5 [data-rb-folder-action]:not([data-rb-folder-action="organize"]) {
+  color: rgb(55 65 81) !important;
+}
+
+div.grid.grid-cols-2.gap-1\.5.mb-5 [data-rb-folder-action="select"].bg-purple-600,
+div.grid.grid-cols-2.gap-2.mb-5 [data-rb-folder-action="select"].bg-purple-600 {
+  background: rgb(147 51 234) !important;
+  color: #ffffff !important;
+}
+
+/* Organize: solid purple icon + label */
+div.grid.grid-cols-2.gap-1\.5.mb-5 [data-rb-folder-action="organize"] [data-rb-organize-label],
+div.grid.grid-cols-2.gap-2.mb-5 [data-rb-folder-action="organize"] [data-rb-organize-label] {
+  color: rgb(147 51 234) !important;
+  -webkit-text-fill-color: rgb(147 51 234) !important;
+  background: none !important;
+}
+
+div.grid.grid-cols-2.gap-1\.5.mb-5 [data-rb-folder-action="organize"] svg.lucide,
+div.grid.grid-cols-2.gap-2.mb-5 [data-rb-folder-action="organize"] svg.lucide {
+  stroke: rgb(168 85 247) !important;
+  color: rgb(168 85 247) !important;
+}
+
+div.grid.grid-cols-2.gap-1\.5.mb-5 button.border-purple-100,
+div.grid.grid-cols-2.gap-1\.5.mb-5 button.border-purple-200,
+div.grid.grid-cols-2.gap-2.mb-5 button.border-purple-100,
+div.grid.grid-cols-2.gap-2.mb-5 button.border-purple-200 {
+  border: 1px solid rgb(229 231 235) !important;
+  background: linear-gradient(to bottom right, #ffffff 0%, #ffffff 70%, rgb(250 245 255) 100%) !important;
+}
+
+div.grid.grid-cols-2.gap-1\.5.mb-5 button span.text-xs,
+div.grid.grid-cols-2.gap-2.mb-5 button span.text-xs {
+  font-size: 0.875rem !important;
+}
+
+
+========================================================================
 FILE: src/Layout.jsx
 ========================================================================
 import React, { useEffect, useRef } from "react";
@@ -1407,6 +1743,98 @@ export default function Layout({ children, currentPageName }) {
 }
 
 ========================================================================
+FILE: src/pages.config.js
+========================================================================
+/**
+ * pages.config.js - Page routing configuration
+ * 
+ * This file is AUTO-GENERATED. Do not add imports or modify PAGES manually.
+ * Pages are auto-registered when you create files in the ./pages/ folder.
+ * 
+ * THE ONLY EDITABLE VALUE: mainPage
+ * This controls which page is the landing page (shown when users visit the app).
+ * 
+ * Example file structure:
+ * 
+ *   import HomePage from './pages/HomePage';
+ *   import Dashboard from './pages/Dashboard';
+ *   import Settings from './pages/Settings';
+ *   
+ *   export const PAGES = {
+ *       "HomePage": HomePage,
+ *       "Dashboard": Dashboard,
+ *       "Settings": Settings,
+ *   }
+ *   
+ *   export const pagesConfig = {
+ *       mainPage: "HomePage",
+ *       Pages: PAGES,
+ *   };
+ * 
+ * Example with Layout (wraps all pages):
+ *
+ *   import Home from './pages/Home';
+ *   import Settings from './pages/Settings';
+ *   import __Layout from './Layout.jsx';
+ *
+ *   export const PAGES = {
+ *       "Home": Home,
+ *       "Settings": Settings,
+ *   }
+ *
+ *   export const pagesConfig = {
+ *       mainPage: "Home",
+ *       Pages: PAGES,
+ *       Layout: __Layout,
+ *   };
+ *
+ * To change the main page from HomePage to Dashboard, use find_replace:
+ *   Old: mainPage: "HomePage",
+ *   New: mainPage: "Dashboard",
+ *
+ * The mainPage value must match a key in the PAGES object exactly.
+ */
+import Account from './pages/Account';
+import Gallery from './pages/Gallery';
+import Home from './pages/Home';
+import PaymentSuccess from './pages/PaymentSuccess';
+import PrivacyPolicy from './pages/PrivacyPolicy';
+import Upload from './pages/Upload';
+import __Layout from './Layout.jsx';
+
+
+export const PAGES = {
+    "Account": Account,
+    "Gallery": Gallery,
+    "Home": Home,
+    "PaymentSuccess": PaymentSuccess,
+    "PrivacyPolicy": PrivacyPolicy,
+    "Upload": Upload,
+}
+
+export const pagesConfig = {
+    mainPage: "Gallery",
+    Pages: PAGES,
+    Layout: __Layout,
+};
+
+========================================================================
+FILE: src/deploy-marker.js
+========================================================================
+// Base44: update these files in the Code editor, then click Publish (GitHub alone is not enough).
+export const DEPLOY_BUILD = 87;
+
+
+========================================================================
+FILE: src/lib/build-info.js
+========================================================================
+export const BASE44_APP_ID = '68fdc5f42768c4d045fe1bac';
+export const BUILD_NUMBER = 87;
+export const NATIVE_BUILD_LABEL = 'kbrown native v87 · 2026-07-20 04:28';
+export const WEB_BUILD_LABEL = 'restorebraine web v87';
+
+
+========================================================================
 FILE: src/components/auth/SignedOutLanding.jsx
 ========================================================================
 import React from "react";
@@ -1456,90 +1884,3664 @@ export default function SignedOutLanding({ onSignIn }) {
 
 
 ========================================================================
-FILE: public/native-oauth-return.js
+FILE: src/pages/Gallery.jsx
 ========================================================================
-/** Redirect OAuth token from hosted callback into the native app deep link. */
-(function () {
-  if (typeof window === 'undefined') return;
-  var proto = location.protocol;
-  if (proto === 'capacitor:' || proto === 'ionic:') return;
-  if (location.hostname !== 'restorebraine.base44.app') return;
-  var token = new URLSearchParams(location.search).get('access_token');
-  if (!token) return;
-  location.replace('restorebraine://oauth/callback?access_token=' + encodeURIComponent(token));
-})();
+import React, { useState, useEffect, useRef } from "react";
+import { base44 } from "@/api/base44Client";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Search, Image as ImageIcon, Sparkles, MousePointer2 } from "lucide-react";
+import PullToRefresh from "../components/gallery/PullToRefresh";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import SelectablePhotoGrid from "../components/gallery/SelectablePhotoGrid";
+import PhotoModal from "../components/gallery/PhotoModal";
+import EmptyState from "../components/gallery/EmptyState";
+import OrganizeButton from "../components/gallery/OrganizeButton";
+import CustomFolderButton from "../components/gallery/CustomFolderButton";
+import FolderGrid from "../components/gallery/FolderGrid";
+import FolderView from "../components/gallery/FolderView";
+import SelectionToolbar from "../components/gallery/SelectionToolbar";
+import DuplicateDetector from "../components/gallery/DuplicateDetector";
+import { DragDropContext } from "@hello-pangea/dnd";
+import { useNavigation } from "../components/NavigationContext";
+import { useTabState } from "../components/TabStateContext";
+import MobileGallery from "../components/gallery/MobileGallery";
+ 
+// ---------------------------------------------------------------------------
+// Search helpers
+// ---------------------------------------------------------------------------
+ 
+const VIDEO_KEYWORDS = new Set(['video', 'videos']);
+const IMAGE_KEYWORDS = new Set(['picture', 'pictures', 'image', 'images', 'photo', 'photos']);
+ 
+function tokenise(str = '') {
+  return str
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter(Boolean);
+}
+ 
+function scorePhoto(photo, rawQuery) {
+  const queryTokens = tokenise(rawQuery);
+  if (queryTokens.length === 0) return 1;
+ 
+  const typeTokens = queryTokens.filter(t => VIDEO_KEYWORDS.has(t) || IMAGE_KEYWORDS.has(t));
+  const contentTokens = queryTokens.filter(t => !VIDEO_KEYWORDS.has(t) && !IMAGE_KEYWORDS.has(t));
+ 
+  if (typeTokens.some(t => VIDEO_KEYWORDS.has(t)) && photo.file_type !== 'video') return 0;
+  if (typeTokens.some(t => IMAGE_KEYWORDS.has(t)) && photo.file_type !== 'image') return 0;
+  if (contentTokens.length === 0) return 1;
+ 
+  const desc = (photo.ai_description || '').toLowerCase();
+  const tags = (photo.ai_tags || []).map(t => t.toLowerCase());
+  const tagText = tags.join(' ');
+ 
+  let score = 0;
+  for (const term of contentTokens) {
+    const inDesc = desc.includes(term);
+    const inTags = tagText.includes(term);
+    if (!inDesc && !inTags) return 0;
+    if (inTags) score += 3;
+    if (inDesc) score += 1;
+  }
+ 
+  const phrase = contentTokens.join(' ');
+  if (desc.includes(phrase)) score += 10;
+  const allInTags = contentTokens.every(t => tags.some(tag => tag.includes(t)));
+  if (allInTags) score += 5;
+ 
+  return score;
+}
+ 
+// ---------------------------------------------------------------------------
+// Cache durations
+// staleTime: show cached data immediately, re-fetch in background after this
+// gcTime:    keep data in memory for this long after component unmounts
+// ---------------------------------------------------------------------------
+const CACHE = {
+  user:    { staleTime: 5  * 60 * 1000, gcTime: 10 * 60 * 1000 }, // 5 min stale, 10 min gc
+  photos:  { staleTime: 2  * 60 * 1000, gcTime: 10 * 60 * 1000 }, // 2 min stale
+  folders: { staleTime: 2  * 60 * 1000, gcTime: 10 * 60 * 1000 },
+};
+ 
+// ---------------------------------------------------------------------------
+ 
+export default function Gallery() {
+  const { pushBack, popBack } = useNavigation();
+  const { getTabState, setTabState } = useTabState();
+  const isIOS = true;
+ 
+  const saved = getTabState("Gallery") ?? {};
+ 
+  const [searchQuery, setSearchQuery] = useState(saved.searchQuery ?? "");
+  const [selectedPhoto, setSelectedPhoto] = useState(null);
+  const [debouncedQuery, setDebouncedQuery] = useState(saved.debouncedQuery ?? "");
+  const [selectedFolder, setSelectedFolder] = useState(saved.selectedFolder ?? null);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [selectedFolderIds, setSelectedFolderIds] = useState([]);
+  const [isMoving, setIsMoving] = useState(false);
+  const queryClient = useQueryClient();
+ 
+  useEffect(() => {
+    setTabState("Gallery", { searchQuery, debouncedQuery, selectedFolder });
+  }, [searchQuery, debouncedQuery, selectedFolder]);
+ 
+  useEffect(() => {
+    if (selectedFolder) {
+      pushBack(selectedFolder.name, () => {
+        setSelectedFolder(null);
+        setSelectionMode(false);
+        setSelectedIds([]);
+      });
+    } else {
+      popBack();
+    }
+    return () => popBack();
+  }, [selectedFolder?.id]);
+ 
+  // ── Queries with stale-while-revalidate caching ──────────────────────────
+  // currentUser is fetched once and cached — no blocking on re-opens
+  const { data: currentUser } = useQuery({
+    queryKey: ['current-user'],
+    queryFn: () => base44.auth.me(),
+    staleTime: CACHE.user.staleTime,
+    gcTime: CACHE.user.gcTime,
+    // Show stale data immediately while re-fetching in background
+    placeholderData: (prev) => prev,
+  });
+ 
+  const { data: photos = [], isLoading: photosLoading } = useQuery({
+    queryKey: ['photos', currentUser?.email],
+    queryFn: () => base44.entities.Photo.filter({ created_by: currentUser.email }, '-created_date'),
+    enabled: !!currentUser?.email,
+    staleTime: CACHE.photos.staleTime,
+    gcTime: CACHE.photos.gcTime,
+    // Keep showing previous data while new data loads — no blank flash
+    placeholderData: (prev) => prev,
+    initialData: [],
+  });
+ 
+  const { data: folders = [] } = useQuery({
+    queryKey: ['folders', currentUser?.email],
+    queryFn: async () => {
+      const result = await base44.entities.Folder.list('-created_date', 200);
+      return (result || []).filter(f => !f.created_by || f.created_by === currentUser.email);
+    },
+    enabled: !!currentUser?.email,
+    staleTime: CACHE.folders.staleTime,
+    gcTime: CACHE.folders.gcTime,
+    placeholderData: (prev) => prev,
+    initialData: [],
+  });
+ 
+  // Only show the loading spinner on the very first load (no cached data yet)
+  const isLoading = photosLoading && photos.length === 0;
+ 
+  // Auto-update folders without cover photos
+  useEffect(() => {
+    const updateFolderCovers = async () => {
+      const foldersNeedingCovers = folders.filter(
+        f => (!f.cover_photo_url || f.cover_photo_url === '') && f.photo_ids?.length > 0
+      );
+      if (foldersNeedingCovers.length === 0) return;
+      let updated = false;
+      for (const folder of foldersNeedingCovers) {
+        const coverPhoto = photos.find(p => p.id === folder.photo_ids[0]);
+        if (coverPhoto) {
+          await base44.entities.Folder.update(folder.id, { cover_photo_url: coverPhoto.file_url });
+          updated = true;
+        }
+      }
+      if (updated) queryClient.invalidateQueries({ queryKey: ['folders'] });
+    };
+    if (photos.length > 0 && folders.length > 0) updateFolderCovers();
+  }, [folders, photos, queryClient]);
+ 
+  // Debounce + content moderation
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const query = searchQuery.toLowerCase().trim();
+      const bannedCombinations = [
+        { terms: ['child', 'porn'] },
+        { terms: ['sexual', 'assault'] },
+      ];
+      const isBanned = bannedCombinations.some(combo =>
+        combo.terms.every(term => query.includes(term))
+      );
+      if (isBanned) {
+        alert('This search is not allowed.');
+        setSearchQuery('');
+        return;
+      }
+      setDebouncedQuery(searchQuery);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+ 
+  const photosInFolders = new Set(folders.flatMap(f => f.photo_ids || []));
+  const availablePhotos = debouncedQuery
+    ? photos
+    : photos.filter(p => !photosInFolders.has(p.id));
+ 
+  const filteredPhotos = debouncedQuery
+    ? availablePhotos
+        .map(photo => ({ photo, score: scorePhoto(photo, debouncedQuery) }))
+        .filter(({ score }) => score > 0)
+        .sort((a, b) => b.score - a.score)
+        .map(({ photo }) => photo)
+    : availablePhotos;
+ 
+  const filteredFolders = debouncedQuery
+    ? folders.filter(folder =>
+        folder.name.toLowerCase().includes(debouncedQuery.toLowerCase().trim())
+      )
+    : folders;
+ 
+  const toggleSelect = (id) => {
+    setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
+ 
+  const toggleFolderSelect = (id) => {
+    setSelectedFolderIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
+ 
+  const handleMoveToFolder = async (folderId) => {
+    if (selectedIds.length === 0 && selectedFolderIds.length === 0) return;
+    if (selectedFolderIds.includes(folderId)) {
+      alert("Cannot move a folder into itself");
+      return;
+    }
+    setIsMoving(true);
+ 
+    let allPhotoIds = [...selectedIds];
+    for (const selectedFolderId of selectedFolderIds) {
+      const sourceFolder = folders.find(f => f.id === selectedFolderId);
+      if (sourceFolder?.photo_ids) allPhotoIds = [...allPhotoIds, ...sourceFolder.photo_ids];
+    }
+ 
+    const targetFolder = folders.find(f => f.id === folderId);
+    const existingPhotoIds = Array.isArray(targetFolder?.photo_ids) ? targetFolder.photo_ids : [];
+    const mergedIds = [...new Set([...existingPhotoIds, ...allPhotoIds])];
+    const coverPhoto = !targetFolder?.cover_photo_url && mergedIds.length > 0
+      ? photos.find(p => p.id === mergedIds[0])
+      : null;
+ 
+    const prevFolders = queryClient.getQueryData(['folders']);
+    queryClient.setQueryData(['folders'], (old = []) =>
+      old
+        .filter(f => !selectedFolderIds.includes(f.id))
+        .map(f => f.id === folderId
+          ? { ...f, photo_ids: mergedIds, ...(coverPhoto && { cover_photo_url: coverPhoto.file_url }) }
+          : f
+        )
+    );
+    setSelectedIds([]);
+    setSelectedFolderIds([]);
+    setSelectionMode(false);
+ 
+    try {
+      await base44.entities.Folder.update(folderId, {
+        photo_ids: mergedIds,
+        ...(coverPhoto && { cover_photo_url: coverPhoto.file_url })
+      });
+      for (const selectedFolderId of selectedFolderIds) {
+        await base44.entities.Folder.delete(selectedFolderId);
+      }
+      queryClient.invalidateQueries({ queryKey: ['folders'] });
+    } catch (error) {
+      console.error("Error moving items:", error);
+      queryClient.setQueryData(['folders'], prevFolders);
+    } finally {
+      setIsMoving(false);
+    }
+  };
+ 
+  const handleRemoveFromFolder = async () => {
+    if (!selectedFolder || selectedIds.length === 0) return;
+    setIsMoving(true);
+    try {
+      const updatedIds = selectedFolder.photo_ids.filter(id => !selectedIds.includes(id));
+      await base44.entities.Folder.update(selectedFolder.id, { photo_ids: updatedIds });
+      setSelectedFolder({ ...selectedFolder, photo_ids: updatedIds });
+      queryClient.invalidateQueries({ queryKey: ['folders'] });
+      setSelectedIds([]);
+      setSelectionMode(false);
+    } catch (error) {
+      console.error("Error removing photos:", error);
+    } finally {
+      setIsMoving(false);
+    }
+  };
+ 
+  const handleDeletePhotos = async () => {
+    if (selectedIds.length === 0) return;
+    const count = selectedIds.length;
+    if (!confirm(`Delete ${count} ${count === 1 ? 'item' : 'items'}? This action cannot be undone.`)) return;
+    setIsMoving(true);
+    const prevPhotos = queryClient.getQueryData(['photos']);
+    queryClient.setQueryData(['photos'], (old = []) => old.filter(p => !selectedIds.includes(p.id)));
+    setSelectedIds([]);
+    setSelectionMode(false);
+    try {
+      await Promise.all(selectedIds.map(id => base44.entities.Photo.delete(id)));
+      queryClient.invalidateQueries({ queryKey: ['folders'] });
+    } catch (error) {
+      console.error("Error deleting photos:", error);
+      queryClient.setQueryData(['photos'], prevPhotos);
+      alert('Failed to delete some items. Please try again.');
+    } finally {
+      setIsMoving(false);
+    }
+  };
+ 
+  // Pull-to-refresh forces a fresh fetch bypassing the cache
+  const handleRefresh = async () => {
+    await queryClient.invalidateQueries({ queryKey: ['photos'] });
+    await queryClient.invalidateQueries({ queryKey: ['folders'] });
+    await queryClient.invalidateQueries({ queryKey: ['current-user'] });
+  };
+ 
+  if (isIOS) {
+    return (
+      <PullToRefresh onRefresh={handleRefresh}>
+        <MobileGallery
+          photos={photos}
+          folders={folders}
+          isLoading={isLoading}
+          filteredPhotos={filteredPhotos}
+          filteredFolders={filteredFolders}
+          searchQuery={searchQuery}
+          setSearchQuery={setSearchQuery}
+          debouncedQuery={debouncedQuery}
+          selectedFolder={selectedFolder}
+          setSelectedFolder={setSelectedFolder}
+          selectionMode={selectionMode}
+          setSelectionMode={setSelectionMode}
+          selectedIds={selectedIds}
+          setSelectedIds={setSelectedIds}
+          selectedFolderIds={selectedFolderIds}
+          setSelectedFolderIds={setSelectedFolderIds}
+          toggleSelect={toggleSelect}
+          toggleFolderSelect={toggleFolderSelect}
+          queryClient={queryClient}
+          pushBack={pushBack}
+          popBack={popBack}
+          onDeletePhotos={handleDeletePhotos}
+          onMoveToFolder={handleMoveToFolder}
+        />
+      </PullToRefresh>
+    );
+  }
+ 
+  const content = (
+    <div className="min-h-screen pb-20">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-12">
+        <div className="text-center mb-12">
+          <h1 className="text-4xl sm:text-5xl font-bold text-gray-900 mb-4">
+            Find Your{" "}
+            <span className="bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
+              Memories
+            </span>
+          </h1>
 
+          {photos.length >= 2 && (
+            <div className="mt-6 flex justify-center gap-3 flex-wrap">
+              <OrganizeButton photos={photos} />
+              <CustomFolderButton photos={photos} />
+              <DuplicateDetector photos={photos} folders={folders} />
+              <Button
+                onClick={() => {
+                  setSelectionMode(!selectionMode);
+                  setSelectedIds([]);
+                  setSelectedFolderIds([]);
+                }}
+                className={`gap-2 ${selectionMode ? 'bg-purple-600 hover:bg-purple-700' : 'bg-gradient-to-r from-blue-400 to-purple-500 hover:from-blue-500 hover:to-purple-600'} text-white`}
+              >
+                <MousePointer2 className="w-4 h-4" />
+                {selectionMode ? 'Exit Select' : 'Select'}
+              </Button>
+            </div>
+          )}
+        </div>
+
+        <div className="max-w-3xl mx-auto mb-12">
+          <div className="relative group">
+            <div className="absolute inset-0 bg-gradient-to-r from-blue-300 to-purple-400 rounded-2xl blur-xl opacity-20 group-hover:opacity-30 transition-opacity duration-300" />
+            <div className="relative bg-white rounded-2xl shadow-lg border border-purple-100 p-2">
+              <div className="flex items-center gap-3 px-4 py-3">
+                <Search className="w-5 h-5 text-gray-400" />
+                <Input
+                  type="text"
+                  placeholder='Try "sunset on the beach" or "people laughing" or "red car"...'
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="border-0 text-lg focus-visible:ring-0 focus-visible:ring-offset-0 placeholder:text-gray-400"
+                />
+                {searchQuery && <Sparkles className="w-5 h-5 text-purple-400 animate-pulse" />}
+              </div>
+            </div>
+          </div>
+ 
+          {debouncedQuery && (
+            <div className="mt-4 text-center">
+              <p className="text-sm text-gray-600">
+                Found <span className="font-semibold text-purple-500">{filteredPhotos.length}</span> item{filteredPhotos.length !== 1 ? 's' : ''}
+                {filteredFolders.length > 0 && <> and <span className="font-semibold text-purple-500">{filteredFolders.length}</span> folder{filteredFolders.length !== 1 ? 's' : ''}</>} matching "{debouncedQuery}"
+                {filteredPhotos.length > 0 && <span className="ml-1 text-purple-400 text-xs">(sorted by relevance)</span>}
+              </p>
+            </div>
+          )}
+        </div>
+ 
+        {filteredFolders.length > 0 && (
+          <FolderGrid
+            folders={filteredFolders}
+            onFolderClick={setSelectedFolder}
+            selectionMode={selectionMode}
+            selectedFolderIds={selectedFolderIds}
+            onToggleFolderSelect={toggleFolderSelect}
+          />
+        )}
+ 
+        {isLoading ? (
+          <div className="flex items-center justify-center py-20">
+            <div className="flex flex-col items-center gap-4">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-400" />
+              <p className="text-gray-600">Loading your media...</p>
+            </div>
+          </div>
+        ) : photos.length === 0 ? (
+          <EmptyState />
+        ) : filteredPhotos.length === 0 ? (
+          <div className="text-center py-20">
+            <ImageIcon className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+            <h3 className="text-xl font-semibold text-gray-900 mb-2">No matching items</h3>
+            <p className="text-gray-600">Try a different search term</p>
+          </div>
+        ) : (
+          <SelectablePhotoGrid
+            photos={filteredPhotos}
+            onPhotoClick={setSelectedPhoto}
+            selectionMode={selectionMode}
+            selectedIds={selectedIds}
+            onToggleSelect={toggleSelect}
+          />
+        )}
+      </div>
+ 
+      {selectionMode && !selectedFolder && (
+        <SelectionToolbar
+          selectedCount={selectedIds.length}
+          selectedFolderCount={selectedFolderIds.length}
+          onCancel={() => { setSelectionMode(false); setSelectedIds([]); setSelectedFolderIds([]); }}
+          onSelectAll={() => { setSelectedIds(filteredPhotos.map(p => p.id)); setSelectedFolderIds(folders.map(f => f.id)); }}
+          onDeselectAll={() => { setSelectedIds([]); setSelectedFolderIds([]); }}
+          folders={folders}
+          onMoveToFolder={handleMoveToFolder}
+          onDelete={handleDeletePhotos}
+          onDeleteFolders={async () => {
+            if (selectedFolderIds.length === 0) return;
+            if (!confirm(`Delete ${selectedFolderIds.length} folder(s)?`)) return;
+            setIsMoving(true);
+            try {
+              await Promise.all(selectedFolderIds.map(id => base44.entities.Folder.delete(id)));
+              queryClient.invalidateQueries({ queryKey: ['folders'] });
+              setSelectedFolderIds([]);
+              setSelectionMode(false);
+            } catch (error) {
+              console.error("Error deleting folders:", error);
+            } finally {
+              setIsMoving(false);
+            }
+          }}
+          isMoving={isMoving}
+          selectedPhotos={filteredPhotos.filter(p => selectedIds.includes(p.id))}
+        />
+      )}
+ 
+      {selectedPhoto && (
+        <PhotoModal photo={selectedPhoto} onClose={() => setSelectedPhoto(null)} />
+      )}
+    </div>
+  );
+ 
+  const wrappedContent = (
+    <PullToRefresh onRefresh={handleRefresh}>{content}</PullToRefresh>
+  );
+ 
+  return wrappedContent;
+}
 
 ========================================================================
-FILE: public/login-redirect.js
+FILE: src/pages/Upload.jsx
 ========================================================================
-/** Runs before the React app — fixes broken Base44 login redirects on custom domains. */
-(function () {
-  var APP_ID = '68fdc5f42768c4d045fe1bac';
-  var PLATFORM = 'https://app.base44.com';
-  var APP_ORIGIN = location.protocol + '//' + location.host;
-  var host = location.hostname;
-  var path = location.pathname.replace(/\/$/, '') || '/';
+import React, { useState, useCallback, useEffect, useRef } from "react";
+import { base44 } from "@/api/base44Client";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useIsMobile } from "@/hooks/use-mobile";
+import UploadZone from "@/components/upload/UploadZone";
+import MobileUpload from "@/components/upload/MobileUpload";
+import PaymentModal from "@/components/upload/PaymentModal";
+import {
+  getStorageLimit,
+  getTiersNeeded,
+  wouldExceedStorageLimit,
+} from "@/lib/storage-billing";
+import { installStripeReturnRefresh } from "@/lib/stripe-checkout";
+import {
+  MAX_BATCH_SIZE,
+  processSingleUpload,
+  processUploadBatch,
+  validateFiles,
+} from "@/lib/media-upload";
 
-  function platformLogin(fromUrl) {
-    var params = new URLSearchParams({
-      from_url: fromUrl || 'https://restorebraine.com',
-      app_id: APP_ID,
-      prompt: 'select_account',
+export default function Upload() {
+  const queryClient = useQueryClient();
+  const isMobile = useIsMobile();
+  const [files, setFiles] = useState([]);
+  const [processing, setProcessing] = useState(false);
+  const [showPayment, setShowPayment] = useState(false);
+  const [pendingFiles, setPendingFiles] = useState(null);
+  const autoProcessRef = useRef(false);
+  const filesRef = useRef(files);
+  filesRef.current = files;
+
+  const { data: currentUser } = useQuery({
+    queryKey: ["current-user"],
+    queryFn: () => base44.auth.me(),
+  });
+
+  const { data: photos = [] } = useQuery({
+    queryKey: ["photos", currentUser?.email],
+    queryFn: () => base44.entities.Photo.filter({ created_by: currentUser.email }, "-created_date"),
+    enabled: !!currentUser?.email,
+    initialData: [],
+  });
+
+  const currentPhotoCount = photos.length;
+  const currentPaidTier = currentUser?.paid_tier || 0;
+  const storageLimit = getStorageLimit(currentPaidTier);
+
+  useEffect(() => {
+    return installStripeReturnRefresh(() => {
+      queryClient.invalidateQueries({ queryKey: ["current-user"] });
+      queryClient.invalidateQueries({ queryKey: ["photos"] });
     });
-    location.replace(PLATFORM + '/login?' + params.toString());
+  }, [queryClient]);
+
+  const updateFileAt = useCallback((index, patch) => {
+    setFiles((prev) =>
+      prev.map((item, i) => (i === index ? { ...item, ...patch } : item)),
+    );
+  }, []);
+
+  const addFilesToQueue = useCallback((incoming) => {
+    const list = Array.from(incoming || []);
+    const queued = list.map((file) => ({
+      file,
+      status: "pending",
+      progress: 0,
+      error: null,
+      ai_description: null,
+      ai_tags: null,
+      phase: null,
+    }));
+    setFiles((prev) => [...prev, ...queued]);
+    autoProcessRef.current = true;
+  }, []);
+
+  const handleFileSelection = useCallback(
+    (incoming) => {
+      const { valid, error } = validateFiles(incoming);
+      if (error) {
+        alert(error);
+        return;
+      }
+      if (!valid.length) return;
+
+      if (wouldExceedStorageLimit(currentPhotoCount, valid.length, currentPaidTier)) {
+        setPendingFiles(valid);
+        setShowPayment(true);
+        return;
+      }
+
+      addFilesToQueue(valid);
+    },
+    [addFilesToQueue, currentPhotoCount, currentPaidTier],
+  );
+
+  const handlePaymentComplete = async () => {
+    setShowPayment(false);
+    await queryClient.invalidateQueries({ queryKey: ["current-user"] });
+    if (pendingFiles?.length) {
+      requireAiConsent(() => {
+        addFilesToQueue(pendingFiles);
+        setPendingFiles(null);
+      });
+    }
+  };
+
+  const processPhotos = useCallback(async () => {
+    const currentFiles = filesRef.current;
+    const pendingItems = currentFiles
+      .map((item, index) => ({ item, index }))
+      .filter(({ item }) => item.status === "pending");
+
+    if (!pendingItems.length || processing) return;
+
+    const pendingCount = pendingItems.length;
+    if (wouldExceedStorageLimit(currentPhotoCount, pendingCount, currentPaidTier)) {
+      setPendingFiles(pendingItems.map(({ item }) => item.file));
+      setShowPayment(true);
+      return;
+    }
+
+    const indexes = pendingItems.map(({ index }) => index);
+    const queueItems = pendingItems.map(({ item }) => item);
+
+    setFiles((prev) =>
+      prev.map((item, i) =>
+        indexes.includes(i) ? { ...item, status: "processing", progress: 5 } : item,
+      ),
+    );
+    setProcessing(true);
+
+    try {
+      await processUploadBatch(queueItems, {
+        onItemUpdate: (batchIndex, patch) => {
+          updateFileAt(indexes[batchIndex], patch);
+        },
+      });
+      queryClient.invalidateQueries({ queryKey: ["photos"] });
+    } catch (error) {
+      console.error("Batch upload failed:", error);
+      const message = error?.message || "Upload failed";
+      setFiles((prev) =>
+        prev.map((item, i) =>
+          indexes.includes(i) && item.status === "processing"
+            ? { ...item, status: "error", error: message, progress: 0, phase: "error" }
+            : item,
+        ),
+      );
+      if (/timed out/i.test(message)) {
+        alert("Upload took too long. Tap retry on failed items, or upload fewer files at once.");
+      }
+    } finally {
+      setProcessing(false);
+    }
+  }, [currentPhotoCount, currentPaidTier, processing, queryClient, updateFileAt]);
+
+  useEffect(() => {
+    if (!autoProcessRef.current || processing || showPayment || showAiConsent) return;
+
+    const hasPending = files.some((f) => f.status === "pending");
+    if (hasPending) {
+      autoProcessRef.current = false;
+      processPhotos();
+    }
+  }, [files, processing, showPayment, showAiConsent, processPhotos]);
+
+  const removeFile = (index) => {
+    setFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const retryFile = async (index) => {
+    const fileItem = filesRef.current[index];
+    if (!fileItem) return;
+
+    updateFileAt(index, { status: "pending", progress: 0, error: null, phase: null });
+    setProcessing(true);
+
+    await processSingleUpload(fileItem, {
+      onUpdate: (patch) => updateFileAt(index, patch),
+    });
+
+    setProcessing(false);
+    queryClient.invalidateQueries({ queryKey: ["photos"] });
+  };
+
+  const allProcessed =
+    files.length > 0 && files.every((f) => f.status === "success" || f.status === "error");
+  const hasSuccess = files.some((f) => f.status === "success");
+  const tiersNeeded = getTiersNeeded(
+    currentPhotoCount,
+    pendingFiles?.length || 0,
+    currentPaidTier,
+  );
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 py-8">
+      <div className="max-w-3xl mx-auto px-4">
+        <div className="mb-6 flex items-end justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Upload</h1>
+            <p className="text-gray-600 mt-1">
+              {currentPhotoCount} of {storageLimit} files used
+              {currentPaidTier > 0 ? ` (${currentPaidTier} paid tier${currentPaidTier > 1 ? "s" : ""})` : ""}
+            </p>
+            <p className="text-sm text-gray-500 mt-0.5">
+              Up to {MAX_BATCH_SIZE} files per batch · saves fast, AI tags in background
+            </p>
+          </div>
+        </div>
+
+        {isMobile ? (
+          <MobileUpload
+            files={files}
+            processing={processing}
+            allProcessed={allProcessed}
+            hasSuccess={hasSuccess}
+            currentPhotoCount={currentPhotoCount}
+            handleFileSelection={handleFileSelection}
+            processPhotos={processPhotos}
+            removeFile={removeFile}
+            retryFile={retryFile}
+          />
+        ) : (
+          <>
+            <UploadZone onFilesSelected={handleFileSelection} />
+            {files.length > 0 && (
+              <div className="mt-6">
+                {!processing && !allProcessed && files.some((f) => f.status === "pending") && (
+                  <button
+                    onClick={processPhotos}
+                    className="w-full mb-4 bg-gradient-to-r from-purple-500 to-blue-500 text-white rounded-2xl py-4 font-semibold"
+                  >
+                    Save {files.filter((f) => f.status === "pending").length} Memories
+                  </button>
+                )}
+                <MobileUpload
+                  files={files}
+                  processing={processing}
+                  allProcessed={allProcessed}
+                  hasSuccess={hasSuccess}
+                  currentPhotoCount={currentPhotoCount}
+                  handleFileSelection={handleFileSelection}
+                  processPhotos={processPhotos}
+                  removeFile={removeFile}
+                  retryFile={retryFile}
+                />
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      {showPayment && (
+        <PaymentModal
+          currentPhotoCount={currentPhotoCount}
+          pendingUploadCount={pendingFiles?.length || tiersNeeded * 250}
+          currentPaidTier={currentPaidTier}
+          tiersNeeded={tiersNeeded}
+          onClose={() => {
+            setShowPayment(false);
+            setPendingFiles(null);
+          }}
+          onPaymentComplete={handlePaymentComplete}
+        />
+      )}
+    </div>
+  );
+}
+
+
+========================================================================
+FILE: src/pages/Account.jsx
+========================================================================
+import React, { useState, useEffect } from "react";
+import { base44 } from "@/api/base44Client";
+import { useAuth } from "@/lib/AuthContext";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Button } from "@/components/ui/button";
+import { ArrowLeft, Trash2, AlertTriangle, LogOut } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { useNavigation } from "@/components/NavigationContext";
+import { navigateToGallery } from "@/lib/gallery-nav";
+import { revokeAiUploadConsent, hasAiUploadConsent } from "@/lib/ai-upload-consent";
+
+export default function Account() {
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showLogoutDialog, setShowLogoutDialog] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const { popBack } = useNavigation();
+  const { localLogout, resumeActiveSession } = useAuth();
+  const [consentGranted, setConsentGranted] = useState(() => hasAiUploadConsent());
+
+  const { data: user } = useQuery({
+    queryKey: ['user'],
+    queryFn: () => base44.auth.me(),
+  });
+
+  useEffect(() => {
+    popBack();
+  }, [popBack]);
+
+  const handleLogout = async () => {
+    queryClient.clear();
+    if (typeof window !== 'undefined' && window.__restorebrainePerformSignOut) {
+      window.__restorebrainePerformSignOut();
+      return;
+    }
+    await localLogout();
+  };
+
+  const goToGallery = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.nativeEvent?.stopImmediatePropagation) {
+      e.nativeEvent.stopImmediatePropagation();
+    }
+    navigateToGallery(navigate, { popBack, resumeActiveSession });
+  };
+
+  const handleDeleteAccount = async () => {
+    setIsDeleting(true);
+    try {
+      const photos = await base44.entities.Photo.list();
+      await Promise.all(photos.map(photo => base44.entities.Photo.delete(photo.id)));
+      const folders = await base44.entities.Folder.list();
+      await Promise.all(folders.map(folder => base44.entities.Folder.delete(folder.id)));
+      handleLogout();
+    } catch (error) {
+      alert("Failed to delete account. Please try again.");
+      setIsDeleting(false);
+    }
+  };
+
+  return (
+    <div className="relative z-0 min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 py-12 pb-36">
+      <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8">
+        <Button
+          type="button"
+          variant="ghost"
+          className="mb-6"
+          data-rb-gallery-nav
+          onClick={goToGallery}
+          onTouchEnd={(e) => e.stopPropagation()}
+        >
+          <ArrowLeft className="w-4 h-4 mr-2" />
+          Back to Gallery
+        </Button>
+        <div className="bg-white rounded-2xl shadow-lg p-8">
+          <h1 className="text-3xl font-bold text-gray-900 mb-6">Account Settings</h1>
+          {user && (
+            <div className="mb-8 p-4 bg-purple-50 rounded-lg">
+              <p className="text-sm text-gray-600 mb-1">Email</p>
+              <p className="font-medium text-gray-900">{user.email}</p>
+            </div>
+          )}
+          <div className="mb-6 p-4 bg-gray-50 border border-gray-200 rounded-lg flex items-center justify-between gap-4">
+            <div className="min-w-0">
+              <h3 className="font-semibold text-gray-900">AI upload consent</h3>
+              <p className="text-sm text-gray-600 mt-0.5">
+                {consentGranted
+                  ? "You agreed to send uploads to OpenAI for search tags."
+                  : "Not granted — you will be asked before your first upload."}
+              </p>
+            </div>
+            {consentGranted && (
+              <Button
+                type="button"
+                variant="outline"
+                className="flex-shrink-0"
+                onClick={() => {
+                  revokeAiUploadConsent();
+                  setConsentGranted(false);
+                }}
+              >
+                Revoke
+              </Button>
+            )}
+          </div>
+          <div data-rb-sign-out-row className="mb-6 p-4 bg-gray-50 border border-gray-200 rounded-lg flex items-center justify-between gap-4">
+            <div className="min-w-0">
+              <h3 className="font-semibold text-gray-900">Sign Out</h3>
+              <p className="text-sm text-gray-600 mt-0.5">Sign out of your Restorebraine account</p>
+            </div>
+            <Button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowLogoutDialog(true);
+              }}
+              variant="outline"
+              className="gap-2 border-gray-300 flex-shrink-0"
+            >
+              <LogOut className="w-4 h-4" />
+              Sign Out
+            </Button>
+          </div>
+          <div className="border-t pt-8">
+            <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-red-500" />
+              Danger Zone
+            </h2>
+            <div className="bg-red-50 border border-red-200 rounded-lg p-6">
+              <h3 className="font-semibold text-gray-900 mb-2">Delete Account</h3>
+              <p className="text-sm text-gray-600 mb-4">Permanently delete your account and all associated data. This cannot be undone.</p>
+              <Button onClick={() => setShowDeleteDialog(true)} variant="destructive" className="gap-2">
+                <Trash2 className="w-4 h-4" />
+                Delete My Account
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <AlertDialog open={showLogoutDialog} onOpenChange={setShowLogoutDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Sign out?</AlertDialogTitle>
+            <AlertDialogDescription>
+              You will need to sign in again to access your photos and folders.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleLogout} className="bg-gray-900 hover:bg-gray-800">
+              Sign Out
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+            <AlertDialogDescription>This will permanently delete your account and all your photos, videos, and folders.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteAccount} disabled={isDeleting} className="bg-red-600 hover:bg-red-700">
+              {isDeleting ? "Deleting..." : "Delete Account"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}
+
+
+========================================================================
+FILE: src/pages/Home.jsx
+========================================================================
+// Placeholder file, this should be overridden by the generated code
+
+
+export default function Home() {
+
+  return (
+    <div>
+    </div>
+  );
+}
+
+========================================================================
+FILE: src/pages/PrivacyPolicy.jsx
+========================================================================
+import React from "react";
+import { ArrowLeft } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+
+export default function PrivacyPolicy() {
+  const navigate = useNavigate();
+
+  return (
+    <div className="min-h-screen pb-20">
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 pt-12">
+        <button
+          type="button"
+          onClick={() => navigate('/')}
+          className="inline-flex items-center gap-2 text-purple-600 hover:text-purple-700 mb-8"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Back to Gallery
+        </button>
+
+        <h1 className="text-4xl font-bold text-gray-900 mb-2">Privacy Policy</h1>
+        <p className="text-gray-500 mb-8">Last Updated: December 3, 2025</p>
+
+        <div className="prose prose-gray max-w-none space-y-8">
+          <section>
+            <h2 className="text-xl font-semibold text-gray-900 mb-3">What We Collect</h2>
+            <ul className="list-disc list-inside text-gray-600 space-y-2">
+              <li>Photos and videos you upload</li>
+              <li>AI-generated descriptions and tags of your media</li>
+              <li>Basic account information (email, name)</li>
+            </ul>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-semibold text-gray-900 mb-3">How We Use Your Data</h2>
+            <ul className="list-disc list-inside text-gray-600 space-y-2">
+              <li>To store and organize your media</li>
+              <li>To analyze content with AI for searchability</li>
+              <li>To process payments via Stripe</li>
+            </ul>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-semibold text-gray-900 mb-3">Data Sharing</h2>
+            <ul className="list-disc list-inside text-gray-600 space-y-2">
+              <li>We do not sell your data</li>
+              <li>Media is analyzed by AI services to generate descriptions</li>
+              <li>Payment processing is handled securely by Stripe</li>
+            </ul>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-semibold text-gray-900 mb-3">Data Security</h2>
+            <ul className="list-disc list-inside text-gray-600 space-y-2">
+              <li>Your files are stored securely</li>
+              <li>Only you can access your uploaded media</li>
+            </ul>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-semibold text-gray-900 mb-3">Your Rights</h2>
+            <ul className="list-disc list-inside text-gray-600 space-y-2">
+              <li>You can delete your media at any time</li>
+              <li>Contact us to request account deletion</li>
+            </ul>
+          </section>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+========================================================================
+FILE: src/pages/PaymentSuccess.jsx
+========================================================================
+import React, { useEffect, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { createPageUrl } from "@/utils";
+import { CheckCircle, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { base44 } from "@/api/base44Client";
+
+export default function PaymentSuccess() {
+  const [loading, setLoading] = useState(true);
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const updatePaidTier = async () => {
+      try {
+        const sessionId = searchParams.get('session_id');
+        if (sessionId) {
+          // Verify payment and update paid tier
+          const response = await base44.functions.invoke('verifyPayment', { sessionId });
+          if (response.data.success) {
+            await queryClient.invalidateQueries({ queryKey: ['current-user'] });
+            setLoading(false);
+          } else {
+            setLoading(false);
+          }
+        } else {
+          setLoading(false);
+        }
+      } catch (error) {
+        console.error('Error verifying payment:', error);
+        setLoading(false);
+      }
+    };
+
+    updatePaidTier();
+  }, [searchParams]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
+        <div className="text-center">
+          <Loader2 className="w-12 h-12 animate-spin text-purple-500 mx-auto mb-4" />
+          <p className="text-gray-600">Verifying payment...</p>
+        </div>
+      </div>
+    );
   }
 
-  if (host === 'base44.app' && path === '/login') {
-    platformLogin('https://restorebraine.com');
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 p-4">
+      <div className="max-w-md w-full bg-white rounded-3xl shadow-2xl p-8 text-center">
+        <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
+          <CheckCircle className="w-10 h-10 text-green-600" />
+        </div>
+        
+        <h1 className="text-3xl font-bold text-gray-900 mb-3">
+          Payment Successful!
+        </h1>
+        
+        <p className="text-gray-600 mb-8">
+          Your storage has been upgraded. You can now continue uploading your photos and videos.
+        </p>
+
+        <div className="space-y-3">
+          <Button
+            onClick={() => navigate(createPageUrl("Upload"))}
+            className="w-full bg-gradient-to-r from-blue-400 to-purple-500 hover:from-blue-500 hover:to-purple-600 text-white"
+          >
+            Continue Uploading
+          </Button>
+          
+          <Button
+            variant="outline"
+            onClick={() => navigate(createPageUrl("Gallery"))}
+            className="w-full"
+          >
+            Go to Gallery
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+========================================================================
+FILE: src/components/gallery/MobileGallery.jsx
+========================================================================
+import React, { useState, useRef } from "react";
+import { Search, X, Sparkles, ImageIcon, Grid3x3, Layers, MousePointer2, Check, Pencil, Loader2, FolderInput, Folder } from "lucide-react";
+
+import SelectablePhotoGrid from "./SelectablePhotoGrid";
+import MobilePhotoModal from "./MobilePhotoModal";
+import EmptyState from "./EmptyState";
+import OrganizeButton from "./OrganizeButton";
+import { SQUARE_FOLDER_ACTION_ACTIVE_CLASS, SQUARE_FOLDER_ACTION_ACTIVE_STYLE, SQUARE_FOLDER_ACTION_CLASS, SQUARE_FOLDER_ACTION_STYLE } from "./folderActionStyles";
+import CustomFolderButton from "./CustomFolderButton";
+import DuplicateDetector from "./DuplicateDetector";
+import MobileFolderCard from "./MobileFolderCard";
+import MobileDrawerMenu from "./MobileDrawerMenu";
+import { base44 } from "@/api/base44Client";
+import { DEPLOY_BUILD } from "@/deploy-marker";
+
+export default function MobileGallery({
+  photos,
+  folders,
+  isLoading,
+  filteredPhotos,
+  filteredFolders,
+  searchQuery,
+  setSearchQuery,
+  debouncedQuery,
+  selectedFolder,
+  setSelectedFolder,
+  selectionMode,
+  setSelectionMode,
+  selectedIds,
+  setSelectedIds,
+  selectedFolderIds,
+  setSelectedFolderIds,
+  toggleSelect,
+  toggleFolderSelect,
+  queryClient,
+  pushBack,
+  popBack,
+  onDeletePhotos,
+  onMoveToFolder,
+}) {
+  const [selectedPhoto, setSelectedPhoto] = useState(null);
+  const [searchFocused, setSearchFocused] = useState(false);
+  const [activeTab, setActiveTab] = useState("all");
+  const [renameFolder, setRenameFolder] = useState(null); // folder being renamed
+  const [renameName, setRenameName] = useState("");
+  const [renaming, setRenaming] = useState(false);
+  const [mergeDrawerOpen, setMergeDrawerOpen] = useState(false);
+  const [merging, setMerging] = useState(false);
+  const [folderMoveDrawerOpen, setFolderMoveDrawerOpen] = useState(false);
+  const inputRef = useRef(null);
+
+  const photosInFolders = new Set(folders.flatMap(f => f.photo_ids || []));
+  const unorganizedPhotos = photos.filter(p => !photosInFolders.has(p.id));
+
+  const exitSelection = () => {
+    setSelectionMode(false);
+    setSelectedIds([]);
+    setSelectedFolderIds([]);
+  };
+
+  // Rename selected folder (only works when exactly 1 folder selected)
+  const handleRenameOpen = () => {
+    if (selectedFolderIds.length !== 1) return;
+    const folder = folders.find(f => f.id === selectedFolderIds[0]);
+    if (folder) { setRenameFolder(folder); setRenameName(folder.name); }
+  };
+
+  const handleRenameSave = async () => {
+    if (!renameFolder || !renameName.trim()) return;
+    setRenaming(true);
+    await base44.entities.Folder.update(renameFolder.id, { name: renameName.trim() });
+    queryClient.invalidateQueries({ queryKey: ['folders'] });
+    setRenaming(false);
+    setRenameFolder(null);
+    exitSelection();
+  };
+
+  // Merge selected folders into a target folder
+  const handleMerge = async (targetFolderId) => {
+    setMergeDrawerOpen(false);
+    setMerging(true);
+    const targetFolder = folders.find(f => f.id === targetFolderId);
+    const sourceIds = selectedFolderIds; // all selected folders merge INTO target
+    let allPhotoIds = [...(targetFolder.photo_ids || [])];
+    for (const srcId of sourceIds) {
+      const src = folders.find(f => f.id === srcId);
+      if (src) allPhotoIds = [...allPhotoIds, ...(src.photo_ids || [])];
+    }
+    const uniqueIds = [...new Set(allPhotoIds)];
+    const coverPhoto = photos.find(p => p.id === uniqueIds[0]);
+    await base44.entities.Folder.update(targetFolderId, {
+      photo_ids: uniqueIds,
+      ...(coverPhoto && { cover_photo_url: coverPhoto.file_url }),
+    });
+    for (const srcId of sourceIds) {
+      await base44.entities.Folder.delete(srcId);
+    }
+    queryClient.invalidateQueries({ queryKey: ['folders'] });
+    setMerging(false);
+    exitSelection();
+  };
+
+  const handleDeleteFolders = async () => {
+    if (!selectedFolderIds.length) return;
+    if (!confirm(`Delete ${selectedFolderIds.length} folder(s)? Photos will not be deleted.`)) return;
+    for (const id of selectedFolderIds) await base44.entities.Folder.delete(id);
+    queryClient.invalidateQueries({ queryKey: ['folders'] });
+    exitSelection();
+  };
+
+  // Folder view
+  if (selectedFolder) {
+    const folderPhotos = photos.filter(p => (selectedFolder.photo_ids || []).includes(p.id));
+
+    const handleFolderPhotoMove = async (targetFolderId) => {
+      setMergeDrawerOpen(false);
+      const targetFolder = folders.find(f => f.id === targetFolderId);
+      if (!targetFolder) return;
+      // Add selected photos to target folder
+      const updatedTargetIds = [...new Set([...(targetFolder.photo_ids || []), ...selectedIds])];
+      await base44.entities.Folder.update(targetFolderId, {
+        photo_ids: updatedTargetIds,
+        cover_photo_url: targetFolder.cover_photo_url || photos.find(p => p.id === updatedTargetIds[0])?.file_url,
+      });
+      // Remove selected photos from current folder
+      const updatedSourceIds = (selectedFolder.photo_ids || []).filter(id => !selectedIds.includes(id));
+      await base44.entities.Folder.update(selectedFolder.id, { photo_ids: updatedSourceIds });
+      queryClient.invalidateQueries({ queryKey: ['folders'] });
+      exitSelection();
+    };
+
+    const handleFolderPhotoDelete = async () => {
+      if (!confirm(`Delete ${selectedIds.length} item(s)? This cannot be undone.`)) return;
+      await Promise.all(selectedIds.map(id => base44.entities.Photo.delete(id)));
+      queryClient.invalidateQueries({ queryKey: ['photos'] });
+      queryClient.invalidateQueries({ queryKey: ['folders'] });
+      exitSelection();
+    };
+
+    return (
+      <div className="min-h-screen pb-24 px-3 pt-20">
+        <div className="flex items-center justify-between mb-3 px-1">
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+            {folderPhotos.length} item{folderPhotos.length !== 1 ? 's' : ''}
+          </p>
+          {folderPhotos.length > 0 && (
+            <button
+              onClick={() => { setSelectionMode(!selectionMode); setSelectedIds([]); }}
+              className={`text-xs font-semibold px-3 py-1 rounded-full transition-colors ${selectionMode ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-600'}`}
+            >
+              {selectionMode ? 'Cancel' : 'Select'}
+            </button>
+          )}
+        </div>
+        {folderPhotos.length === 0 ? (
+          <div className="text-center py-16 text-gray-400">No photos in this folder</div>
+        ) : (
+          <div className="grid grid-cols-3 gap-1">
+            {folderPhotos.map(photo => {
+              const isSelected = selectedIds.includes(photo.id);
+              return (
+                <div
+                  key={photo.id}
+                  className="relative aspect-square bg-gray-100 overflow-hidden rounded-lg"
+                  onClick={() => selectionMode ? toggleSelect(photo.id) : setSelectedPhoto(photo)}
+                >
+                  {photo.file_type === 'video' ? (
+                    <video src={photo.file_url} className="w-full h-full object-cover" preload="metadata" />
+                  ) : (
+                    <img src={photo.file_url} alt="" className="w-full h-full object-cover" />
+                  )}
+                  {selectionMode && (
+                    <div className={`absolute top-1 right-1 w-5 h-5 rounded-full border-2 flex items-center justify-center z-10 ${isSelected ? 'bg-purple-600 border-purple-600' : 'bg-white/80 border-gray-400'}`}>
+                      {isSelected && <Check className="w-3 h-3 text-white" />}
+                    </div>
+                  )}
+                  {selectionMode && isSelected && (
+                    <div className="absolute inset-0 bg-purple-500/20 pointer-events-none" />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {selectedPhoto && (
+          <MobilePhotoModal photo={selectedPhoto} onClose={() => setSelectedPhoto(null)} folders={folders} />
+        )}
+
+        {/* Selection toolbar for folder view */}
+        {selectionMode && selectedIds.length > 0 && (
+          <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 w-[calc(100vw-2rem)]">
+            <div className="bg-white rounded-2xl shadow-2xl border border-purple-200 px-4 py-3 flex flex-col gap-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-semibold text-purple-700">
+                  {selectedIds.length} photo{selectedIds.length !== 1 ? 's' : ''} selected
+                </span>
+                <button onClick={exitSelection} className="text-gray-400 text-sm font-medium flex items-center gap-1">
+                  <X className="w-4 h-4" /> Cancel
+                </button>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setFolderMoveDrawerOpen(true)}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-purple-600 text-white text-sm font-semibold"
+                >
+                  <FolderInput className="w-4 h-4" /> Move to Folder
+                </button>
+                <button
+                  onClick={handleFolderPhotoDelete}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-red-50 text-red-600 text-sm font-semibold"
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Move to folder drawer (folder view) */}
+        <MobileDrawerMenu open={folderMoveDrawerOpen} onOpenChange={setFolderMoveDrawerOpen} title="Move to Folder">
+          {folders.filter(f => f.id !== selectedFolder.id).map(folder => (
+            <button
+              key={folder.id}
+              onClick={() => handleFolderPhotoMove(folder.id)}
+              className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 rounded-lg"
+            >
+              <Folder className="w-4 h-4 text-orange-500 flex-shrink-0" />
+              <span className="text-sm text-gray-800 truncate">{folder.name}</span>
+            </button>
+          ))}
+        </MobileDrawerMenu>
+      </div>
+    );
+  }
+
+  // Selectable folder card
+  const SelectableFolderCard = ({ folder }) => {
+    const isSelected = selectedFolderIds.includes(folder.id);
+    return (
+      <div
+        className="relative"
+        onClick={() => {
+          if (selectionMode) {
+            toggleFolderSelect(folder.id);
+          } else {
+            setSelectedFolder(folder);
+            pushBack(folder.name, () => { setSelectedFolder(null); setSelectionMode(false); setSelectedIds([]); });
+          }
+        }}
+      >
+        <MobileFolderCard folder={folder} photos={photos} onClick={() => {}} />
+        {selectionMode && (
+          <div className={`absolute top-1 right-1 w-5 h-5 rounded-full border-2 flex items-center justify-center z-10 ${
+            isSelected ? 'bg-purple-600 border-purple-600' : 'bg-white/80 border-gray-400'
+          }`}>
+            {isSelected && <Check className="w-3 h-3 text-white" />}
+          </div>
+        )}
+        {selectionMode && isSelected && (
+          <div className="absolute inset-0 rounded-xl bg-purple-500/20 pointer-events-none" />
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <div className="min-h-screen pb-24" data-rb-deploy={`v${DEPLOY_BUILD}`}>
+      {/* Hero Title */}
+      <div className="px-4 pt-5 pb-2">
+        <h1 className="text-2xl font-bold text-gray-900">
+          Find Your{" "}
+          <span className="bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
+            Memories
+          </span>
+        </h1>
+      </div>
+
+      {/* Search bar */}
+      <div className="px-4 pb-2">
+        <div className={`flex items-center gap-2 bg-blue-50 rounded-2xl px-4 py-3 transition-all duration-200 border border-blue-100 ${searchFocused ? 'bg-blue-100 ring-2 ring-blue-300' : ''}`}>
+          <Search className={`w-4 h-4 flex-shrink-0 transition-colors ${searchFocused ? 'text-blue-500' : 'text-blue-300'}`} />
+          <input
+            ref={inputRef}
+            type="text"
+            placeholder="Search memories..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onFocus={() => setSearchFocused(true)}
+            onBlur={() => setSearchFocused(false)}
+            className="flex-1 bg-transparent text-base outline-none placeholder:text-gray-400 text-gray-900"
+          />
+          {searchQuery ? (
+            <button onClick={() => setSearchQuery("")}>
+              <X className="w-4 h-4 text-gray-400" />
+            </button>
+          ) : searchFocused ? (
+            <Sparkles className="w-4 h-4 text-purple-400 animate-pulse" />
+          ) : null}
+        </div>
+        {debouncedQuery && (
+          <p className="text-xs text-gray-500 mt-1.5 text-center">
+            {filteredPhotos.length} result{filteredPhotos.length !== 1 ? 's' : ''} for "{debouncedQuery}"
+          </p>
+        )}
+      </div>
+
+      {/* Tabs */}
+      {!debouncedQuery && (
+        <div className="flex px-4 gap-1 mb-1 sticky top-14 z-20 bg-white/95 backdrop-blur-md pb-2">
+          <button
+            onClick={() => { setActiveTab("all"); exitSelection(); }}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-sm font-medium transition-colors ${activeTab === "all" ? "bg-purple-100 text-purple-700" : "text-gray-500"}`}
+          >
+            <Grid3x3 className="w-3.5 h-3.5" />
+            All ({photos.length})
+          </button>
+          <button
+            onClick={() => setActiveTab("folders")}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-sm font-medium transition-colors ${activeTab === "folders" ? "bg-purple-100 text-purple-700" : "text-gray-500"}`}
+          >
+            <Layers className="w-3.5 h-3.5" />
+            Folders ({folders.length})
+          </button>
+        </div>
+      )}
+
+      <div className="px-3 pt-1">
+        {debouncedQuery ? (
+          <>
+            {filteredFolders.length > 0 && (
+              <div className="mb-4">
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 px-1">Folders</p>
+                <div className="grid grid-cols-4 gap-2">
+                  {filteredFolders.map(folder => (
+                    <SelectableFolderCard key={folder.id} folder={folder} />
+                  ))}
+                </div>
+              </div>
+            )}
+            {filteredPhotos.length === 0 ? (
+              <div className="text-center py-16">
+                <ImageIcon className="w-12 h-12 text-gray-200 mx-auto mb-3" />
+                <p className="text-gray-500 font-medium">No results</p>
+                <p className="text-gray-400 text-sm">Try a different search</p>
+              </div>
+            ) : (
+              <SelectablePhotoGrid photos={filteredPhotos} onPhotoClick={setSelectedPhoto} selectionMode={false} selectedIds={[]} onToggleSelect={() => {}} />
+            )}
+          </>
+        ) : activeTab === "folders" ? (
+          <div>
+            {/* Action buttons — direct grid cells, no wrapper rim */}
+            <div className="grid grid-cols-2 gap-1.5 mb-5">
+              <OrganizeButton photos={photos} squareStyle />
+              <CustomFolderButton photos={photos} squareStyle />
+              <DuplicateDetector photos={photos} folders={folders} squareStyle />
+              <button
+                type="button"
+                data-rb-folder-action="select"
+                onClick={() => { setSelectionMode(!selectionMode); setSelectedIds([]); setSelectedFolderIds([]); }}
+                className={selectionMode ? SQUARE_FOLDER_ACTION_ACTIVE_CLASS : SQUARE_FOLDER_ACTION_CLASS}
+                style={selectionMode ? SQUARE_FOLDER_ACTION_ACTIVE_STYLE : SQUARE_FOLDER_ACTION_STYLE}
+              >
+                <MousePointer2 className="w-5 h-5" />
+                <span>{selectionMode ? 'Exit Select' : 'Select'}</span>
+              </button>
+            </div>
+
+            {folders.length === 0 ? (
+              <div className="text-center py-16">
+                <Layers className="w-12 h-12 text-gray-200 mx-auto mb-3" />
+                <p className="text-gray-500 font-medium">No folders yet</p>
+                <p className="text-gray-400 text-sm">Tap Organize Media to create smart folders</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-4 gap-2">
+                {folders.map(folder => (
+                  <SelectableFolderCard key={folder.id} folder={folder} />
+                ))}
+              </div>
+            )}
+          </div>
+        ) : (
+          // All tab
+          <>
+            {isLoading ? (
+              <div className="flex flex-col items-center justify-center py-20 gap-3">
+                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-purple-400" />
+                <p className="text-gray-500 text-sm">Loading memories...</p>
+              </div>
+            ) : photos.length === 0 ? (
+              <EmptyState />
+            ) : (
+              <>
+                {folders.length > 0 && (
+                  <div className="mb-4">
+                    <div className="flex items-center justify-between mb-2 px-1">
+                      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Folders</p>
+                      <button onClick={() => setActiveTab("folders")} className="text-xs text-purple-500 font-medium">See all</button>
+                    </div>
+                    <div className="grid grid-cols-4 gap-2">
+                      {folders.slice(0, 8).map(folder => (
+                        <MobileFolderCard
+                          key={folder.id}
+                          folder={folder}
+                          photos={photos}
+                          onClick={() => {
+                            setSelectedFolder(folder);
+                            pushBack(folder.name, () => { setSelectedFolder(null); setSelectionMode(false); setSelectedIds([]); });
+                          }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {unorganizedPhotos.length > 0 && (
+                  <div>
+                    {folders.length > 0 && (
+                      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 px-1">
+                        Recents ({unorganizedPhotos.length})
+                      </p>
+                    )}
+                    <SelectablePhotoGrid
+                      photos={unorganizedPhotos}
+                      onPhotoClick={setSelectedPhoto}
+                      selectionMode={selectionMode}
+                      selectedIds={selectedIds}
+                      onToggleSelect={toggleSelect}
+                    />
+                  </div>
+                )}
+              </>
+            )}
+          </>
+        )}
+      </div>
+
+      {selectedPhoto && (
+        <MobilePhotoModal photo={selectedPhoto} onClose={() => setSelectedPhoto(null)} folders={folders} />
+      )}
+
+      {/* Folder selection toolbar */}
+      {selectionMode && (selectedFolderIds.length > 0 || selectedIds.length > 0) && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 w-[calc(100vw-2rem)]">
+          <div className="bg-white rounded-2xl shadow-2xl border border-purple-200 px-4 py-3 flex flex-col gap-3">
+            {/* Status row */}
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-semibold text-purple-700">
+                {selectedFolderIds.length > 0 && `${selectedFolderIds.length} folder${selectedFolderIds.length !== 1 ? 's' : ''}`}
+                {selectedFolderIds.length > 0 && selectedIds.length > 0 && ', '}
+                {selectedIds.length > 0 && `${selectedIds.length} photo${selectedIds.length !== 1 ? 's' : ''}`}
+                {' '}selected
+              </span>
+              <button onClick={exitSelection} className="text-gray-400 text-sm font-medium flex items-center gap-1">
+                <X className="w-4 h-4" /> Cancel
+              </button>
+            </div>
+
+            {/* Actions row */}
+            <div className="flex gap-2 flex-wrap">
+              {/* Rename — only when exactly 1 folder selected */}
+              {selectedFolderIds.length === 1 && selectedIds.length === 0 && (
+                <button
+                  onClick={handleRenameOpen}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-blue-50 text-blue-700 text-sm font-semibold"
+                >
+                  <Pencil className="w-4 h-4" /> Rename
+                </button>
+              )}
+
+              {/* Merge — when 1+ folders selected */}
+              {selectedFolderIds.length >= 1 && selectedIds.length === 0 && (
+                <button
+                  onClick={() => setMergeDrawerOpen(true)}
+                  disabled={merging}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-purple-600 text-white text-sm font-semibold disabled:opacity-50"
+                >
+                  {merging ? <Loader2 className="w-4 h-4 animate-spin" /> : <FolderInput className="w-4 h-4" />}
+                  Merge Folders
+                </button>
+              )}
+
+              {/* Move photos to folder */}
+              {selectedIds.length > 0 && (
+                <button
+                  onClick={() => setFolderMoveDrawerOpen(true)}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-purple-600 text-white text-sm font-semibold"
+                >
+                  <FolderInput className="w-4 h-4" /> Move to Folder
+                </button>
+              )}
+
+              {/* Delete */}
+              {(selectedFolderIds.length > 0 || selectedIds.length > 0) && (
+                <button
+                  onClick={() => {
+                    if (selectedFolderIds.length > 0) handleDeleteFolders();
+                    if (selectedIds.length > 0) onDeletePhotos();
+                  }}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-red-50 text-red-600 text-sm font-semibold"
+                >
+                  Delete
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Merge folders drawer */}
+      <MobileDrawerMenu open={mergeDrawerOpen} onOpenChange={setMergeDrawerOpen} title="Merge into folder">
+        {folders
+          .filter(f => !selectedFolderIds.includes(f.id))
+          .map(folder => (
+            <button
+              key={folder.id}
+              onClick={() => handleMerge(folder.id)}
+              className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 rounded-lg"
+            >
+              <Folder className="w-4 h-4 text-orange-500 flex-shrink-0" />
+              <span className="text-sm text-gray-800 truncate">{folder.name}</span>
+            </button>
+          ))
+        }
+      </MobileDrawerMenu>
+
+      {/* Move photos to folder drawer */}
+      <MobileDrawerMenu open={folderMoveDrawerOpen} onOpenChange={setFolderMoveDrawerOpen} title="Move to Folder">
+        {folders.map(folder => (
+          <button
+            key={folder.id}
+            onClick={() => { setFolderMoveDrawerOpen(false); onMoveToFolder(folder.id); }}
+            className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 rounded-lg"
+          >
+            <Folder className="w-4 h-4 text-orange-500 flex-shrink-0" />
+            <span className="text-sm text-gray-800 truncate">{folder.name}</span>
+          </button>
+        ))}
+      </MobileDrawerMenu>
+
+      {/* Rename modal */}
+      {renameFolder && (
+        <div className="fixed inset-0 z-[100] bg-black/50 flex items-end justify-center" onClick={() => setRenameFolder(null)}>
+          <div className="bg-white w-full rounded-t-3xl p-6 pb-10" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-gray-900 mb-4">Rename Folder</h3>
+            <input
+              autoFocus
+              value={renameName}
+              onChange={e => setRenameName(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleRenameSave()}
+              className="w-full border-2 border-purple-300 rounded-xl px-4 py-3 text-base outline-none focus:border-purple-500 mb-4"
+            />
+            <div className="flex gap-3">
+              <button onClick={() => setRenameFolder(null)} className="flex-1 py-3 rounded-xl border border-gray-200 text-gray-600 font-semibold">
+                Cancel
+              </button>
+              <button
+                onClick={handleRenameSave}
+                disabled={renaming || !renameName.trim()}
+                className="flex-1 py-3 rounded-xl bg-purple-600 text-white font-semibold disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {renaming ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+========================================================================
+FILE: src/components/gallery/EmptyState.jsx
+========================================================================
+import React from "react";
+import { Upload, Sparkles } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Link } from "react-router-dom";
+import { createPageUrl } from "@/utils";
+
+export default function EmptyState() {
+  return (
+    <div className="text-center py-20">
+      <div className="max-w-md mx-auto">
+        <div className="relative mb-8">
+          <div className="w-24 h-24 mx-auto bg-gradient-to-br from-blue-100 to-purple-200 rounded-3xl flex items-center justify-center">
+            <Upload className="w-12 h-12 text-purple-500" />
+          </div>
+          <div className="absolute -top-2 -right-2 w-8 h-8 bg-purple-400 rounded-full flex items-center justify-center animate-bounce">
+            <Sparkles className="w-4 h-4 text-white" />
+          </div>
+        </div>
+
+        <h3 className="text-2xl font-bold text-gray-900 mb-3">
+          No Media Yet
+        </h3>
+        <p className="text-gray-600 mb-8">
+          Upload photos and videos — AI tags what it sees so you can search by physical description. Type &quot;grass&quot; to find field photos, or &quot;beach&quot; for ocean scenes.
+        </p>
+
+        <Link to={createPageUrl("Upload")}>
+          <Button className="bg-gradient-to-r from-blue-400 to-purple-500 hover:from-blue-500 hover:to-purple-600 gap-2">
+            <Upload className="w-4 h-4" />
+            Upload Your First Files
+          </Button>
+        </Link>
+
+        <div className="mt-12 p-6 bg-gradient-to-br from-blue-50 to-purple-100 rounded-2xl text-left">
+          <h4 className="font-semibold text-gray-900 mb-3">What you can search for:</h4>
+          <ul className="space-y-2 text-sm text-gray-700">
+            <li className="flex items-start gap-2">
+              <span className="text-purple-500 mt-0.5">•</span>
+              <span>"Beach sunset with palm trees"</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="text-purple-500 mt-0.5">•</span>
+              <span>"People laughing at a party"</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="text-purple-500 mt-0.5">•</span>
+              <span>"Red car parked on street"</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="text-purple-500 mt-0.5">•</span>
+              <span>"Dog playing in snow"</span>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+========================================================================
+FILE: src/components/gallery/FolderView.jsx
+========================================================================
+import React, { useState } from "react";
+import { motion } from "framer-motion";
+import { ArrowLeft, Folder, Trash2, MousePointer2, Pencil, Check, X, FolderOpen, Search } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { base44 } from "@/api/base44Client";
+import { useQueryClient } from "@tanstack/react-query";
+import SelectablePhotoGrid from "./SelectablePhotoGrid";
+import { DragDropContext, Droppable } from "@hello-pangea/dnd";
+import { filterAndRankPhotos } from "@/lib/media-search";
+
+export default function FolderView({ 
+  folder, 
+  photos, 
+  onBack, 
+  onPhotoClick,
+  selectionMode,
+  selectedIds,
+  onToggleSelect,
+  onToggleSelectionMode,
+  onRemoveFromFolder
+}) {
+  const queryClient = useQueryClient();
+  const [isEditing, setIsEditing] = useState(false);
+  const [newName, setNewName] = useState(folder.name);
+  const [folderSearch, setFolderSearch] = useState("");
+  
+  // Filter photos that belong to this folder - ensure photo_ids is an array
+  const photoIds = Array.isArray(folder.photo_ids) ? folder.photo_ids : [];
+  const allFolderPhotos = photos.filter(p => photoIds.includes(p.id));
+  const folderPhotos = folderSearch
+    ? allFolderPhotos.filter(p =>
+        p.ai_description?.toLowerCase().includes(folderSearch.toLowerCase()) ||
+        p.ai_tags?.some(t => t.toLowerCase().includes(folderSearch.toLowerCase()))
+      )
+    : allFolderPhotos;
+
+  const handleDeleteFolder = async () => {
+    if (!confirm(`Delete folder "${folder.name}"? Photos won't be deleted.`)) return;
+    
+    await base44.entities.Folder.delete(folder.id);
+    queryClient.invalidateQueries({ queryKey: ['folders'] });
+    onBack();
+  };
+
+  const handleSaveName = async () => {
+    if (!newName.trim()) return;
+    
+    await base44.entities.Folder.update(folder.id, { name: newName.trim() });
+    queryClient.invalidateQueries({ queryKey: ['folders'] });
+    setIsEditing(false);
+  };
+
+  const handleCancelEdit = () => {
+    setNewName(folder.name);
+    setIsEditing(false);
+  };
+
+  const handleDragEnd = async (result) => {
+    if (!result.destination) return;
+    
+    // Dropped in the "remove from folder" zone
+    if (result.destination.droppableId === 'remove-zone') {
+      const photoId = result.draggableId;
+      await onRemoveFromFolder(photoId);
+      
+      // Update cover photo if the removed photo was the cover
+      if (folder.cover_photo_url) {
+        const removedPhoto = photos.find(p => p.id === photoId);
+        if (removedPhoto && removedPhoto.file_url === folder.cover_photo_url) {
+          const remainingPhotos = folder.photo_ids.filter(id => id !== photoId);
+          const newCoverPhoto = remainingPhotos.length > 0 
+            ? photos.find(p => p.id === remainingPhotos[0]) 
+            : null;
+          
+          await base44.entities.Folder.update(folder.id, {
+            cover_photo_url: newCoverPhoto?.file_url || ""
+          });
+          queryClient.invalidateQueries({ queryKey: ['folders'] });
+        }
+      }
+    }
+  };
+
+  return (
+    <DragDropContext onDragEnd={handleDragEnd}>
+      <motion.div
+        initial={{ opacity: 0, x: 20 }}
+        animate={{ opacity: 1, x: 0 }}
+        exit={{ opacity: 0, x: -20 }}
+        className="pb-32"
+      >
+        {/* Header */}
+        <div className="mb-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <Button
+              variant="ghost"
+              onClick={onBack}
+              className="gap-2"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Back
+            </Button>
+            
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleDeleteFolder}
+                className="text-red-600 hover:text-red-700 hover:bg-red-50"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span className="hidden sm:inline">Delete Folder</span>
+              </Button>
+
+              <Button
+                onClick={onToggleSelectionMode}
+                size="sm"
+                className={`${selectionMode ? 'bg-purple-600 hover:bg-purple-700' : 'bg-gradient-to-r from-blue-400 to-purple-500 hover:from-blue-500 hover:to-purple-600'} text-white`}
+              >
+                <MousePointer2 className="w-4 h-4" />
+                <span className="hidden sm:inline">{selectionMode ? 'Exit Select' : 'Select'}</span>
+              </Button>
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-orange-100 rounded-xl">
+              <Folder className="w-6 h-6 text-orange-500" />
+            </div>
+            <div className="flex-1 min-w-0">
+              {isEditing ? (
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={newName}
+                    onChange={(e) => setNewName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleSaveName();
+                      if (e.key === 'Escape') handleCancelEdit();
+                    }}
+                    className="text-xl font-bold"
+                    autoFocus
+                  />
+                  <Button
+                    size="sm"
+                    onClick={handleSaveName}
+                    className="bg-green-600 hover:bg-green-700 shrink-0"
+                  >
+                    <Check className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleCancelEdit}
+                    className="shrink-0"
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <h2 className="text-xl sm:text-2xl font-bold text-gray-900 truncate">{folder.name}</h2>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setIsEditing(true)}
+                    className="hover:bg-gray-100 shrink-0"
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </Button>
+                </div>
+              )}
+              {folder.description && (
+                <p className="text-sm text-gray-600 truncate">{folder.description}</p>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Photo count */}
+        <p className="text-sm text-gray-600 mb-4">
+          {folderSearch
+            ? `${folderPhotos.length} result${folderPhotos.length !== 1 ? 's' : ''} in this folder`
+            : `${allFolderPhotos.length} item${allFolderPhotos.length !== 1 ? 's' : ''} in this folder`}
+        </p>
+
+        {/* In-folder search */}
+        <div className="flex items-center gap-2 bg-gray-100 rounded-2xl px-4 py-2.5 mb-4">
+          <Search className="w-4 h-4 text-gray-400 flex-shrink-0" />
+          <input
+            type="text"
+            placeholder="Search within folder..."
+            value={folderSearch}
+            onChange={e => setFolderSearch(e.target.value)}
+            className="flex-1 bg-transparent text-sm outline-none placeholder:text-gray-400 text-gray-900"
+          />
+          {folderSearch && (
+            <button onClick={() => setFolderSearch("")}>
+              <X className="w-4 h-4 text-gray-400" />
+            </button>
+          )}
+        </div>
+
+        {/* Remove from Folder Drop Zone */}
+        {!selectionMode && !isEditing && allFolderPhotos.length > 0 && (
+          <Droppable droppableId="remove-zone">
+            {(provided, snapshot) => (
+              <div
+                ref={provided.ref}
+                {...provided.droppableProps}
+                className={`mb-6 p-6 rounded-2xl border-2 border-dashed transition-all ${
+                  snapshot.isDraggingOver 
+                    ? 'border-red-400 bg-red-50' 
+                    : 'border-gray-300 bg-gray-50'
+                }`}
+              >
+                <div className="flex items-center justify-center gap-2 text-gray-600">
+                  <FolderOpen className="w-5 h-5" />
+                  <span className="font-medium">
+                    {snapshot.isDraggingOver 
+                      ? 'Drop to remove from folder' 
+                      : 'Drag photos here to remove from folder'}
+                  </span>
+                </div>
+                {provided.placeholder}
+              </div>
+            )}
+          </Droppable>
+        )}
+
+        {/* Photos */}
+        {folderPhotos.length > 0 ? (
+          <SelectablePhotoGrid 
+            photos={folderPhotos} 
+            onPhotoClick={onPhotoClick}
+            selectionMode={selectionMode}
+            selectedIds={selectedIds || []}
+            onToggleSelect={onToggleSelect}
+          />
+        ) : (
+          <div className="text-center py-12 text-gray-500">
+            No photos in this folder
+          </div>
+        )}
+      </motion.div>
+    </DragDropContext>
+  );
+}
+
+========================================================================
+FILE: src/components/gallery/OrganizeButton.jsx
+========================================================================
+import React, { useState } from "react";
+import { base44 } from "@/api/base44Client";
+import { Button } from "@/components/ui/button";
+import { FolderPlus, Loader2, Sparkles } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import { reanalyzeWeakPhotos } from "@/lib/media-analysis";
+import { isWeakMetadata } from "@/lib/media-tags";
+import {
+  buildFolderOptions,
+  buildLabelPrompt,
+  buildMergePrompt,
+  photoDataForOrganize,
+} from "@/lib/media-organize";
+import { ORGANIZE_ICON_CLASS, ORGANIZE_LABEL_CLASS, SQUARE_FOLDER_ACTION_CLASS, SQUARE_FOLDER_ACTION_STYLE } from "./folderActionStyles";
+
+const CHUNK_SIZE = 40;
+const CONCURRENCY = 4;
+const MERGE_CHUNK = 25;
+
+async function runConcurrent(tasks, concurrency) {
+  const results = new Array(tasks.length);
+  let index = 0;
+  async function runNext() {
+    while (index < tasks.length) {
+      const i = index++;
+      results[i] = await tasks[i]();
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(concurrency, tasks.length) }, runNext));
+  return results;
+}
+
+async function labelChunk(chunk, existingFolderNames, customInstructions) {
+  const photoData = chunk.map(photoDataForOrganize);
+  const folderOptions = buildFolderOptions(existingFolderNames);
+
+  const result = await base44.integrations.Core.InvokeLLM({
+    prompt: buildLabelPrompt({ photoData, folderOptions, customInstructions }),
+    response_json_schema: {
+      type: "object",
+      properties: {
+        labels: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              id: { type: "string" },
+              folder: { type: "string" },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  return result.labels || [];
+}
+
+async function mergeGroupBatch(groups, existingFolderNames, customInstructions) {
+  const result = await base44.integrations.Core.InvokeLLM({
+    prompt: buildMergePrompt({ groups, existingFolderNames, customInstructions }),
+    response_json_schema: {
+      type: "object",
+      properties: {
+        folders: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              name: { type: "string" },
+              ids: { type: "array", items: { type: "string" } },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  return (result.folders || []).map((f) => ({ name: f.name, ids: f.ids || [] }));
+}
+
+async function consolidateGroups(initialGroups, existingFolderNames, customInstructions, onProgress) {
+  let groups = initialGroups;
+  let pass = 1;
+
+  while (groups.length > MERGE_CHUNK) {
+    onProgress(`Phase 2 (pass ${pass}): merging ${groups.length} groups…`);
+    const batches = [];
+    for (let i = 0; i < groups.length; i += MERGE_CHUNK) {
+      batches.push(groups.slice(i, i + MERGE_CHUNK));
+    }
+    const batchResults = await runConcurrent(
+      batches.map((batch) => () => mergeGroupBatch(batch, existingFolderNames, customInstructions)),
+      CONCURRENCY
+    );
+    const merged = new Map();
+    for (const batch of batchResults) {
+      for (const { name, ids } of batch) {
+        const key = name.toLowerCase().trim();
+        if (!merged.has(key)) merged.set(key, { name, ids: new Set(ids) });
+        else ids.forEach((id) => merged.get(key).ids.add(id));
+      }
+    }
+    groups = Array.from(merged.values()).map((g) => ({ name: g.name, ids: [...g.ids] }));
+    pass++;
+  }
+
+  onProgress(`Phase 2: final consolidation of ${groups.length} groups…`);
+  const finalGroups = await mergeGroupBatch(groups, existingFolderNames, customInstructions);
+
+  const finalMap = new Map();
+  for (const { name, ids } of finalGroups) {
+    const key = name.toLowerCase().trim();
+    if (!finalMap.has(key)) finalMap.set(key, { name, ids: new Set(ids) });
+    else ids.forEach((id) => finalMap.get(key).ids.add(id));
+  }
+
+  return Array.from(finalMap.values()).map((g) => ({
+    name: g.name,
+    photo_ids: [...g.ids],
+  }));
+}
+
+export default function OrganizeButton({ photos, squareStyle = false }) {
+  const [organizing, setOrganizing] = useState(false);
+  const [progress, setProgress] = useState("");
+  const [showDialog, setShowDialog] = useState(false);
+  const [customInstructions, setCustomInstructions] = useState("");
+  const [includeOrganized, setIncludeOrganized] = useState(false);
+  const [sharpenTags, setSharpenTags] = useState(true);
+  const queryClient = useQueryClient();
+
+  const weakCount = photos.filter(isWeakMetadata).length;
+
+  const handleOrganize = async () => {
+    if (photos.length < 2) {
+      alert("You need at least 2 photos to organize.");
+      return;
+    }
+
+    setShowDialog(false);
+    setOrganizing(true);
+
+    try {
+      const existingFolders = await base44.entities.Folder.list();
+      const organizedPhotoIds = new Set(existingFolders.flatMap((f) => f.photo_ids || []));
+      const existingFolderNames = existingFolders.map((f) => f.name);
+
+      let photosToOrganize = includeOrganized
+        ? photos
+        : photos.filter((p) => !organizedPhotoIds.has(p.id));
+
+      if (photosToOrganize.length < 2) {
+        alert(
+          photosToOrganize.length === 0
+            ? "All photos are already in folders. Check 'Re-organize everything' to re-sort."
+            : "Only 1 loose photo found — need at least 2 to organize."
+        );
+        setOrganizing(false);
+        return;
+      }
+
+      if (includeOrganized && existingFolders.length > 0) {
+        setProgress(`Clearing ${existingFolders.length} existing folders for re-organization…`);
+        await runConcurrent(
+          existingFolders.map((f) => () => base44.entities.Folder.delete(f.id)),
+          5
+        );
+      }
+
+      if (sharpenTags) {
+        const weakInBatch = photosToOrganize.filter(isWeakMetadata).length;
+        if (weakInBatch > 0) {
+          setProgress(`Sharpening visual tags for ${weakInBatch} item${weakInBatch !== 1 ? "s" : ""}…`);
+          photosToOrganize = await reanalyzeWeakPhotos(photosToOrganize, { onProgress: setProgress });
+        }
+      }
+
+      const chunks = [];
+      for (let i = 0; i < photosToOrganize.length; i += CHUNK_SIZE) {
+        chunks.push(photosToOrganize.slice(i, i + CHUNK_SIZE));
+      }
+
+      const totalChunks = chunks.length;
+      let completedChunks = 0;
+      setProgress(
+        `Phase 1: labelling ${photosToOrganize.length} item${photosToOrganize.length !== 1 ? "s" : ""} (${totalChunks} batch${totalChunks !== 1 ? "es" : ""})…`
+      );
+
+      const labelTasks = chunks.map((chunk) => async () => {
+        const labels = await labelChunk(
+          chunk,
+          includeOrganized ? [] : existingFolderNames,
+          customInstructions
+        );
+        completedChunks++;
+        setProgress(`Phase 1: ${completedChunks}/${totalChunks} batches done…`);
+        return labels;
+      });
+
+      const labelResults = await runConcurrent(labelTasks, CONCURRENCY);
+      const allLabels = labelResults.flat();
+
+      const labelledIds = new Set(allLabels.map((l) => l.id));
+      for (const photo of photosToOrganize) {
+        if (!labelledIds.has(photo.id)) {
+          allLabels.push({ id: photo.id, folder: "Miscellaneous" });
+        }
+      }
+
+      const groupMap = new Map();
+      for (const { id, folder } of allLabels) {
+        const display = (folder || "Miscellaneous").trim();
+        const key = display.toLowerCase();
+        if (!groupMap.has(key)) groupMap.set(key, { name: display, ids: new Set() });
+        groupMap.get(key).ids.add(id);
+      }
+      const initialGroups = Array.from(groupMap.values()).map((g) => ({
+        name: g.name,
+        ids: [...g.ids],
+      }));
+
+      const finalFolders = await consolidateGroups(
+        initialGroups,
+        includeOrganized ? [] : existingFolderNames,
+        customInstructions,
+        setProgress
+      );
+
+      setProgress(`Saving ${finalFolders.length} folders…`);
+
+      const currentFolders = includeOrganized ? [] : existingFolders;
+
+      const seenThisRun = new Set();
+      const foldersToSave = [];
+      for (const folder of finalFolders) {
+        const uniqueIds = (folder.photo_ids || []).filter((id) => {
+          if (seenThisRun.has(id)) return false;
+          seenThisRun.add(id);
+          return true;
+        });
+        if (uniqueIds.length >= 1) {
+          foldersToSave.push({ ...folder, photo_ids: uniqueIds });
+        }
+      }
+
+      const folderTasks = foldersToSave.map((folder) => async () => {
+        const matchingFolder = currentFolders.find(
+          (f) => f.name.toLowerCase() === folder.name.toLowerCase()
+        );
+
+        if (matchingFolder) {
+          const mergedIds = [...new Set([...(matchingFolder.photo_ids || []), ...folder.photo_ids])];
+          const coverPhoto =
+            !matchingFolder.cover_photo_url && mergedIds.length > 0
+              ? photos.find((p) => p.id === mergedIds[0])
+              : null;
+          await base44.entities.Folder.update(matchingFolder.id, {
+            photo_ids: mergedIds,
+            ...(coverPhoto && { cover_photo_url: coverPhoto.file_url }),
+          });
+        } else {
+          const coverPhoto = photos.find((p) => p.id === folder.photo_ids[0]);
+          await base44.entities.Folder.create({
+            name: folder.name,
+            description: "",
+            photo_ids: folder.photo_ids,
+            cover_photo_url: coverPhoto?.file_url || "",
+          });
+        }
+      });
+
+      await runConcurrent(folderTasks, 5);
+
+      const totalSaved = foldersToSave.reduce((sum, f) => sum + f.photo_ids.length, 0);
+      const missed = photosToOrganize.length - totalSaved;
+
+      setProgress("");
+      queryClient.invalidateQueries({ queryKey: ["folders"] });
+      queryClient.invalidateQueries({ queryKey: ["photos"] });
+
+      if (foldersToSave.length === 0) {
+        alert("No groups found to organize.");
+      } else if (missed > 0) {
+        alert(
+          `Done! ${totalSaved} of ${photosToOrganize.length} items organized into ${foldersToSave.length} folders. ${missed} items had no clear group — press Organize again to retry.`
+        );
+      }
+    } catch (error) {
+      console.error("Error organizing:", error);
+      alert(error?.message || "Failed to organize photos. Please try again.");
+      setProgress("");
+    } finally {
+      setOrganizing(false);
+    }
+  };
+
+  return (
+    <>
+      {squareStyle ? (
+        <button
+          type="button"
+          data-rb-folder-action="organize"
+          onClick={() => setShowDialog(true)}
+          disabled={organizing || photos.length < 2}
+          className={`relative ${SQUARE_FOLDER_ACTION_CLASS}`}
+          style={SQUARE_FOLDER_ACTION_STYLE}
+        >
+          {organizing ? (
+            <Loader2 className={`${ORGANIZE_ICON_CLASS} animate-spin`} />
+          ) : (
+            <Sparkles className={ORGANIZE_ICON_CLASS} />
+          )}
+          <span className={ORGANIZE_LABEL_CLASS} data-rb-organize-label>
+            {organizing ? "Organizing..." : "Organize"}
+          </span>
+          {progress && (
+            <div className="absolute top-full left-0 right-0 mt-2 p-2 bg-white rounded-lg shadow-lg border border-orange-200 whitespace-nowrap z-10">
+              <div className="flex items-center gap-2 text-sm text-orange-600">
+                <Sparkles className="w-3 h-3 animate-pulse" />
+                {progress}
+              </div>
+            </div>
+          )}
+        </button>
+      ) : (
+        <div className="relative">
+          <Button
+            onClick={() => setShowDialog(true)}
+            disabled={organizing || photos.length < 2}
+            className="bg-gradient-to-r from-blue-400 to-purple-500 hover:from-blue-500 hover:to-purple-600 text-white gap-2"
+          >
+            {organizing ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Organizing...
+              </>
+            ) : (
+              <>
+                <FolderPlus className="w-4 h-4" />
+                Organize
+              </>
+            )}
+          </Button>
+          {progress && (
+            <div className="absolute top-full left-0 right-0 mt-2 p-2 bg-white rounded-lg shadow-lg border border-orange-200 whitespace-nowrap z-10">
+              <div className="flex items-center gap-2 text-sm text-orange-600">
+                <Sparkles className="w-3 h-3 animate-pulse" />
+                {progress}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      <Dialog open={showDialog} onOpenChange={setShowDialog}>
+        <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Organize Media</DialogTitle>
+            <DialogDescription>
+              AI groups photos and videos by what they look like — grass fields, beaches, pets, food, and more
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="instructions">
+                Custom Instructions (Optional)
+                {customInstructions && (
+                  <span className="ml-2 text-xs text-purple-600 font-semibold">✓ Instructions added</span>
+                )}
+              </Label>
+              <Textarea
+                id="instructions"
+                placeholder="e.g., 'Group by month and year' or 'Keep vacation photos separate' or 'Put all grass and field photos together'"
+                value={customInstructions}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setCustomInstructions(value);
+                  const needsOrganized = value
+                    .toLowerCase()
+                    .match(/\b(consolidate|merge|combine|take all folders|move folders|reorganize folders)\b/);
+                  if (needsOrganized && !includeOrganized) setIncludeOrganized(true);
+                }}
+                className="min-h-[100px]"
+              />
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="sharpen-tags"
+                checked={sharpenTags}
+                onCheckedChange={setSharpenTags}
+              />
+              <Label htmlFor="sharpen-tags" className="text-sm font-normal cursor-pointer">
+                Sharpen visual tags before organizing
+                {weakCount > 0 && (
+                  <span className="text-gray-500 ml-1">({weakCount} item{weakCount !== 1 ? "s" : ""} need better tags)</span>
+                )}
+              </Label>
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="include-organized"
+                checked={includeOrganized}
+                onCheckedChange={setIncludeOrganized}
+              />
+              <Label htmlFor="include-organized" className="text-sm font-normal cursor-pointer">
+                Re-organize everything — consolidate all existing folders and re-sort all media from scratch.
+              </Label>
+            </div>
+
+            {includeOrganized && (
+              <p className="text-xs text-orange-600 font-medium ml-6">
+                ⚠️ This will delete all existing folders and rebuild them. Your photos won&apos;t be deleted.
+              </p>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDialog(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleOrganize}
+              className="bg-gradient-to-r from-blue-400 to-purple-500 hover:from-blue-500 hover:to-purple-600"
+            >
+              <Sparkles className="w-4 h-4 mr-2" />
+              Auto Organize
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+
+========================================================================
+FILE: src/components/gallery/folderActionStyles.js
+========================================================================
+/** Compact tile — mostly white with a subtle purple hint at the corner */
+export const SQUARE_FOLDER_ACTION_CLASS =
+  'w-full min-h-[4.25rem] flex flex-col items-center justify-center gap-1 py-3 rounded-2xl bg-gradient-to-br from-white via-white to-purple-50/60 text-gray-700 border border-gray-200/80 shadow-sm text-sm font-semibold disabled:opacity-50';
+
+export const ORGANIZE_ICON_CLASS = 'w-5 h-5 text-purple-500';
+export const ORGANIZE_LABEL_CLASS = 'text-purple-600 font-semibold';
+
+export const SQUARE_FOLDER_ACTION_STYLE = {
+  width: '100%',
+  minHeight: '4.25rem',
+  boxSizing: 'border-box',
+};
+
+export const SQUARE_FOLDER_ACTION_ACTIVE_CLASS =
+  'w-full min-h-[4.25rem] flex flex-col items-center justify-center gap-1 py-3 rounded-2xl text-sm font-semibold shadow-sm border-0 transition-colors bg-purple-600 text-white';
+
+export const SQUARE_FOLDER_ACTION_ACTIVE_STYLE = SQUARE_FOLDER_ACTION_STYLE;
+
+
+========================================================================
+FILE: src/components/upload/MobileUpload.jsx
+========================================================================
+import React from "react";
+import { motion } from "framer-motion";
+import { Camera, Image, Video, CheckCircle2, Sparkles, ChevronRight } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { createPageUrl } from "@/utils";
+import ProcessingList from "./ProcessingList";
+import { useNativeMediaInput } from "@/lib/native-media-input";
+import { MAX_BATCH_SIZE } from "@/lib/media-upload";
+
+export default function MobileUpload({
+  files,
+  processing,
+  allProcessed,
+  hasSuccess,
+  currentPhotoCount,
+  handleFileSelection,
+  processPhotos,
+  removeFile,
+  retryFile,
+}) {
+  const navigate = useNavigate();
+  const { inputRef, openPicker, handleInput } = useNativeMediaInput(handleFileSelection);
+
+  const pendingCount = files.filter(f => f.status === 'pending').length;
+  const successCount = files.filter(f => f.status === 'success').length;
+  const errorCount = files.filter(f => f.status === 'error').length;
+  const processingCount = files.filter(f => f.status === 'processing').length;
+  const inFlightProgress = files
+    .filter(f => f.status === 'processing')
+    .reduce((sum, f) => sum + (f.progress || 0), 0) / 100;
+  const progress = files.length > 0
+    ? Math.round(((successCount + inFlightProgress) / files.length) * 100)
+    : 0;
+  const showCompleteBanner = allProcessed && hasSuccess;
+  const showBatchActive = processing || processingCount > 0;
+
+  return (
+    <div className="min-h-screen pb-24 px-4 pt-4">
+      {/* Always mounted — iOS loses picker result if input unmounts */}
+      <input
+        ref={inputRef}
+        type="file"
+        multiple
+        accept="image/*,video/*,.mp4,.mov,.m4v"
+        onChange={handleInput}
+        onInput={handleInput}
+        className="hidden"
+        aria-hidden="true"
+        tabIndex={-1}
+      />
+
+      {/* Header */}
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-gray-900">Add Memories</h1>
+        <p className="text-sm text-gray-500 mt-1">
+          {currentPhotoCount} {currentPhotoCount === 1 ? 'memory' : 'memories'} stored
+        </p>
+      </div>
+
+      {/* Add from Camera Roll — idle when no batch in flight */}
+      {!showBatchActive && (
+        <motion.button
+          type="button"
+          whileTap={{ scale: 0.97 }}
+          onClick={openPicker}
+          className="w-full bg-gradient-to-br from-purple-500 to-blue-500 rounded-3xl p-8 flex flex-col items-center gap-3 shadow-lg shadow-purple-200 mb-4"
+        >
+          <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center">
+            <Camera className="w-9 h-9 text-white" />
+          </div>
+          <div className="text-center">
+            <p className="text-white font-semibold text-lg">Add from Camera Roll</p>
+            <p className="text-white/70 text-sm mt-1">Photos & Videos • Up to {MAX_BATCH_SIZE} at a time</p>
+          </div>
+        </motion.button>
+      )}
+
+      {/* Upload Complete — always directly below Add button */}
+      {showCompleteBanner && (
+        <motion.button
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          onClick={() => navigate(createPageUrl("Gallery"))}
+          className="w-full bg-gradient-to-r from-green-400 to-emerald-500 text-white rounded-2xl p-4 flex items-center justify-between mb-4 shadow-sm"
+        >
+          <div className="flex items-center gap-3">
+            <CheckCircle2 className="w-6 h-6" />
+            <div className="text-left">
+              <p className="font-semibold">Upload Complete!</p>
+              <p className="text-sm text-white/80">{successCount} item{successCount !== 1 ? 's' : ''} added</p>
+            </div>
+          </div>
+          <ChevronRight className="w-5 h-5" />
+        </motion.button>
+      )}
+
+      {/* Processing progress */}
+      {showBatchActive && files.length > 0 && (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 mb-4 flex items-center gap-4">
+          <div className="relative w-14 h-14 flex-shrink-0">
+            <svg className="w-14 h-14 -rotate-90" viewBox="0 0 56 56">
+              <circle cx="28" cy="28" r="24" fill="none" stroke="#f3f4f6" strokeWidth="5" />
+              <circle
+                cx="28" cy="28" r="24"
+                fill="none"
+                stroke="url(#grad)"
+                strokeWidth="5"
+                strokeLinecap="round"
+                strokeDasharray={`${2 * Math.PI * 24}`}
+                strokeDashoffset={`${2 * Math.PI * 24 * (1 - progress / 100)}`}
+                className="transition-all duration-500"
+              />
+              <defs>
+                <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stopColor="#818cf8" />
+                  <stop offset="100%" stopColor="#a78bfa" />
+                </linearGradient>
+              </defs>
+            </svg>
+            <span className="absolute inset-0 flex items-center justify-center text-xs font-bold text-purple-600">{progress}%</span>
+          </div>
+          <div>
+            <p className="font-semibold text-gray-900">
+              {successCount === files.length ? 'Saving complete' : 'Saving memories...'}
+            </p>
+            <p className="text-sm text-gray-500">
+              {successCount} saved
+              {processingCount > 0 ? ` · ${processingCount} uploading` : ''}
+              {errorCount > 0 ? ` · ${errorCount} failed` : ''}
+              {successCount > 0 && processingCount > 0 ? ' · AI tags added in background' : ''}
+              {` · ${files.length} total`}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Batch finished with failures */}
+      {!showBatchActive && allProcessed && errorCount > 0 && (
+        <div className="bg-amber-50 rounded-2xl border border-amber-200 p-4 mb-4">
+          <p className="font-semibold text-amber-900">
+            {successCount > 0 ? 'Upload finished with errors' : 'Upload failed'}
+          </p>
+          <p className="text-sm text-amber-800 mt-1">
+            {successCount} saved, {errorCount} failed — tap retry on failed items below.
+          </p>
+        </div>
+      )}
+
+      {/* Tips — below banner / progress, hidden once upload succeeds */}
+      {!showBatchActive && !showCompleteBanner && (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 divide-y divide-gray-50 mb-4">
+          <div className="flex items-center gap-3 px-4 py-3.5">
+            <div className="w-8 h-8 bg-purple-100 rounded-xl flex items-center justify-center flex-shrink-0">
+              <Sparkles className="w-4 h-4 text-purple-600" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-gray-800">AI-powered search</p>
+              <p className="text-xs text-gray-500">Large photos are optimized before upload for faster saving</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3 px-4 py-3.5">
+            <div className="w-8 h-8 bg-blue-100 rounded-xl flex items-center justify-center flex-shrink-0">
+              <Image className="w-4 h-4 text-blue-600" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-gray-800">Photos & videos</p>
+              <p className="text-xs text-gray-500">JPG, PNG, WebP, GIF, MP4, MOV, AVI</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3 px-4 py-3.5">
+            <div className="w-8 h-8 bg-green-100 rounded-xl flex items-center justify-center flex-shrink-0">
+              <Video className="w-4 h-4 text-green-600" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-gray-800">Smart organization</p>
+              <p className="text-xs text-gray-500">AI auto-organizes into albums after upload</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {files.length > 0 && (
+        <div>
+          {!showBatchActive && !allProcessed && pendingCount > 0 && (
+            <motion.button
+              whileTap={{ scale: 0.97 }}
+              onClick={processPhotos}
+              className="w-full bg-gradient-to-r from-purple-500 to-blue-500 text-white rounded-2xl p-4 flex items-center justify-center gap-2 shadow-sm mb-4"
+            >
+              <Sparkles className="w-5 h-5" />
+              <span className="font-semibold">Save {pendingCount} {pendingCount === 1 ? 'Memory' : 'Memories'}</span>
+            </motion.button>
+          )}
+
+          <ProcessingList files={files} onRemove={removeFile} onRetry={retryFile} processing={processing} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+========================================================================
+FILE: src/components/upload/AiUploadConsentModal.jsx
+========================================================================
+import React from "react";
+import { Sparkles, Shield, ExternalLink } from "lucide-react";
+import { Button } from "@/components/ui/button";
+
+const OPENAI_PRIVACY_URL = "https://openai.com/policies/privacy-policy/";
+
+export default function AiUploadConsentModal({ open, onAccept, onDecline }) {
+  if (!open) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-[200] flex items-end justify-center bg-black/45"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="ai-consent-title"
+    >
+      <div className="w-full max-w-lg bg-white rounded-t-3xl shadow-2xl flex flex-col max-h-[min(46vh,420px)]">
+        <div className="overflow-y-auto px-4 pt-4 pb-2 flex-1 min-h-0">
+          <div className="flex items-start gap-3 mb-3">
+            <div className="w-9 h-9 rounded-xl bg-purple-100 flex items-center justify-center flex-shrink-0">
+              <Sparkles className="w-4 h-4 text-purple-600" />
+            </div>
+            <div className="min-w-0">
+              <h2 id="ai-consent-title" className="text-base font-bold text-gray-900 leading-snug">
+                Before we analyze your photos
+              </h2>
+              <p className="text-xs text-gray-600 mt-1 leading-relaxed">
+                Uploads are sent to <strong>OpenAI</strong> for short descriptions and search tags, saved to your private account only.
+              </p>
+            </div>
+          </div>
+
+          <div className="rounded-xl bg-gray-50 px-3 py-2.5 text-xs text-gray-700 space-y-1.5 leading-relaxed">
+            <p><strong>Sent:</strong> only the photo or video you upload.</p>
+            <p><strong>Used for:</strong> AI search tags — not used to train OpenAI models.</p>
+            <a
+              href={OPENAI_PRIVACY_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-purple-600 font-medium"
+            >
+              OpenAI Privacy Policy
+              <ExternalLink className="w-3 h-3" />
+            </a>
+          </div>
+
+          <p className="flex items-start gap-1.5 text-[11px] text-gray-500 mt-2 leading-relaxed">
+            <Shield className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+            Delete items anytime. Revoke consent in Account settings.
+          </p>
+        </div>
+
+        <div
+          className="px-4 pt-3 pb-4 border-t border-gray-100 bg-white flex-shrink-0"
+          style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
+        >
+          <Button
+            type="button"
+            onClick={onAccept}
+            className="w-full h-12 rounded-xl bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white font-semibold text-base"
+          >
+            Continue
+          </Button>
+          <button
+            type="button"
+            onClick={onDecline}
+            className="w-full mt-2 py-2 text-sm text-gray-500 font-medium"
+          >
+            Not now
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+========================================================================
+FILE: src/api/base44Client.js
+========================================================================
+import { createClient } from '@base44/sdk';
+import { appParams, getAppOrigin } from '@/lib/app-params';
+import { getPlatformLoginUrl, openRestorebraineLogin } from '@/lib/auth-urls';
+import { isNativeShell } from '@/lib/native-hosted-redirect';
+
+const { appId, serverUrl, token, functionsVersion } = appParams;
+
+//Create a client with authentication required
+export const base44 = createClient({
+  appId,
+  serverUrl,
+  appBaseUrl: getAppOrigin(),
+  token,
+  functionsVersion,
+  requiresAuth: false
+});
+
+// Custom-domain /login is a broken Base44 platform page — always use app.base44.com.
+const originalRedirectToLogin = base44.auth.redirectToLogin.bind(base44.auth);
+base44.auth.redirectToLogin = (nextUrl) => {
+  if (typeof window === 'undefined') {
+    return originalRedirectToLogin(nextUrl);
+  }
+  if (isNativeShell()) {
+    openRestorebraineLogin();
     return;
   }
+  const returnTo = nextUrl
+    ? new URL(nextUrl, window.location.origin).toString()
+    : window.location.href;
+  window.location.href = getPlatformLoginUrl(returnTo);
+};
 
-  if ((host === 'restorebraine.com' || host === 'www.restorebraine.com') && path === '/login') {
-    platformLogin(APP_ORIGIN);
-    return;
-  }
 
-  var originalAssign = Location.prototype.assign;
-  var originalReplace = Location.prototype.replace;
+========================================================================
+FILE: src/lib/ai-upload-consent.js
+========================================================================
+const CONSENT_KEY = 'restorebraine_ai_upload_consent_v1';
 
-  function guard(url) {
-    var value = String(url || '');
-    if (/^https:\/\/base44\.app\/login/i.test(value)) {
-      platformLogin('https://restorebraine.com');
-      return true;
-    }
-    if (/^https:\/\/restorebraine\.com\/login/i.test(value) || /^https:\/\/www\.restorebraine\.com\/login/i.test(value)) {
-      platformLogin('https://restorebraine.com');
-      return true;
-    }
+export function hasAiUploadConsent() {
+  try {
+    return localStorage.getItem(CONSENT_KEY) === '1';
+  } catch {
     return false;
   }
+}
 
-  Location.prototype.assign = function (url) {
-    if (guard(url)) return;
-    return originalAssign.call(this, url);
+export function grantAiUploadConsent() {
+  try {
+    localStorage.setItem(CONSENT_KEY, '1');
+  } catch {
+    /* ignore */
+  }
+}
+
+export function revokeAiUploadConsent() {
+  try {
+    localStorage.removeItem(CONSENT_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+
+========================================================================
+FILE: src/lib/gallery-nav.js
+========================================================================
+import { base44 } from '@/api/base44Client';
+import { createPageUrl } from '@/utils';
+import { persistSessionToNativeStorage } from '@/lib/session-bootstrap';
+
+export const GALLERY_PATH = createPageUrl('Gallery');
+const SIGNED_OUT_KEY = 'b44_signed_out';
+
+export function isGalleryPath(pathname = '') {
+  const path = pathname.toLowerCase();
+  return path === '/' || path === GALLERY_PATH;
+}
+
+export async function persistActiveSession() {
+  const token =
+    localStorage.getItem('base44_access_token') || localStorage.getItem('token');
+  if (!token) return null;
+
+  try {
+    localStorage.removeItem(SIGNED_OUT_KEY);
+    base44.auth.setToken(token, false);
+    await persistSessionToNativeStorage(token);
+  } catch {
+    // Keep navigation working even if persistence fails
+  }
+
+  return token;
+}
+
+export async function navigateToGallery(navigate, { popBack, resumeActiveSession } = {}) {
+  popBack?.();
+  await persistActiveSession();
+  if (resumeActiveSession) {
+    await resumeActiveSession();
+  }
+  navigate(GALLERY_PATH, { replace: true });
+}
+
+
+========================================================================
+FILE: src/lib/native-media-input.js
+========================================================================
+import { useCallback, useEffect, useRef } from 'react';
+
+export function isNativeMediaShell() {
+  if (typeof window === 'undefined') return false;
+  return (
+    window.Capacitor?.isNativePlatform?.() ||
+    window.location.protocol === 'capacitor:' ||
+    window.location.protocol === 'ionic:'
+  );
+}
+
+/**
+ * iOS WKWebView often fails to fire change on <input type="file"> after PHPicker.
+ * Poll input.files on focus / app resume and keep the input mounted.
+ */
+export function useNativeMediaInput(onFilesSelected) {
+  const inputRef = useRef(null);
+  const pendingPollRef = useRef(false);
+  const onFilesRef = useRef(onFilesSelected);
+  onFilesRef.current = onFilesSelected;
+
+  const deliverFiles = useCallback((fileList) => {
+    if (!fileList?.length) return false;
+    onFilesRef.current?.(fileList);
+    return true;
+  }, []);
+
+  const drainInput = useCallback(() => {
+    const input = inputRef.current;
+    if (!input?.files?.length) return false;
+    const files = input.files;
+    input.value = '';
+    return deliverFiles(files);
+  }, [deliverFiles]);
+
+  const openPicker = useCallback(() => {
+    const input = inputRef.current;
+    if (!input) return;
+    input.value = '';
+    pendingPollRef.current = true;
+    input.click();
+  }, []);
+
+  const pollAfterPicker = useCallback(() => {
+    if (!pendingPollRef.current) return;
+    [100, 350, 700, 1200].forEach((delay) => {
+      window.setTimeout(() => {
+        if (!pendingPollRef.current) return;
+        if (drainInput()) pendingPollRef.current = false;
+      }, delay);
+    });
+    window.setTimeout(() => {
+      pendingPollRef.current = false;
+    }, 2500);
+  }, [drainInput]);
+
+  useEffect(() => {
+    if (!isNativeMediaShell()) return;
+
+    const onResume = () => pollAfterPicker();
+
+    window.addEventListener('focus', onResume);
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') onResume();
+    });
+
+    let appListener;
+    import('@capacitor/app')
+      .then(({ App }) =>
+        App.addListener('appStateChange', ({ isActive }) => {
+          if (isActive) onResume();
+        }),
+      )
+      .then((handle) => {
+        appListener = handle;
+      })
+      .catch(() => {});
+
+    return () => {
+      window.removeEventListener('focus', onResume);
+      appListener?.remove?.();
+    };
+  }, [pollAfterPicker]);
+
+  const handleInput = useCallback(
+    (event) => {
+      pendingPollRef.current = false;
+      const files = event.target.files;
+      if (files?.length) deliverFiles(files);
+      event.target.value = '';
+    },
+    [deliverFiles],
+  );
+
+  return { inputRef, openPicker, handleInput };
+}
+
+
+========================================================================
+FILE: src/lib/media-upload.js
+========================================================================
+import { base44 } from '@/api/base44Client';
+import { analyzeMedia } from '@/lib/media-analysis';
+import { enrichTags, tokenize } from '@/lib/media-tags';
+import { runConcurrent } from '@/lib/concurrency';
+import { withTimeout } from '@/lib/invoke-llm-retry';
+import { prepareUploadFiles } from '@/lib/upload-image-prep';
+import { runUploadSavePipeline } from '@/lib/upload-pipeline';
+import {
+  BACKGROUND_ANALYSIS_CONCURRENCY,
+  MAX_BATCH_SIZE,
+  MAX_VIDEO_BYTES,
+  SAVE_PIPELINE_CONCURRENCY,
+  UPLOAD_ANALYSIS_TIMEOUT_MS,
+  UPLOAD_BATCH_TIMEOUT_MS,
+  UPLOAD_MAX_RETRIES,
+  UPLOAD_PIPELINE_CONCURRENCY,
+  UPLOAD_TIMEOUT_MS,
+} from '@/lib/media-constants';
+
+export {
+  BACKGROUND_ANALYSIS_CONCURRENCY,
+  MAX_BATCH_SIZE,
+  MAX_VIDEO_BYTES,
+  SAVE_PIPELINE_CONCURRENCY,
+  UPLOAD_ANALYSIS_TIMEOUT_MS,
+  UPLOAD_BATCH_TIMEOUT_MS,
+  UPLOAD_MAX_RETRIES,
+  UPLOAD_PIPELINE_CONCURRENCY,
+  UPLOAD_TIMEOUT_MS,
+} from '@/lib/media-constants';
+
+export function getFileType(file) {
+  const type = file?.type || '';
+  if (type.startsWith('video/')) return 'video';
+  if (type.startsWith('image/')) return 'image';
+  const name = (file?.name || '').toLowerCase();
+  if (/\.(mp4|mov|m4v|avi|webm|mkv)$/.test(name)) return 'video';
+  return 'image';
+}
+
+export function validateFiles(files) {
+  const list = Array.from(files || []).filter((f) => f && (f.size > 0 || f.name));
+  if (!list.length) {
+    return {
+      valid: [],
+      error: 'No files received from picker. Try again or allow full photo access in Settings.',
+    };
+  }
+
+  const readable = list.filter((f) => f.size > 0);
+  if (!readable.length) {
+    return {
+      valid: [],
+      error: 'Selected files could not be read. In Settings → Restorebraine → Photos, try Full Access.',
+    };
+  }
+
+  if (readable.length > MAX_BATCH_SIZE) {
+    return {
+      valid: [],
+      error: `Please select up to ${MAX_BATCH_SIZE} files at a time. You can add more after this batch starts.`,
+    };
+  }
+
+  const oversized = readable.find(
+    (f) => getFileType(f) === 'video' && f.size > MAX_VIDEO_BYTES,
+  );
+  if (oversized) {
+    return {
+      valid: [],
+      error: `${oversized.name} is too large. Videos must be under 5 minutes / 500MB.`,
+    };
+  }
+
+  return { valid: readable, error: null };
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isRetryableUploadError(error) {
+  const msg = String(error?.message || error || '').toLowerCase();
+  return (
+    msg.includes('network') ||
+    msg.includes('timeout') ||
+    msg.includes('timed out') ||
+    msg.includes('fetch') ||
+    msg.includes('failed to fetch') ||
+    msg.includes('connection') ||
+    msg.includes('abort') ||
+    msg.includes('503') ||
+    msg.includes('502') ||
+    msg.includes('504')
+  );
+}
+
+function quickMetadataFromFilename(filename, fileType) {
+  const base = (filename || '')
+    .replace(/\.[^.]+$/, '')
+    .replace(/[_-]+/g, ' ')
+    .trim();
+  const label = base || (fileType === 'video' ? 'Video memory' : 'Photo memory');
+  const tags = enrichTags(label, [fileType, ...tokenize(label)]);
+  return {
+    ai_description: label,
+    ai_tags: tags,
   };
+}
 
-  Location.prototype.replace = function (url) {
-    if (guard(url)) return;
-    return originalReplace.call(this, url);
+async function uploadFile(file) {
+  let lastError;
+  for (let attempt = 0; attempt < UPLOAD_MAX_RETRIES; attempt++) {
+    try {
+      return await withTimeout(
+        base44.integrations.Core.UploadFile({ file }),
+        UPLOAD_TIMEOUT_MS,
+        'Upload',
+      );
+    } catch (error) {
+      lastError = error;
+      if (!isRetryableUploadError(error) || attempt === UPLOAD_MAX_RETRIES - 1) {
+        throw error;
+      }
+      await sleep(800 * (attempt + 1));
+    }
+  }
+  throw lastError || new Error('Upload failed');
+}
+
+async function savePhoto({ file_url, file_type, ai_description, ai_tags, original_filename }) {
+  return base44.entities.Photo.create({
+    file_url,
+    file_type,
+    ai_description,
+    ai_tags,
+    upload_date: new Date().toISOString(),
+    original_filename,
+  });
+}
+
+async function analyzeAndUpdatePhoto(photoId, fileUrl, fileType, filename) {
+  if (!photoId) return;
+  try {
+    const analysis = await analyzeMedia(fileUrl, fileType, filename, {
+      fast: true,
+      timeoutMs: UPLOAD_ANALYSIS_TIMEOUT_MS,
+    });
+    await base44.entities.Photo.update(photoId, {
+      ai_description: analysis.ai_description,
+      ai_tags: analysis.ai_tags,
+    });
+  } catch (error) {
+    console.warn('Background analysis failed for photo', photoId, error);
+  }
+}
+
+/**
+ * Fast pipeline: compress → overlapping upload/save → background AI.
+ */
+export async function processUploadBatch(queueItems, { onItemUpdate } = {}) {
+  return withTimeout(
+    processUploadBatchInner(queueItems, { onItemUpdate }),
+    UPLOAD_BATCH_TIMEOUT_MS,
+    'Upload batch',
+  );
+}
+
+async function processUploadBatchInner(queueItems, { onItemUpdate } = {}) {
+  const update = (index, patch) => onItemUpdate?.(index, patch);
+
+  const preparedFiles = await prepareUploadFiles(
+    queueItems.map((item) => item.file),
+    { onItemProgress: (index, patch) => update(index, patch) },
+  );
+
+  const preparedItems = queueItems.map((item, index) => ({
+    ...item,
+    file: preparedFiles[index] || item.file,
+  }));
+
+  const pipelineResults = await runUploadSavePipeline({
+    items: preparedItems,
+    uploadConcurrency: UPLOAD_PIPELINE_CONCURRENCY,
+    saveConcurrency: SAVE_PIPELINE_CONCURRENCY,
+    uploadOne: async (item, index) => {
+      update(index, { status: 'processing', progress: 12, error: null, phase: 'uploading' });
+      try {
+        const uploadResult = await uploadFile(item.file);
+        update(index, { progress: 62, file_url: uploadResult.file_url, phase: 'uploaded' });
+        return {
+          index,
+          file_url: uploadResult.file_url,
+          fileType: getFileType(item.file),
+          filename: item.file.name,
+        };
+      } catch (error) {
+        const message = error?.message || 'Upload failed';
+        update(index, { status: 'error', error: message, progress: 0, phase: 'error' });
+        return null;
+      }
+    },
+    saveOne: async ({ item, index, uploaded }) => {
+      update(index, { progress: 78, phase: 'saving' });
+      const quickMeta = quickMetadataFromFilename(item.file.name, uploaded.fileType);
+
+      try {
+        const saved = await savePhoto({
+          file_url: uploaded.file_url,
+          file_type: uploaded.fileType,
+          ai_description: quickMeta.ai_description,
+          ai_tags: quickMeta.ai_tags,
+          original_filename: item.file.name,
+        });
+
+        update(index, {
+          status: 'success',
+          progress: 100,
+          ai_description: quickMeta.ai_description,
+          ai_tags: quickMeta.ai_tags,
+          phase: 'done',
+          photoId: saved?.id,
+        });
+
+        return {
+          index,
+          success: true,
+          photoId: saved?.id,
+          fileUrl: uploaded.file_url,
+          fileType: uploaded.fileType,
+          filename: item.file.name,
+        };
+      } catch (error) {
+        const message = error?.message || 'Save failed';
+        update(index, { status: 'error', error: message, progress: 0, phase: 'error' });
+        return { index, success: false };
+      }
+    },
+  });
+
+  const results = pipelineResults.filter(Boolean);
+  const backgroundJobs = results
+    .filter((result) => result.success && result.photoId)
+    .map(
+      (result) => () =>
+        analyzeAndUpdatePhoto(
+          result.photoId,
+          result.fileUrl,
+          result.fileType,
+          result.filename,
+        ),
+    );
+
+  if (backgroundJobs.length) {
+    void runConcurrent(backgroundJobs, BACKGROUND_ANALYSIS_CONCURRENCY);
+  }
+
+  const successCount = results.filter((result) => result.success).length;
+  return {
+    successCount,
+    errorCount: queueItems.length - successCount,
   };
-})();
+}
+
+export async function processSingleUpload(item, { onUpdate } = {}) {
+  const patch = (updates) => onUpdate?.(updates);
+  patch({ status: 'processing', progress: 8, error: null, phase: 'preparing' });
+
+  try {
+    const [prepared] = await prepareUploadFiles([item.file]);
+    const file = prepared || item.file;
+
+    patch({ progress: 12, phase: 'uploading' });
+    const uploadResult = await uploadFile(file);
+    const fileType = getFileType(file);
+    const quickMeta = quickMetadataFromFilename(file.name, fileType);
+
+    patch({ progress: 78, phase: 'saving' });
+
+    const saved = await savePhoto({
+      file_url: uploadResult.file_url,
+      file_type: fileType,
+      ai_description: quickMeta.ai_description,
+      ai_tags: quickMeta.ai_tags,
+      original_filename: file.name,
+    });
+
+    patch({
+      status: 'success',
+      progress: 100,
+      ai_description: quickMeta.ai_description,
+      ai_tags: quickMeta.ai_tags,
+      phase: 'done',
+    });
+
+    void analyzeAndUpdatePhoto(saved?.id, uploadResult.file_url, fileType, file.name);
+    return true;
+  } catch (error) {
+    patch({
+      status: 'error',
+      error: error?.message || 'Upload failed',
+      progress: 0,
+      phase: 'error',
+    });
+    return false;
+  }
+}
 
 
 ========================================================================
-FILE: src/deploy-marker.js
+FILE: src/lib/upload-pipeline.js
 ========================================================================
-// Base44: update these files in the Code editor, then click Publish (GitHub alone is not enough).
-export const DEPLOY_BUILD = 87;
+/**
+ * Overlapping upload and save pools — uploads never wait on DB writes.
+ */
+export async function runUploadSavePipeline({
+  items,
+  uploadConcurrency,
+  saveConcurrency,
+  uploadOne,
+  saveOne,
+}) {
+  const results = new Array(items.length);
+  let nextUpload = 0;
+  let activeUploads = 0;
+  let activeSaves = 0;
+  const saveQueue = [];
+
+  return new Promise((resolve, reject) => {
+    const maybeDone = () => {
+      if (
+        nextUpload >= items.length &&
+        activeUploads === 0 &&
+        activeSaves === 0 &&
+        saveQueue.length === 0
+      ) {
+        resolve(results);
+      }
+    };
+
+    const pumpSaves = () => {
+      while (saveQueue.length > 0 && activeSaves < saveConcurrency) {
+        const job = saveQueue.shift();
+        activeSaves += 1;
+        saveOne(job)
+          .then((result) => {
+            results[job.index] = result;
+          })
+          .catch((error) => {
+            results[job.index] = {
+              index: job.index,
+              success: false,
+              error: error?.message || 'Save failed',
+            };
+          })
+          .finally(() => {
+            activeSaves -= 1;
+            pumpSaves();
+            maybeDone();
+          });
+      }
+    };
+
+    const startUpload = (item, index) => {
+      activeUploads += 1;
+      uploadOne(item, index)
+        .then((uploaded) => {
+          if (uploaded?.file_url) {
+            saveQueue.push({ item, index, uploaded });
+            pumpSaves();
+          } else {
+            results[index] = uploaded || { index, success: false };
+          }
+        })
+        .catch((error) => {
+          results[index] = {
+            index,
+            success: false,
+            error: error?.message || 'Upload failed',
+          };
+        })
+        .finally(() => {
+          activeUploads -= 1;
+          while (nextUpload < items.length && activeUploads < uploadConcurrency) {
+            const i = nextUpload;
+            nextUpload += 1;
+            startUpload(items[i], i);
+          }
+          maybeDone();
+        });
+    };
+
+    if (!items.length) {
+      resolve([]);
+      return;
+    }
+
+    try {
+      const initial = Math.min(uploadConcurrency, items.length);
+      for (let i = 0; i < initial; i++) {
+        const index = nextUpload;
+        nextUpload += 1;
+        startUpload(items[index], index);
+      }
+    } catch (error) {
+      reject(error);
+    }
+  });
+}
 
 
 ========================================================================
-FILE: src/lib/build-info.js
+FILE: src/lib/app-params.js
 ========================================================================
+/**
+ * app-params.js
+ *
+ * Reads app configuration from URL params or persistent storage.
+ * Uses Capacitor Preferences (native) when available so the auth token
+ * survives app closes and relaunches. Falls back to localStorage in browser.
+ */
+
+import { persistentStorage } from './persistentStorage';
+import { DEFAULT_APP_ORIGIN, getAppOrigin } from './app-domains';
+
+const isNode = typeof window === 'undefined';
+
+const toSnakeCase = (str) => str.replace(/([A-Z])/g, '_$1').toLowerCase();
+
+const STORAGE_PREFIX = 'base44_';
+
 export const BASE44_APP_ID = '68fdc5f42768c4d045fe1bac';
-export const BUILD_NUMBER = 87;
-export const NATIVE_BUILD_LABEL = 'kbrown native v87 · 2026-07-18 21:43';
-export const WEB_BUILD_LABEL = 'restorebraine web v87';
+export const BASE44_API_URL = 'https://base44.app';
+export { getAppOrigin, getAppOrigin as getRestorebraineAppUrl, getAuthReturnOrigin, DEFAULT_APP_ORIGIN, isAppHost } from './app-domains';
+/** Resolved once at module load in the browser — prefer getAppOrigin() for dynamic reads. */
+export const RESTOREBRAINE_APP_URL = isNode ? DEFAULT_APP_ORIGIN : getAppOrigin();
+
+const getAppParamValueSync = (paramName, { defaultValue = undefined, removeFromUrl = false } = {}) => {
+  if (isNode) return defaultValue;
+
+  if (paramName === 'app_id') return BASE44_APP_ID;
+  if (paramName === 'server_url') return BASE44_API_URL;
+
+  const storageKey = `${STORAGE_PREFIX}${toSnakeCase(paramName)}`;
+  const urlParams = new URLSearchParams(window.location.search);
+  const searchParam = urlParams.get(paramName);
+
+  if (removeFromUrl && searchParam) {
+    urlParams.delete(paramName);
+    const newUrl = `${window.location.pathname}${urlParams.toString() ? `?${urlParams.toString()}` : ''}${window.location.hash}`;
+    window.history.replaceState({}, document.title, newUrl);
+  }
+
+  if (searchParam) {
+    persistentStorage.set(storageKey, searchParam);
+    return searchParam;
+  }
+
+  if (defaultValue) {
+    return defaultValue;
+  }
+
+  if (paramName === "access_token" && localStorage.getItem("base44_logged_out") === "true") return null;
+  return persistentStorage.getSync(storageKey);
+};
+
+const getAppParams = () => {
+  return {
+    appId: getAppParamValueSync('app_id', { defaultValue: BASE44_APP_ID }),
+    serverUrl: getAppParamValueSync('server_url', { defaultValue: BASE44_API_URL }),
+    token: getAppParamValueSync('access_token', { removeFromUrl: true }),
+    fromUrl: getAppParamValueSync('from_url', { defaultValue: isNode ? '' : window.location.href }),
+    functionsVersion: getAppParamValueSync('functions_version'),
+  };
+};
+
+export const appParams = {
+  ...getAppParams(),
+};
+
+export const clearPersistedToken = async () => {
+  appParams.token = null;
+  await persistentStorage.remove(`${STORAGE_PREFIX}access_token`);
+  await persistentStorage.remove('token');
+};
+
+
+========================================================================
+FILE: src/lib/capacitor-ready.js
+========================================================================
+/** Wait until Capacitor native plugins are callable (bridge can be late on cold start). */
+export function waitForCapacitorBridge(timeoutMs = 8000) {
+  if (typeof window === 'undefined') return Promise.resolve(false);
+
+  return new Promise((resolve) => {
+    const started = Date.now();
+
+    const ready = () => {
+      try {
+        if (!window.Capacitor?.isNativePlatform?.()) return true;
+        return Boolean(window.Capacitor?.Plugins?.App || window.Capacitor?.Plugins?.Preferences);
+      } catch {
+        return false;
+      }
+    };
+
+    if (ready()) {
+      resolve(true);
+      return;
+    }
+
+    const tick = () => {
+      if (ready()) {
+        resolve(true);
+        return;
+      }
+      if (Date.now() - started >= timeoutMs) {
+        console.warn('Capacitor bridge not ready before timeout — continuing with localStorage fallbacks');
+        resolve(false);
+        return;
+      }
+      requestAnimationFrame(tick);
+    };
+
+    tick();
+  });
+}
+
+export function withTimeout(promise, timeoutMs, label = 'operation') {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      setTimeout(() => reject(new Error(`${label} timed out after ${timeoutMs}ms`)), timeoutMs);
+    }),
+  ]);
+}
+
+
+========================================================================
+FILE: src/lib/persistentStorage.js
+========================================================================
+/**
+ * persistentStorage.js
+ *
+ * A drop-in replacement for localStorage that uses Capacitor's Preferences
+ * plugin when running as a native app. This survives app closes and relaunches.
+ *
+ * Falls back to localStorage automatically when running in a browser.
+ */
+
+// Detect if we're running inside Capacitor
+const isCapacitor = () => {
+  return typeof window !== 'undefined' && window.Capacitor?.isNativePlatform?.();
+};
+
+// Lazily import Capacitor Preferences so the web build doesn't break
+let _Preferences = null;
+async function getPreferences() {
+  if (_Preferences) return _Preferences;
+  try {
+    const mod = await import('@capacitor/preferences');
+    _Preferences = mod.Preferences;
+    return _Preferences;
+  } catch {
+    return null;
+  }
+}
+
+export const persistentStorage = {
+  /**
+   * Get a value by key. Returns null if not found.
+   */
+  async get(key) {
+    if (isCapacitor()) {
+      const Preferences = await getPreferences();
+      if (Preferences) {
+        try {
+          const result = await Promise.race([
+            Preferences.get({ key }),
+            new Promise((_, reject) => {
+              setTimeout(() => reject(new Error('Preferences.get timeout')), 3000);
+            }),
+          ]);
+          return result?.value ?? null;
+        } catch (error) {
+          console.warn(`persistentStorage.get(${key}) fallback to localStorage`, error);
+        }
+      }
+    }
+    // Fallback to localStorage
+    try {
+      return window.localStorage.getItem(key);
+    } catch {
+      return null;
+    }
+  },
+
+  /**
+   * Set a value by key.
+   */
+  async set(key, value) {
+    if (isCapacitor()) {
+      const Preferences = await getPreferences();
+      if (Preferences) {
+        await Preferences.set({ key, value: String(value) });
+        return;
+      }
+    }
+    try {
+      window.localStorage.setItem(key, value);
+    } catch {}
+  },
+
+  /**
+   * Remove a value by key.
+   */
+  async remove(key) {
+    if (isCapacitor()) {
+      const Preferences = await getPreferences();
+      if (Preferences) {
+        await Preferences.remove({ key });
+        return;
+      }
+    }
+    try {
+      window.localStorage.removeItem(key);
+    } catch {}
+  },
+
+  /**
+   * Synchronous get — for code that can't use async (uses localStorage only).
+   * In Capacitor this will return the last value written via set(),
+   * which we mirror into localStorage so it's always available synchronously.
+   */
+  getSync(key) {
+    try {
+      return window.localStorage.getItem(key);
+    } catch {
+      return null;
+    }
+  },
+
+  /**
+   * Mirror a value into localStorage so getSync() works.
+   * Called automatically by set().
+   */
+  _mirror(key, value) {
+    try {
+      if (value == null) {
+        window.localStorage.removeItem(key);
+      } else {
+        window.localStorage.setItem(key, value);
+      }
+    } catch {}
+  },
+};
+
+// Override set to also mirror into localStorage for sync access
+const _originalSet = persistentStorage.set.bind(persistentStorage);
+persistentStorage.set = async (key, value) => {
+  persistentStorage._mirror(key, value);
+  await _originalSet(key, value);
+};
+
+const _originalRemove = persistentStorage.remove.bind(persistentStorage);
+persistentStorage.remove = async (key) => {
+  persistentStorage._mirror(key, null);
+  await _originalRemove(key);
+};
+
+
+========================================================================
+FILE: src/lib/forceLogout.js
+========================================================================
+// Clear all auth tokens on launch so user can log in fresh
+try {
+  Object.keys(localStorage)
+    .filter(k => k.includes('base44'))
+    .forEach(k => localStorage.removeItem(k));
+} catch {}
 
