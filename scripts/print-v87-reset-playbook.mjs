@@ -200,6 +200,32 @@ console.log(`
     GitHub → Base44 Publish → diagnose:sync ✓ → mac-ios-setup → iPhone test
 `);
 
+section('v87 NUKE — wipe all three layers (use after post-v87 mess)');
+console.log(`
+  Mac (GitHub + Capacitor):
+    npm run nuke:v87
+    # or: bash scripts/nuke-v87.sh cursor/apple-privacy-plist-bacf
+
+  Base44 (live JS — browser only, cannot nuke from terminal):
+    npm run base44:nuke-list        # full manifest (~40 files)
+    npm run base44:nuke-oauth       # minimal OAuth fix only (may leave stale UI chunks)
+
+  Verify:
+    npm run verify:lingering -- --strict
+    npm run diagnose:all
+
+  What nuke:v87 erases on Mac:
+    • git clean dist, ios/public, Pods, vite cache
+    • Xcode DerivedData + WebKit caches
+    • Rebuilds hosted Capacitor shell at v87
+    • Scans for post-v87 forbidden files/patterns
+
+  What Base44 nuke requires:
+    • Paste EVERY file in base44:nuke-list → single Publish
+    • Partial publish (HTML only) caused index-CLtZjYMv.js to linger
+    • Delete post-v87 files from Base44 editor if they exist there
+`);
+
 // Live probe
 section('CURRENT LIVE STATE (probed now)');
 try {
