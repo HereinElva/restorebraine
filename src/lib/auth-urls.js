@@ -25,23 +25,16 @@ export const getRestorebraineLoginUrl = getPlatformLoginUrl;
 export const openRestorebraineLogin = () => {
   if (typeof window === 'undefined') return;
 
-  // AppDelegate bridge (hosted + bundled Capacitor) — most reliable on iPhone.
+  // AppDelegate bridge (hosted + bundled Capacitor) — must run synchronously on tap (iOS user gesture)
   if (typeof window.__restorebraineOpenLogin === 'function') {
     window.__restorebraineOpenLogin();
     return;
   }
 
   if (isNativeShell()) {
-    void (async () => {
-      try {
-        const { waitForCapacitorBridge } = await import('@/lib/capacitor-ready');
-        await waitForCapacitorBridge();
-        const { openLoginInSystemBrowser } = await import('@/lib/native-google-oauth');
-        await openLoginInSystemBrowser(getGoogleOAuthUrl(), 'google');
-      } catch (error) {
-        console.error('Sign In failed — could not open OAuth browser', error);
-      }
-    })();
+    void import('@/lib/native-google-oauth')
+      .then(({ openLoginInSystemBrowser }) => openLoginInSystemBrowser(getGoogleOAuthUrl(), 'google'))
+      .catch((error) => console.error('Sign In failed — could not open OAuth browser', error));
     return;
   }
 

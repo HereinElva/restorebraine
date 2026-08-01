@@ -19,9 +19,8 @@ private final class RestorebraineSessionMessageHandler: NSObject, WKScriptMessag
             defaults.set("1", forKey: "CapacitorStorage.b44_signed_out")
         case "openLogin":
             let url = body["url"] as? String
-            DispatchQueue.main.async { [weak self] in
-                self?.appDelegate?.openNativeOAuthLogin(preferredURL: url)
-            }
+            // Must start ASWebAuthenticationSession synchronously — async breaks iOS user-gesture requirement
+            appDelegate?.openNativeOAuthLogin(preferredURL: url)
         default:
             break
         }
@@ -112,6 +111,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate, ASWebAuthenticationPresen
         session.prefersEphemeralWebBrowserSession = false
         oauthAuthSession = session
         if !session.start() {
+            print("Restorebraine: ASWebAuthenticationSession.start() failed — trying JS InAppBrowser fallback")
             notifyWebViewOpenLoginFallback()
         }
     }
@@ -477,6 +477,10 @@ class AppDelegate: UIResponder, UIApplicationDelegate, ASWebAuthenticationPresen
           }
 
           function postNativeOpenLogin() {
+            try {
+              var el = document.getElementById('rb-load-proof');
+              if (el) el.textContent = (el.textContent || '') + ' · opening OAuth…';
+            } catch (e) {}
             try {
               if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.restorebraineNativeSession) {
                 window.webkit.messageHandlers.restorebraineNativeSession.postMessage({
@@ -1321,6 +1325,10 @@ class AppDelegate: UIResponder, UIApplicationDelegate, ASWebAuthenticationPresen
 
 
           function postNativeOpenLogin() {
+            try {
+              var el = document.getElementById('rb-load-proof');
+              if (el) el.textContent = (el.textContent || '') + ' · opening OAuth…';
+            } catch (e) {}
             try {
               if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.restorebraineNativeSession) {
                 window.webkit.messageHandlers.restorebraineNativeSession.postMessage({

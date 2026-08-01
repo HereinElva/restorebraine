@@ -70,6 +70,7 @@ console.log('  npm run fix:sign-in');
 console.log('  Delete app → Restart iPhone → Xcode Clean → Run');
 console.log('');
 console.log('AFTER TAP SIGN IN you must see Apple\'s Google login sheet (Step 2).');
+console.log('Green bar may append "· opening OAuth…" when native bridge receives the tap.');
 console.log('Step 1 UI stays until the sheet appears — that is normal.');
 console.log('');
 
