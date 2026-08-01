@@ -58,10 +58,24 @@ if (delegate.includes("location.search.indexOf('rb_nocache=') >= 0) return")) {
   ok('AppDelegate reloadFresh uses sessionStorage counter (no rb_nocache early-exit trap)');
 }
 
+if (delegate.includes('PerformanceObserver') && delegate.includes('GHOST_FILES')) {
+  bad('AppDelegate purgeGhostBuilds uses PerformanceObserver on full blocklist — cached assets false-positive');
+} else if (delegate.includes('do NOT scan performance entries')) {
+  ok('AppDelegate ghost purge: DOM-only (no performance blocklist false positives)');
+} else if (delegate.includes('hasStaleScriptInDom')) {
+  ok('AppDelegate ghost purge: stale script DOM check only');
+}
+
 if (delegate.includes('function fixFolderActionButtons()') && delegate.includes('Disabled')) {
   ok('AppDelegate fixFolderActionButtons disabled (!important CSS no longer overrides Publish)');
 } else if (delegate.includes('rb-folder-actions-fix')) {
   bad('AppDelegate fixFolderActionButtons still injects !important CSS every 1s — overrides Base44 UI');
+}
+
+if (delegate.includes('reloadAfterCachePurgeIfNeeded')) {
+  ok('AppDelegate reloads WebView after BUILD_STAMP cache purge (fixes async purge race)');
+} else {
+  note('AppDelegate missing post-purge WebView reload — WKWebView may load stale cache before purge finishes');
 }
 
 const intervalMatch = delegate.match(/installPlatformGuard[\s\S]*?setInterval\(function \(\) \{[\s\S]*?\}, (\d+)\)/);

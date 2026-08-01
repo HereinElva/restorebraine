@@ -3,13 +3,6 @@ import { installNativeOAuthFix } from '@/lib/native-oauth-fix';
 import { redirectBrokenCustomDomainLogin } from '@/lib/auth-urls';
 
 const BOOTSTRAP_TIMEOUT_MS = 15000;
-const useLocalNativeBundle = () => {
-  try {
-    return typeof __RESTOREBRAINE_NATIVE_LOCAL__ !== 'undefined' && __RESTOREBRAINE_NATIVE_LOCAL__;
-  } catch {
-    return false;
-  }
-};
 
 function showBootstrapError(message) {
   const root = document.getElementById('root');
@@ -52,8 +45,7 @@ async function bootstrapApp() {
     return;
   }
 
-  // Production native builds load restorebraine.base44.app (server.url) — this bundle is dev-only fallback.
-  if (useLocalNativeBundle() && isNativeShell()) {
+  if (isNativeShell()) {
     await warmNativeSessionForLocalBundle();
   }
 

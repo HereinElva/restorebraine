@@ -76,17 +76,48 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         return (block, allow)
     }
 
+    private var needsFreshLoadAfterCachePurge = false
+
     private func purgeGhostBuildCacheIfNeeded() {
         let defaults = UserDefaults.standard
         let key = "rb_wk_cache_purge_build"
         let current = nativeBuildLabel
         guard defaults.string(forKey: key) != current else { return }
         defaults.set(current, forKey: key)
+        needsFreshLoadAfterCachePurge = true
 
         let dataStore = WKWebsiteDataStore.default()
         let types = WKWebsiteDataStore.allWebsiteDataTypes()
-        dataStore.removeData(ofTypes: types, modifiedSince: Date(timeIntervalSince1970: 0)) { }
+        dataStore.removeData(ofTypes: types, modifiedSince: Date(timeIntervalSince1970: 0)) { [weak self] in
+            DispatchQueue.main.async {
+                self?.reloadAfterCachePurgeIfNeeded()
+            }
+        }
         URLCache.shared.removeAllCachedResponses()
+    }
+
+    private func reloadAfterCachePurgeIfNeeded() {
+        guard needsFreshLoadAfterCachePurge else { return }
+        needsFreshLoadAfterCachePurge = false
+        guard let bridge = window?.rootViewController as? CAPBridgeViewController,
+              let webView = bridge.webView else { return }
+
+        webView.evaluateJavaScript(
+            "try{sessionStorage.removeItem('rb_ghost_reload_count');}catch(e){}",
+            completionHandler: nil
+        )
+
+        if let url = webView.url {
+            var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+            var items = (components?.queryItems ?? []).filter { $0.name != "rb_nocache" && $0.name != "rb_probe" }
+            items.append(URLQueryItem(name: "rb_nocache", value: String(Int(Date().timeIntervalSince1970 * 1000))))
+            components?.queryItems = items
+            if let freshURL = components?.url {
+                webView.load(URLRequest(url: freshURL, cachePolicy: .reloadIgnoringLocalCacheData))
+                return
+            }
+        }
+        webView.reloadFromOrigin()
     }
 
     private func sessionBridgeScript(for buildLabel: String, syncToken: String, ghostBlock: [String], ghostAllow: [String]) -> String {
@@ -123,33 +154,11 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             // Only run ghost purge on live hosted app origin
             if (location.hostname !== 'restorebraine.base44.app') return;
 
-            var GHOST_FILES = [\#(ghostJs)];
-            var ALLOW_FILES = [\#(allowJs)];
             var STALE_APPS = ['App-B4VcOATW.js', 'App-BMryy2H5.js'];
             var STALE_INDICES = ['index-CLtZjYMv.js', 'index-CJJVGreG.js'];
             var HOST = 'https://restorebraine.base44.app';
-            var reloadCount = 0;
-            function isAllowed(url) {
-              if (!url) return false;
-              for (var a = 0; a < ALLOW_FILES.length; a++) {
-                if (url.indexOf(ALLOW_FILES[a]) >= 0) return true;
-              }
-              return false;
-            }
-            function isGhostUrl(url) {
-              if (!url || isAllowed(url)) return false;
-              for (var s = 0; s < STALE_APPS.length; s++) {
-                if (url.indexOf(STALE_APPS[s]) >= 0) return true;
-              }
-              for (var t = 0; t < STALE_INDICES.length; t++) {
-                if (url.indexOf(STALE_INDICES[t]) >= 0) return true;
-              }
-              for (var i = 0; i < GHOST_FILES.length; i++) {
-                if (url.indexOf(GHOST_FILES[i]) >= 0) return true;
-              }
-              return false;
-            }
             function reloadFresh() {
+              var reloadCount = 0;
               try {
                 reloadCount = parseInt(sessionStorage.getItem('rb_ghost_reload_count') || '0', 10) || 0;
               } catch (e) {}
@@ -158,6 +167,15 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
               try { sessionStorage.setItem('rb_ghost_reload_count', String(reloadCount)); } catch (e) {}
               location.replace(HOST + '/?rb_nocache=' + Date.now());
             }
+            function hasStaleScriptInDom() {
+              for (var a = 0; a < STALE_APPS.length; a++) {
+                if (document.querySelector('script[src*="' + STALE_APPS[a] + '"]')) return true;
+              }
+              for (var t = 0; t < STALE_INDICES.length; t++) {
+                if (document.querySelector('script[src*="' + STALE_INDICES[t] + '"]')) return true;
+              }
+              return false;
+            }
             function verifyLiveEntry() {
               fetch(HOST + '/?rb_probe=' + Date.now(), { cache: 'no-store' })
                 .then(function(r) { return r.text(); })
@@ -165,38 +183,19 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                   var m = html.match(/\/assets\/(index-[^"]+\.js)/);
                   if (!m) return;
                   var liveIndex = m[1];
-                  if (isGhostUrl(liveIndex)) { reloadFresh(); return; }
+                  for (var t = 0; t < STALE_INDICES.length; t++) {
+                    if (liveIndex.indexOf(STALE_INDICES[t]) >= 0) { reloadFresh(); return; }
+                  }
                   var scripts = document.querySelectorAll('script[src*="/assets/index-"]');
                   for (var k = 0; k < scripts.length; k++) {
                     var src = scripts[k].getAttribute('src') || '';
                     if (src.indexOf(liveIndex) < 0) { reloadFresh(); return; }
                   }
-                  for (var a = 0; a < STALE_APPS.length; a++) {
-                    if (document.querySelector('script[src*="' + STALE_APPS[a] + '"]')) { reloadFresh(); return; }
-                  }
+                  if (hasStaleScriptInDom()) reloadFresh();
                 }).catch(function() {});
             }
-            try {
-              var entries = performance.getEntriesByType('resource');
-              for (var j = 0; j < entries.length; j++) {
-                if (isGhostUrl(entries[j].name)) { reloadFresh(); return; }
-              }
-            } catch (e) {}
-            if (window.PerformanceObserver) {
-              try {
-                var obs = new PerformanceObserver(function(list) {
-                  list.getEntries().forEach(function(entry) {
-                    if (isGhostUrl(entry.name)) reloadFresh();
-                  });
-                });
-                obs.observe({ entryTypes: ['resource'] });
-              } catch (e) {}
-            }
-            fetch(HOST + '/?rb_probe=' + Date.now(), { cache: 'no-store' })
-              .then(function(r) { return r.text(); })
-              .then(function(html) {
-                verifyLiveEntry();
-              }).catch(function() {});
+            // DOM + live CDN probe only — do NOT scan performance entries (409 cached hashes false-positive)
+            if (hasStaleScriptInDom()) { reloadFresh(); return; }
             verifyLiveEntry();
           })();
 
@@ -997,6 +996,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         userContentController.removeScriptMessageHandler(forName: "restorebraineNativeSession")
         userContentController.add(sessionMessageHandler, name: "restorebraineNativeSession")
         userContentController.addUserScript(script)
+        reloadAfterCachePurgeIfNeeded()
     }
 
     func applicationWillResignActive(_ application: UIApplication) {

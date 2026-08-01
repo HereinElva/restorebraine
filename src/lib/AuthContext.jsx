@@ -4,7 +4,7 @@ import { appParams } from '@/lib/app-params';
 import { createAxiosClient } from '@base44/sdk/dist/utils/axios-client';
 import { openRestorebraineLogin } from '@/lib/auth-urls';
 import { getAppOrigin } from '@/lib/app-params';
-import { clearNativeSession, persistSessionToNativeStorage, restoreSessionFromNativeStorage } from '@/lib/session-bootstrap';
+import { clearNativeSession, persistSessionToNativeStorage, restoreSessionFromNativeStorage, ensureClientSessionToken } from '@/lib/session-bootstrap';
 import { isHostedAppOrigin, isNativeShell } from '@/lib/native-hosted-redirect';
 
 const AUTH_BOOT_TIMEOUT_MS = 20000;
@@ -47,6 +47,8 @@ export const AuthProvider = ({ children }) => {
     try {
       setIsLoadingPublicSettings(true);
       setAuthError(null);
+
+      ensureClientSessionToken();
 
       const restoredToken = await restoreSessionFromNativeStorage();
       if (restoredToken) {

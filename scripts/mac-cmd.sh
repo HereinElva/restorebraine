@@ -9,7 +9,7 @@ if [[ "$CMD" == "pull" ]]; then
   echo "==> cd $ROOT"
   git pull origin cursor/apple-privacy-plist-bacf
   echo ""
-  npm run diagnose:all
+  npm run fix:no-change
   exit $?
 fi
 if [[ "$CMD" == "help" || "$CMD" == "-h" ]]; then
@@ -24,7 +24,7 @@ if [[ "$CMD" == "help" || "$CMD" == "-h" ]]; then
   echo "  bash $ROOT/scripts/mac-cmd.sh gate:patterns"
   echo "  bash $ROOT/scripts/mac-cmd.sh align:all"
   echo "  bash $ROOT/scripts/mac-cmd.sh align:watch"
-  echo "  bash $ROOT/scripts/mac-cmd.sh pull   # git pull + diagnose:all"
+  echo "  bash $ROOT/scripts/mac-cmd.sh pull   # git pull + fix:no-change (bundled rebuild)"
   echo "  bash $ROOT/scripts/mac-cmd.sh reset:v87-all"
   echo "  bash $ROOT/scripts/mac-cmd.sh revert:v87-all"
   echo "  bash $ROOT/scripts/mac-cmd.sh revert:terminal"
