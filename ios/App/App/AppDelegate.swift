@@ -801,10 +801,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
           function hideNativeBuildStamp() {
             try {
               document.querySelectorAll('p, span, div, footer, small, label').forEach(function (node) {
-                if (node.id === 'rb-native-stamp') {
-                  node.remove();
-                  return;
-                }
+                if (node.id === 'rb-native-stamp' || node.id === 'rb-load-proof') return;
                 var text = (node.textContent || '').replace(/\s+/g, ' ').trim();
                 if (/^kbrown native v\d+/i.test(text) || /^restorebraine web v\d+/i.test(text)) {
                   node.remove();
@@ -813,9 +810,26 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             } catch (e) {}
           }
 
+          function showLoadProof() {
+            try {
+              var el = document.getElementById('rb-load-proof');
+              if (!el) {
+                el = document.createElement('div');
+                el.id = 'rb-load-proof';
+                el.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:999999;font:10px/1.3 ui-monospace,monospace;background:rgba(0,0,0,0.82);color:#4ade80;padding:5px 8px;text-align:center;pointer-events:none;';
+                (document.body || document.documentElement).appendChild(el);
+              }
+              var mode = location.protocol === 'capacitor:' ? 'BUNDLED' : (location.hostname === 'restorebraine.base44.app' ? 'HOSTED' : location.hostname);
+              var script = document.querySelector('script[src*="index-"]');
+              var bundle = script ? ((script.getAttribute('src') || '').split('/').pop() || '?') : '?';
+              el.textContent = mode + ' · ' + '\#(escapedLabel)' + ' · ' + bundle;
+            } catch (e) {}
+          }
+
           function fixRestorebraineBranding() {
             try {
               hideNativeBuildStamp();
+              showLoadProof();
               var stamp = document.getElementById('rb-native-stamp');
               if (stamp) stamp.remove();
               document.querySelectorAll('[id*="native-stamp"], [class*="native-stamp"]').forEach(function (n) { n.remove(); });
@@ -918,7 +932,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
           }
 
           if (!window.__rbBadgeObserver) {
-            window.__rbBadgeObserver = new MutationObserver(function () { blockBase44BadgeScript(); hideBase44EditorWidget(); hideNativeBuildStamp(); fixRestorebraineBranding(); });
+            window.__rbBadgeObserver = new MutationObserver(function () { blockBase44BadgeScript(); hideBase44EditorWidget(); hideNativeBuildStamp(); fixRestorebraineBranding(); showLoadProof(); });
             window.__rbBadgeObserver.observe(document.documentElement, { childList: true, subtree: true });
           }
 
@@ -941,6 +955,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
               hideNativeBuildStamp();
               fixRestorebraineBranding();
               guardSignedOutLoginPage();
+              showLoadProof();
             }, 5000);
           }
 
@@ -951,6 +966,12 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
           captureAccessTokenFromUrl();
           installOAuthDeepLinkHandler();
           fixRestorebraineBranding();
+          showLoadProof();
+          setTimeout(function () {
+            if (readToken() && !isSignedOut()) {
+              try { window.dispatchEvent(new CustomEvent('restorebraine-session-updated')); } catch (e) {}
+            }
+          }, 800);
           installPlatformGuard();
           document.addEventListener('visibilitychange', function () {
             if (document.visibilityState === 'hidden') persistToken();

@@ -1,0 +1,50 @@
+#!/usr/bin/env node
+/**
+ * Print exactly what the iPhone will load after the last Mac build.
+ * Run after: npm run fix:no-change
+ */
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { resolve } from 'node:path';
+
+function read(path) {
+  try {
+    return readFileSync(resolve(path), 'utf8');
+  } catch {
+    return '';
+  }
+}
+
+const iosCap = read('ios/App/App/capacitor.config.json');
+const stamp = read('ios/App/App/BUILD_STAMP.txt').trim();
+const indexHtml = read('ios/App/App/public/index.html');
+const entry = indexHtml.match(/assets\/(index-[^"]+\.js)/)?.[1] ?? '(missing — run npm run build:native-local)';
+const appJs = existsSync(resolve('ios/App/App/public/assets'))
+  ? readdirSync(resolve('ios/App/App/public/assets')).filter((f) => f.startsWith('App-') && f.endsWith('.js'))
+  : [];
+const hosted = iosCap.includes('"url"') && iosCap.includes('restorebraine.base44.app');
+
+console.log(`
+══════════════════════════════════════════════════════════════
+ WHAT YOUR IPHONE WILL LOAD (after Xcode Run)
+══════════════════════════════════════════════════════════════
+ BUILD_STAMP:     ${stamp || '(missing)'}
+ MODE:            ${hosted ? 'HOSTED → https://restorebraine.base44.app (Base44 CDN)' : 'BUNDLED → capacitor://localhost ios/public'}
+ Bundled entry:   ${entry}
+ Bundled App.js:  ${appJs[0] ?? '(none)'}
+══════════════════════════════════════════════════════════════
+`);
+
+if (hosted) {
+  console.log('⚠  Phone ignores Mac UI changes — need Base44 Publish OR run:');
+  console.log('   npm run fix:no-change   (bundled rebuild)\n');
+  process.exit(1);
+}
+
+if (!existsSync('ios/App/App/public/assets')) {
+  console.log('✗ ios/App/App/public missing — bundled build did not complete\n');
+  process.exit(2);
+}
+
+console.log('✓ Bundled mode OK. After Xcode Run, look for green bar at bottom:');
+console.log(`  BUNDLED · ${stamp} · ${entry}\n`);
+console.log('If bar says HOSTED or old stamp → Delete app → Restart iPhone → Clean → Run\n');
