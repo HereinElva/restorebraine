@@ -71,12 +71,12 @@ console.log(`
 
 console.log('EXPECTED FLOW ON IPHONE (v87 — do not confuse these)');
 console.log('');
-console.log('  STEP 1 — Login page (you are NOT logged in yet)');
-console.log('    • White card: "Restorebraine" + Continue With Google / Apple / Microsoft');
-console.log('    • OR email + password sign in / sign up');
-console.log('    • No gallery header, no bottom nav tabs');
+console.log('  STEP 1 — Signed-out landing (you are NOT logged in yet)');
+console.log('    • Shows "Find Your Memories" headline + grey search hint');
+console.log('    • Purple "Sign In" button at bottom');
+console.log('    • This is NOT the full gallery — no photos, no organize buttons');
 console.log('');
-console.log('  STEP 2 — OAuth (tap a provider button)');
+console.log('  STEP 2 — Login (tap Sign In)');
 console.log('    • Google OAuth opens in system browser / ASWebAuthenticationSession');
 console.log('    • Pick Google account → returns to app with token');
 console.log('');
@@ -105,7 +105,7 @@ console.log('');
 
 console.log('CURRENT STATE');
 console.log(`  BUILD_STAMP:        ${stamp || '(missing)'}`);
-console.log(`  Phone mode:         ${hosted ? 'HOSTED (live Base44 CDN)' : 'BUNDLED (ios/public — Mac terminal controls UI)'}`);
+console.log(`  Phone mode:         ${hosted ? 'HOSTED (live Base44 CDN)' : 'BUNDLED (ios/public — experimental)'}`);
 console.log(`  GitHub Omega3 files: ${githubHasOmega3 ? 'present ✓' : 'MISSING — run npm run port:omega3-gallery'}`);
 console.log(`  Live CDN entry:     ${liveIndex} → ${liveApp}`);
 console.log(`  Live has Sign In flow: ${liveHasSignedOut ? 'yes ✓' : 'unknown (minified)'}`);
@@ -116,9 +116,9 @@ const issues = [];
 
 if (!hosted) {
   issues.push({
-    title: 'Phone is in BUNDLED mode (Mac terminal workflow)',
-    why: 'apply:v87-from-omega3 defaults to bundled — phone loads capacitor:// ios/public, not Base44 CDN',
-    fix: 'Expected for terminal-only builds. Delete app → Restart iPhone → Clean → Run. Green bar must say BUNDLED.',
+    title: 'Phone is in BUNDLED mode (experimental — not pre-regression baseline)',
+    why: 'apply:v87-from-omega3 --bundled removes server.url; phone loads capacitor:// not Base44 CDN',
+    fix: 'npm run apply:v87-from-omega3   OR   npm run fix:no-change   then Delete app → Restart → Clean → Run',
   });
 }
 

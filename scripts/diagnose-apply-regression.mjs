@@ -1,7 +1,15 @@
 #!/usr/bin/env node
 /**
- * Diagnose white screen after npm run apply:v87-from-omega3
- * Root cause: apply used to force BUNDLED (capacitor://) — v87 baseline is HOSTED.
+ * Diagnose regression after npm run apply:v87-from-omega3
+ *
+ * ROOT CAUSE (commit 14cfaef, Aug 2026):
+ *   apply default flipped HOSTED → BUNDLED. That one change caused the cascade:
+ *   1. build:native-local removes server.url → phone loads capacitor:// not Base44 CDN
+ *   2. wipe_build_debris + port-omega3-gallery rewrites src/ gallery files
+ *   3. verify-bundled-v87 can fail mid-build → stale ios/public + ghost blocklist conflicts
+ *   4. Stale OAuth token on device + bundled auth boot → infinite spinner (fixed in eb8cd80/898c152)
+ *
+ * audit:v87-improvements did NOT cause regression — it is read-only.
  */
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -22,57 +30,68 @@ const entry = indexHtml.match(/assets\/(index-[^"]+\.js)/)?.[1] ?? '(none)';
 const hostedIos = iosCap.includes('"url"') && iosCap.includes('restorebraine.base44.app');
 const hostedRoot = rootCap.includes('"url"') && rootCap.includes('restorebraine.base44.app');
 const crossorigin = indexHtml.includes('crossorigin');
+const appUsesSignedOut = read('src/App.jsx').includes('SignedOutLanding');
 
 console.log(`
 ═══════════════════════════════════════════════════════════════
- APPLY REGRESSION DIAGNOSIS — white screen after apply:v87-from-omega3
+ APPLY REGRESSION DIAGNOSIS — why apply:v87-from-omega3 broke things
 ═══════════════════════════════════════════════════════════════
 `);
 
-console.log('WHAT YOU RAN');
-console.log('  git reset --hard origin/cursor/apple-privacy-plist-bacf');
-console.log('  npm run apply:v87-from-omega3   ← switched phone to BUNDLED mode');
-console.log('  npm run audit:v87-improvements  ← read-only audit (did not cause regression)');
+console.log('WHAT YOU RAN (typical regression sequence)');
+console.log('  git fetch + reset --hard origin/cursor/apple-privacy-plist-bacf');
+console.log('  npm install');
+console.log('  npm run apply:v87-from-omega3     ← was BUNDLED default (14cfaef) — main trigger');
+console.log('  npm run audit:v87-improvements    ← READ-ONLY — did NOT undo anything');
+console.log('');
+
+console.log('WHY IT REGRESSED (retrace)');
+console.log('  BEFORE (574d61d): apply default = HOSTED → phone loads restorebraine.base44.app');
+console.log('  AFTER  (14cfaef): apply default = BUNDLED → phone loads capacitor:// ios/public');
+console.log('  That mode flip changed which code path runs — not the audit.');
+console.log('');
+console.log('  Cascade when BUNDLED apply runs:');
+console.log('    • git clean wipes ios/public → full rebuild required');
+console.log('    • port-omega3-gallery overwrites Gallery.jsx + organize stack from omega-3 tag');
+console.log('    • build:native-local failure leaves stale bundle or blocks new index-*.js (ghosts)');
+console.log('    • Device stale OAuth token → auth boot spinner (until eb8cd80/898c152 fixes)');
+console.log('    • fix:no-change switches back to HOSTED → looks like "improvements undone" (CDN vs Mac layer)');
 console.log('');
 
 console.log('CURRENT STATE');
-console.log(`  BUILD_STAMP:     ${stamp || '(missing)'}`);
-console.log(`  ios config:      ${hostedIos ? 'HOSTED ✓' : 'BUNDLED ✗ (white screen risk)'}`);
-console.log(`  root config:     ${hostedRoot ? 'HOSTED' : 'BUNDLED'}`);
-console.log(`  bundled entry:   ${entry}`);
-console.log(`  crossorigin:     ${crossorigin ? 'YES ✗ breaks capacitor://' : 'no ✓'}`);
+console.log(`  BUILD_STAMP:       ${stamp || '(missing)'}`);
+console.log(`  ios config:        ${hostedIos ? 'HOSTED ✓ (v87 baseline)' : 'BUNDLED (experimental)'}`);
+console.log(`  root config:       ${hostedRoot ? 'HOSTED' : 'BUNDLED'}`);
+console.log(`  bundled entry:     ${entry}`);
+console.log(`  SignedOutLanding:  ${appUsesSignedOut ? 'yes ✓' : 'no — check App.jsx'}`);
+console.log(`  crossorigin:       ${crossorigin ? 'YES ✗ breaks capacitor://' : 'no ✓'}`);
 console.log('');
 
-console.log('WHY IT REGRESSED');
-console.log('  v87 baseline = HOSTED (server.url → restorebraine.base44.app)');
-console.log('  apply:v87-from-omega3 (old) ran build:native-local and REMOVED server.url');
-console.log('  Phone then loaded capacitor:// bundled ios/public — white screen');
-console.log('  fix:no-change restores HOSTED — reliable boot, but UI comes from Base44 CDN not Mac');
-console.log('  Omega 3 gallery finishing touches need Base44 Publish to appear on phone in hosted mode');
-console.log('');
 console.log('  AUTH FLOW (do not confuse):');
 console.log('    Step 1: Signed-out landing — Find Your Memories + Sign In button');
-console.log('    Step 2: OAuth login (tap Sign In)');
+console.log('    Step 2: Tap Sign In → Google OAuth');
 console.log('    Step 3: Gallery front page — Find Your Memories + search (after login)');
 console.log('');
 
 if (!hostedIos) {
-  console.log('VERDICT: ✗ REGRESSION — phone is in BUNDLED mode (not the working hosted setup)');
+  console.log('VERDICT: ✗ BUNDLED mode — not the pre-regression hosted baseline');
   console.log('');
-  console.log('RECOVERY (restores the nearly-perfect hosted state):');
+  console.log('RECOVERY (restores pre-apply hosted state):');
   console.log('  cd ~/restorebraine');
-  console.log('  npm run fix:no-change');
-  console.log('  # Delete app → Restart iPhone → Xcode Clean Build Folder → Run');
+  console.log('  git fetch origin cursor/apple-privacy-plist-bacf');
+  console.log('  git reset --hard origin/cursor/apple-privacy-plist-bacf');
+  console.log('  npm install');
+  console.log('  npm run apply:v87-from-omega3          # default hosted again');
+  console.log('  # OR: npm run fix:no-change');
+  console.log('  # Delete app → Restart iPhone → Xcode Clean → Run');
   console.log('');
-  console.log('Omega 3 gallery source is still in git after port — publish UI to Base44 when ready:');
-  console.log('  npm run base44:export-pack');
+  console.log('Bundled only when you explicitly need Mac terminal UI:');
+  console.log('  npm run apply:v87-from-omega3 -- --bundled');
   process.exit(1);
 }
 
-console.log('VERDICT: ✓ HOSTED mode — phone should load live Base44 (not white screen from bundled)');
+console.log('VERDICT: ✓ HOSTED mode — matches pre-regression v87 baseline');
 console.log('');
-console.log('If still white after hosted:');
-console.log('  npm run audit:interference');
-console.log('  npm run ghosts:audit-all');
-console.log('  Safari Web Inspector → check JS console on device');
+console.log('Phone loads live Base44 CDN. Gallery src/ changes need Base44 Publish.');
+console.log('If still broken: Delete app → Restart → Clean → Run + Safari Web Inspector');
 process.exit(0);

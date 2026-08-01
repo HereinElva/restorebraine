@@ -1,24 +1,23 @@
 #!/usr/bin/env bash
-# apply-v87-from-omega3.sh — Terminal-only: Mac bundled build → iPhone (no Safari / Base44 Publish)
+# apply-v87-from-omega3.sh — Omega 3 gallery + v87 corrections
 #
-# This is the primary Mac command. Phone loads capacitor:// ios/public from Xcode.
+# Default: HOSTED (v87 baseline — reliable on iPhone, loads live Base44)
+# Bundled (experimental): npm run apply:v87-from-omega3 -- --bundled
+#
+# IMPORTANT: audit:v87-improvements is READ-ONLY — it never changes phone or mode.
+# Regression in commit 14cfaef was flipping default to BUNDLED (not the audit).
 #
 # Usage:
-#   cd ~/restorebraine
-#   git fetch origin cursor/apple-privacy-plist-bacf
-#   git reset --hard origin/cursor/apple-privacy-plist-bacf
-#   npm install
-#   npm run apply:v87-from-omega3
-#   npm run audit:v87-improvements
-#
-# Or one shot: npm run mac:terminal-build
+#   npm run apply:v87-from-omega3              # hosted (recommended — pre-regression default)
+#   npm run apply:v87-from-omega3 -- --bundled # Mac UI without Base44 Publish (experimental)
+#   npm run apply:v87-from-omega3 -- --no-open
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
 BRANCH="${APPLY_BRANCH:-cursor/apple-privacy-plist-bacf}"
-MODE="bundled"
+MODE="hosted"
 OPEN_XCODE=1
 SKIP_SYNC=0
 
@@ -30,20 +29,25 @@ for arg in "$@"; do
     --skip-sync) SKIP_SYNC=1 ;;
     -h|--help)
       cat << 'EOF'
-Terminal-only apply — v87 + Omega 3 gallery → bundled ios/public on iPhone
+Apply v87 on top of Omega 3 — gallery + corrections
 
-  npm run apply:v87-from-omega3              Default: bundled (Mac terminal, no Safari)
-  npm run apply:v87-from-omega3 -- --hosted  Legacy: loads live Base44 (needs Publish)
+  npm run apply:v87-from-omega3              Hosted (default — v87 baseline, reliable on iPhone)
+  npm run apply:v87-from-omega3 -- --bundled   Bundled ios/public (experimental — spinner/ghost risk)
 
-Default flow (all Terminal):
-  git fetch + reset + npm install
-  Port Omega 3 gallery stack
-  npm run build:native-local (bundled UI in ios/public)
-  Sync ghost blocklist (new build allowed, stale builds blocked)
-  pod install
+Includes since omega-3:
+  17af6de  App Store privacy plist
+  6c15e97  v82 upload pipeline
+  390928b  v83 native-media-input
+  5762b16  v87 UI — SignedOutLanding (Find Your Memories + Sign In)
+  f1b2505  OAuth on restorebraine.base44.app
 
-After: Delete app → Restart iPhone → Xcode Clean Build Folder → Run
-Look for green bar: BUNDLED · BUILD_STAMP · index-*.js
+Hosted: phone loads https://restorebraine.base44.app
+  Gallery UI on phone needs Base44 Publish for src/ changes
+
+Bundled: phone loads capacitor:// ios/public from Mac
+  Requires: Delete app → Restart iPhone → Clean → Run every build
+
+audit:v87-improvements is read-only — safe to run, does not cause regression
 EOF
       exit 0
       ;;
@@ -60,58 +64,58 @@ banner() {
 wipe_build_debris() {
   git clean -fd -- dist ios/App/App/public ios/App/build node_modules/.vite 2>/dev/null || true
   rm -rf ios/App/Pods ios/App/Podfile.lock 2>/dev/null || true
-  if [[ "$(uname -s)" == "Darwin" ]]; then
-    DERIVED="$HOME/Library/Developer/Xcode/DerivedData"
-    if [[ -d "$DERIVED" ]]; then
-      find "$DERIVED" -maxdepth 1 -type d \( -name 'App-*' -o -name '*restorebraine*' -o -name '*Restorebraine*' \) \
-        -exec rm -rf {} + 2>/dev/null || true
-    fi
-  fi
 }
 
-banner "APPLY v87 FROM OMEGA 3 — mode: $MODE (terminal-only)"
-echo " No Safari · No Base44 Publish · Phone UI from Mac ios/public"
-echo
+banner "APPLY v87 FROM OMEGA 3 — mode: $MODE"
+
+if [[ "$MODE" == "bundled" ]]; then
+  echo " ⚠  BUNDLED mode — stale token spinner / ghost bundle risk"
+  echo "    Default (hosted): npm run apply:v87-from-omega3"
+  echo
+fi
 
 if [[ "$SKIP_SYNC" != "1" ]]; then
-  echo "==> [1/8] Sync branch"
+  echo "==> [1] Sync branch"
   git fetch origin "$BRANCH"
   git reset --hard "origin/$BRANCH"
   npm install
 else
-  echo "==> [1/8] Skip sync (--skip-sync)"
+  echo "==> [1] Skip sync (--skip-sync)"
 fi
 
 echo
-echo "==> [2/8] Wipe stale bundles (old builds block new ones in WKWebView / Xcode)"
-wipe_build_debris
-
-echo
-echo "==> [2b/8] Pre-build ghost check (repo must not ship stale ios/public)"
-node scripts/prove-apply-no-ghosts.mjs 2>/dev/null || echo "    (pre-check skipped — clean wipe next)"
-
-echo
-echo "==> [3/8] Port Omega 3 gallery stack (finishing touches)"
+echo "==> [2] Port Omega 3 gallery stack (persistence + multi-batch organize)"
 node scripts/port-omega3-gallery-to-v87.mjs
 
 if [[ "$MODE" == "hosted" ]]; then
   echo
-  echo "==> [4/8] Hosted shell (UI still from Base44 CDN — not terminal-only)"
+  echo "==> [3] Hosted Capacitor shell (v87 baseline — loads live Base44)"
   node scripts/write-build-info.mjs
-  npm run build:web
   node scripts/use-local-native-bundle.mjs --hosted
   npx cap sync ios
+
+  echo
+  echo "==> [4] Ghost blocklist sync"
   node scripts/sync-ghost-builds-native.mjs
+
+  echo
+  echo "==> [5] CocoaPods"
   if [[ "$(uname -s)" == "Darwin" ]]; then
     (cd ios/App && pod install)
+  else
+    echo "    (skip pod install — not on macOS)"
   fi
 else
   echo
-  echo "==> [4/8] Bundled native build (terminal pushes UI to iPhone)"
+  echo "==> [3] Wipe stale bundled assets (WKWebView ghost risk)"
+  wipe_build_debris
+
+  echo
+  echo "==> [4] Bundled native build (experimental)"
   npm run build:native-local
 
   echo
-  echo "==> [5/8] CocoaPods"
+  echo "==> [5] CocoaPods"
   if [[ "$(uname -s)" == "Darwin" ]]; then
     (cd ios/App && pod install)
   else
@@ -119,21 +123,22 @@ else
   fi
 
   echo
-  echo "==> [6/8] Ghost blocklist — allow THIS build, block stale bundles"
+  echo "==> [6] Ghost blocklist — allow THIS build, block stale bundles"
   node scripts/sync-ghost-builds-native.mjs
   node scripts/prove-bundled-ghost-safe.mjs
   node scripts/prove-apply-no-ghosts.mjs
 fi
 
 echo
-echo "==> [7/8] Verify phone load mode"
+echo "==> Verify phone load mode"
 node scripts/prove-phone-load.mjs || true
 
 echo
-echo "==> [8/8] Audits"
+echo "==> Audits (read-only except bundled ghost sync above)"
 node scripts/audit-v87-improvements.mjs || true
 node scripts/audit-interference.mjs || true
-node scripts/audit-pre-build.mjs
+node scripts/audit-pre-build.mjs 2>/dev/null || true
+node scripts/diagnose-apply-regression.mjs || true
 
 banner "NEXT ON IPHONE (required every build)"
 echo " 1. Delete Restorebraine from iPhone"
@@ -141,18 +146,23 @@ echo " 2. Restart iPhone (power off → wait 30s → on)"
 echo " 3. Xcode → Product → Clean Build Folder"
 echo " 4. Run on iPhone"
 echo
-if [[ "$MODE" == "bundled" ]]; then
-  STAMP="$(tr -d '\n' < ios/App/App/BUILD_STAMP.txt 2>/dev/null || echo '?')"
-  ENTRY="$(grep -oE 'index-[^"]+\.js' ios/App/App/public/index.html 2>/dev/null | head -1 || echo '?')"
-  echo " EXPECTED: green bar at bottom"
-  echo "   BUNDLED · ${STAMP} · ${ENTRY}"
+if [[ "$MODE" == "hosted" ]]; then
+  echo " Phone loads: https://restorebraine.base44.app (HOSTED — reliable)"
+  echo " Green bar should NOT say BUNDLED"
   echo
   echo " AUTH FLOW:"
-  echo "   1. Login page — Restorebraine card + Google / Apple / Microsoft / email"
-  echo "   2. Tap provider → OAuth in system browser"
-  echo "   3. Gallery front page — Find Your Memories + search (after login)"
+  echo "   1. Signed-out landing — Find Your Memories + Sign In button"
+  echo "   2. Tap Sign In → Google OAuth"
+  echo "   3. Gallery — Find Your Memories + search (after login)"
+  echo
+  echo " src/ gallery changes need Base44 Publish: npm run base44:export-pack"
 else
-  echo " Hosted mode — UI from Base44 CDN (not terminal-only)"
+  STAMP="$(tr -d '\n' < ios/App/App/BUILD_STAMP.txt 2>/dev/null || echo '?')"
+  ENTRY="$(grep -oE 'index-[^"]+\.js' ios/App/App/public/index.html 2>/dev/null | head -1 || echo '?')"
+  echo " Phone loads: capacitor:// bundled ios/public"
+  echo " EXPECTED green bar: BUNDLED · ${STAMP} · ${ENTRY}"
+  echo
+  echo " If spinner or white screen: npm run fix:no-change  (restores hosted)"
 fi
 echo "══════════════════════════════════════════════════════════════"
 

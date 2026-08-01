@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Port Omega 3 gallery/organize stack into v87 baseline.
- * Keeps Omega 3 login page (SignInScreen + NativeLoginCard) + v87 OAuth (f1b2505).
+ * Keeps v87 auth (SignedOutLanding, OAuth f1b2505) — no SignInScreen or bundled experiments.
  */
 import { execSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';

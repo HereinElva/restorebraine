@@ -284,89 +284,6 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const loginWithEmailPassword = async ({ email, password }) => {
-    setAuthError(null);
-    try { localStorage.removeItem('b44_signed_out'); } catch {}
-
-    try {
-      const authClient = createAxiosClient({
-        baseURL: `${appParams.serverUrl}/api`,
-        headers: { 'X-App-Id': appParams.appId },
-        interceptResponses: true,
-      });
-      const response = await withAuthTimeout(
-        authClient.post(`/apps/${appParams.appId}/auth/login`, { email, password }),
-        AUTH_API_TIMEOUT_MS,
-        'auth.login',
-      );
-
-      if (!response?.access_token) {
-        throw new Error('Sign in failed. Please try again.');
-      }
-
-      await persistSessionToNativeStorage(response.access_token);
-      setManuallyLoggedOut(false);
-      setUser(response.user ?? null);
-      setIsAuthenticated(true);
-      finishAuthBoot();
-      setAuthError(null);
-      await checkUserAuth({ ignoreManualLogout: true, silent: true });
-    } catch (error) {
-      setIsLoadingAuth(false);
-      setIsAuthenticated(false);
-      setAuthError({
-        type: 'auth_required',
-        message: error?.data?.message || error?.message || 'Invalid email or password',
-      });
-      throw error;
-    }
-  };
-
-  const registerWithEmailPassword = async ({ email, password, fullName }) => {
-    setAuthError(null);
-    try { localStorage.removeItem('b44_signed_out'); } catch {}
-
-    try {
-      const authClient = createAxiosClient({
-        baseURL: `${appParams.serverUrl}/api`,
-        headers: { 'X-App-Id': appParams.appId },
-        interceptResponses: true,
-      });
-      const response = await withAuthTimeout(
-        authClient.post(`/apps/${appParams.appId}/auth/register`, {
-          email,
-          password,
-          full_name: fullName,
-          name: fullName,
-        }),
-        AUTH_API_TIMEOUT_MS,
-        'auth.register',
-      );
-
-      if (response?.access_token) {
-        await persistSessionToNativeStorage(response.access_token);
-        setManuallyLoggedOut(false);
-        setUser(response.user ?? null);
-        setIsAuthenticated(true);
-        setAuthError(null);
-        await checkUserAuth({ ignoreManualLogout: true, silent: true });
-      } else {
-        setAuthError({ type: 'auth_required', message: 'Account created. Please sign in.' });
-      }
-
-      finishAuthBoot();
-      return response;
-    } catch (error) {
-      setIsLoadingAuth(false);
-      setIsAuthenticated(false);
-      setAuthError({
-        type: 'auth_required',
-        message: error?.data?.message || error?.message || 'Unable to create account',
-      });
-      throw error;
-    }
-  };
-
   const navigateToLogin = () => {
     setManuallyLoggedOut(false);
     openRestorebraineLogin();
@@ -385,8 +302,6 @@ export const AuthProvider = ({ children }) => {
       resumeActiveSession,
       manuallyLoggedOut,
       navigateToLogin,
-      loginWithEmailPassword,
-      registerWithEmailPassword,
       checkAppState,
     }}>
       {children}
