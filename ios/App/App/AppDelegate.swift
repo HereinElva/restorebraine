@@ -78,7 +78,24 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
     private var needsFreshLoadAfterCachePurge = false
 
+    private func isBundledCapacitorMode() -> Bool {
+        guard let configUrl = Bundle.main.url(forResource: "capacitor.config", withExtension: "json"),
+              let data = try? Data(contentsOf: configUrl),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return true
+        }
+        guard let server = json["server"] as? [String: Any],
+              let url = server["url"] as? String,
+              !url.isEmpty else {
+            return true
+        }
+        return false
+    }
+
     private func purgeGhostBuildCacheIfNeeded() {
+        // Bundled ios/public — skip WK purge/reload (causes white screen on capacitor://)
+        if isBundledCapacitorMode() { return }
+
         let defaults = UserDefaults.standard
         let key = "rb_wk_cache_purge_build"
         let current = nativeBuildLabel
@@ -114,11 +131,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             completionHandler: nil
         )
 
-        // Bundled mode: reloadFromOrigin only — rb_nocache breaks capacitor:// asset loading (white screen)
+        // Bundled: never reload WebView after cache purge
         if let url = webView.url, url.scheme == "capacitor" || url.scheme == "ionic" {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                webView.reloadFromOrigin()
-            }
             return
         }
 

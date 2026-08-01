@@ -98,8 +98,14 @@ if (inlineGuard.test(rootIndex)) {
   ok('index.html uses login-redirect.js only (no inline duplicate)');
 }
 
+if (bundledIndex.includes('crossorigin')) {
+  bad('ios/public/index.html has crossorigin on script — breaks capacitor:// (white screen)');
+} else {
+  ok('ios/public/index.html has no crossorigin (Capacitor WKWebView safe)');
+}
+
 if (inlineGuard.test(bundledIndex)) {
-  bad('ios/public/index.html still has inline login guard — triple Location.prototype patches');
+  bad('ios/public/index.html still has inline login guard');
 } else if (bundledIndex.includes('login-redirect.js')) {
   ok('ios/public/index.html uses login-redirect.js only');
 }

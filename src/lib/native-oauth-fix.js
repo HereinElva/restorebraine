@@ -33,8 +33,15 @@ export const installNativeOAuthFix = () => {
 
   captureAccessTokenFromUrl();
 
-  if (isNativeShell()) {
+  // Defer guards until React mounts — patching location before module load causes white screen
+  const startGuards = () => {
+    if (!isNativeShell()) return;
     installNativeGoogleOAuthBrowser();
     installNativePlatformGuard();
+  };
+  if (document.readyState === 'complete' || document.readyState === 'interactive') {
+    setTimeout(startGuards, 0);
+  } else {
+    window.addEventListener('DOMContentLoaded', () => setTimeout(startGuards, 0), { once: true });
   }
 };

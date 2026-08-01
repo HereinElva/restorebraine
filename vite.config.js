@@ -17,6 +17,14 @@ export default defineConfig(({ mode }) => {
       react(),
       errorOverlayPlugin(),
       {
+        name: 'capacitor-strip-crossorigin',
+        apply: 'build',
+        transformIndexHtml(html) {
+          // crossorigin on module scripts breaks WKWebView capacitor:// loading (white screen)
+          return html.replace(/\s+crossorigin(?:="[^"]*")?/g, '');
+        },
+      },
+      {
         name: 'iframe-hmr',
         configureServer(server) {
           server.middlewares.use((req, res, next) => {
