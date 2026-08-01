@@ -45,9 +45,15 @@ console.log('');
 
 console.log('WHY IT REGRESSED');
 console.log('  v87 baseline = HOSTED (server.url → restorebraine.base44.app)');
-console.log('  apply:v87-from-omega3 used to run build:native-local and REMOVE server.url');
-console.log('  Phone then loads capacitor:// bundled ios/public — known white-screen path');
-console.log('  audit:v87-improvements only checks files; it does not change build mode');
+console.log('  apply:v87-from-omega3 (old) ran build:native-local and REMOVED server.url');
+console.log('  Phone then loaded capacitor:// bundled ios/public — white screen');
+console.log('  fix:no-change restores HOSTED — reliable boot, but UI comes from Base44 CDN not Mac');
+console.log('  Omega 3 gallery finishing touches need Base44 Publish to appear on phone in hosted mode');
+console.log('');
+console.log('  AUTH FLOW (do not confuse):');
+console.log('    Step 1: Signed-out landing — Find Your Memories + Sign In button');
+console.log('    Step 2: OAuth login (tap Sign In)');
+console.log('    Step 3: Gallery front page — Find Your Memories + search (after login)');
 console.log('');
 
 if (!hostedIos) {

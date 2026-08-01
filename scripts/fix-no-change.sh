@@ -50,9 +50,10 @@ if [[ "$MODE" == "bundled" ]]; then
 fi
 
 echo
-echo "==> [4/5] Audit"
+echo "==> [4/5] Audit + auth flow diagnosis"
 node scripts/audit-interference.mjs || true
 node scripts/prove-phone-load.mjs || true
+node scripts/diagnose-auth-flow.mjs || true
 
 echo
 echo "==> [5/5] REQUIRED on iPhone (every time — skip = no change)"
@@ -69,7 +70,14 @@ if [[ "$MODE" == "bundled" ]]; then
   echo "   npm run fix:no-change -- --hosted"
 else
   echo " Hosted: phone loads https://restorebraine.base44.app (reliable — no white screen)"
-  echo " UI changes need Base44 Publish: npm run base44:export-pack"
+  echo ""
+  echo " EXPECTED ON IPHONE (3 steps — do not confuse):"
+  echo "   1. Signed-out landing — Find Your Memories + Sign In button (not logged in)"
+  echo "   2. Tap Sign In → Google OAuth login"
+  echo "   3. Front page — Gallery with Find Your Memories + search (after login)"
+  echo ""
+  echo " Omega 3 gallery improvements in src/ need Base44 Publish to appear on phone:"
+  echo "   npm run base44:export-pack"
   echo " For Mac-only UI (experimental): npm run fix:no-change -- --bundled"
 fi
 echo "══════════════════════════════════════════════════════════════"
