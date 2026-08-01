@@ -1,8 +1,16 @@
-import React from "react";
+import React, { useState } from "react";
 import { Search } from "lucide-react";
 
 /** Signed-out home — fixed header via Layout; hero stays visible (no login sheet overlay). */
 export default function SignedOutLanding({ onSignIn }) {
+  const [opening, setOpening] = useState(false);
+
+  const handleSignIn = () => {
+    setOpening(true);
+    onSignIn();
+    window.setTimeout(() => setOpening(false), 10000);
+  };
+
   return (
     <div className="min-h-[calc(100vh-8rem)] pb-28">
       <div className="px-4 pt-5 pb-2">
@@ -33,10 +41,11 @@ export default function SignedOutLanding({ onSignIn }) {
       >
         <button
           type="button"
-          onClick={onSignIn}
-          className="w-full max-w-lg mx-auto block py-3.5 rounded-2xl bg-gradient-to-r from-blue-400 to-purple-500 text-white font-semibold text-base shadow-lg"
+          onClick={handleSignIn}
+          disabled={opening}
+          className="w-full max-w-lg mx-auto block py-3.5 rounded-2xl bg-gradient-to-r from-blue-400 to-purple-500 text-white font-semibold text-base shadow-lg disabled:opacity-80"
         >
-          Sign In
+          {opening ? "Opening sign in…" : "Sign In"}
         </button>
       </div>
     </div>

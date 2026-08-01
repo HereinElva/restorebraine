@@ -1,27 +1,41 @@
 import UIKit
 import Capacitor
 import WebKit
+import AuthenticationServices
 
 private final class RestorebraineSessionMessageHandler: NSObject, WKScriptMessageHandler {
+    weak var appDelegate: AppDelegate?
+
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
         guard message.name == "restorebraineNativeSession",
               let body = message.body as? [String: Any],
-              let action = body["action"] as? String,
-              action == "clear" else { return }
-        let defaults = UserDefaults.standard
-        defaults.removeObject(forKey: "CapacitorStorage.base44_access_token")
-        defaults.removeObject(forKey: "CapacitorStorage.token")
-        defaults.set("1", forKey: "CapacitorStorage.b44_signed_out")
+              let action = body["action"] as? String else { return }
+
+        switch action {
+        case "clear":
+            let defaults = UserDefaults.standard
+            defaults.removeObject(forKey: "CapacitorStorage.base44_access_token")
+            defaults.removeObject(forKey: "CapacitorStorage.token")
+            defaults.set("1", forKey: "CapacitorStorage.b44_signed_out")
+        case "openLogin":
+            let url = body["url"] as? String
+            DispatchQueue.main.async { [weak self] in
+                self?.appDelegate?.openNativeOAuthLogin(preferredURL: url)
+            }
+        default:
+            break
+        }
     }
 }
 
 @UIApplicationMain
-class AppDelegate: UIResponder, UIApplicationDelegate {
+class AppDelegate: UIResponder, UIApplicationDelegate, ASWebAuthenticationPresentationContextProviding {
 
     var window: UIWindow?
 
-    private let sessionMessageHandler = RestorebraineSessionMessageHandler()
+    private var sessionMessageHandler: RestorebraineSessionMessageHandler!
     private var sessionBridgeScriptInstalled = false
+    private var oauthAuthSession: ASWebAuthenticationSession?
 
     private var nativeBuildLabel: String {
         guard let url = Bundle.main.url(forResource: "BUILD_STAMP", withExtension: "txt"),
@@ -49,6 +63,99 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         }
         return defaults.string(forKey: "CapacitorStorage.base44_access_token")
             ?? defaults.string(forKey: "CapacitorStorage.token")
+    }
+
+    private func defaultGoogleOAuthURL() -> URL {
+        var components = URLComponents(string: "https://restorebraine.base44.app/api/apps/auth/login")!
+        components.queryItems = [
+            URLQueryItem(name: "app_id", value: "68fdc5f42768c4d045fe1bac"),
+            URLQueryItem(name: "from_url", value: "https://restorebraine.base44.app"),
+            URLQueryItem(name: "prompt", value: "select_account"),
+        ]
+        return components.url!
+    }
+
+    func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
+        if let window = window { return window }
+        return UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .flatMap { $0.windows }
+            .first { $0.isKeyWindow } ?? ASPresentationAnchor()
+    }
+
+    func openNativeOAuthLogin(preferredURL: String?) {
+        let url: URL
+        if let preferredURL = preferredURL, let parsed = URL(string: preferredURL) {
+            url = parsed
+        } else {
+            url = defaultGoogleOAuthURL()
+        }
+
+        oauthAuthSession?.cancel()
+        let session = ASWebAuthenticationSession(
+            url: url,
+            callbackURLScheme: "restorebraine"
+        ) { [weak self] callbackURL, error in
+            guard let self = self else { return }
+            if let authError = error as? ASWebAuthenticationSessionError,
+               authError.code == .canceledLogin {
+                return
+            }
+            if let callbackURL = callbackURL {
+                self.persistOAuthTokenFromURL(callbackURL)
+            }
+            if self.storedNativeToken() != nil {
+                self.notifyWebViewOAuthComplete()
+            }
+        }
+        session.presentationContextProvider = self
+        session.prefersEphemeralWebBrowserSession = false
+        oauthAuthSession = session
+        if !session.start() {
+            notifyWebViewOpenLoginFallback()
+        }
+    }
+
+    private func notifyWebViewOAuthComplete() {
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self,
+                  let bridge = self.window?.rootViewController as? CAPBridgeViewController,
+                  let webView = bridge.webView else { return }
+            let token = self.storedNativeToken() ?? ""
+            let escaped = token
+                .replacingOccurrences(of: "\\", with: "\\\\")
+                .replacingOccurrences(of: "'", with: "\\'")
+            webView.evaluateJavaScript(
+                """
+                (function () {
+                  try { localStorage.removeItem('b44_signed_out'); } catch (e) {}
+                  var t = '\(escaped)';
+                  if (t) {
+                    localStorage.setItem('base44_access_token', t);
+                    localStorage.setItem('token', t);
+                  }
+                  try {
+                    window.dispatchEvent(new CustomEvent('restorebraine-session-updated'));
+                    window.dispatchEvent(new CustomEvent('restorebraine-native-oauth-complete'));
+                  } catch (e) {}
+                  window.location.reload();
+                })();
+                """,
+                completionHandler: nil
+            )
+        }
+    }
+
+    private func notifyWebViewOpenLoginFallback() {
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self,
+                  let bridge = self.window?.rootViewController as? CAPBridgeViewController,
+                  let webView = bridge.webView else { return }
+            webView.evaluateJavaScript(
+                "try { if (window.__restorebraineOpenLoginJsFallback) window.__restorebraineOpenLoginJsFallback(); } catch (e) {}",
+                completionHandler: nil
+            )
+        }
     }
 
     private func loadGhostBuildLists() -> (block: [String], allow: [String]) {
@@ -369,9 +476,27 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             } catch (e) {}
           }
 
+          function postNativeOpenLogin() {
+            try {
+              if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.restorebraineNativeSession) {
+                window.webkit.messageHandlers.restorebraineNativeSession.postMessage({
+                  action: 'openLogin',
+                  url: getCanonicalOAuthUrl('google')
+                });
+                return true;
+              }
+            } catch (e) {}
+            return false;
+          }
+
+          window.__restorebraineOpenLoginJsFallback = function () {
+            openLoginInSystemBrowser(getCanonicalOAuthUrl('google'), 'google');
+          };
+
           window.__restorebraineOpenLogin = function () {
             try { localStorage.removeItem(SIGNED_OUT_KEY); } catch (e) {}
-            openLoginInSystemBrowser(getCanonicalOAuthUrl('google'), 'google');
+            if (postNativeOpenLogin()) return;
+            window.__restorebraineOpenLoginJsFallback();
           };
 
           function interceptNativeSignInClicks() {
@@ -396,7 +521,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
           function deferOAuthBridge() {
             installOAuthDeepLinkHandler();
-            if (typeof window.__restorebraineOpenLogin === 'function') return;
           }
           if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', deferOAuthBridge, { once: true });
@@ -1196,9 +1320,27 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
 
 
+          function postNativeOpenLogin() {
+            try {
+              if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.restorebraineNativeSession) {
+                window.webkit.messageHandlers.restorebraineNativeSession.postMessage({
+                  action: 'openLogin',
+                  url: getCanonicalOAuthUrl('google')
+                });
+                return true;
+              }
+            } catch (e) {}
+            return false;
+          }
+
+          window.__restorebraineOpenLoginJsFallback = function () {
+            openLoginInSystemBrowser(getCanonicalOAuthUrl('google'), 'google');
+          };
+
           window.__restorebraineOpenLogin = function () {
             try { localStorage.removeItem(SIGNED_OUT_KEY); } catch (e) {}
-            openLoginInSystemBrowser(getCanonicalOAuthUrl('google'), 'google');
+            if (postNativeOpenLogin()) return;
+            window.__restorebraineOpenLoginJsFallback();
           };
 
           function interceptNativeSignInClicks() {
@@ -1283,6 +1425,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
+        sessionMessageHandler = RestorebraineSessionMessageHandler()
+        sessionMessageHandler.appDelegate = self
         purgeGhostBuildCacheIfNeeded()
         NotificationCenter.default.addObserver(
             self,
@@ -1357,13 +1501,21 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 
     func application(_ app: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey: Any] = [:]) -> Bool {
+        let hadToken = url.absoluteString.contains("access_token=")
         persistOAuthTokenFromURL(url)
+        if hadToken && storedNativeToken() != nil {
+            notifyWebViewOAuthComplete()
+        }
         return ApplicationDelegateProxy.shared.application(app, open: url, options: options)
     }
 
     func application(_ application: UIApplication, continue userActivity: NSUserActivity, restorationHandler: @escaping ([UIUserActivityRestoring]?) -> Void) -> Bool {
         if userActivity.activityType == NSUserActivityTypeBrowsingWeb, let url = userActivity.webpageURL {
+            let hadToken = url.absoluteString.contains("access_token=")
             persistOAuthTokenFromURL(url)
+            if hadToken && storedNativeToken() != nil {
+                notifyWebViewOAuthComplete()
+            }
         }
         return ApplicationDelegateProxy.shared.application(application, continue: userActivity, restorationHandler: restorationHandler)
     }
