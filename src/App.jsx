@@ -62,6 +62,11 @@ const AuthenticatedApp = () => {
     }
   }
 
+  // Signed out — show landing until session resumes (not a ghost/stale account issue)
+  if (!isAuthenticated) {
+    return signedOutView;
+  }
+
   // Render the main app
   return (
     <LayoutWrapper currentPageName={mainPageKey}>

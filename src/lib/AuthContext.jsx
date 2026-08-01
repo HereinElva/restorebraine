@@ -51,7 +51,7 @@ export const AuthProvider = ({ children }) => {
       const restoredToken = await restoreSessionFromNativeStorage();
       if (restoredToken) {
         appParams.token = restoredToken;
-      } else if (isNativeShell() && hasStoredAuthToken()) {
+      } else if (hasStoredAuthToken()) {
         appParams.token = localStorage.getItem('base44_access_token') || localStorage.getItem('token');
       }
 
@@ -72,6 +72,7 @@ export const AuthProvider = ({ children }) => {
         } else {
           setIsLoadingAuth(false);
           setIsAuthenticated(false);
+          setAuthError({ type: 'auth_required', message: 'Authentication required' });
         }
         setIsLoadingPublicSettings(false);
       } catch (appError) {
@@ -116,6 +117,7 @@ export const AuthProvider = ({ children }) => {
       const currentUser = await base44.auth.me();
       setUser(currentUser);
       setIsAuthenticated(true);
+      setAuthError(null);
       setIsLoadingAuth(false);
 
       const token = appParams.token || localStorage.getItem('base44_access_token') || localStorage.getItem('token');
@@ -132,6 +134,7 @@ export const AuthProvider = ({ children }) => {
             const currentUser = await base44.auth.me();
             setUser(currentUser);
             setIsAuthenticated(true);
+            setAuthError(null);
             setIsLoadingAuth(false);
             await persistSessionToNativeStorage(restoredToken);
             return;
@@ -186,6 +189,28 @@ export const AuthProvider = ({ children }) => {
     await checkUserAuth({ ignoreManualLogout: true });
     return true;
   };
+
+  useEffect(() => {
+    const onSessionUpdated = () => {
+      if (!hasStoredAuthToken()) return;
+      void resumeActiveSession();
+    };
+
+    window.addEventListener('restorebraine-session-updated', onSessionUpdated);
+    window.addEventListener('restorebraine-native-oauth-complete', onSessionUpdated);
+    window.addEventListener('focus', onSessionUpdated);
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') onSessionUpdated();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+
+    return () => {
+      window.removeEventListener('restorebraine-session-updated', onSessionUpdated);
+      window.removeEventListener('restorebraine-native-oauth-complete', onSessionUpdated);
+      window.removeEventListener('focus', onSessionUpdated);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, []);
 
   const logout = async () => {
     await localLogout();

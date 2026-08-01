@@ -41,7 +41,11 @@ export const captureOAuthTokenFromUrl = async (url) => {
     const parsed = new URL(url, getAuthReturnOrigin());
     const token = parsed.searchParams.get('access_token');
     if (!token) return null;
+    try { localStorage.removeItem('b44_signed_out'); } catch {}
     await persistSessionToNativeStorage(token);
+    try {
+      window.dispatchEvent(new CustomEvent('restorebraine-native-oauth-complete', { detail: { token } }));
+    } catch {}
     return token;
   } catch {
     return null;

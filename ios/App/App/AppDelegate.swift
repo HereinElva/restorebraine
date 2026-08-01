@@ -312,6 +312,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
               localStorage.setItem('base44_access_token', token);
               localStorage.setItem('token', token);
               persistToken();
+              try {
+                window.dispatchEvent(new CustomEvent('restorebraine-session-updated', { detail: { token: token } }));
+              } catch (e) {}
               return true;
             } catch (e) {}
             return false;
@@ -371,6 +374,13 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
           var oauthBrowserListenerAttached = false;
           function finishOAuthLogin(ib) {
             try { if (ib) ib.close(); } catch (e) {}
+            try {
+              window.dispatchEvent(new CustomEvent('restorebraine-native-oauth-complete'));
+            } catch (e) {}
+            if (readToken()) {
+              window.location.replace(RESTOREBRAINE);
+              return;
+            }
             window.location.replace(RESTOREBRAINE);
           }
 
