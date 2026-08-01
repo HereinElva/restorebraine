@@ -57,6 +57,17 @@ let oauthListenerAttached = false;
 const finishOAuthLogin = async () => {
   const InAppBrowser = await getInAppBrowser();
   await InAppBrowser.close().catch(() => {});
+  try {
+    window.dispatchEvent(new CustomEvent('restorebraine-native-oauth-complete'));
+  } catch {}
+  const isBundled =
+    window.location?.protocol === 'capacitor:' ||
+    window.location?.protocol === 'ionic:' ||
+    window.__restorebraineMinimalBridge;
+  if (isBundled) {
+    window.location.reload();
+    return;
+  }
   window.location.replace(getAuthReturnOrigin());
 };
 
@@ -74,8 +85,13 @@ const attachOAuthCompletionListener = async () => {
   const InAppBrowser = await getInAppBrowser();
   await InAppBrowser.addListener('browserClosed', async () => {
     const stored = localStorage.getItem('base44_access_token') || localStorage.getItem('token');
+    const isBundled =
+      window.location?.protocol === 'capacitor:' ||
+      window.location?.protocol === 'ionic:' ||
+      window.__restorebraineMinimalBridge;
     if (stored) {
-      window.location.replace(getAuthReturnOrigin());
+      if (isBundled) window.location.reload();
+      else window.location.replace(getAuthReturnOrigin());
       return;
     }
     try {
@@ -83,7 +99,8 @@ const attachOAuthCompletionListener = async () => {
       const launch = await App.getLaunchUrl();
       if (launch?.url) await handleNativeOAuthCallback(launch.url);
     } catch {}
-    window.location.replace(getAuthReturnOrigin());
+    if (isBundled) window.location.reload();
+    else window.location.replace(getAuthReturnOrigin());
   });
 };
 
@@ -95,20 +112,32 @@ export const openLoginInSystemBrowser = async (url = getGoogleOAuthUrl(), provid
     return;
   }
 
+  const { waitForCapacitorBridge } = await import('@/lib/capacitor-ready');
+  await waitForCapacitorBridge();
+
   oauthListenerAttached = false;
   await attachOAuthCompletionListener();
   const InAppBrowser = await getInAppBrowser();
-  if (InAppBrowser?.openInSystemBrowser) {
-    await InAppBrowser.openInSystemBrowser({ url: normalizedUrl, options: SYSTEM_BROWSER_OPTIONS });
-    return;
-  }
 
-  try {
-    const { Browser } = await import('@capacitor/browser');
-    await Browser.open({ url: normalizedUrl });
-    return;
-  } catch (error) {
-    console.warn('InAppBrowser/Browser plugins unavailable — falling back to navigation', error);
+  const tryOpen = async () => {
+    if (InAppBrowser?.openInSystemBrowser) {
+      await InAppBrowser.openInSystemBrowser({ url: normalizedUrl, options: SYSTEM_BROWSER_OPTIONS });
+      return true;
+    }
+    try {
+      const { Browser } = await import('@capacitor/browser');
+      await Browser.open({ url: normalizedUrl });
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  if (await tryOpen()) return;
+
+  for (let attempt = 0; attempt < 80; attempt += 1) {
+    await new Promise((resolve) => { window.setTimeout(resolve, 100); });
+    if (await tryOpen()) return;
   }
 
   if (typeof window.__restorebraineOpenLogin === 'function') {
@@ -116,6 +145,7 @@ export const openLoginInSystemBrowser = async (url = getGoogleOAuthUrl(), provid
     return;
   }
 
+  console.warn('InAppBrowser/Browser plugins unavailable — falling back to navigation');
   window.location.assign(normalizedUrl);
 };
 

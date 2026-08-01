@@ -61,6 +61,10 @@ if (delegate.includes('bundledMinimalBridgeScript') || delegate.includes('__rest
   bad('AppDelegate full bridge on bundled — Location patches cause white screen');
 }
 
+if (delegate.includes('bundledOAuthBridgeScript') || delegate.includes('__restorebraineBundledOAuthInstalled')) {
+  ok('AppDelegate bundled OAuth bridge — Sign In opens system browser on capacitor://');
+}
+
 if (delegate.includes('if (location.protocol === \'capacitor:\') return')) {
   ok('AppDelegate purgeGhostBuilds skips bundled (capacitor://)');
 } else if (!iosBundled) {

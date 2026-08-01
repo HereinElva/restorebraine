@@ -36,8 +36,13 @@ export const installNativeOAuthFix = () => {
   // Defer guards until React mounts — patching location before module load causes white screen
   const startGuards = () => {
     if (!isNativeShell()) return;
+    // Bundled: AppDelegate OAuth bridge handles Sign In — skip Location patches (white screen)
+    try {
+      if (window.location?.protocol === 'capacitor:' || window.location?.protocol === 'ionic:') {
+        if (typeof window.__restorebraineOpenLogin === 'function') return;
+      }
+    } catch {}
     installNativeGoogleOAuthBrowser();
-    // Bundled: skip platform location guards — AppDelegate uses minimal bridge; React handles OAuth
     try {
       if (window.location?.protocol === 'capacitor:' || window.location?.protocol === 'ionic:') return;
     } catch {}

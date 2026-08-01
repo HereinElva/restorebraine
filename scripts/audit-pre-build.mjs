@@ -164,6 +164,11 @@ if (delegate.includes('bundledMinimalBridgeScript')) {
 } else {
   warn('AppDelegate missing minimal bundled bridge');
 }
+if (delegate.includes('bundledOAuthBridgeScript') || delegate.includes('__restorebraineBundledOAuthInstalled')) {
+  pass('AppDelegate: bundled OAuth bridge (__restorebraineOpenLogin on capacitor://)');
+} else {
+  warn('AppDelegate missing bundled OAuth bridge — Sign In may show no change');
+}
 
 const ghostText = read('ios/App/App/ghost-builds.txt');
 const { block, allow } = parseGhostLists(ghostText);

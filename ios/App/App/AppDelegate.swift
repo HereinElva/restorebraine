@@ -174,6 +174,237 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         """#
     }
 
+    private func bundledOAuthBridgeScript(for syncToken: String) -> String {
+        let escapedToken = syncToken
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "'", with: "\\'")
+
+        // OAuth-only bridge for bundled ios/public — NO Location.prototype patches (white screen)
+        return #"""
+        (function () {
+          if (window.__restorebraineBundledOAuthInstalled) return;
+          window.__restorebraineBundledOAuthInstalled = true;
+
+          var RESTOREBRAINE = 'https://restorebraine.base44.app';
+          var APP_ID = '68fdc5f42768c4d045fe1bac';
+          var FROM_URL = RESTOREBRAINE;
+          var SIGNED_OUT_KEY = 'b44_signed_out';
+          var keys = ['base44_access_token', 'token'];
+
+          function providerFromLabel(label) {
+            if (/apple/i.test(label || '')) return 'apple';
+            if (/microsoft/i.test(label || '')) return 'microsoft';
+            return 'google';
+          }
+
+          function getCanonicalOAuthUrl(provider) {
+            provider = provider || 'google';
+            var path = provider === 'google'
+              ? '/api/apps/auth/login'
+              : '/api/apps/auth/' + provider + '/login';
+            return RESTOREBRAINE + path + '?app_id=' + APP_ID + '&from_url=' + encodeURIComponent(FROM_URL) + '&prompt=select_account';
+          }
+
+          function normalizeAuthUrl(rawUrl, providerHint) {
+            try {
+              return getCanonicalOAuthUrl(providerHint || 'google');
+            } catch (e) {
+              return getCanonicalOAuthUrl('google');
+            }
+          }
+
+          function isSignedOut() {
+            try { return localStorage.getItem(SIGNED_OUT_KEY) === '1'; } catch (e) {}
+            return false;
+          }
+
+          function clearSignedOutFlag() {
+            try { localStorage.removeItem(SIGNED_OUT_KEY); } catch (e) {}
+          }
+
+          function readToken() {
+            try {
+              for (var i = 0; i < keys.length; i++) {
+                var value = localStorage.getItem(keys[i]);
+                if (value) return value;
+              }
+            } catch (e) {}
+            return null;
+          }
+
+          function saveToken(token) {
+            if (!token) return false;
+            try {
+              clearSignedOutFlag();
+              localStorage.setItem('base44_access_token', token);
+              localStorage.setItem('token', token);
+              try {
+                window.dispatchEvent(new CustomEvent('restorebraine-session-updated', { detail: { token: token } }));
+                window.dispatchEvent(new CustomEvent('restorebraine-native-oauth-complete', { detail: { token: token } }));
+              } catch (e) {}
+              return true;
+            } catch (e) {}
+            return false;
+          }
+
+          function captureAccessTokenFromUrl(url) {
+            try {
+              var parsed = url ? new URL(url) : window.location;
+              var token = parsed.searchParams.get('access_token');
+              if (!token) return null;
+              saveToken(token);
+              return token;
+            } catch (e) {}
+            return null;
+          }
+
+          var oauthBrowserListenerAttached = false;
+          var SYSTEM_BROWSER_OPTIONS = {
+            iOS: { closeButtonText: 2, viewStyle: 2, animationEffect: 2, enableBarsCollapsing: true, enableReadersMode: false },
+            android: { showTitle: false, hideToolbarOnScroll: false, viewStyle: 0, startAnimation: 0, exitAnimation: 1 }
+          };
+
+          function getInAppBrowserPlugin() {
+            return window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.InAppBrowser;
+          }
+
+          function getBrowserPlugin() {
+            return window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Browser;
+          }
+
+          function finishOAuthLogin(ib) {
+            try { if (ib) ib.close(); } catch (e) {}
+            try {
+              window.dispatchEvent(new CustomEvent('restorebraine-native-oauth-complete'));
+              window.dispatchEvent(new CustomEvent('restorebraine-session-updated'));
+            } catch (e) {}
+            if (readToken()) {
+              window.location.reload();
+            }
+          }
+
+          function handleOAuthBrowserUrl(url, ib) {
+            if (!url) return false;
+            try {
+              var parsed = new URL(url);
+              var token = parsed.searchParams.get('access_token');
+              if (token) {
+                saveToken(token);
+                finishOAuthLogin(ib);
+                return true;
+              }
+              if (parsed.hostname === 'restorebraine.base44.app') {
+                token = captureAccessTokenFromUrl(url);
+                if (token || readToken()) {
+                  finishOAuthLogin(ib);
+                  return true;
+                }
+              }
+            } catch (e) {}
+            return false;
+          }
+
+          function attachOAuthBrowserListeners(ib) {
+            if (oauthBrowserListenerAttached) return;
+            oauthBrowserListenerAttached = true;
+            ib.addListener('browserPageNavigationCompleted', function (data) {
+              handleOAuthBrowserUrl(data && data.url, ib);
+            });
+            ib.addListener('browserClosed', function () {
+              if (readToken()) {
+                window.location.reload();
+                return;
+              }
+              captureAccessTokenFromUrl();
+              if (readToken()) window.location.reload();
+            });
+          }
+
+          function launchOAuthInBrowser(url) {
+            try {
+              var ib = getInAppBrowserPlugin();
+              if (ib) {
+                oauthBrowserListenerAttached = false;
+                attachOAuthBrowserListeners(ib);
+                ib.openInSystemBrowser({ url: url, options: SYSTEM_BROWSER_OPTIONS });
+                return true;
+              }
+            } catch (e) {}
+            try {
+              var browser = getBrowserPlugin();
+              if (browser && browser.open) {
+                browser.open({ url: url });
+                return true;
+              }
+            } catch (e) {}
+            return false;
+          }
+
+          function openLoginInSystemBrowser(url, providerHint) {
+            url = normalizeAuthUrl(url || getCanonicalOAuthUrl(providerHint || 'google'), providerHint);
+            if (launchOAuthInBrowser(url)) return;
+            var attempts = 0;
+            var timer = setInterval(function () {
+              attempts += 1;
+              if (launchOAuthInBrowser(url)) {
+                clearInterval(timer);
+                return;
+              }
+              if (attempts >= 80) {
+                clearInterval(timer);
+                try { window.location.assign(url); } catch (e) {}
+              }
+            }, 100);
+          }
+
+          function installOAuthDeepLinkHandler() {
+            try {
+              var appPlugin = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App;
+              if (!appPlugin || window.__restorebraineOAuthDeepLinkInstalled) return;
+              window.__restorebraineOAuthDeepLinkInstalled = true;
+              appPlugin.addListener('appUrlOpen', function (data) {
+                if (!data || !data.url || data.url.indexOf('access_token=') === -1) return;
+                handleOAuthBrowserUrl(data.url, getInAppBrowserPlugin());
+              });
+            } catch (e) {}
+          }
+
+          window.__restorebraineOpenLogin = function () {
+            try { localStorage.removeItem(SIGNED_OUT_KEY); } catch (e) {}
+            openLoginInSystemBrowser(getCanonicalOAuthUrl('google'), 'google');
+          };
+
+          function interceptNativeSignInClicks() {
+            if (window.__restorebraineSignInInterceptor) return;
+            window.__restorebraineSignInInterceptor = true;
+            document.addEventListener('click', function (event) {
+              var target = event.target.closest('button, a, [role="button"]');
+              if (!target) return;
+              var label = (target.textContent || '').replace(/\s+/g, ' ').trim();
+              if (!/^sign in$/i.test(label)) return;
+              event.preventDefault();
+              event.stopPropagation();
+              event.stopImmediatePropagation();
+              window.__restorebraineOpenLogin();
+            }, true);
+          }
+
+          var syncToken = '\#(escapedToken)';
+          if (syncToken && !isSignedOut()) saveToken(syncToken);
+          installOAuthDeepLinkHandler();
+          interceptNativeSignInClicks();
+
+          function deferOAuthBridge() {
+            installOAuthDeepLinkHandler();
+            if (typeof window.__restorebraineOpenLogin === 'function') return;
+          }
+          if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', deferOAuthBridge, { once: true });
+          }
+        })();
+        """#
+    }
+
     private func sessionBridgeScript(for buildLabel: String, syncToken: String, ghostBlock: [String], ghostAllow: [String]) -> String {
         let escapedLabel = buildLabel
             .replacingOccurrences(of: "\\", with: "\\\\")
@@ -1078,16 +1309,21 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
         let bundled = isBundledCapacitorMode()
         if bundled {
+            let syncToken = storedNativeToken() ?? ""
             let minimal = bundledMinimalBridgeScript(
                 for: nativeBuildLabel,
-                syncToken: storedNativeToken() ?? ""
+                syncToken: syncToken
             )
-            let script = WKUserScript(
+            userContentController.addUserScript(WKUserScript(
                 source: minimal,
                 injectionTime: .atDocumentEnd,
                 forMainFrameOnly: true
-            )
-            userContentController.addUserScript(script)
+            ))
+            userContentController.addUserScript(WKUserScript(
+                source: bundledOAuthBridgeScript(for: syncToken),
+                injectionTime: .atDocumentEnd,
+                forMainFrameOnly: true
+            ))
             return
         }
 
