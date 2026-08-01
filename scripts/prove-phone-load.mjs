@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Print exactly what the iPhone will load after the last Mac build.
- * Run after: npm run fix:no-change
+ * Run after: npm run apply:v87-from-omega3 or npm run fix:no-change
  */
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -35,9 +35,9 @@ console.log(`
 `);
 
 if (hosted) {
-  console.log('✓ Hosted mode OK. Phone loads live Base44 (reliable — avoids bundled white screen).');
+  console.log('✓ Hosted mode OK. Phone loads live Base44 CDN.');
   console.log('  UI changes need Base44 Publish: npm run base44:export-pack');
-  console.log('  Mac-only UI (experimental): npm run fix:no-change -- --bundled\n');
+  console.log('  Mac terminal UI: npm run apply:v87-from-omega3 (bundled default)\n');
   process.exit(0);
 }
 

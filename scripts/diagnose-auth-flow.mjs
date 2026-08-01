@@ -114,15 +114,7 @@ console.log('');
 
 const issues = [];
 
-if (!hosted) {
-  issues.push({
-    title: 'Phone is in BUNDLED mode (experimental — not pre-regression baseline)',
-    why: 'apply:v87-from-omega3 --bundled removes server.url; phone loads capacitor:// not Base44 CDN',
-    fix: 'npm run apply:v87-from-omega3   OR   npm run fix:no-change   then Delete app → Restart → Clean → Run',
-  });
-}
-
-if (githubHasOmega3 && !liveHasGalleryOrganize) {
+if (hosted && githubHasOmega3 && !liveHasGalleryOrganize) {
   issues.push({
     title: 'Omega 3 gallery improvements are in GitHub but NOT on live Base44 CDN',
     why: 'Hosted mode loads CDN JS, not Mac src/. export-pack writes a Mac file only — you must Publish in Base44 browser.',
@@ -130,7 +122,7 @@ if (githubHasOmega3 && !liveHasGalleryOrganize) {
   });
 }
 
-if (liveHtml.includes('function platformLogin(fromUrl)')) {
+if (hosted && liveHtml.includes('function platformLogin(fromUrl)')) {
   issues.push({
     title: 'Live CDN index.html has inline login guard (duplicate of AppDelegate)',
     why: 'Can interfere with native OAuth on some builds; Base44 Publish index.html removes it',
@@ -139,7 +131,7 @@ if (liveHtml.includes('function platformLogin(fromUrl)')) {
 }
 
 if (issues.length) {
-  console.log('WHY IMPROVEMENTS LOOK "UNDONE" AFTER fix:no-change');
+  console.log('HOSTED CDN ISSUES (bundled mode skips these — phone loads ios/public)');
   console.log('');
   for (const { title, why, fix } of issues) {
     console.log(`  ✗ ${title}`);
@@ -147,20 +139,29 @@ if (issues.length) {
     console.log(`    Fix: ${fix}`);
     console.log('');
   }
-} else {
-  console.log('✓ No layer mismatch detected — if still white screen:');
+} else if (hosted) {
+  console.log('✓ Hosted CDN checks OK — if still broken:');
   console.log('  Delete app → Restart iPhone → Xcode Clean Build Folder → Run');
   console.log('  Safari Web Inspector → Console for JS errors');
+} else {
+  console.log('✓ Bundled mode — Mac controls UI (apply default). Steady path:');
+  console.log('  npm run prove:phone && npm run ghosts:prove-apply && npm run gate:mode');
+  console.log('  Delete app → Restart iPhone → Xcode Clean → Run');
+  console.log('  Do NOT run fix:no-change (switches to HOSTED CDN)');
 }
 
-console.log('RECOVERY (login screen → sign in → front page)');
+console.log('');
+console.log('RECOVERY (Step 1 Sign In → Step 2 OAuth → Step 3 Gallery)');
 console.log('  cd ~/restorebraine');
 console.log('  git fetch origin cursor/apple-privacy-plist-bacf');
 console.log('  git reset --hard origin/cursor/apple-privacy-plist-bacf');
 console.log('  npm install');
-console.log('  npm run fix:no-change');
+if (hosted) {
+  console.log('  npm run fix:no-change                    # keeps HOSTED');
+} else {
+  console.log('  npm run apply:v87-from-omega3            # keeps BUNDLED (default)');
+}
 console.log('  # Delete app → Restart iPhone → Clean → Run');
-console.log('  # Expect STEP 1 (Sign In button) → STEP 2 OAuth → STEP 3 Gallery');
 console.log('');
 
 process.exit(issues.length ? 1 : 0);

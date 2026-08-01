@@ -1,15 +1,10 @@
 #!/usr/bin/env node
 /**
- * Diagnose regression after npm run apply:v87-from-omega3
+ * Diagnose apply:v87-from-omega3 state — bundled is the Mac terminal default (OK).
  *
- * ROOT CAUSE (commit 14cfaef, Aug 2026):
- *   apply default flipped HOSTED → BUNDLED. That one change caused the cascade:
- *   1. build:native-local removes server.url → phone loads capacitor:// not Base44 CDN
- *   2. wipe_build_debris + port-omega3-gallery rewrites src/ gallery files
- *   3. verify-bundled-v87 can fail mid-build → stale ios/public + ghost blocklist conflicts
- *   4. Stale OAuth token on device + bundled auth boot → infinite spinner (fixed in eb8cd80/898c152)
- *
- * audit:v87-improvements did NOT cause regression — it is read-only.
+ * Historical note (commit 14cfaef): apply default flipped HOSTED → BUNDLED.
+ * That is intentional now — bundled lets Mac/Xcode control UI without Base44 Publish.
+ * audit:v87-improvements is read-only and never causes regression.
  */
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -31,36 +26,17 @@ const hostedIos = iosCap.includes('"url"') && iosCap.includes('restorebraine.bas
 const hostedRoot = rootCap.includes('"url"') && rootCap.includes('restorebraine.base44.app');
 const crossorigin = indexHtml.includes('crossorigin');
 const appUsesSignedOut = read('src/App.jsx').includes('SignedOutLanding');
+const bundledAssets = existsSync('ios/App/App/public/assets');
 
 console.log(`
 ═══════════════════════════════════════════════════════════════
- APPLY REGRESSION DIAGNOSIS — why apply:v87-from-omega3 broke things
+ APPLY STATE — bundled default vs hosted (CDN) baseline
 ═══════════════════════════════════════════════════════════════
 `);
 
-console.log('WHAT YOU RAN (typical regression sequence)');
-console.log('  git fetch + reset --hard origin/cursor/apple-privacy-plist-bacf');
-console.log('  npm install');
-console.log('  npm run apply:v87-from-omega3     ← was BUNDLED default (14cfaef) — main trigger');
-console.log('  npm run audit:v87-improvements    ← READ-ONLY — did NOT undo anything');
-console.log('');
-
-console.log('WHY IT REGRESSED (retrace)');
-console.log('  BEFORE (574d61d): apply default = HOSTED → phone loads restorebraine.base44.app');
-console.log('  AFTER  (14cfaef): apply default = BUNDLED → phone loads capacitor:// ios/public');
-console.log('  That mode flip changed which code path runs — not the audit.');
-console.log('');
-console.log('  Cascade when BUNDLED apply runs:');
-console.log('    • git clean wipes ios/public → full rebuild required');
-console.log('    • port-omega3-gallery overwrites Gallery.jsx + organize stack from omega-3 tag');
-console.log('    • build:native-local failure leaves stale bundle or blocks new index-*.js (ghosts)');
-console.log('    • Device stale OAuth token → auth boot spinner (until eb8cd80/898c152 fixes)');
-console.log('    • fix:no-change switches back to HOSTED → looks like "improvements undone" (CDN vs Mac layer)');
-console.log('');
-
 console.log('CURRENT STATE');
 console.log(`  BUILD_STAMP:       ${stamp || '(missing)'}`);
-console.log(`  ios config:        ${hostedIos ? 'HOSTED ✓ (v87 baseline)' : 'BUNDLED (experimental)'}`);
+console.log(`  ios config:        ${hostedIos ? 'HOSTED (live Base44 CDN)' : 'BUNDLED (Mac terminal UI — apply default)'}`);
 console.log(`  root config:       ${hostedRoot ? 'HOSTED' : 'BUNDLED'}`);
 console.log(`  bundled entry:     ${entry}`);
 console.log(`  SignedOutLanding:  ${appUsesSignedOut ? 'yes ✓' : 'no — check App.jsx'}`);
@@ -73,25 +49,47 @@ console.log('    Step 2: Tap Sign In → Google OAuth');
 console.log('    Step 3: Gallery front page — Find Your Memories + search (after login)');
 console.log('');
 
-if (!hostedIos) {
-  console.log('VERDICT: ✗ BUNDLED mode — not the pre-regression hosted baseline');
+const problems = [];
+if (!stamp) problems.push('BUILD_STAMP.txt missing — run apply or write-build-info');
+if (crossorigin) problems.push('index.html has crossorigin — breaks capacitor:// bundled load');
+if (!appUsesSignedOut) problems.push('App.jsx missing SignedOutLanding — Step 1 landing will be wrong');
+if (!hostedIos && !bundledAssets) problems.push('ios/App/App/public/assets missing — bundled build incomplete');
+if (!hostedIos && entry === '(none)') problems.push('bundled index.html has no entry script');
+
+if (problems.length) {
+  console.log('VERDICT: ✗ Problems detected');
+  for (const p of problems) console.log(`  ✗ ${p}`);
   console.log('');
-  console.log('RECOVERY (restores pre-apply hosted state):');
+  console.log('RECOVERY:');
   console.log('  cd ~/restorebraine');
   console.log('  git fetch origin cursor/apple-privacy-plist-bacf');
   console.log('  git reset --hard origin/cursor/apple-privacy-plist-bacf');
   console.log('  npm install');
-  console.log('  npm run apply:v87-from-omega3 -- --hosted');
-  console.log('  # OR: npm run fix:no-change');
+  console.log('  npm run apply:v87-from-omega3              # bundled (default)');
+  console.log('  npm run apply:v87-from-omega3 -- --hosted  # live CDN instead');
   console.log('  # Delete app → Restart iPhone → Xcode Clean → Run');
-  console.log('');
-  console.log('Bundled only when you explicitly need Mac terminal UI:');
-  console.log('  npm run apply:v87-from-omega3 -- --bundled');
   process.exit(1);
 }
 
-console.log('VERDICT: ✓ HOSTED mode — matches pre-regression v87 baseline');
-console.log('');
-console.log('Phone loads live Base44 CDN. Gallery src/ changes need Base44 Publish.');
-console.log('If still broken: Delete app → Restart → Clean → Run + Safari Web Inspector');
+if (hostedIos) {
+  console.log('VERDICT: ✓ HOSTED mode — phone loads live Base44 CDN');
+  console.log('');
+  console.log('Steady path: npm run align:all');
+  console.log('Gallery src/ changes need Base44 Publish: npm run base44:export-pack');
+  console.log('Do NOT run apply:v87-from-omega3 without --hosted (default is bundled, flips mode)');
+  console.log('');
+  console.log('If broken: Delete app → Restart → Clean → Run + Safari Web Inspector');
+} else {
+  console.log('VERDICT: ✓ BUNDLED mode — Mac terminal UI (apply default, expected green bar)');
+  console.log('');
+  console.log('Steady path:');
+  console.log('  npm run prove:phone && npm run ghosts:prove-apply && npm run gate:mode');
+  console.log('  Delete app → Restart iPhone → Xcode Clean → Run (every build)');
+  console.log('');
+  console.log('Do NOT run: npm run fix:no-change (switches to HOSTED / CDN)');
+  console.log('Only re-apply when src/ changed: npm run apply:v87-from-omega3');
+  console.log('');
+  console.log(`Expected green bar: BUNDLED · ${stamp} · ${entry}`);
+}
+
 process.exit(0);
