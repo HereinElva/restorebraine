@@ -7,7 +7,30 @@ import { getAppOrigin } from '@/lib/app-params';
 import { clearNativeSession, persistSessionToNativeStorage, restoreSessionFromNativeStorage, ensureClientSessionToken } from '@/lib/session-bootstrap';
 import { isHostedAppOrigin, isNativeShell } from '@/lib/native-hosted-redirect';
 
-const AUTH_BOOT_TIMEOUT_MS = 20000;
+const AUTH_BOOT_TIMEOUT_MS = 12000;
+const AUTH_API_TIMEOUT_MS = 10000;
+
+const withAuthTimeout = (promise, ms, label) =>
+  Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      window.setTimeout(() => {
+        reject(Object.assign(new Error(`${label} timed out`), { status: 408 }));
+      }, ms);
+    }),
+  ]);
+
+const isBundledNativeShell = () => {
+  try {
+    if (typeof __RESTOREBRAINE_NATIVE_LOCAL__ !== 'undefined' && __RESTOREBRAINE_NATIVE_LOCAL__) {
+      return true;
+    }
+    const p = window.location?.protocol;
+    return p === 'capacitor:' || p === 'ionic:';
+  } catch {
+    return false;
+  }
+};
 
 const hasStoredAuthToken = () => {
   try {
@@ -37,7 +60,6 @@ export const AuthProvider = ({ children }) => {
     let finished = false;
     const timeout = window.setTimeout(() => {
       if (finished) return;
-      if (hasStoredAuthToken()) return;
       finished = true;
       setIsLoadingPublicSettings(false);
       setIsLoadingAuth(false);
@@ -46,11 +68,16 @@ export const AuthProvider = ({ children }) => {
 
     try {
       setIsLoadingPublicSettings(true);
+      setIsLoadingAuth(true);
       setAuthError(null);
 
       ensureClientSessionToken();
 
-      const restoredToken = await restoreSessionFromNativeStorage();
+      const restoredToken = await withAuthTimeout(
+        restoreSessionFromNativeStorage(),
+        4000,
+        'restoreSessionFromNativeStorage',
+      ).catch(() => null);
       if (restoredToken) {
         appParams.token = restoredToken;
       } else if (hasStoredAuthToken()) {
@@ -65,7 +92,11 @@ export const AuthProvider = ({ children }) => {
       });
 
       try {
-        const publicSettings = await appClient.get(`/prod/public-settings/by-id/${appParams.appId}`);
+        const publicSettings = await withAuthTimeout(
+          appClient.get(`/prod/public-settings/by-id/${appParams.appId}`),
+          AUTH_API_TIMEOUT_MS,
+          'public-settings',
+        );
         if (finished) return;
         setAppPublicSettings(publicSettings);
 
@@ -94,6 +125,8 @@ export const AuthProvider = ({ children }) => {
           setAuthError({ type: 'auth_required', message: 'Authentication required' });
         } else if (appParams.token) {
           await checkUserAuth();
+        } else {
+          setAuthError({ type: 'auth_required', message: 'Authentication required' });
         }
 
         setIsLoadingPublicSettings(false);
@@ -102,7 +135,7 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       if (finished) return;
       console.error('Unexpected error:', error);
-      setAuthError({ type: 'unknown', message: error.message || 'An unexpected error occurred' });
+      setAuthError({ type: 'auth_required', message: error.message || 'Authentication required' });
       setIsLoadingPublicSettings(false);
       setIsLoadingAuth(false);
     } finally {
@@ -111,12 +144,12 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const checkUserAuth = async ({ ignoreManualLogout = false } = {}) => {
+  const checkUserAuth = async ({ ignoreManualLogout = false, silent = false } = {}) => {
     if (manuallyLoggedOut && !ignoreManualLogout) return;
 
     try {
-      setIsLoadingAuth(true);
-      const currentUser = await base44.auth.me();
+      if (!silent) setIsLoadingAuth(true);
+      const currentUser = await withAuthTimeout(base44.auth.me(), AUTH_API_TIMEOUT_MS, 'auth.me');
       setUser(currentUser);
       setIsAuthenticated(true);
       setAuthError(null);
@@ -130,10 +163,14 @@ export const AuthProvider = ({ children }) => {
       console.error('User auth check failed:', error);
 
       if (error.status === 401) {
-        const restoredToken = await restoreSessionFromNativeStorage();
+        const restoredToken = await withAuthTimeout(
+          restoreSessionFromNativeStorage(),
+          4000,
+          'restoreSessionFromNativeStorage',
+        ).catch(() => null);
         if (restoredToken) {
           try {
-            const currentUser = await base44.auth.me();
+            const currentUser = await withAuthTimeout(base44.auth.me(), AUTH_API_TIMEOUT_MS, 'auth.me');
             setUser(currentUser);
             setIsAuthenticated(true);
             setAuthError(null);
@@ -146,13 +183,19 @@ export const AuthProvider = ({ children }) => {
         }
       }
 
+      if (error.status === 401 || error.status === 408) {
+        await clearNativeSession().catch(() => {});
+      }
+
       setIsLoadingAuth(false);
       setIsAuthenticated(false);
 
-      if (error.status === 401) {
+      if (error.status === 401 || error.status === 408) {
         setAuthError({ type: 'auth_required', message: 'Authentication required' });
       } else if (error.status === 403) {
         setAuthError({ type: 'user_not_registered', message: 'User not registered for this app' });
+      } else if (isBundledNativeShell()) {
+        setAuthError({ type: 'auth_required', message: 'Authentication required' });
       }
     }
   };
@@ -188,7 +231,7 @@ export const AuthProvider = ({ children }) => {
     } catch {}
 
     await persistSessionToNativeStorage(token);
-    await checkUserAuth({ ignoreManualLogout: true });
+    await checkUserAuth({ ignoreManualLogout: true, silent: true });
     return true;
   };
 
