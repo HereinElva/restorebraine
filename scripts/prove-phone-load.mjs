@@ -46,6 +46,31 @@ if (!existsSync('ios/App/App/public/assets')) {
   process.exit(2);
 }
 
+const appJsName = appJs[0];
+let appSource = '';
+if (appJsName) {
+  try {
+    appSource = read(`ios/App/App/public/assets/${appJsName}`);
+  } catch {}
+}
+const hasSignInFeedback = appSource.includes('Opening sign in');
+const hasNativeOAuthBridge = read('ios/App/App/AppDelegate.swift').includes('ASWebAuthenticationSession');
+
 console.log('✓ Bundled mode OK. After Xcode Run, look for green bar at bottom:');
 console.log(`  BUNDLED · ${stamp} · ${entry}\n`);
-console.log('If bar says HOSTED or old stamp → Delete app → Restart iPhone → Clean → Run\n');
+
+if (!hasSignInFeedback) {
+  console.log('✗ STALE ios/public — bundled JS missing Sign In tap feedback');
+  console.log('  git reset --hard restores old ios/public from git — you MUST rebuild:');
+  console.log('  npm run apply:v87-from-omega3 -- --skip-sync');
+  console.log('  Then: Delete app → Restart iPhone → Xcode Clean → Run\n');
+  process.exit(3);
+}
+
+if (!hasNativeOAuthBridge) {
+  console.log('⚠ AppDelegate missing native OAuth — git pull cursor/apple-privacy-plist-bacf\n');
+}
+
+console.log('✓ Bundled JS includes Sign In feedback ("Opening sign in…" on tap)');
+console.log('If green bar shows an OLD stamp or index-*.js hash → phone has stale cache:');
+console.log('  Delete app → Restart iPhone → Xcode Clean → Run\n');

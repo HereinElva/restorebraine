@@ -87,7 +87,8 @@ if (hostedIos) {
   console.log('  Delete app → Restart iPhone → Xcode Clean → Run (every build)');
   console.log('');
   console.log('Do NOT run: npm run fix:no-change (switches to HOSTED / CDN)');
-  console.log('Only re-apply when src/ changed: npm run apply:v87-from-omega3');
+  console.log('After git reset --hard: npm run apply:v87-from-omega3 -- --skip-sync (reset wipes ios/public)');
+  console.log('Only full apply when src/ changed: npm run apply:v87-from-omega3');
   console.log('');
   console.log(`Expected green bar: BUNDLED · ${stamp} · ${entry}`);
 }
