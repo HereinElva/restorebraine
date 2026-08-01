@@ -51,8 +51,9 @@ if [[ "$MODE" == "bundled" ]]; then
   echo "==> [3/5] Bundled v87 build (experimental — white screen risk)"
   npm run apply:v87-from-omega3 -- --bundled --no-open
 else
-  echo "==> [3/5] Hosted shell + cache purge (UI still from Base44 Publish)"
+  echo "==> [3/5] Hosted shell + fresh web build + cache purge"
   node scripts/write-build-info.mjs
+  npm run build:web
   node scripts/use-local-native-bundle.mjs --hosted
   npx cap sync ios
   (cd ios/App && pod install)

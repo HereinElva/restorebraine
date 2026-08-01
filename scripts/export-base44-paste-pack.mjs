@@ -13,3 +13,5 @@ const chunks = files.map((rel) => {
 const out = resolve('BASE44-PASTE-PACK-v87.txt');
 writeFileSync(out, `# Restorebraine v87 Base44 paste pack\n# Paste each FILE block into Base44 code editor, then Publish once.\n${chunks.join('\n')}\n`);
 console.log(`Wrote ${files.length} files → ${out}`);
+import { spawnSync } from 'node:child_process';
+spawnSync('node', ['scripts/print-base44-publish-steps.mjs', '--full'], { stdio: 'inherit' });

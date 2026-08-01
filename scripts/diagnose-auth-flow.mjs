@@ -125,8 +125,8 @@ if (!hosted) {
 if (githubHasOmega3 && !liveHasGalleryOrganize) {
   issues.push({
     title: 'Omega 3 gallery improvements are in GitHub but NOT on live Base44 CDN',
-    why: 'Hosted mode loads CDN JS, not Mac src/. fix:no-change cannot push UI to Base44.',
-    fix: 'npm run base44:export-pack → paste in Base44 editor → Publish (once per UI change)',
+    why: 'Hosted mode loads CDN JS, not Mac src/. export-pack writes a Mac file only — you must Publish in Base44 browser.',
+    fix: 'npm run base44:login-pack → follow npm run base44:publish-steps → Publish in browser → npm run prove:live-publish',
   });
 }
 
@@ -134,7 +134,7 @@ if (liveHtml.includes('function platformLogin(fromUrl)')) {
   issues.push({
     title: 'Live CDN index.html has inline login guard (duplicate of AppDelegate)',
     why: 'Can interfere with native OAuth on some builds; Base44 Publish index.html removes it',
-    fix: 'Publish updated index.html from npm run base44:export-pack',
+    fix: 'npm run base44:login-pack → publish index.html from pack in Base44 browser',
   });
 }
 
