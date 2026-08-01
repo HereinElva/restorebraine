@@ -45,8 +45,9 @@ async function bootstrapApp() {
     return;
   }
 
+  // Warm session in background — must not block React mount (white screen if bridge is slow)
   if (isNativeShell()) {
-    await warmNativeSessionForLocalBundle();
+    warmNativeSessionForLocalBundle().catch(() => {});
   }
 
   const [{ default: React }, { default: ReactDOM }, { default: App }] = await Promise.all([
@@ -57,6 +58,9 @@ async function bootstrapApp() {
   await import('@/index.css');
 
   ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  window.__rbBooted = true;
+  const fb = document.getElementById('rb-boot-fallback');
+  if (fb) fb.remove();
 }
 
 let bootstrapFinished = false;

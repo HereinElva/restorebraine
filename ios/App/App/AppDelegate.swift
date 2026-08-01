@@ -99,6 +99,13 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     private func reloadAfterCachePurgeIfNeeded() {
         guard needsFreshLoadAfterCachePurge else { return }
         needsFreshLoadAfterCachePurge = false
+
+        let defaults = UserDefaults.standard
+        let reloadKey = "rb_cache_purge_reloaded_for"
+        let current = nativeBuildLabel
+        if defaults.string(forKey: reloadKey) == current { return }
+        defaults.set(current, forKey: reloadKey)
+
         guard let bridge = window?.rootViewController as? CAPBridgeViewController,
               let webView = bridge.webView else { return }
 
@@ -107,17 +114,23 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             completionHandler: nil
         )
 
-        if let url = webView.url {
+        // Bundled mode: reloadFromOrigin only — rb_nocache breaks capacitor:// asset loading (white screen)
+        if let url = webView.url, url.scheme == "capacitor" || url.scheme == "ionic" {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                webView.reloadFromOrigin()
+            }
+            return
+        }
+
+        if let url = webView.url, url.scheme == "https" || url.scheme == "http" {
             var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
             var items = (components?.queryItems ?? []).filter { $0.name != "rb_nocache" && $0.name != "rb_probe" }
             items.append(URLQueryItem(name: "rb_nocache", value: String(Int(Date().timeIntervalSince1970 * 1000))))
             components?.queryItems = items
             if let freshURL = components?.url {
                 webView.load(URLRequest(url: freshURL, cachePolicy: .reloadIgnoringLocalCacheData))
-                return
             }
         }
-        webView.reloadFromOrigin()
     }
 
     private func sessionBridgeScript(for buildLabel: String, syncToken: String, ghostBlock: [String], ghostAllow: [String]) -> String {
@@ -1017,7 +1030,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         userContentController.removeScriptMessageHandler(forName: "restorebraineNativeSession")
         userContentController.add(sessionMessageHandler, name: "restorebraineNativeSession")
         userContentController.addUserScript(script)
-        reloadAfterCachePurgeIfNeeded()
     }
 
     func applicationWillResignActive(_ application: UIApplication) {

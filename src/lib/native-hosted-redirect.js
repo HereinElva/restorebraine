@@ -36,6 +36,12 @@ const useLocalNativeBundle = () => {
 /** Native installs load the hosted app unless built with NATIVE_LOCAL=1 (bundled UI in Xcode). */
 export const redirectNativeToHostedApp = () => {
   if (!isNativeShell() || isHostedAppOrigin()) return false;
+  // Bundled capacitor:// must never redirect to hosted CDN (causes white screen / no-change loop)
+  try {
+    if (window.location?.protocol === 'capacitor:' || window.location?.protocol === 'ionic:') {
+      return false;
+    }
+  } catch {}
   if (useLocalNativeBundle()) return false;
 
   const suffix = `${window.location.pathname}${window.location.search}${window.location.hash}`;
