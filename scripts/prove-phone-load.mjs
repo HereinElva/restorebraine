@@ -46,14 +46,20 @@ if (!existsSync('ios/App/App/public/assets')) {
   process.exit(2);
 }
 
+const entryBundle = entry.startsWith('index-') ? read(`ios/App/App/public/assets/${entry}`) : '';
 const appJsName = appJs[0];
-let appSource = '';
+let appSource = entryBundle;
 if (appJsName) {
   try {
-    appSource = read(`ios/App/App/public/assets/${appJsName}`);
+    const appChunk = read(`ios/App/App/public/assets/${appJsName}`);
+    appSource = `${appSource}\n${appChunk}`;
   } catch {}
 }
-const hasSignInFeedback = appSource.includes('Opening sign in');
+const hasSignInFeedback =
+  appSource.includes('Opening sign in') ||
+  appSource.includes('Continue With Google') ||
+  appSource.includes('sign-in-v4');
+const usesOmegaLogin = read('src/App.jsx').includes('SignInScreen');
 const usesClassicLanding = read('src/App.jsx').includes('ClassicLoginLanding');
 const usesSignedOutShell = read('src/App.jsx').includes('SignedOutLanding');
 const hasNativeOAuthBridge = read('ios/App/App/AppDelegate.swift').includes('ASWebAuthenticationSession');
@@ -61,8 +67,8 @@ const hasNativeOAuthBridge = read('ios/App/App/AppDelegate.swift').includes('ASW
 console.log('✓ Bundled mode OK. After Xcode Run, look for green bar at bottom:');
 console.log(`  BUNDLED · ${stamp} · ${entry}\n`);
 
-if (!hasSignInFeedback) {
-  console.log('✗ STALE ios/public — bundled JS missing Sign In tap feedback');
+if (!hasSignInFeedback && usesOmegaLogin) {
+  console.log('✗ STALE ios/public — bundled JS missing Omega 3 login (Continue With Google)');
   console.log('  git reset --hard restores old ios/public from git — you MUST rebuild:');
   console.log('  npm run apply:v87-from-omega3 -- --skip-sync');
   console.log('  Then: Delete app → Restart iPhone → Xcode Clean → Run\n');
@@ -72,8 +78,11 @@ if (!hasSignInFeedback) {
   process.exit(3);
 }
 
-if (usesClassicLanding && appSource.includes('Sign in to access your memories')) {
-  console.log('✓ Bundled JS uses ClassicLoginLanding (pre-v87 centered card — not gallery shell)');
+if (usesOmegaLogin && (appSource.includes('Continue With Google') || appSource.includes('sign-in-v4'))) {
+  console.log('✓ Bundled JS uses SignInScreen / NativeLoginCard (Omega 3 login)');
+  console.log(`  Entry bundle: ${entry}`);
+} else if (usesClassicLanding && appSource.includes('Sign in to access your memories')) {
+  console.log('⚠ Bundled JS uses ClassicLoginLanding — rebuild after pull for Omega 3 login');
 } else if (usesSignedOutShell && appSource.includes('Find Your')) {
   console.log('⚠ Bundled JS still uses SignedOutLanding gallery shell — rebuild after pull');
 }

@@ -469,7 +469,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate, ASWebAuthenticationPresen
             } catch (e) {}
           }
 
-          function postNativeOpenLogin() {
+          function postNativeOpenLogin(provider) {
+            provider = provider || 'google';
             try {
               var el = document.getElementById('rb-load-proof');
               if (el) el.textContent = (el.textContent || '') + ' · opening OAuth…';
@@ -478,7 +479,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate, ASWebAuthenticationPresen
               if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.restorebraineNativeSession) {
                 window.webkit.messageHandlers.restorebraineNativeSession.postMessage({
                   action: 'openLogin',
-                  url: getCanonicalOAuthUrl('google')
+                  url: getCanonicalOAuthUrl(provider)
                 });
                 return true;
               }
@@ -488,6 +489,13 @@ class AppDelegate: UIResponder, UIApplicationDelegate, ASWebAuthenticationPresen
 
           window.__restorebraineOpenLoginJsFallback = function () {
             openLoginInSystemBrowser(getCanonicalOAuthUrl('google'), 'google');
+          };
+
+          window.__restorebraineOpenProviderLogin = function (provider) {
+            try { localStorage.removeItem(SIGNED_OUT_KEY); } catch (e) {}
+            var p = provider || 'google';
+            if (postNativeOpenLogin(p)) return;
+            openLoginInSystemBrowser(getCanonicalOAuthUrl(p), p);
           };
 
           window.__restorebraineOpenLogin = function () {
@@ -500,14 +508,24 @@ class AppDelegate: UIResponder, UIApplicationDelegate, ASWebAuthenticationPresen
             if (window.__restorebraineSignInInterceptor) return;
             window.__restorebraineSignInInterceptor = true;
             document.addEventListener('click', function (event) {
-              var target = event.target.closest('button, a, [role="button"]');
+              var target = event.target.closest('button, a, [role="button"], [data-rb-provider], [data-provider]');
               if (!target) return;
               var label = (target.textContent || '').replace(/\s+/g, ' ').trim();
-              if (!/^sign in$/i.test(label)) return;
+              var provider = target.getAttribute('data-rb-provider') || target.getAttribute('data-provider') || '';
+              if (!provider && /google/i.test(label)) provider = 'google';
+              if (!provider && /apple/i.test(label)) provider = 'apple';
+              if (!provider && /microsoft/i.test(label)) provider = 'microsoft';
+              var isProvider = provider || /continue with google|continue with apple|continue with microsoft|sign in with email|sign in with google|sign in with apple|sign in with microsoft/i.test(label);
+              var isSignInButton = /^sign in$/i.test(label);
+              if (!isSignInButton && !isProvider) return;
               event.preventDefault();
               event.stopPropagation();
               event.stopImmediatePropagation();
-              window.__restorebraineOpenLogin();
+              if (provider) {
+                window.__restorebraineOpenProviderLogin(provider);
+              } else {
+                window.__restorebraineOpenLogin();
+              }
             }, true);
           }
 

@@ -38,7 +38,7 @@ Includes since omega-3:
   17af6de  App Store privacy plist
   6c15e97  v82 upload pipeline
   390928b  v83 native-media-input
-  5762b16  v87 UI — SignedOutLanding (Find Your Memories + Sign In)
+  5762b16  v87 UI — SignedOutLanding (Find Your Memories + Sign In) — superseded by Omega 3 SignInScreen on this branch
   f1b2505  OAuth on restorebraine.base44.app
 
 Hosted: phone loads https://restorebraine.base44.app
@@ -169,8 +169,8 @@ if [[ "$MODE" == "hosted" ]]; then
   echo " Green bar should NOT say BUNDLED"
   echo
   echo " AUTH FLOW:"
-  echo "   1. Signed-out landing — Find Your Memories + Sign In button"
-  echo "   2. Tap Sign In → Google OAuth"
+  echo "   1. SignInScreen — Continue With Google / Apple / Microsoft + email"
+  echo "   2. Tap provider → OAuth (system sheet)"
   echo "   3. Gallery — Find Your Memories + search (after login)"
   echo
   echo " src/ gallery changes need Base44 Publish: npm run base44:export-pack"
@@ -181,8 +181,8 @@ else
   echo " EXPECTED green bar: BUNDLED · ${STAMP} · ${ENTRY}"
   echo
   echo " AUTH FLOW:"
-  echo "   1. Signed-out landing — Find Your Memories + Sign In button"
-  echo "   2. Tap Sign In → Google OAuth"
+  echo "   1. SignInScreen — Continue With Google / Apple / Microsoft + email"
+  echo "   2. Tap provider → OAuth (system sheet)"
   echo "   3. Gallery — Find Your Memories + search (after login)"
   echo
   echo " If white screen: Delete app → Restart iPhone → Clean → Run (required every build)"

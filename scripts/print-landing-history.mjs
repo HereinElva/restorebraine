@@ -7,39 +7,35 @@ console.log(`
  SIGNED-OUT LANDING HISTORY (what changed when)
 ═══════════════════════════════════════════════════════════════
 
-BEFORE v87 (5762b16^) — pre-apply baseline many users remember
-  • Full-screen gradient background
-  • Centered white card: Restorebraine logo + "Sign in to access your memories"
-  • Single Sign In button
-  • NO gallery header, NO bottom nav tabs, NO "Find Your Memories" headline
-  • Component: ClassicLoginLanding.jsx (restored)
+THREE login screens in git history:
 
-v87 commit 5762b16 — added SignedOutLanding (WRONG for many users)
-  • "Find Your Memories" inside gallery shell (header + Search/Upload/Account tabs)
-  • Disabled grey search bar + Sign In at bottom
-  • Looks like gallery but you are not logged in
+1) ClassicLoginLanding (pre-v87, 5762b16^)
+   Centered card: Restorebraine + "Sign in to access your memories" + Sign In
+   NO provider buttons
 
-Omega 3 tag — SignInScreen + NativeLoginCard
-  • Full-screen card with Continue with Google / Apple / Microsoft / email
-  • NO gallery shell — different from both above
+2) SignedOutLanding (v87 commit 5762b16) — WRONG for Omega 3 users
+   "Find Your Memories" INSIDE gallery shell (header + bottom tabs)
+   Single Sign In button
 
-commit 6286112 — forced SignedOutLanding for ALL !isAuthenticated (not only auth_error)
-commit 14cfaef — apply default flipped HOSTED → BUNDLED (phone loads Mac ios/public)
-port-omega3-gallery — overwrites Gallery.jsx only (not login shell)
+3) SignInScreen + NativeLoginCard (Omega 3 tag) — CURRENT TARGET
+   Full-screen card, NO gallery tabs:
+   • Continue With Google / Apple / Microsoft
+   • Email + password sign in / sign up
+   • Gradient "Restorebraine" title
 
-WHAT apply:v87-from-omega3 CHANGED ON LOGIN
-  • audit:v87-improvements — READ-ONLY, never changes landing
-  • apply — rebuilds bundled JS + ports gallery files; login = whatever App.jsx uses
-  • mode flip — hosted CDN vs bundled ios/public (different layer, can look like "wrong UI")
-
-CURRENT REPO TARGET (after this fix)
-  • ClassicLoginLanding — pre-v87 centered card (before 5762b16)
-  • Keep OAuth + auth boot fixes from 6709917 / 379a38c
+WHAT apply:v87-from-omega3 ACTUALLY CHANGED
+   audit:v87-improvements — READ-ONLY (never changes landing)
+   port-omega3-gallery — Gallery.jsx only, NOT login shell
+   mode flip — hosted CDN vs bundled ios/public
 
 REBUILD AFTER PULL
-  npm run apply:v87-from-omega3 -- --skip-sync
-  Delete app → Restart iPhone → Xcode Clean → Run
+   npm run apply:v87-from-omega3 -- --skip-sync
+   Delete app → Restart iPhone → Xcode Clean → Run
 
-Green bar should show NEW index-*.js — NOT index-Co8ztVUU.js
+EXPECTED ON PHONE (SignInScreen):
+   Continue With Google / Apple / Microsoft buttons
+   Email + password fields
+   NO bottom Search/Upload/Account tabs
+   NO "Find Your Memories" headline on login
 ═══════════════════════════════════════════════════════════════
 `);

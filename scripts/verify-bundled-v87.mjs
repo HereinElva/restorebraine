@@ -14,6 +14,8 @@ const V87_TIP_COMMIT = V87_TIP;
 /** Omega 3 gallery + v87 branch fixes — not "post-v87 breakdown" artifacts */
 const ALLOWED_AFTER_V87 = new Set([
   ...TIER_FULL,
+  'src/screens/SignInScreen.jsx',
+  'src/components/NativeLoginCard.jsx',
   'ios/App/App/AppDelegate.swift',
   'ios/App/App/BUILD_STAMP.txt',
   'ios/App/App/ghost-builds.txt',
@@ -81,12 +83,21 @@ if (guard.includes('${BASE44_PLATFORM_URL}${path}')) {
 }
 
 const app = read('src/App.jsx');
-if (!app.includes('SignedOutLanding')) errors.push('App.jsx missing SignedOutLanding (v87 UI from 5762b16)');
+const usesOmegaLogin = app.includes('SignInScreen') && existsSync('src/components/NativeLoginCard.jsx');
+const usesSignedOutShell = app.includes('SignedOutLanding');
+if (!usesOmegaLogin && !usesSignedOutShell) {
+  errors.push('App.jsx must route SignInScreen (Omega 3) or SignedOutLanding (v87 gallery shell)');
+}
 if (/NativeLoginProviders|NativePlatformLoginRedirect/.test(app)) {
   errors.push('App.jsx has post-v87 login components');
 }
 
-if (!existsSync('src/components/auth/SignedOutLanding.jsx')) {
+if (usesOmegaLogin) {
+  if (!existsSync('src/screens/SignInScreen.jsx')) errors.push('Missing src/screens/SignInScreen.jsx');
+  if (!read('src/components/NativeLoginCard.jsx').includes('Continue With Google')) {
+    errors.push('NativeLoginCard.jsx missing provider buttons');
+  }
+} else if (!existsSync('src/components/auth/SignedOutLanding.jsx')) {
   errors.push('Missing SignedOutLanding.jsx');
 }
 
@@ -149,7 +160,7 @@ Restore Omega 3 gallery + v87 corrections (bundled, terminal-controlled):
 
 console.log('OK: Bundled v87 verified (Omega 3 gallery + v87 corrections)');
 console.log(`   HEAD ${head} (app code = ${V87_TIP_COMMIT})`);
-console.log(`   UI from ${V87_UI_COMMIT} — Find Your Memories + Sign In`);
+console.log(`   Login: ${usesOmegaLogin ? 'SignInScreen / NativeLoginCard (Omega 3)' : `SignedOutLanding (${V87_UI_COMMIT})`}`);
 console.log(`   Phone loads: capacitor:// bundled ios/public (NOT Base44 CDN)`);
 console.log('');
 console.log('Corrections included since omega-3:');

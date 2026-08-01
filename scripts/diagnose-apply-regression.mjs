@@ -26,6 +26,7 @@ const hostedIos = iosCap.includes('"url"') && iosCap.includes('restorebraine.bas
 const hostedRoot = rootCap.includes('"url"') && rootCap.includes('restorebraine.base44.app');
 const crossorigin = indexHtml.includes('crossorigin');
 const appUsesSignedOut = read('src/App.jsx').includes('SignedOutLanding');
+const appUsesOmegaLogin = read('src/App.jsx').includes('SignInScreen');
 const bundledAssets = existsSync('ios/App/App/public/assets');
 
 console.log(`
@@ -39,20 +40,28 @@ console.log(`  BUILD_STAMP:       ${stamp || '(missing)'}`);
 console.log(`  ios config:        ${hostedIos ? 'HOSTED (live Base44 CDN)' : 'BUNDLED (Mac terminal UI — apply default)'}`);
 console.log(`  root config:       ${hostedRoot ? 'HOSTED' : 'BUNDLED'}`);
 console.log(`  bundled entry:     ${entry}`);
-console.log(`  SignedOutLanding:  ${read('src/App.jsx').includes('ClassicLoginLanding') ? 'no — using ClassicLoginLanding (pre-v87 card)' : appUsesSignedOut ? 'yes (gallery shell)' : 'no — check App.jsx'}`);
+console.log(`  Login landing:     ${appUsesOmegaLogin ? 'SignInScreen / NativeLoginCard (Omega 3)' : read('src/App.jsx').includes('ClassicLoginLanding') ? 'ClassicLoginLanding (pre-v87 card)' : appUsesSignedOut ? 'SignedOutLanding (gallery shell)' : 'unknown — check App.jsx'}`);
 console.log(`  crossorigin:       ${crossorigin ? 'YES ✗ breaks capacitor://' : 'no ✓'}`);
 console.log('');
 
 console.log('  AUTH FLOW (do not confuse):');
-console.log('    Step 1: Signed-out landing — Find Your Memories + Sign In button');
-console.log('    Step 2: Tap Sign In → Google OAuth');
-console.log('    Step 3: Gallery front page — Find Your Memories + search (after login)');
+if (appUsesOmegaLogin) {
+  console.log('    Step 1: SignInScreen — Continue With Google / Apple / Microsoft + email');
+  console.log('    Step 2: Tap provider → OAuth (ASWebAuthenticationSession)');
+  console.log('    Step 3: Gallery — Find Your Memories + search (after login)');
+} else {
+  console.log('    Step 1: Signed-out landing — Find Your Memories + Sign In button');
+  console.log('    Step 2: Tap Sign In → Google OAuth');
+  console.log('    Step 3: Gallery front page — Find Your Memories + search (after login)');
+}
 console.log('');
 
 const problems = [];
 if (!stamp) problems.push('BUILD_STAMP.txt missing — run apply or write-build-info');
 if (crossorigin) problems.push('index.html has crossorigin — breaks capacitor:// bundled load');
-if (!appUsesSignedOut) problems.push('App.jsx missing SignedOutLanding — Step 1 landing will be wrong');
+if (!appUsesOmegaLogin && !appUsesSignedOut && !read('src/App.jsx').includes('ClassicLoginLanding')) {
+  problems.push('App.jsx missing SignInScreen — login landing will be wrong');
+}
 if (!hostedIos && !bundledAssets) problems.push('ios/App/App/public/assets missing — bundled build incomplete');
 if (!hostedIos && entry === '(none)') problems.push('bundled index.html has no entry script');
 

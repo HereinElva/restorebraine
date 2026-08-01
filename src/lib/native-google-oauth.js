@@ -149,6 +149,23 @@ export const openLoginInSystemBrowser = async (url = getGoogleOAuthUrl(), provid
   window.location.assign(normalizedUrl);
 };
 
+export const launchProviderOAuth = (provider = 'google') => {
+  const url = provider === 'google' ? getGoogleOAuthUrl() : getProviderOAuthUrl(provider);
+  if (typeof window !== 'undefined' && typeof window.__restorebraineOpenProviderLogin === 'function') {
+    try {
+      window.__restorebraineOpenProviderLogin(provider);
+      return;
+    } catch (error) {
+      console.warn('Native provider login bridge failed:', error);
+    }
+  }
+  if (typeof window.__restorebraineOpenLogin === 'function') {
+    window.__restorebraineOpenLogin();
+    return;
+  }
+  void openLoginInSystemBrowser(url, provider);
+};
+
 const handleAuthNavigation = (url, providerHint) => {
   openLoginInSystemBrowser(url, providerHint);
 };

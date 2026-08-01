@@ -88,13 +88,24 @@ if (read('src/pages/Gallery.jsx').includes('SignInScreen')) {
   pass('Gallery.jsx uses v87 session-bootstrap (not SignInScreen)');
 }
 
-// ── Section 3: v87 auth/UI (SignedOutLanding, OAuth f1b2505) ──
-console.log('\n3. v87 AUTH + UI (SignedOutLanding, OAuth f1b2505)\n');
-if (existsSync('src/components/auth/SignedOutLanding.jsx')) pass('SignedOutLanding.jsx');
-else fail('Missing SignedOutLanding.jsx');
-
-if (read('src/App.jsx').includes('SignedOutLanding')) pass('App.jsx routes SignedOutLanding');
-else fail('App.jsx missing SignedOutLanding');
+// ── Section 3: v87 auth/UI (Omega 3 SignInScreen or SignedOutLanding, OAuth f1b2505) ──
+console.log('\n3. v87 AUTH + UI (SignInScreen or SignedOutLanding, OAuth f1b2505)\n');
+const appSrc = read('src/App.jsx');
+const usesOmegaLogin = appSrc.includes('SignInScreen') && existsSync('src/components/NativeLoginCard.jsx');
+if (usesOmegaLogin) {
+  pass('App.jsx routes SignInScreen (Omega 3 NativeLoginCard)');
+  if (read('src/components/NativeLoginCard.jsx').includes('Continue With Google')) {
+    pass('NativeLoginCard has Google / Apple / Microsoft providers');
+  } else {
+    fail('NativeLoginCard missing provider buttons');
+  }
+} else if (appSrc.includes('SignedOutLanding')) {
+  pass('App.jsx routes SignedOutLanding (v87 gallery shell)');
+  if (existsSync('src/components/auth/SignedOutLanding.jsx')) pass('SignedOutLanding.jsx');
+  else fail('Missing SignedOutLanding.jsx');
+} else {
+  fail('App.jsx missing SignInScreen or SignedOutLanding');
+}
 
 const guard = read('src/lib/native-platform-guard.js');
 if (guard.includes('${DEFAULT_APP_ORIGIN}${path}') && !guard.includes('${BASE44_PLATFORM_URL}${path}')) {
