@@ -181,14 +181,14 @@ if (staleInHtml.length) {
 }
 
 // ── Section 6: Capacitor mode ──
-console.log('\n6. BUNDLED MODE (terminal-controlled, no CDN ghosts)\n');
+console.log('\n6. CAPACITOR MODE (hosted = v87 baseline)\n');
 const iosCap = read('ios/App/App/capacitor.config.json');
 if (iosCap.includes('"url"') && iosCap.includes('restorebraine.base44.app')) {
-  warn('ios capacitor.config.json still hosted — run build:native-local for bundled apply');
+  pass('Hosted mode: server.url → restorebraine.base44.app (v87 baseline — reliable)');
 } else if (iosCap && !iosCap.includes('restorebraine.base44.app')) {
-  pass('Bundled mode: no server.url in ios/App/App/capacitor.config.json');
+  fail('REGRESSION: ios config is BUNDLED — apply:v87-from-omega3 switched off hosted (white screen). Run: npm run fix:no-change');
 } else {
-  warn('capacitor.config.json state unclear');
+  warn('capacitor.config.json state unclear — run npm run fix:no-change');
 }
 
 // ── Optional fix ──
@@ -208,12 +208,15 @@ for (const e of errors) console.log(`  ✗ ${e}`);
 if (errors.length) {
   console.log(`
 Fix:
-  npm run port:omega3-gallery     Restore Omega 3 gallery stack into v87
-  npm run apply:v87-from-omega3   Full bundled apply + build
-  npm run ghosts:discover         Refresh ghost blocklist
+  npm run fix:no-change             Restore hosted mode (fixes white screen regression)
+  npm run diagnose:apply-regression Explain apply:v87-from-omega3 mode switch
+  npm run port:omega3-gallery       Restore Omega 3 gallery stack into v87
+  npm run apply:v87-from-omega3     Hosted apply (default) + gallery port
+  npm run ghosts:discover           Refresh ghost blocklist
 `);
   process.exit(1);
 }
 
-console.log('ALL IMPROVEMENTS PRESENT — safe for bundled v87 build.');
-console.log('Run: npm run apply:v87-from-omega3 → Xcode Delete app → Clean → Run\n');
+console.log('ALL IMPROVEMENTS PRESENT — safe for hosted v87 build.');
+console.log('Run: npm run fix:no-change → Xcode Delete app → Clean → Run');
+console.log('If you ran apply:v87-from-omega3 before and see white screen: npm run diagnose:apply-regression\n');

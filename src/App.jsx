@@ -5,7 +5,7 @@ import { queryClientInstance } from '@/lib/query-client'
 
 import NavigationTracker from '@/lib/NavigationTracker'
 import { pagesConfig } from './pages.config'
-import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, HashRouter, Route, Routes } from 'react-router-dom';
 import { setupIframeMessaging } from './lib/iframe-messaging';
 import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
@@ -17,6 +17,20 @@ const mainPageKey = mainPage ?? Object.keys(Pages)[0];
 const MainPage = mainPageKey ? Pages[mainPageKey] : <></>;
 
 setupIframeMessaging();
+
+/** BrowserRouter breaks on capacitor:// — use HashRouter for bundled native builds. */
+const NativeRouter = (() => {
+  try {
+    if (typeof __RESTOREBRAINE_NATIVE_LOCAL__ !== 'undefined' && __RESTOREBRAINE_NATIVE_LOCAL__) {
+      return HashRouter;
+    }
+    if (typeof window !== 'undefined') {
+      const p = window.location?.protocol;
+      if (p === 'capacitor:' || p === 'ionic:') return HashRouter;
+    }
+  } catch {}
+  return BrowserRouter;
+})();
 
 const LayoutWrapper = ({ children, currentPageName }) => Layout ?
   <Layout currentPageName={currentPageName}>{children}</Layout>
@@ -87,10 +101,10 @@ function App() {
   return (
     <AuthProvider>
       <QueryClientProvider client={queryClientInstance}>
-        <Router>
+        <NativeRouter>
           <NavigationTracker />
           <AuthenticatedApp />
-        </Router>
+        </NativeRouter>
         <Toaster />
       </QueryClientProvider>
     </AuthProvider>

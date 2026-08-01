@@ -48,8 +48,8 @@ node scripts/diagnose-blockages.mjs || true
 
 echo
 if [[ "$MODE" == "bundled" ]]; then
-  echo "==> [3/5] Bundled v87 build (phone UI from Mac — NOT Base44 CDN)"
-  npm run apply:v87-from-omega3 -- --no-open
+  echo "==> [3/5] Bundled v87 build (experimental — white screen risk)"
+  npm run apply:v87-from-omega3 -- --bundled --no-open
 else
   echo "==> [3/5] Hosted shell + cache purge (UI still from Base44 Publish)"
   node scripts/write-build-info.mjs
