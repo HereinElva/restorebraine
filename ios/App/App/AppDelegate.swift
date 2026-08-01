@@ -50,15 +50,30 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             ?? defaults.string(forKey: "CapacitorStorage.token")
     }
 
-    private func loadGhostBuildFilenames() -> [String] {
-        if let url = Bundle.main.url(forResource: "ghost-builds", withExtension: "txt"),
-           let text = try? String(contentsOf: url, encoding: .utf8) {
-            return text
-                .split(whereSeparator: \.isNewline)
-                .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
-                .filter { !$0.isEmpty && !$0.hasPrefix("#") }
+    private func loadGhostBuildLists() -> (block: [String], allow: [String]) {
+        guard let url = Bundle.main.url(forResource: "ghost-builds", withExtension: "txt"),
+              let text = try? String(contentsOf: url, encoding: .utf8) else {
+            return (
+                ["App-B4VcOATW.js", "App-BMryy2H5.js", "index-CLtZjYMv.js", "index-CJJVGreG.js"],
+                ["index-BtNzh8Fh.js", "App-DvoqTTOC.js", "index-Dzn3_rKv.js"]
+            )
         }
-        return ["App-B4VcOATW.js", "App-BMryy2H5.js", "index-CLtZjYMv.js", "index-CJJVGreG.js"]
+        var block: [String] = []
+        var allow: [String] = []
+        for line in text.split(whereSeparator: \.isNewline) {
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.isEmpty || trimmed.hasPrefix("#") { continue }
+            if trimmed.hasPrefix("+") {
+                let name = trimmed.dropFirst().trimmingCharacters(in: .whitespaces)
+                if !name.isEmpty { allow.append(String(name)) }
+            } else {
+                block.append(trimmed)
+            }
+        }
+        if block.isEmpty {
+            block = ["App-B4VcOATW.js", "App-BMryy2H5.js", "index-CLtZjYMv.js", "index-CJJVGreG.js"]
+        }
+        return (block, allow)
     }
 
     private func purgeGhostBuildCacheIfNeeded() {
@@ -74,14 +89,17 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         URLCache.shared.removeAllCachedResponses()
     }
 
-    private func sessionBridgeScript(for buildLabel: String, syncToken: String, ghostFiles: [String]) -> String {
+    private func sessionBridgeScript(for buildLabel: String, syncToken: String, ghostBlock: [String], ghostAllow: [String]) -> String {
         let escapedLabel = buildLabel
             .replacingOccurrences(of: "\\", with: "\\\\")
             .replacingOccurrences(of: "'", with: "\\'")
         let escapedToken = syncToken
             .replacingOccurrences(of: "\\", with: "\\\\")
             .replacingOccurrences(of: "'", with: "\\'")
-        let ghostJs = ghostFiles
+        let ghostJs = ghostBlock
+            .map { "'\($0.replacingOccurrences(of: "'", with: "\\'"))'" }
+            .joined(separator: ", ")
+        let allowJs = ghostAllow
             .map { "'\($0.replacingOccurrences(of: "'", with: "\\'"))'" }
             .joined(separator: ", ")
 
@@ -101,11 +119,20 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
           (function purgeGhostBuilds() {
             var GHOST_FILES = [\#(ghostJs)];
+            var ALLOW_FILES = [\#(allowJs)];
             var STALE_APPS = ['App-B4VcOATW.js', 'App-BMryy2H5.js'];
             var STALE_INDICES = ['index-CLtZjYMv.js', 'index-CJJVGreG.js'];
             var HOST = 'https://restorebraine.base44.app';
-            function isGhostUrl(url) {
+            var reloadCount = 0;
+            function isAllowed(url) {
               if (!url) return false;
+              for (var a = 0; a < ALLOW_FILES.length; a++) {
+                if (url.indexOf(ALLOW_FILES[a]) >= 0) return true;
+              }
+              return false;
+            }
+            function isGhostUrl(url) {
+              if (!url || isAllowed(url)) return false;
               for (var s = 0; s < STALE_APPS.length; s++) {
                 if (url.indexOf(STALE_APPS[s]) >= 0) return true;
               }
@@ -119,6 +146,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             }
             function reloadFresh() {
               if (location.search.indexOf('rb_nocache=') >= 0) return;
+              if (reloadCount >= 3) return;
+              reloadCount++;
               location.replace(HOST + '/?rb_nocache=' + Date.now());
             }
             function verifyLiveEntry() {
@@ -1002,11 +1031,13 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         let userContentController = bridge.webView?.configuration.userContentController
         guard let userContentController = userContentController else { return }
 
+        let lists = loadGhostBuildLists()
         let script = WKUserScript(
             source: sessionBridgeScript(
                 for: nativeBuildLabel,
                 syncToken: storedNativeToken() ?? "",
-                ghostFiles: loadGhostBuildFilenames()
+                ghostBlock: lists.block,
+                ghostAllow: lists.allow
             ),
             injectionTime: .atDocumentStart,
             forMainFrameOnly: true

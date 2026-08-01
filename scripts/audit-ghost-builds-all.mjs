@@ -115,7 +115,7 @@ if (existsSync(ghostBlockPath)) {
   const blocklist = readFileSync(ghostBlockPath, 'utf8')
     .split('\n')
     .map((l) => l.trim())
-    .filter((l) => l && !l.startsWith('#'));
+    .filter((l) => l && !l.startsWith('#') && !l.startsWith('+'));
   pass(`ghost-builds.txt blocklist: ${blocklist.length} CDN files blocked on device`);
 } else {
   warn.push('ghost-builds.txt missing — run npm run ghosts:discover');
@@ -136,7 +136,8 @@ console.log('▶ LAYER 3 — Base44 live CDN');
 
 const report = await discoverGhostBuilds();
 console.log(`  Live entry: ${report.live.index} → ${report.live.app}`);
-console.log(`  CDN ghosts: ${report.stats.ghosts} still HTTP 200 (cannot delete from terminal)`);
+console.log(`  CDN ghosts: ${report.stats.cdnGhosts ?? 0} stale files still HTTP 200`);
+console.log(`  Device blocklist: ${report.stats.deviceBlocklist ?? report.deviceBlocklist?.length ?? '?'} WKWebView cache blockers`);
 console.log(`  CDN gone:   ${report.stats.gone404} candidates return 404`);
 
 if (report.live.app === STALE_APP) {
