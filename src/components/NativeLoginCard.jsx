@@ -5,12 +5,18 @@ import { launchProviderOAuth } from '@/lib/native-google-oauth';
 const BRAND_GRADIENT = 'linear-gradient(135deg,#60a5fa,#a78bfa)';
 
 const cardStyle = {
-  minHeight: '100vh',
+  position: 'fixed',
+  inset: 0,
+  height: '100dvh',
+  maxHeight: '100dvh',
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
+  boxSizing: 'border-box',
+  overflow: 'hidden',
+  overscrollBehavior: 'none',
   background: 'linear-gradient(135deg,#eff6ff,#f5f3ff,#fdf2f8)',
-  padding: '20px',
+  padding: 'max(16px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left))',
 };
 
 const formStyle = {
