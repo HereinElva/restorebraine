@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
 # apply-v87-from-omega3.sh — Omega 3 gallery + v87 corrections
 #
-# Default: HOSTED (v87 baseline — reliable on iPhone, loads live Base44)
-# Bundled (experimental): npm run apply:v87-from-omega3 -- --bundled
+# Default: BUNDLED (Mac terminal controls UI — worked for Step 1 landing)
+# Hosted: npm run apply:v87-from-omega3 -- --hosted
 #
 # IMPORTANT: audit:v87-improvements is READ-ONLY — it never changes phone or mode.
 # Regression in commit 14cfaef was flipping default to BUNDLED (not the audit).
 #
 # Usage:
-#   npm run apply:v87-from-omega3              # hosted (recommended — pre-regression default)
-#   npm run apply:v87-from-omega3 -- --bundled # Mac UI without Base44 Publish (experimental)
+#   npm run apply:v87-from-omega3              # bundled (default — Mac terminal UI)
+#   npm run apply:v87-from-omega3 -- --hosted  # live Base44 CDN
 #   npm run apply:v87-from-omega3 -- --no-open
 set -euo pipefail
 
@@ -17,7 +17,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
 BRANCH="${APPLY_BRANCH:-cursor/apple-privacy-plist-bacf}"
-MODE="hosted"
+MODE="bundled"
 OPEN_XCODE=1
 SKIP_SYNC=0
 
@@ -31,8 +31,8 @@ for arg in "$@"; do
       cat << 'EOF'
 Apply v87 on top of Omega 3 — gallery + corrections
 
-  npm run apply:v87-from-omega3              Hosted (default — v87 baseline, reliable on iPhone)
-  npm run apply:v87-from-omega3 -- --bundled   Bundled ios/public (experimental — spinner/ghost risk)
+  npm run apply:v87-from-omega3              Bundled ios/public (default — Mac terminal UI)
+  npm run apply:v87-from-omega3 -- --hosted  Live Base44 CDN
 
 Includes since omega-3:
   17af6de  App Store privacy plist
@@ -68,9 +68,13 @@ wipe_build_debris() {
 
 banner "APPLY v87 FROM OMEGA 3 — mode: $MODE"
 
+if [[ "$MODE" == "hosted" ]]; then
+  echo " Hosted mode — phone loads live Base44 CDN"
+  echo
+fi
+
 if [[ "$MODE" == "bundled" ]]; then
-  echo " ⚠  BUNDLED mode — stale token spinner / ghost bundle risk"
-  echo "    Default (hosted): npm run apply:v87-from-omega3"
+  echo " Bundled mode — Mac terminal pushes UI to iPhone (ios/public)"
   echo
 fi
 

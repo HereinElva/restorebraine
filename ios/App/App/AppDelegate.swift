@@ -94,24 +94,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 
     private func purgeGhostBuildCacheIfNeeded() {
-        // Bundled ios/public — skip WK purge/reload (causes white screen on capacitor://)
-        if isBundledCapacitorMode() { return }
-
-        let defaults = UserDefaults.standard
-        let key = "rb_wk_cache_purge_build"
-        let current = nativeBuildLabel
-        guard defaults.string(forKey: key) != current else { return }
-        defaults.set(current, forKey: key)
-        needsFreshLoadAfterCachePurge = true
-
-        let dataStore = WKWebsiteDataStore.default()
-        let types = WKWebsiteDataStore.allWebsiteDataTypes()
-        dataStore.removeData(ofTypes: types, modifiedSince: Date(timeIntervalSince1970: 0)) { [weak self] in
-            DispatchQueue.main.async {
-                self?.reloadAfterCachePurgeIfNeeded()
-            }
-        }
-        URLCache.shared.removeAllCachedResponses()
+        // WK purge + reload races first paint — white screen on hosted and bundled Capacitor shells.
+        // Ghost stale bundles are handled by purgeGhostBuilds JS after page load instead.
+        return
     }
 
     private func reloadAfterCachePurgeIfNeeded() {
@@ -217,7 +202,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             (document.head || document.documentElement).appendChild(style);
           })();
 
-          (function purgeGhostBuilds() {
+          (function purgeGhostBuildsDeferred() {
+            function runPurgeGhostBuilds() {
             // Bundled mode (capacitor://) — never redirect to hosted or block local assets
             if (location.protocol === 'capacitor:') return;
             // Only run ghost purge on live hosted app origin
@@ -263,9 +249,14 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                   if (hasStaleScriptInDom()) reloadFresh();
                 }).catch(function() {});
             }
-            // DOM + live CDN probe only — do NOT scan performance entries (409 cached hashes false-positive)
             if (hasStaleScriptInDom()) { reloadFresh(); return; }
             verifyLiveEntry();
+            }
+            if (document.readyState === 'complete') {
+              setTimeout(runPurgeGhostBuilds, 1500);
+            } else {
+              window.addEventListener('load', function () { setTimeout(runPurgeGhostBuilds, 1500); }, { once: true });
+            }
           })();
 
           var RESTOREBRAINE = 'https://restorebraine.base44.app';
@@ -1041,7 +1032,14 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
               try { window.dispatchEvent(new CustomEvent('restorebraine-session-updated')); } catch (e) {}
             }
           }, 800);
-          installPlatformGuard();
+          function deferPlatformGuard() {
+            if (document.readyState === 'loading') {
+              document.addEventListener('DOMContentLoaded', installPlatformGuard, { once: true });
+            } else {
+              setTimeout(installPlatformGuard, 0);
+            }
+          }
+          deferPlatformGuard();
           document.addEventListener('visibilitychange', function () {
             if (document.visibilityState === 'hidden') persistToken();
           });
@@ -1101,7 +1099,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                 ghostBlock: lists.block,
                 ghostAllow: lists.allow
             ),
-            injectionTime: .atDocumentStart,
+            injectionTime: .atDocumentEnd,
             forMainFrameOnly: true
         )
         userContentController.addUserScript(script)
