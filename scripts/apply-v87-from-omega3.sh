@@ -133,6 +133,7 @@ echo
 echo "==> [8/8] Audits"
 node scripts/audit-v87-improvements.mjs || true
 node scripts/audit-interference.mjs || true
+node scripts/audit-pre-build.mjs
 
 banner "NEXT ON IPHONE (required every build)"
 echo " 1. Delete Restorebraine from iPhone"

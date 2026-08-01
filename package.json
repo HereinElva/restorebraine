@@ -24,6 +24,7 @@
     "mac:terminal-build": "bash scripts/mac-terminal-build.sh",
     "port:omega3-gallery": "node scripts/port-omega3-gallery-to-v87.mjs",
     "audit:v87-improvements": "node scripts/audit-v87-improvements.mjs",
+    "audit:pre-build": "node scripts/audit-pre-build.mjs",
     "audit:interference": "node scripts/audit-interference.mjs",
     "fix:no-change": "bash scripts/fix-no-change.sh",
     "diagnose:apply-regression": "node scripts/diagnose-apply-regression.mjs",
