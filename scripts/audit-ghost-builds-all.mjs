@@ -145,15 +145,21 @@ if (report.live.app === STALE_APP) {
   pass(`Live App is NOT stale ${STALE_APP}`);
 }
 
-if (report.stats.ghosts === 0) {
-  pass('No ghost assets on CDN');
+if (report.stats.cdnGhosts === 0) {
+  pass('No stale ghost assets on CDN (live tree OK)');
 } else {
-  note(`${report.stats.ghosts} ghost files remain on CDN (expected — Base44 never deletes hashed files)`);
-  for (const g of report.ghosts) {
+  note(`${report.stats.cdnGhosts} stale files still HTTP 200 on CDN`);
+  for (const g of report.cdnGhosts ?? report.ghosts.filter((x) => x.onCdn)) {
     console.log(`    ✗ ${g.file}${g.linkedFrom ? ` (${g.linkedFrom})` : ''}`);
   }
-  note('Device fix: npm run ghosts:eliminate + Delete app + Xcode Clean → Run');
-  note('Or bypass CDN: npm run revert:terminal (bundled omega-3)');
+  note('Device fix: npm run ghosts:eliminate + Delete app + Restart iPhone + Xcode Clean → Run');
+}
+
+if (report.deviceBlocklist?.length) {
+  pass(`Device blocklist: ${report.deviceBlocklist.length} cached stale bundles blocked (not live deps)`);
+  if (report.deviceBlocklist.includes('index-Dzn3_rKv.js')) {
+    fail('BLOCKLIST BUG: index-Dzn3_rKv.js is a LIVE dependency — would break app');
+  }
 }
 
 // Live deploy meta

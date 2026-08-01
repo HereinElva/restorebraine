@@ -58,7 +58,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                 .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
                 .filter { !$0.isEmpty && !$0.hasPrefix("#") }
         }
-        return ["App-B4VcOATW.js", "App-BMryy2H5.js", "index-CLtZjYMv.js"]
+        return ["App-B4VcOATW.js", "App-BMryy2H5.js", "index-CLtZjYMv.js", "index-CJJVGreG.js"]
     }
 
     private func purgeGhostBuildCacheIfNeeded() {
@@ -101,9 +101,17 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
           (function purgeGhostBuilds() {
             var GHOST_FILES = [\#(ghostJs)];
+            var STALE_APPS = ['App-B4VcOATW.js', 'App-BMryy2H5.js'];
+            var STALE_INDICES = ['index-CLtZjYMv.js', 'index-CJJVGreG.js'];
             var HOST = 'https://restorebraine.base44.app';
             function isGhostUrl(url) {
               if (!url) return false;
+              for (var s = 0; s < STALE_APPS.length; s++) {
+                if (url.indexOf(STALE_APPS[s]) >= 0) return true;
+              }
+              for (var t = 0; t < STALE_INDICES.length; t++) {
+                if (url.indexOf(STALE_INDICES[t]) >= 0) return true;
+              }
               for (var i = 0; i < GHOST_FILES.length; i++) {
                 if (url.indexOf(GHOST_FILES[i]) >= 0) return true;
               }
@@ -112,6 +120,24 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             function reloadFresh() {
               if (location.search.indexOf('rb_nocache=') >= 0) return;
               location.replace(HOST + '/?rb_nocache=' + Date.now());
+            }
+            function verifyLiveEntry() {
+              fetch(HOST + '/?rb_probe=' + Date.now(), { cache: 'no-store' })
+                .then(function(r) { return r.text(); })
+                .then(function(html) {
+                  var m = html.match(/\/assets\/(index-[^"]+\.js)/);
+                  if (!m) return;
+                  var liveIndex = m[1];
+                  if (isGhostUrl(liveIndex)) { reloadFresh(); return; }
+                  var scripts = document.querySelectorAll('script[src*="/assets/index-"]');
+                  for (var k = 0; k < scripts.length; k++) {
+                    var src = scripts[k].getAttribute('src') || '';
+                    if (src.indexOf(liveIndex) < 0) { reloadFresh(); return; }
+                  }
+                  for (var a = 0; a < STALE_APPS.length; a++) {
+                    if (document.querySelector('script[src*="' + STALE_APPS[a] + '"]')) { reloadFresh(); return; }
+                  }
+                }).catch(function() {});
             }
             try {
               var entries = performance.getEntriesByType('resource');
@@ -132,16 +158,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             fetch(HOST + '/?rb_probe=' + Date.now(), { cache: 'no-store' })
               .then(function(r) { return r.text(); })
               .then(function(html) {
-                var m = html.match(/\/assets\/(index-[^"]+\.js)/);
-                if (!m) return;
-                var liveIndex = m[1];
-                if (isGhostUrl(liveIndex)) { reloadFresh(); return; }
-                var scripts = document.querySelectorAll('script[src*="/assets/index-"]');
-                for (var k = 0; k < scripts.length; k++) {
-                  var src = scripts[k].getAttribute('src') || '';
-                  if (src.indexOf(liveIndex) < 0) { reloadFresh(); return; }
-                }
+                verifyLiveEntry();
               }).catch(function() {});
+            verifyLiveEntry();
           })();
 
           var RESTOREBRAINE = 'https://restorebraine.base44.app';
