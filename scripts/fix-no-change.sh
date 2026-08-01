@@ -1,19 +1,17 @@
 #!/usr/bin/env bash
-# fix-no-change.sh — one Mac command when iPhone UI still shows "no change"
+# fix-no-change.sh — one Mac command when iPhone UI still shows white screen / no change
 #
-# Default: BUNDLED mode (phone UI from Mac/ios/public — NOT Base44 CDN)
-#
-# Usage:
-#   npm run fix:no-change
-#   npm run fix:no-change -- --hosted
+# Default: HOSTED mode (loads live Base44 — most reliable on iPhone)
+# Bundled (experimental): npm run fix:no-change -- --bundled
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-MODE="bundled"
+MODE="hosted"
 for arg in "$@"; do
   case "$arg" in
+    --bundled) MODE="bundled" ;;
     --hosted) MODE="hosted" ;;
   esac
 done
@@ -66,12 +64,12 @@ echo
 if [[ "$MODE" == "bundled" ]]; then
   STAMP="$(tr -d '\n' < ios/App/App/BUILD_STAMP.txt 2>/dev/null || echo '?')"
   ENTRY="$(grep -oE 'index-[^"]+\.js' ios/App/App/public/index.html 2>/dev/null | head -1 || echo '?')"
-  echo " PROOF: green bar at bottom of app must show:"
-  echo "   BUNDLED · ${STAMP} · ${ENTRY}"
-  echo ""
-  echo " If bar says HOSTED or old stamp → build did not reach phone (repeat steps above)"
+  echo " Bundled mode: look for green bar: BUNDLED · ${STAMP} · ${ENTRY}"
+  echo " If still white screen, retry with hosted mode:"
+  echo "   npm run fix:no-change -- --hosted"
 else
-  echo " Hosted: phone loads https://restorebraine.base44.app"
+  echo " Hosted: phone loads https://restorebraine.base44.app (reliable — no white screen)"
   echo " UI changes need Base44 Publish: npm run base44:export-pack"
+  echo " For Mac-only UI (experimental): npm run fix:no-change -- --bundled"
 fi
 echo "══════════════════════════════════════════════════════════════"

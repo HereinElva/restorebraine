@@ -37,6 +37,10 @@ export const installNativeOAuthFix = () => {
   const startGuards = () => {
     if (!isNativeShell()) return;
     installNativeGoogleOAuthBrowser();
+    // Bundled: skip platform location guards — AppDelegate uses minimal bridge; React handles OAuth
+    try {
+      if (window.location?.protocol === 'capacitor:' || window.location?.protocol === 'ionic:') return;
+    } catch {}
     installNativePlatformGuard();
   };
   if (document.readyState === 'complete' || document.readyState === 'interactive') {

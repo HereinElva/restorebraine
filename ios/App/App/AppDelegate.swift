@@ -147,6 +147,47 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         }
     }
 
+    private func bundledMinimalBridgeScript(for buildLabel: String, syncToken: String) -> String {
+        let escapedLabel = buildLabel
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "'", with: "\\'")
+        let escapedToken = syncToken
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "'", with: "\\'")
+
+        // Minimal bridge for bundled ios/public — NO Location.prototype patches at document start (white screen)
+        return #"""
+        (function () {
+          window.__RESTOREBRAINE_NATIVE_BUILD__ = '\#(escapedLabel)';
+          window.__restorebraineMinimalBridge = true;
+          var syncToken = '\#(escapedToken)';
+          if (syncToken) {
+            try {
+              localStorage.removeItem('b44_signed_out');
+              localStorage.setItem('base44_access_token', syncToken);
+              localStorage.setItem('token', syncToken);
+            } catch (e) {}
+          }
+          function showLoadProof() {
+            try {
+              var el = document.getElementById('rb-load-proof');
+              if (!el) {
+                el = document.createElement('div');
+                el.id = 'rb-load-proof';
+                el.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:999999;font:10px/1.3 ui-monospace,monospace;background:rgba(0,0,0,0.82);color:#4ade80;padding:5px 8px;text-align:center;pointer-events:none;';
+                (document.body || document.documentElement).appendChild(el);
+              }
+              var script = document.querySelector('script[src*="index-"]');
+              var bundle = script ? ((script.getAttribute('src') || '').split('/').pop() || '?') : '?';
+              el.textContent = 'BUNDLED · ' + '\#(escapedLabel)' + ' · ' + bundle;
+            } catch (e) {}
+          }
+          if (document.readyState === 'complete') showLoadProof();
+          else window.addEventListener('load', showLoadProof, { once: true });
+        })();
+        """#
+    }
+
     private func sessionBridgeScript(for buildLabel: String, syncToken: String, ghostBlock: [String], ghostAllow: [String]) -> String {
         let escapedLabel = buildLabel
             .replacingOccurrences(of: "\\", with: "\\\\")
@@ -1030,6 +1071,24 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         let userContentController = bridge.webView?.configuration.userContentController
         guard let userContentController = userContentController else { return }
 
+        userContentController.removeScriptMessageHandler(forName: "restorebraineNativeSession")
+        userContentController.add(sessionMessageHandler, name: "restorebraineNativeSession")
+
+        let bundled = isBundledCapacitorMode()
+        if bundled {
+            let minimal = bundledMinimalBridgeScript(
+                for: nativeBuildLabel,
+                syncToken: storedNativeToken() ?? ""
+            )
+            let script = WKUserScript(
+                source: minimal,
+                injectionTime: .atDocumentEnd,
+                forMainFrameOnly: true
+            )
+            userContentController.addUserScript(script)
+            return
+        }
+
         let lists = loadGhostBuildLists()
         let script = WKUserScript(
             source: sessionBridgeScript(
@@ -1041,8 +1100,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             injectionTime: .atDocumentStart,
             forMainFrameOnly: true
         )
-        userContentController.removeScriptMessageHandler(forName: "restorebraineNativeSession")
-        userContentController.add(sessionMessageHandler, name: "restorebraineNativeSession")
         userContentController.addUserScript(script)
     }
 

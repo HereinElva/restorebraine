@@ -46,10 +46,19 @@ console.log(`
 
 // ── 1. AppDelegate ghost purge ───────────────────────────────────────────────
 const delegate = read('ios/App/App/AppDelegate.swift');
+const iosCapText = read('ios/App/App/capacitor.config.json');
+const iosBundled = iosCapText && !iosCapText.includes('"url"');
+
+if (delegate.includes('bundledMinimalBridgeScript') || delegate.includes('__restorebraineMinimalBridge')) {
+  ok('AppDelegate bundled mode uses minimal bridge (no Location patches at boot)');
+} else if (iosBundled && delegate.includes('installLocationNavigationGuard')) {
+  bad('AppDelegate full bridge on bundled — Location patches cause white screen');
+}
+
 if (delegate.includes('if (location.protocol === \'capacitor:\') return')) {
   ok('AppDelegate purgeGhostBuilds skips bundled (capacitor://)');
-} else {
-  bad('AppDelegate purgeGhostBuilds still runs on bundled — can redirect to hosted CDN');
+} else if (!iosBundled) {
+  note('Hosted mode — ghost purge active on restorebraine.base44.app');
 }
 
 if (delegate.includes("location.search.indexOf('rb_nocache=') >= 0) return")) {

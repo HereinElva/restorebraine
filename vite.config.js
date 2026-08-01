@@ -20,8 +20,14 @@ export default defineConfig(({ mode }) => {
         name: 'capacitor-strip-crossorigin',
         apply: 'build',
         transformIndexHtml(html) {
-          // crossorigin on module scripts breaks WKWebView capacitor:// loading (white screen)
-          return html.replace(/\s+crossorigin(?:="[^"]*")?/g, '');
+          let out = html.replace(/\s+crossorigin(?:="[^"]*")?/g, '');
+          // Bundled capacitor:// does not need hosted-only redirect scripts (can block boot)
+          if (process.env.NATIVE_LOCAL === '1') {
+            return out
+              .replace(/<script src="\.\/native-oauth-return\.js"><\/script>\s*/g, '')
+              .replace(/<script src="\.\/login-redirect\.js"><\/script>\s*/g, '');
+          }
+          return out;
         },
       },
       {
