@@ -10,7 +10,7 @@ import { setupIframeMessaging } from './lib/iframe-messaging';
 import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
-import SignedOutLanding from '@/components/auth/SignedOutLanding';
+import ClassicLoginLanding from '@/components/auth/ClassicLoginLanding';
 
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
@@ -44,11 +44,7 @@ const AuthenticatedApp = () => {
     navigateToLogin();
   };
 
-  const signedOutView = (
-    <LayoutWrapper currentPageName={mainPageKey}>
-      <SignedOutLanding onSignIn={handleSignIn} />
-    </LayoutWrapper>
-  );
+  const signedOutView = <ClassicLoginLanding onSignIn={handleSignIn} />;
 
   if (manuallyLoggedOut) {
     return signedOutView;
@@ -56,11 +52,9 @@ const AuthenticatedApp = () => {
 
   if (isLoadingAuth) {
     return (
-      <LayoutWrapper currentPageName={mainPageKey}>
-        <div className="pt-24 flex items-center justify-center min-h-[50vh]">
-          <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin" />
-        </div>
-      </LayoutWrapper>
+      <div className="fixed inset-0 flex items-center justify-center bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
+        <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin" />
+      </div>
     );
   }
 

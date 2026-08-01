@@ -54,6 +54,8 @@ if (appJsName) {
   } catch {}
 }
 const hasSignInFeedback = appSource.includes('Opening sign in');
+const usesClassicLanding = read('src/App.jsx').includes('ClassicLoginLanding');
+const usesSignedOutShell = read('src/App.jsx').includes('SignedOutLanding');
 const hasNativeOAuthBridge = read('ios/App/App/AppDelegate.swift').includes('ASWebAuthenticationSession');
 
 console.log('✓ Bundled mode OK. After Xcode Run, look for green bar at bottom:');
@@ -68,6 +70,12 @@ if (!hasSignInFeedback) {
     console.log('  ✗ index-Co8ztVUU.js is the OLD git bundle — causes auth spinner + Sign In no-change');
   }
   process.exit(3);
+}
+
+if (usesClassicLanding && appSource.includes('Sign in to access your memories')) {
+  console.log('✓ Bundled JS uses ClassicLoginLanding (pre-v87 centered card — not gallery shell)');
+} else if (usesSignedOutShell && appSource.includes('Find Your')) {
+  console.log('⚠ Bundled JS still uses SignedOutLanding gallery shell — rebuild after pull');
 }
 
 if (!hasNativeOAuthBridge) {
