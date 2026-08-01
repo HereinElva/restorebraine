@@ -1,4 +1,4 @@
-import React, { createContext, useState, useContext, useEffect } from 'react';
+import React, { createContext, useState, useContext, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import { appParams } from '@/lib/app-params';
 import { createAxiosClient } from '@base44/sdk/dist/utils/axios-client';
@@ -47,27 +47,40 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
-  const [isLoadingPublicSettings, setIsLoadingPublicSettings] = useState(true);
+  const [isLoadingPublicSettings, setIsLoadingPublicSettings] = useState(false);
   const [authError, setAuthError] = useState(null);
   const [appPublicSettings, setAppPublicSettings] = useState(null);
   const [manuallyLoggedOut, setManuallyLoggedOut] = useState(false);
+  const authBootInFlightRef = useRef(false);
 
   useEffect(() => {
     checkAppState();
   }, []);
 
+  const finishAuthBoot = ({ loadingAuth = false, error = null } = {}) => {
+    authBootInFlightRef.current = false;
+    setIsLoadingPublicSettings(false);
+    setIsLoadingAuth(loadingAuth);
+    if (error) {
+      setAuthError(error);
+    }
+  };
+
   const checkAppState = async () => {
     let finished = false;
+    authBootInFlightRef.current = true;
     const timeout = window.setTimeout(() => {
       if (finished) return;
       finished = true;
-      setIsLoadingPublicSettings(false);
-      setIsLoadingAuth(false);
-      setAuthError((current) => current ?? { type: 'auth_required', message: 'Session check timed out' });
+      if (isBundledNativeShell() && hasStoredAuthToken()) {
+        void clearNativeSession().catch(() => {});
+      }
+      finishAuthBoot({
+        error: { type: 'auth_required', message: 'Session check timed out' },
+      });
     }, AUTH_BOOT_TIMEOUT_MS);
 
     try {
-      setIsLoadingPublicSettings(true);
       setIsLoadingAuth(true);
       setAuthError(null);
 
@@ -103,11 +116,13 @@ export const AuthProvider = ({ children }) => {
         if (appParams.token) {
           await checkUserAuth();
         } else {
-          setIsLoadingAuth(false);
           setIsAuthenticated(false);
           setAuthError({ type: 'auth_required', message: 'Authentication required' });
         }
-        setIsLoadingPublicSettings(false);
+
+        if (!finished) {
+          finishAuthBoot();
+        }
       } catch (appError) {
         if (finished) return;
         console.error('App state check failed:', appError);
@@ -129,23 +144,27 @@ export const AuthProvider = ({ children }) => {
           setAuthError({ type: 'auth_required', message: 'Authentication required' });
         }
 
-        setIsLoadingPublicSettings(false);
-        setIsLoadingAuth(false);
+        finishAuthBoot();
       }
     } catch (error) {
       if (finished) return;
       console.error('Unexpected error:', error);
-      setAuthError({ type: 'auth_required', message: error.message || 'Authentication required' });
-      setIsLoadingPublicSettings(false);
-      setIsLoadingAuth(false);
+      finishAuthBoot({
+        error: { type: 'auth_required', message: error.message || 'Authentication required' },
+      });
     } finally {
       finished = true;
       window.clearTimeout(timeout);
+      authBootInFlightRef.current = false;
+      setIsLoadingPublicSettings(false);
     }
   };
 
   const checkUserAuth = async ({ ignoreManualLogout = false, silent = false } = {}) => {
-    if (manuallyLoggedOut && !ignoreManualLogout) return;
+    if (manuallyLoggedOut && !ignoreManualLogout) {
+      if (!silent) setIsLoadingAuth(false);
+      return;
+    }
 
     try {
       if (!silent) setIsLoadingAuth(true);
@@ -237,6 +256,7 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     const onSessionUpdated = () => {
+      if (authBootInFlightRef.current) return;
       if (!hasStoredAuthToken()) return;
       void resumeActiveSession();
     };

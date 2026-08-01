@@ -37,7 +37,7 @@ const LayoutWrapper = ({ children, currentPageName }) => Layout ?
   : <>{children}</>;
 
 const AuthenticatedApp = () => {
-  const { isLoadingAuth, isLoadingPublicSettings, authError, isAuthenticated, navigateToLogin, manuallyLoggedOut } = useAuth();
+  const { isLoadingAuth, authError, isAuthenticated, navigateToLogin, manuallyLoggedOut } = useAuth();
 
   const handleSignIn = () => {
     try { localStorage.removeItem('b44_signed_out'); } catch {}
@@ -55,8 +55,8 @@ const AuthenticatedApp = () => {
     return signedOutView;
   }
 
-  // Show loading spinner while checking app public settings or auth
-  if (isLoadingPublicSettings || isLoadingAuth) {
+  // Show loading spinner while auth session is being resolved (not public-settings — that is background-only)
+  if (isLoadingAuth) {
     return (
       <LayoutWrapper currentPageName={mainPageKey}>
         <div className="pt-24 flex items-center justify-center min-h-[50vh]">

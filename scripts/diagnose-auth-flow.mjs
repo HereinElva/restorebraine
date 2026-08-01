@@ -90,8 +90,8 @@ console.log('WHAT YOUR MAC COMMANDS CHANGE');
 console.log('');
 console.log('  npm run apply:v87-from-omega3');
 console.log('    • Ports Omega 3 gallery improvements into src/ (GitHub files)');
-console.log('    • OLD: forced bundled → white screen');
-console.log('    • NEW default: hosted shell only — UI on phone = live Base44 CDN');
+console.log('    • Default: BUNDLED mode — phone loads capacitor:// ios/public from Mac/Xcode');
+console.log('    • Does NOT use Base44 Publish — terminal Mac controls UI');
 console.log('');
 console.log('  npm run fix:no-change');
 console.log('    • git reset --hard → syncs to branch (does NOT delete committed gallery files)');
@@ -100,12 +100,12 @@ console.log('    • Updates native shell only (AppDelegate, BUILD_STAMP, ghost 
 console.log('    • Does NOT Base44 Publish → omega3 gallery tweaks may be missing on CDN');
 console.log('');
 console.log('  npm run audit:v87-improvements');
-console.log('    • Read-only check — never changes phone or build mode');
+console.log('    • Read-only check — never changes phone, build mode, or src/');
 console.log('');
 
 console.log('CURRENT STATE');
 console.log(`  BUILD_STAMP:        ${stamp || '(missing)'}`);
-console.log(`  Phone mode:         ${hosted ? 'HOSTED (live Base44 CDN)' : 'BUNDLED (ios/public — white screen risk)'}`);
+console.log(`  Phone mode:         ${hosted ? 'HOSTED (live Base44 CDN)' : 'BUNDLED (ios/public — Mac terminal controls UI)'}`);
 console.log(`  GitHub Omega3 files: ${githubHasOmega3 ? 'present ✓' : 'MISSING — run npm run port:omega3-gallery'}`);
 console.log(`  Live CDN entry:     ${liveIndex} → ${liveApp}`);
 console.log(`  Live has Sign In flow: ${liveHasSignedOut ? 'yes ✓' : 'unknown (minified)'}`);
@@ -116,9 +116,9 @@ const issues = [];
 
 if (!hosted) {
   issues.push({
-    title: 'Phone is in BUNDLED mode (white screen risk)',
-    why: 'fix:no-change should set hosted; if you ran apply:v87 --bundled, phone loads capacitor://',
-    fix: 'npm run fix:no-change   then Delete app → Restart iPhone → Clean → Run',
+    title: 'Phone is in BUNDLED mode (Mac terminal workflow)',
+    why: 'apply:v87-from-omega3 defaults to bundled — phone loads capacitor:// ios/public, not Base44 CDN',
+    fix: 'Expected for terminal-only builds. Delete app → Restart iPhone → Clean → Run. Green bar must say BUNDLED.',
   });
 }
 
