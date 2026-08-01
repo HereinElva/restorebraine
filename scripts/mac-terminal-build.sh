@@ -12,3 +12,4 @@ git reset --hard origin/cursor/apple-privacy-plist-bacf
 npm install
 npm run apply:v87-from-omega3 -- --no-open --skip-sync
 npm run audit:v87-improvements
+npm run ghosts:prove-apply

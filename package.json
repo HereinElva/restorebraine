@@ -73,6 +73,7 @@
     "ghosts:sync": "node scripts/sync-ghost-builds-native.mjs",
     "ghosts:eliminate": "bash scripts/eliminate-ghost-builds.sh",
     "ghosts:audit-all": "node scripts/audit-ghost-builds-all.mjs",
+    "ghosts:prove-apply": "node scripts/prove-apply-no-ghosts.mjs",
     "ghosts:timeline": "node scripts/print-ghost-timeline.mjs",
     "blocks:clear": "bash scripts/clear-all-blocks.sh",
     "postinstall": "node scripts/patch-native-purchases-podspec.mjs"

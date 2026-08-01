@@ -87,6 +87,10 @@ echo "==> [2/8] Wipe stale bundles (old builds block new ones in WKWebView / Xco
 wipe_build_debris
 
 echo
+echo "==> [2b/8] Pre-build ghost check (repo must not ship stale ios/public)"
+node scripts/prove-apply-no-ghosts.mjs 2>/dev/null || echo "    (pre-check skipped — clean wipe next)"
+
+echo
 echo "==> [3/8] Port Omega 3 gallery stack (finishing touches)"
 node scripts/port-omega3-gallery-to-v87.mjs
 
@@ -118,6 +122,7 @@ else
   echo "==> [6/8] Ghost blocklist — allow THIS build, block stale bundles"
   node scripts/sync-ghost-builds-native.mjs
   node scripts/prove-bundled-ghost-safe.mjs
+  node scripts/prove-apply-no-ghosts.mjs
 fi
 
 echo
