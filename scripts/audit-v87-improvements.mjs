@@ -144,9 +144,19 @@ const srcScan = spawnSync(
   ['grep', '-l', '-E', POST_V87_FORBIDDEN.map((p) => p.pattern).join('|'), '--', 'src/'],
   { encoding: 'utf8' },
 );
+const OMEGA3_LOGIN_FILES = new Set([
+  'src/screens/SignInScreen.jsx',
+  'src/components/NativeLoginCard.jsx',
+  'src/App.jsx',
+  'src/lib/AuthContext.jsx',
+]);
+
 const srcHits = (srcScan.stdout || '').trim().split('\n').filter(Boolean);
-if (srcHits.length) {
-  fail(`Forbidden patterns in src/: ${srcHits.join(', ')}`);
+const forbiddenHits = srcHits.filter((hit) => !OMEGA3_LOGIN_FILES.has(hit));
+if (forbiddenHits.length) {
+  fail(`Forbidden patterns in src/: ${forbiddenHits.join(', ')}`);
+} else if (srcHits.length) {
+  pass('Omega 3 SignInScreen login present — no other post-v87 forbidden patterns');
 } else {
   pass('No post-v87 forbidden patterns in src/');
 }

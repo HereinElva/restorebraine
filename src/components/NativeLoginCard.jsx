@@ -87,7 +87,16 @@ export default function NativeLoginCard({ clearSignedOut = false }) {
     clearSignedOutFlag();
     setErrorMessage('');
     setOpeningProvider(provider);
-    window.setTimeout(() => setOpeningProvider(null), 900);
+    window.setTimeout(() => setOpeningProvider(null), 12000);
+
+    if (typeof window.__restorebraineOpenProviderLogin === 'function') {
+      window.__restorebraineOpenProviderLogin(provider);
+      return;
+    }
+    if (typeof window.__restorebraineOpenLogin === 'function') {
+      window.__restorebraineOpenLogin();
+      return;
+    }
     launchProviderOAuth(provider);
   };
 

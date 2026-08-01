@@ -17,7 +17,7 @@ git reset --hard origin/cursor/apple-privacy-plist-bacf
 npm install
 
 echo
-echo "==> [2] Rebuild bundled ios/public (src + SignedOutLanding feedback)"
+echo "==> [2] Rebuild bundled ios/public (Omega 3 login + native OAuth)"
 npm run apply:v87-from-omega3 -- --skip-sync
 
 echo
@@ -39,8 +39,8 @@ echo " 2. Restart iPhone (power off → wait 30s → on)"
 echo " 3. Xcode → Product → Clean Build Folder"
 echo " 4. Run on iPhone"
 echo
-echo " TEST: Tap Sign In → button says 'Opening sign in…' → Google sheet appears"
-echo " If button text never changes → old bundle still on phone (repeat steps 1–4)"
+echo " TEST: Tap Continue With Google → sheet opens → gallery after login"
+echo " Email: fill fields → Sign In With Email (not intercepted by OAuth bridge)"
 echo "══════════════════════════════════════════════════════════════"
 
 if [[ "$(uname -s)" == "Darwin" ]]; then

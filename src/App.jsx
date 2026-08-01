@@ -12,12 +12,15 @@ import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import SignInScreen from '@/screens/SignInScreen';
 import { hasStoredSessionToken } from '@/lib/session-bootstrap';
+import { isNativeShell } from '@/lib/native-hosted-redirect';
 
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
 const MainPage = mainPageKey ? Pages[mainPageKey] : <></>;
 
-setupIframeMessaging();
+if (!isNativeShell()) {
+  setupIframeMessaging();
+}
 
 /** BrowserRouter breaks on capacitor:// — use HashRouter for bundled native builds. */
 const NativeRouter = (() => {
@@ -37,39 +40,28 @@ const LayoutWrapper = ({ children, currentPageName }) => Layout ?
   <Layout currentPageName={currentPageName}>{children}</Layout>
   : <>{children}</>;
 
-const AuthBootSpinner = () => (
-  <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
-    <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin" />
-  </div>
-);
-
 const AuthenticatedApp = () => {
-  const { isLoadingAuth, authError, isAuthenticated, manuallyLoggedOut } = useAuth();
+  const { authError, isAuthenticated, manuallyLoggedOut } = useAuth();
 
   if (manuallyLoggedOut) {
     return <SignInScreen clearSignedOut />;
   }
 
-  if (isLoadingAuth) {
-    return <AuthBootSpinner />;
+  const hasToken = hasStoredSessionToken();
+
+  if (!hasToken && !isAuthenticated) {
+    return <SignInScreen />;
   }
 
   if (authError?.type === 'user_not_registered') {
     return <UserNotRegisteredError />;
   }
 
-  if (!isAuthenticated && !hasStoredSessionToken()) {
-    return <SignInScreen />;
-  }
-
-  if (authError?.type === 'auth_required') {
+  if (!isAuthenticated && !hasToken) {
     return <SignInScreen clearSignedOut={manuallyLoggedOut} />;
   }
 
-  if (!isAuthenticated) {
-    return <SignInScreen />;
-  }
-
+  // Token present — render gallery immediately; auth/settings finish in background (Omega 3).
   return (
     <LayoutWrapper currentPageName={mainPageKey}>
       <Routes>

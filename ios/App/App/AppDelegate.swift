@@ -510,12 +510,14 @@ class AppDelegate: UIResponder, UIApplicationDelegate, ASWebAuthenticationPresen
             document.addEventListener('click', function (event) {
               var target = event.target.closest('button, a, [role="button"], [data-rb-provider], [data-provider]');
               if (!target) return;
+              if (target.type === 'submit' && target.closest('form')) return;
               var label = (target.textContent || '').replace(/\s+/g, ' ').trim();
+              if (/sign in with email|create account|sign up|already have an account/i.test(label)) return;
               var provider = target.getAttribute('data-rb-provider') || target.getAttribute('data-provider') || '';
               if (!provider && /google/i.test(label)) provider = 'google';
               if (!provider && /apple/i.test(label)) provider = 'apple';
               if (!provider && /microsoft/i.test(label)) provider = 'microsoft';
-              var isProvider = provider || /continue with google|continue with apple|continue with microsoft|sign in with email|sign in with google|sign in with apple|sign in with microsoft/i.test(label);
+              var isProvider = provider || /continue with google|continue with apple|continue with microsoft/i.test(label);
               var isSignInButton = /^sign in$/i.test(label);
               if (!isSignInButton && !isProvider) return;
               event.preventDefault();

@@ -51,10 +51,18 @@ if (delegate.includes('bundledOAuthBridgeScript')) {
   checks.push(['✗', 'bundledOAuthBridgeScript missing']);
 }
 
-if (read('src/components/auth/SignedOutLanding.jsx').includes('Opening sign in')) {
+if (read('src/components/NativeLoginCard.jsx').includes('Continue With Google')) {
+  checks.push(['✓', 'NativeLoginCard provider buttons (Continue With Google…)']);
+} else if (read('src/components/auth/SignedOutLanding.jsx').includes('Opening sign in')) {
   checks.push(['✓', 'Sign In button shows "Opening sign in…" feedback on tap']);
 } else {
-  checks.push(['⚠', 'Sign In button has no tap feedback — rebuild bundled assets']);
+  checks.push(['⚠', 'Login UI has no tap feedback — rebuild bundled assets']);
+}
+
+if (delegate.includes('__restorebraineOpenProviderLogin')) {
+  checks.push(['✓', 'Native provider OAuth bridge (Google / Apple / Microsoft)']);
+} else {
+  checks.push(['⚠', 'Missing __restorebraineOpenProviderLogin — provider buttons may not open OAuth']);
 }
 
 for (const [mark, msg] of checks) console.log(`  ${mark} ${msg}`);
