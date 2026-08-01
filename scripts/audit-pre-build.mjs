@@ -79,7 +79,8 @@ for (const p of POST_V87_FORBIDDEN_PATHS) {
 const omega3Core = [
   'src/lib/gallery-organize-snapshot.js',
   'src/lib/run-media-organize.js',
-  'src/components/auth/SignedOutLanding.jsx',
+  'src/screens/SignInScreen.jsx',
+  'src/components/NativeLoginCard.jsx',
 ];
 for (const p of omega3Core) {
   if (existsSync(p)) pass(`${p.split('/').pop()} present`);

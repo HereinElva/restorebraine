@@ -119,6 +119,20 @@ export const openLoginInSystemBrowser = async (url = getGoogleOAuthUrl(), provid
   window.location.assign(normalizedUrl);
 };
 
+/** Launch Google / Apple / Microsoft OAuth from NativeLoginCard provider buttons. */
+export const launchProviderOAuth = (provider = 'google') => {
+  const url = provider === 'google' ? getGoogleOAuthUrl() : getProviderOAuthUrl(provider);
+  if (typeof window !== 'undefined' && typeof window.__restorebraineOpenProviderLogin === 'function') {
+    try {
+      window.__restorebraineOpenProviderLogin(provider);
+      return;
+    } catch (error) {
+      console.warn('Native provider login bridge failed:', error);
+    }
+  }
+  void openLoginInSystemBrowser(url, provider);
+};
+
 const handleAuthNavigation = (url, providerHint) => {
   openLoginInSystemBrowser(url, providerHint);
 };

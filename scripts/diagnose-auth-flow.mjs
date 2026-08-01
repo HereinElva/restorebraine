@@ -71,12 +71,12 @@ console.log(`
 
 console.log('EXPECTED FLOW ON IPHONE (v87 — do not confuse these)');
 console.log('');
-console.log('  STEP 1 — Signed-out landing (you are NOT logged in yet)');
-console.log('    • Shows "Find Your Memories" headline + grey search hint');
-console.log('    • Purple "Sign In" button at bottom');
-console.log('    • This is NOT the full gallery — no photos, no organize buttons');
+console.log('  STEP 1 — Login page (you are NOT logged in yet)');
+console.log('    • White card: "Restorebraine" + Continue With Google / Apple / Microsoft');
+console.log('    • OR email + password sign in / sign up');
+console.log('    • No gallery header, no bottom nav tabs');
 console.log('');
-console.log('  STEP 2 — Login (tap Sign In)');
+console.log('  STEP 2 — OAuth (tap a provider button)');
 console.log('    • Google OAuth opens in system browser / ASWebAuthenticationSession');
 console.log('    • Pick Google account → returns to app with token');
 console.log('');

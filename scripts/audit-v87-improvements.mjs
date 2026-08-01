@@ -88,13 +88,14 @@ if (read('src/pages/Gallery.jsx').includes('SignInScreen')) {
   pass('Gallery.jsx uses v87 session-bootstrap (not SignInScreen)');
 }
 
-// ── Section 3: v87 auth/UI (safe, not post-v87 experiments) ──
-console.log('\n3. v87 AUTH + UI (SignedOutLanding, OAuth f1b2505)\n');
-if (existsSync('src/components/auth/SignedOutLanding.jsx')) pass('SignedOutLanding.jsx');
-else fail('Missing SignedOutLanding.jsx');
+// ── Section 3: v87 auth/UI (NativeLoginCard login page, OAuth f1b2505) ──
+console.log('\n3. v87 AUTH + UI (SignInScreen / NativeLoginCard, OAuth f1b2505)\n');
+if (existsSync('src/screens/SignInScreen.jsx')) pass('SignInScreen.jsx');
+else if (existsSync('src/components/NativeLoginCard.jsx')) pass('NativeLoginCard.jsx');
+else fail('Missing SignInScreen.jsx or NativeLoginCard.jsx');
 
-if (read('src/App.jsx').includes('SignedOutLanding')) pass('App.jsx routes SignedOutLanding');
-else fail('App.jsx missing SignedOutLanding');
+if (read('src/App.jsx').includes('SignInScreen')) pass('App.jsx routes SignInScreen login page');
+else fail('App.jsx missing SignInScreen');
 
 const guard = read('src/lib/native-platform-guard.js');
 if (guard.includes('${DEFAULT_APP_ORIGIN}${path}') && !guard.includes('${BASE44_PLATFORM_URL}${path}')) {

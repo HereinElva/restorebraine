@@ -155,8 +155,6 @@ export function githubRawUrl(relPath) {
 }
 
 export const POST_V87_FORBIDDEN = [
-  { pattern: 'NativeLoginCard', label: 'v164+ bundled login card' },
-  { pattern: 'SignInScreen', label: 'v123–v160 login rewrite' },
   { pattern: 'from \'@/pages/LoginPage\'', label: 'v151 dedicated login page import' },
   { pattern: 'NativeLoginProviders', label: 'v155 in-app providers experiment' },
   { pattern: 'NativePlatformLoginRedirect', label: 'v146 platform login redirect' },
@@ -172,8 +170,6 @@ export const POST_V87_FORBIDDEN_PATHS = [
   'scripts/nuclear-rebuild.sh',
   'public/native-shell-stabilizer.js',
   'ios/App/App/RestorebraineBridgeViewController.swift',
-  'src/components/auth/NativeLoginCard.jsx',
-  'src/components/auth/SignInScreen.jsx',
   'src/pages/LoginPage.jsx',
   'src/lib/native-shell-stabilizer.js',
 ];

@@ -81,13 +81,15 @@ if (guard.includes('${BASE44_PLATFORM_URL}${path}')) {
 }
 
 const app = read('src/App.jsx');
-if (!app.includes('SignedOutLanding')) errors.push('App.jsx missing SignedOutLanding (v87 UI from 5762b16)');
+if (!app.includes('SignInScreen') && !app.includes('NativeLoginCard')) {
+  errors.push('App.jsx missing SignInScreen / NativeLoginCard login page');
+}
 if (/NativeLoginProviders|NativePlatformLoginRedirect/.test(app)) {
   errors.push('App.jsx has post-v87 login components');
 }
 
-if (!existsSync('src/components/auth/SignedOutLanding.jsx')) {
-  errors.push('Missing SignedOutLanding.jsx');
+if (!existsSync('src/screens/SignInScreen.jsx') && !existsSync('src/components/NativeLoginCard.jsx')) {
+  errors.push('Missing SignInScreen.jsx or NativeLoginCard.jsx (login page)');
 }
 
 if (!existsSync('src/lib/gallery-organize-snapshot.js')) {

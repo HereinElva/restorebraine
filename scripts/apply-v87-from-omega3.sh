@@ -148,8 +148,8 @@ if [[ "$MODE" == "bundled" ]]; then
   echo "   BUNDLED · ${STAMP} · ${ENTRY}"
   echo
   echo " AUTH FLOW:"
-  echo "   1. Signed-out landing — Find Your Memories + Sign In button"
-  echo "   2. Tap Sign In → Google OAuth"
+  echo "   1. Login page — Restorebraine card + Google / Apple / Microsoft / email"
+  echo "   2. Tap provider → OAuth in system browser"
   echo "   3. Gallery front page — Find Your Memories + search (after login)"
 else
   echo " Hosted mode — UI from Base44 CDN (not terminal-only)"

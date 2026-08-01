@@ -10,7 +10,8 @@ import { setupIframeMessaging } from './lib/iframe-messaging';
 import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
-import SignedOutLanding from '@/components/auth/SignedOutLanding';
+import SignInScreen from '@/screens/SignInScreen';
+import { hasStoredSessionToken } from '@/lib/session-bootstrap';
 
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
@@ -36,52 +37,39 @@ const LayoutWrapper = ({ children, currentPageName }) => Layout ?
   <Layout currentPageName={currentPageName}>{children}</Layout>
   : <>{children}</>;
 
+const AuthBootSpinner = () => (
+  <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
+    <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin" />
+  </div>
+);
+
 const AuthenticatedApp = () => {
-  const { isLoadingAuth, authError, isAuthenticated, navigateToLogin, manuallyLoggedOut } = useAuth();
+  const { isLoadingAuth, authError, isAuthenticated, manuallyLoggedOut } = useAuth();
 
-  const handleSignIn = () => {
-    try { localStorage.removeItem('b44_signed_out'); } catch {}
-    navigateToLogin();
-  };
-
-  const signedOutView = (
-    <LayoutWrapper currentPageName={mainPageKey}>
-      <SignedOutLanding onSignIn={handleSignIn} />
-    </LayoutWrapper>
-  );
-
-  // Check if user manually logged out FIRST before anything else
   if (manuallyLoggedOut) {
-    return signedOutView;
+    return <SignInScreen clearSignedOut />;
   }
 
-  // Show loading spinner while auth session is being resolved (not public-settings — that is background-only)
   if (isLoadingAuth) {
-    return (
-      <LayoutWrapper currentPageName={mainPageKey}>
-        <div className="pt-24 flex items-center justify-center min-h-[50vh]">
-          <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin" />
-        </div>
-      </LayoutWrapper>
-    );
+    return <AuthBootSpinner />;
   }
 
-  // Handle authentication errors
-  if (authError) {
-    if (authError.type === 'user_not_registered') {
-      return <UserNotRegisteredError />;
-    }
-    if (authError?.type === 'auth_required') {
-      return signedOutView;
-    }
+  if (authError?.type === 'user_not_registered') {
+    return <UserNotRegisteredError />;
   }
 
-  // Signed out — show landing until session resumes (not a ghost/stale account issue)
+  if (!isAuthenticated && !hasStoredSessionToken()) {
+    return <SignInScreen />;
+  }
+
+  if (authError?.type === 'auth_required') {
+    return <SignInScreen clearSignedOut={manuallyLoggedOut} />;
+  }
+
   if (!isAuthenticated) {
-    return signedOutView;
+    return <SignInScreen />;
   }
 
-  // Render the main app
   return (
     <LayoutWrapper currentPageName={mainPageKey}>
       <Routes>
