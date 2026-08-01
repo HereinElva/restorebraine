@@ -118,6 +118,11 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
           })();
 
           (function purgeGhostBuilds() {
+            // Bundled mode (capacitor://) — never redirect to hosted or block local assets
+            if (location.protocol === 'capacitor:') return;
+            // Only run ghost purge on live hosted app origin
+            if (location.hostname !== 'restorebraine.base44.app') return;
+
             var GHOST_FILES = [\#(ghostJs)];
             var ALLOW_FILES = [\#(allowJs)];
             var STALE_APPS = ['App-B4VcOATW.js', 'App-BMryy2H5.js'];
@@ -145,9 +150,12 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
               return false;
             }
             function reloadFresh() {
-              if (location.search.indexOf('rb_nocache=') >= 0) return;
+              try {
+                reloadCount = parseInt(sessionStorage.getItem('rb_ghost_reload_count') || '0', 10) || 0;
+              } catch (e) {}
               if (reloadCount >= 3) return;
               reloadCount++;
+              try { sessionStorage.setItem('rb_ghost_reload_count', String(reloadCount)); } catch (e) {}
               location.replace(HOST + '/?rb_nocache=' + Date.now());
             }
             function verifyLiveEntry() {
@@ -852,61 +860,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
           }
 
           function fixFolderActionButtons() {
-            try {
-              if (!document.getElementById('rb-folder-actions-fix')) {
-                var style = document.createElement('style');
-                style.id = 'rb-folder-actions-fix';
-                style.textContent = [
-                  'div.grid.grid-cols-2.gap-1\\.5.mb-5 > button,',
-                  'div.grid.grid-cols-2.gap-1\\.5.mb-5 [data-rb-folder-action],',
-                  'div.grid.grid-cols-2.gap-2.mb-5 > button,',
-                  'div.grid.grid-cols-2.gap-2.mb-5 [data-rb-folder-action] {',
-                  '  box-sizing: border-box !important;',
-                  '  width: 100% !important;',
-                  '  height: auto !important;',
-                  '  min-height: 4.25rem !important;',
-                  '  max-width: none !important;',
-                  '  display: flex !important;',
-                  '  flex-direction: column !important;',
-                  '  align-items: center !important;',
-                  '  justify-content: center !important;',
-                  '  gap: 0.25rem !important;',
-                  '  padding: 0.75rem !important;',
-                  '  border-radius: 1rem !important;',
-                  '  background: linear-gradient(to bottom right, #ffffff 0%, #ffffff 70%, rgb(250 245 255) 100%) !important;',
-                  '  border: 1px solid rgb(229 231 235) !important;',
-                  '  box-shadow: 0 1px 3px 0 rgba(0,0,0,0.08), 0 1px 2px -1px rgba(0,0,0,0.04) !important;',
-                  '  font-size: 0.875rem !important;',
-                  '  font-weight: 600 !important;',
-                  '  outline: none !important;',
-                  '}',
-                  'div.grid.grid-cols-2.gap-1\\.5.mb-5 > button:not([data-rb-folder-action="organize"]),',
-                  'div.grid.grid-cols-2.gap-1\\.5.mb-5 [data-rb-folder-action]:not([data-rb-folder-action="organize"]),',
-                  'div.grid.grid-cols-2.gap-2.mb-5 > button:not([data-rb-folder-action="organize"]),',
-                  'div.grid.grid-cols-2.gap-2.mb-5 [data-rb-folder-action]:not([data-rb-folder-action="organize"]) {',
-                  '  color: rgb(55 65 81) !important;',
-                  '}',
-                  'div.grid.grid-cols-2.gap-1\\.5.mb-5 [data-rb-folder-action="organize"] [data-rb-organize-label],',
-                  'div.grid.grid-cols-2.gap-2.mb-5 [data-rb-folder-action="organize"] [data-rb-organize-label] {',
-                  '  color: rgb(147 51 234) !important;',
-                  '  -webkit-text-fill-color: rgb(147 51 234) !important;',
-                  '  background: none !important;',
-                  '}',
-                  'div.grid.grid-cols-2.gap-1\\.5.mb-5 [data-rb-folder-action="organize"] svg.lucide,',
-                  'div.grid.grid-cols-2.gap-2.mb-5 [data-rb-folder-action="organize"] svg.lucide {',
-                  '  stroke: rgb(168 85 247) !important;',
-                  '  color: rgb(168 85 247) !important;',
-                  '}',
-                  'div.grid.grid-cols-2.gap-2.mb-5 button.w-16,',
-                  'div.grid.grid-cols-2.gap-2.mb-5 button.h-16 {',
-                  '  width: 100% !important;',
-                  '  height: auto !important;',
-                  '  min-height: 4.25rem !important;',
-                  '}'
-                ].join('');
-                (document.head || document.documentElement).appendChild(style);
-              }
-            } catch (e) {}
+            // Disabled — injected !important CSS was overriding Base44 Publish updates (no-change trap).
+            // Gallery folder button styles live in src/components/gallery/folderActionStyles.js + Base44.
           }
 
           function hideBase44EditorWidget() {
@@ -964,7 +919,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
           }
 
           if (!window.__rbBadgeObserver) {
-            window.__rbBadgeObserver = new MutationObserver(function () { blockBase44BadgeScript(); hideBase44EditorWidget(); hideNativeBuildStamp(); fixRestorebraineBranding(); fixFolderActionButtons(); });
+            window.__rbBadgeObserver = new MutationObserver(function () { blockBase44BadgeScript(); hideBase44EditorWidget(); hideNativeBuildStamp(); fixRestorebraineBranding(); });
             window.__rbBadgeObserver.observe(document.documentElement, { childList: true, subtree: true });
           }
 
@@ -975,7 +930,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             guardGoogleOAuthInWebView();
             hideBase44EditorWidget();
             fixRestorebraineBranding();
-            fixFolderActionButtons();
             interceptNativeSignInClicks();
             window.addEventListener('popstate', function () {
               guardPlatformNavigation();
@@ -987,9 +941,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
               hideBase44EditorWidget();
               hideNativeBuildStamp();
               fixRestorebraineBranding();
-              fixFolderActionButtons();
               guardSignedOutLoginPage();
-            }, 1000);
+            }, 5000);
           }
 
           window.__restorebraineClearSession = clearNativeSession;
@@ -999,7 +952,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
           captureAccessTokenFromUrl();
           installOAuthDeepLinkHandler();
           fixRestorebraineBranding();
-          fixFolderActionButtons();
           installPlatformGuard();
           document.addEventListener('visibilitychange', function () {
             if (document.visibilityState === 'hidden') persistToken();

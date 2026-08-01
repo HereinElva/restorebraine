@@ -23,6 +23,7 @@
     "apply:v87-from-omega3": "bash scripts/apply-v87-from-omega3.sh",
     "port:omega3-gallery": "node scripts/port-omega3-gallery-to-v87.mjs",
     "audit:v87-improvements": "node scripts/audit-v87-improvements.mjs",
+    "audit:interference": "node scripts/audit-interference.mjs",
     "revert:terminal": "bash scripts/terminal-revert-all.sh",
     "revert:v87-all": "bash scripts/revert-to-v87-everywhere.sh",
     "reset:v87-all": "bash scripts/reset-v87-all.sh",

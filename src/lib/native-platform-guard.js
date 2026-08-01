@@ -215,5 +215,5 @@ export const installNativePlatformGuard = () => {
     guardSignedOutLoginPage();
     guardGoogleOAuthInWebView();
     hideBase44EditorWidget();
-  }, 500);
+  }, 5000);
 };

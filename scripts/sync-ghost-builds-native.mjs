@@ -4,11 +4,17 @@
  * Format: + prefix = ALLOW (live deps, never block), plain = BLOCK (stale cache).
  */
 import { execSync } from 'node:child_process';
-import { writeFileSync, mkdirSync } from 'node:fs';
+import { writeFileSync, mkdirSync, readdirSync, existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { buildDeviceGhostBlocklist, resolveLiveActiveAssets } from './ghost-builds-registry.mjs';
 
 const outPath = resolve('ios/App/App/ghost-builds.txt');
+const publicAssetsDir = resolve('ios/App/App/public/assets');
+
+function currentPublicAssets() {
+  if (!existsSync(publicAssetsDir)) return [];
+  return readdirSync(publicAssetsDir).filter((f) => f.endsWith('.js'));
+}
 
 function gitPublicHashes() {
   try {
@@ -25,10 +31,12 @@ function gitPublicHashes() {
 async function main() {
   const { liveIndex, liveApp, active } = await resolveLiveActiveAssets();
   const activeSet = new Set(active);
+  const bundledAllow = currentPublicAssets();
+  for (const f of bundledAllow) activeSet.add(f);
 
   const historicalPublic = gitPublicHashes().filter((f) => !activeSet.has(f));
   const blocklist = buildDeviceGhostBlocklist({
-    active,
+    active: [...activeSet],
     ghosts: historicalPublic,
   });
 
@@ -44,6 +52,7 @@ async function main() {
     `# Live entry: ${liveIndex} → ${liveApp}`,
     '# Lines starting with + are LIVE CDN deps — never block on device',
     ...active.map((f) => `+ ${f}`),
+    ...bundledAllow.filter((f) => !active.includes(f)).map((f) => `+ ${f}`),
     '# Stale WKWebView / CDN cache — block and purge',
     ...blocklist,
   ];

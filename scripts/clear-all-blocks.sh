@@ -58,7 +58,8 @@ else
 fi
 
 echo
-echo "==> [4/5] Final ghost audit"
+echo "==> [4/5] Interference + ghost audit"
+node scripts/audit-interference.mjs || true
 node scripts/audit-ghost-builds-all.mjs || true
 
 echo
