@@ -8,6 +8,7 @@ import { clearNativeSession, persistSessionToNativeStorage, restoreSessionFromNa
 import { isHostedAppOrigin, isNativeShell } from '@/lib/native-hosted-redirect';
 
 const AUTH_BOOT_TIMEOUT_MS = 12000;
+const AUTH_BOOT_TIMEOUT_BUNDLED_MS = 6000;
 const AUTH_API_TIMEOUT_MS = 10000;
 
 const withAuthTimeout = (promise, ms, label) =>
@@ -69,6 +70,7 @@ export const AuthProvider = ({ children }) => {
   const checkAppState = async () => {
     let finished = false;
     authBootInFlightRef.current = true;
+    const bootTimeoutMs = isBundledNativeShell() ? AUTH_BOOT_TIMEOUT_BUNDLED_MS : AUTH_BOOT_TIMEOUT_MS;
     const timeout = window.setTimeout(() => {
       if (finished) return;
       finished = true;
@@ -78,13 +80,35 @@ export const AuthProvider = ({ children }) => {
       finishAuthBoot({
         error: { type: 'auth_required', message: 'Session check timed out' },
       });
-    }, AUTH_BOOT_TIMEOUT_MS);
+    }, bootTimeoutMs);
 
     try {
       setIsLoadingAuth(true);
       setAuthError(null);
 
       ensureClientSessionToken();
+
+      // Bundled + no token: show SignedOutLanding immediately (don't wait on public-settings API)
+      if (isBundledNativeShell() && !hasStoredAuthToken()) {
+        setIsAuthenticated(false);
+        setAuthError({ type: 'auth_required', message: 'Authentication required' });
+        finishAuthBoot();
+        finished = true;
+        window.clearTimeout(timeout);
+        void withAuthTimeout(
+          createAxiosClient({
+            baseURL: `${appParams.serverUrl}/api/apps/public`,
+            headers: { 'X-App-Id': appParams.appId },
+            token: appParams.token,
+            interceptResponses: true,
+          }).get(`/prod/public-settings/by-id/${appParams.appId}`),
+          AUTH_API_TIMEOUT_MS,
+          'public-settings-background',
+        )
+          .then((publicSettings) => setAppPublicSettings(publicSettings))
+          .catch(() => {});
+        return;
+      }
 
       const restoredToken = await withAuthTimeout(
         restoreSessionFromNativeStorage(),
@@ -157,6 +181,7 @@ export const AuthProvider = ({ children }) => {
       window.clearTimeout(timeout);
       authBootInFlightRef.current = false;
       setIsLoadingPublicSettings(false);
+      setIsLoadingAuth(false);
     }
   };
 

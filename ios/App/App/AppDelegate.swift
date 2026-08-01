@@ -249,18 +249,11 @@ class AppDelegate: UIResponder, UIApplicationDelegate, ASWebAuthenticationPresen
             .replacingOccurrences(of: "'", with: "\\'")
 
         // Minimal bridge for bundled ios/public — NO Location.prototype patches at document start (white screen)
+        // Do NOT inject OAuth token here — stale UserDefaults token causes infinite auth spinner on boot.
         return #"""
         (function () {
           window.__RESTOREBRAINE_NATIVE_BUILD__ = '\#(escapedLabel)';
           window.__restorebraineMinimalBridge = true;
-          var syncToken = '\#(escapedToken)';
-          if (syncToken) {
-            try {
-              localStorage.removeItem('b44_signed_out');
-              localStorage.setItem('base44_access_token', syncToken);
-              localStorage.setItem('token', syncToken);
-            } catch (e) {}
-          }
           function showLoadProof() {
             try {
               var el = document.getElementById('rb-load-proof');
@@ -518,8 +511,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate, ASWebAuthenticationPresen
             }, true);
           }
 
-          var syncToken = '\#(escapedToken)';
-          if (syncToken && !isSignedOut()) saveToken(syncToken);
           installOAuthDeepLinkHandler();
           interceptNativeSignInClicks();
 
