@@ -116,6 +116,19 @@ class AppDelegate: UIResponder, UIApplicationDelegate, ASWebAuthenticationPresen
         }
     }
 
+    private func notifyWebViewOpenLoginFallback() {
+        guard let bridge = window?.rootViewController as? CAPBridgeViewController,
+              let webView = bridge.webView else { return }
+        let js = "try { if (window.__restorebraineOpenLoginJsFallback) window.__restorebraineOpenLoginJsFallback(); else if (window.__restorebraineOpenLogin) window.__restorebraineOpenLogin(); } catch (e) {}"
+        if Thread.isMainThread {
+            webView.evaluateJavaScript(js, completionHandler: nil)
+        } else {
+            DispatchQueue.main.async {
+                webView.evaluateJavaScript(js, completionHandler: nil)
+            }
+        }
+    }
+
     private func notifyWebViewOAuthComplete() {
         DispatchQueue.main.async { [weak self] in
             guard let self = self,
@@ -140,18 +153,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate, ASWebAuthenticationPresen
                   } catch (e) {}
                 })();
                 """,
-                completionHandler: nil
-            )
-        }
-    }
-
-    private func notifyWebViewOpenLoginFallback() {
-        DispatchQueue.main.async { [weak self] in
-            guard let self = self,
-                  let bridge = self.window?.rootViewController as? CAPBridgeViewController,
-                  let webView = bridge.webView else { return }
-            webView.evaluateJavaScript(
-                "try { if (window.__restorebraineOpenLoginJsFallback) window.__restorebraineOpenLoginJsFallback(); } catch (e) {}",
                 completionHandler: nil
             )
         }
@@ -476,10 +477,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate, ASWebAuthenticationPresen
           function postNativeOpenLogin(provider) {
             provider = provider || 'google';
             try {
-              var el = document.getElementById('rb-load-proof');
-              if (el) el.textContent = (el.textContent || '') + ' · opening OAuth…';
-            } catch (e) {}
-            try {
               if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.restorebraineNativeSession) {
                 window.webkit.messageHandlers.restorebraineNativeSession.postMessage({
                   action: 'openLogin',
@@ -491,48 +488,78 @@ class AppDelegate: UIResponder, UIApplicationDelegate, ASWebAuthenticationPresen
             return false;
           }
 
+          function markOpeningOAuth() {
+            try {
+              var el = document.getElementById('rb-load-proof');
+              if (el) el.textContent = (el.textContent || '') + ' · opening OAuth…';
+            } catch (e) {}
+          }
+
+          function openProviderOAuth(provider) {
+            var p = provider || 'google';
+            var url = getCanonicalOAuthUrl(p);
+            markOpeningOAuth();
+            if (launchOAuthInBrowser(url)) return true;
+            if (postNativeOpenLogin(p)) return true;
+            openLoginInSystemBrowser(url, p);
+            return true;
+          }
+
           window.__restorebraineOpenLoginJsFallback = function () {
-            openLoginInSystemBrowser(getCanonicalOAuthUrl('google'), 'google');
+            openProviderOAuth('google');
           };
 
           window.__restorebraineOpenProviderLogin = function (provider) {
             try { localStorage.removeItem(SIGNED_OUT_KEY); } catch (e) {}
-            var p = provider || 'google';
-            if (postNativeOpenLogin(p)) return;
-            openLoginInSystemBrowser(getCanonicalOAuthUrl(p), p);
+            openProviderOAuth(provider || 'google');
           };
 
           window.__restorebraineOpenLogin = function () {
             try { localStorage.removeItem(SIGNED_OUT_KEY); } catch (e) {}
-            if (postNativeOpenLogin()) return;
-            window.__restorebraineOpenLoginJsFallback();
+            openProviderOAuth('google');
           };
+
+          var lastOAuthTapMs = 0;
+          function handleOAuthTapFromEvent(event, provider) {
+            var now = Date.now();
+            if (now - lastOAuthTapMs < 700) return;
+            lastOAuthTapMs = now;
+            if (event && event.cancelable) {
+              event.preventDefault();
+              event.stopPropagation();
+              event.stopImmediatePropagation();
+            }
+            try { localStorage.removeItem(SIGNED_OUT_KEY); } catch (e) {}
+            openProviderOAuth(provider || 'google');
+          }
+
+          function resolveOAuthTarget(event) {
+            var target = event.target.closest('button, a, [role="button"], [data-rb-provider], [data-provider]');
+            if (!target) return null;
+            if (target.type === 'submit' && target.closest('form')) return null;
+            var label = (target.textContent || '').replace(/\s+/g, ' ').trim();
+            if (/sign in with email|create account|sign up|already have an account/i.test(label)) return null;
+            var provider = target.getAttribute('data-rb-provider') || target.getAttribute('data-provider') || '';
+            if (!provider && /google/i.test(label)) provider = 'google';
+            if (!provider && /apple/i.test(label)) provider = 'apple';
+            if (!provider && /microsoft/i.test(label)) provider = 'microsoft';
+            var isProvider = provider || /continue with google|continue with apple|continue with microsoft/i.test(label);
+            var isSignInButton = /^sign in$/i.test(label);
+            if (!isSignInButton && !isProvider) return null;
+            return provider || 'google';
+          }
 
           function interceptNativeSignInClicks() {
             if (window.__restorebraineSignInInterceptor) return;
             window.__restorebraineSignInInterceptor = true;
-            document.addEventListener('click', function (event) {
-              var target = event.target.closest('button, a, [role="button"], [data-rb-provider], [data-provider]');
-              if (!target) return;
-              if (target.type === 'submit' && target.closest('form')) return;
-              var label = (target.textContent || '').replace(/\s+/g, ' ').trim();
-              if (/sign in with email|create account|sign up|already have an account/i.test(label)) return;
-              var provider = target.getAttribute('data-rb-provider') || target.getAttribute('data-provider') || '';
-              if (!provider && /google/i.test(label)) provider = 'google';
-              if (!provider && /apple/i.test(label)) provider = 'apple';
-              if (!provider && /microsoft/i.test(label)) provider = 'microsoft';
-              var isProvider = provider || /continue with google|continue with apple|continue with microsoft/i.test(label);
-              var isSignInButton = /^sign in$/i.test(label);
-              if (!isSignInButton && !isProvider) return;
-              event.preventDefault();
-              event.stopPropagation();
-              event.stopImmediatePropagation();
-              if (provider) {
-                window.__restorebraineOpenProviderLogin(provider);
-              } else {
-                window.__restorebraineOpenLogin();
-              }
-            }, true);
+            var onOAuthEvent = function (event) {
+              var provider = resolveOAuthTarget(event);
+              if (!provider) return;
+              handleOAuthTapFromEvent(event, provider);
+            };
+            document.addEventListener('pointerdown', onOAuthEvent, true);
+            document.addEventListener('touchstart', onOAuthEvent, true);
+            document.addEventListener('click', onOAuthEvent, true);
           }
 
           installOAuthDeepLinkHandler();
@@ -1457,7 +1484,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate, ASWebAuthenticationPresen
             name: Notification.Name("CAPBridgeDidLoad"),
             object: nil
         )
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+        DispatchQueue.main.async {
             self.installSessionBridge()
         }
         return true
@@ -1483,12 +1510,12 @@ class AppDelegate: UIResponder, UIApplicationDelegate, ASWebAuthenticationPresen
             )
             userContentController.addUserScript(WKUserScript(
                 source: minimal,
-                injectionTime: .atDocumentEnd,
+                injectionTime: .atDocumentStart,
                 forMainFrameOnly: true
             ))
             userContentController.addUserScript(WKUserScript(
                 source: bundledOAuthBridgeScript(for: syncToken),
-                injectionTime: .atDocumentEnd,
+                injectionTime: .atDocumentStart,
                 forMainFrameOnly: true
             ))
             return

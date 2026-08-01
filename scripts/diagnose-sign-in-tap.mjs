@@ -40,7 +40,7 @@ if (delegate.includes('action: \'openLogin\'') || delegate.includes('case "openL
 }
 
 if (delegate.includes('postNativeOpenLogin')) {
-  checks.push(['✓', 'Bundled bridge calls postNativeOpenLogin first']);
+  checks.push(['✓', 'Native openLogin message handler wired']);
 } else {
   checks.push(['✗', 'Bundled bridge missing postNativeOpenLogin']);
 }
@@ -59,10 +59,10 @@ if (read('src/components/NativeLoginCard.jsx').includes('Continue With Google'))
   checks.push(['⚠', 'Login UI has no tap feedback — rebuild bundled assets']);
 }
 
-if (delegate.includes('__restorebraineOpenProviderLogin')) {
-  checks.push(['✓', 'Native provider OAuth bridge (Google / Apple / Microsoft)']);
+if (delegate.includes('launchOAuthInBrowser') || delegate.includes('openProviderOAuth')) {
+  checks.push(['✓', 'Bundled OAuth opens InAppBrowser first (not ASWebAuthenticationSession-only)']);
 } else {
-  checks.push(['⚠', 'Missing __restorebraineOpenProviderLogin — provider buttons may not open OAuth']);
+  checks.push(['⚠', 'Bundled bridge may use ASWebAuthenticationSession-only path']);
 }
 
 for (const [mark, msg] of checks) console.log(`  ${mark} ${msg}`);
