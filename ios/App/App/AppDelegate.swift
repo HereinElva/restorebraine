@@ -257,19 +257,13 @@ class AppDelegate: UIResponder, UIApplicationDelegate, ASWebAuthenticationPresen
           function showLoadProof() {
             try {
               var el = document.getElementById('rb-load-proof');
-              if (!el) {
-                el = document.createElement('div');
-                el.id = 'rb-load-proof';
-                el.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:999999;font:10px/1.3 ui-monospace,monospace;background:rgba(0,0,0,0.82);color:#4ade80;padding:5px 8px;text-align:center;pointer-events:none;';
-                (document.body || document.documentElement).appendChild(el);
-              }
-              var script = document.querySelector('script[src*="index-"]');
-              var bundle = script ? ((script.getAttribute('src') || '').split('/').pop() || '?') : '?';
-              el.textContent = 'BUNDLED · ' + '\#(escapedLabel)' + ' · ' + bundle;
+              if (el && el.parentNode) el.parentNode.removeChild(el);
             } catch (e) {}
           }
-          if (document.readyState === 'complete') showLoadProof();
-          else window.addEventListener('load', showLoadProof, { once: true });
+          showLoadProof();
+          if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', showLoadProof, { once: true });
+          }
         })();
         """#
     }
@@ -284,6 +278,10 @@ class AppDelegate: UIResponder, UIApplicationDelegate, ASWebAuthenticationPresen
         (function () {
           if (window.__restorebraineBundledOAuthInstalled) return;
           window.__restorebraineBundledOAuthInstalled = true;
+          try {
+            var stale = document.getElementById('rb-load-proof');
+            if (stale && stale.parentNode) stale.parentNode.removeChild(stale);
+          } catch (e) {}
 
           var RESTOREBRAINE = 'https://restorebraine.base44.app';
           var APP_ID = '68fdc5f42768c4d045fe1bac';
@@ -489,10 +487,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate, ASWebAuthenticationPresen
           }
 
           function markOpeningOAuth() {
-            try {
-              var el = document.getElementById('rb-load-proof');
-              if (el) el.textContent = (el.textContent || '') + ' · opening OAuth…';
-            } catch (e) {}
+            /* OAuth debug bar disabled — native OAuth unchanged */
           }
 
           function openProviderOAuth(provider) {
@@ -536,6 +531,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate, ASWebAuthenticationPresen
           function resolveOAuthTarget(event) {
             var target = event.target.closest('button, a, [role="button"], [data-rb-provider], [data-provider]');
             if (!target) return null;
+            if (target.getAttribute && target.getAttribute('data-rb-gallery-nav')) return null;
+            if (target.closest && target.closest('[data-rb-gallery-nav]')) return null;
             if (target.type === 'submit' && target.closest('form')) return null;
             var label = (target.textContent || '').replace(/\s+/g, ' ').trim();
             if (/sign in with email|create account|sign up|already have an account/i.test(label)) return null;

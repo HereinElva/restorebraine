@@ -16,6 +16,7 @@ const ALLOWED_AFTER_V87 = new Set([
   ...TIER_FULL,
   'src/screens/SignInScreen.jsx',
   'src/components/NativeLoginCard.jsx',
+  'src/lib/gallery-back-nav.js',
   'ios/App/App/AppDelegate.swift',
   'ios/App/App/BUILD_STAMP.txt',
   'ios/App/App/ghost-builds.txt',

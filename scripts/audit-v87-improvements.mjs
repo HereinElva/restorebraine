@@ -147,8 +147,10 @@ const srcScan = spawnSync(
 const OMEGA3_LOGIN_FILES = new Set([
   'src/screens/SignInScreen.jsx',
   'src/components/NativeLoginCard.jsx',
+  'src/lib/gallery-back-nav.js',
   'src/App.jsx',
   'src/lib/AuthContext.jsx',
+  'src/lib/gallery-nav.js',
 ]);
 
 const srcHits = (srcScan.stdout || '').trim().split('\n').filter(Boolean);
