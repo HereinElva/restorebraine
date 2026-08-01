@@ -58,6 +58,7 @@
     "diagnose:watch": "node scripts/diagnose-all.mjs --watch --interval=30",
     "gate:pre-update": "node scripts/gate-pre-update.mjs",
     "gate:patterns": "node scripts/gate-five-patterns.mjs",
+    "gate:mode": "node scripts/gate-mode-consistency.mjs",
     "align:all": "bash scripts/align-all.sh",
     "align:watch": "bash scripts/align-watch-base44.sh",
     "hooks:install": "bash scripts/install-git-hooks.sh",

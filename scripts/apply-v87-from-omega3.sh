@@ -80,6 +80,19 @@ fi
 
 if [[ "$SKIP_SYNC" != "1" ]]; then
   echo "==> [1] Sync branch"
+  OLD_MODE="unknown"
+  if grep -q '"url".*restorebraine.base44.app' ios/App/App/capacitor.config.json 2>/dev/null; then
+    OLD_MODE="hosted"
+  else
+    OLD_MODE="bundled"
+  fi
+  if [[ "$OLD_MODE" != "unknown" && "$OLD_MODE" != "$MODE" ]]; then
+    echo ""
+    echo " ⚠  MODE SWITCH: ${OLD_MODE} → ${MODE}"
+    echo "    Phone will load a DIFFERENT UI layer — may look like regression or white screen"
+    echo "    Required: Delete app → Restart iPhone → Xcode Clean → Run"
+    echo ""
+  fi
   git fetch origin "$BRANCH"
   git reset --hard "origin/$BRANCH"
   npm install
@@ -143,6 +156,7 @@ node scripts/audit-v87-improvements.mjs || true
 node scripts/audit-interference.mjs || true
 node scripts/audit-pre-build.mjs 2>/dev/null || true
 node scripts/diagnose-apply-regression.mjs || true
+node scripts/gate-mode-consistency.mjs || true
 
 banner "NEXT ON IPHONE (required every build)"
 echo " 1. Delete Restorebraine from iPhone"
@@ -166,7 +180,12 @@ else
   echo " Phone loads: capacitor:// bundled ios/public"
   echo " EXPECTED green bar: BUNDLED · ${STAMP} · ${ENTRY}"
   echo
-  echo " If spinner or white screen: npm run fix:no-change  (restores hosted)"
+  echo " AUTH FLOW:"
+  echo "   1. Signed-out landing — Find Your Memories + Sign In button"
+  echo "   2. Tap Sign In → Google OAuth"
+  echo "   3. Gallery — Find Your Memories + search (after login)"
+  echo
+  echo " If white screen: Delete app → Restart iPhone → Clean → Run (required every build)"
 fi
 echo "══════════════════════════════════════════════════════════════"
 

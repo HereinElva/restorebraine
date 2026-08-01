@@ -81,7 +81,7 @@ if (!hostedIos) {
   console.log('  git fetch origin cursor/apple-privacy-plist-bacf');
   console.log('  git reset --hard origin/cursor/apple-privacy-plist-bacf');
   console.log('  npm install');
-  console.log('  npm run apply:v87-from-omega3          # default hosted again');
+  console.log('  npm run apply:v87-from-omega3 -- --hosted');
   console.log('  # OR: npm run fix:no-change');
   console.log('  # Delete app → Restart iPhone → Xcode Clean → Run');
   console.log('');
