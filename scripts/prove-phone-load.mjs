@@ -64,6 +64,9 @@ if (!hasSignInFeedback) {
   console.log('  git reset --hard restores old ios/public from git — you MUST rebuild:');
   console.log('  npm run apply:v87-from-omega3 -- --skip-sync');
   console.log('  Then: Delete app → Restart iPhone → Xcode Clean → Run\n');
+  if (entry === 'index-Co8ztVUU.js') {
+    console.log('  ✗ index-Co8ztVUU.js is the OLD git bundle — causes auth spinner + Sign In no-change');
+  }
   process.exit(3);
 }
 
