@@ -35,6 +35,42 @@ export const isGoogleOAuthUrl = (url) => {
   }
 };
 
+export const isOAuthCallbackUrl = (url) =>
+  Boolean(url && typeof url === 'string' && url.includes('access_token='));
+
+const isBundledNativeShell = () => {
+  try {
+    if (typeof __RESTOREBRAINE_NATIVE_LOCAL__ !== 'undefined' && __RESTOREBRAINE_NATIVE_LOCAL__) return true;
+    const p = window.location?.protocol;
+    return p === 'capacitor:' || p === 'ionic:' || Boolean(window.__restorebraineMinimalBridge);
+  } catch {
+    return false;
+  }
+};
+
+/** After OAuth, native bridge may save token before React listeners attach. */
+export const tryRestoreSessionAfterOAuth = async () => {
+  const existing = localStorage.getItem('base44_access_token') || localStorage.getItem('token');
+  if (existing && localStorage.getItem('b44_signed_out') !== '1') {
+    await persistSessionToNativeStorage(existing);
+    try {
+      window.dispatchEvent(new CustomEvent('restorebraine-session-updated', { detail: { token: existing } }));
+      window.dispatchEvent(new CustomEvent('restorebraine-native-oauth-complete', { detail: { token: existing } }));
+    } catch {}
+    return true;
+  }
+
+  const { restoreSessionFromNativeStorage } = await import('@/lib/session-bootstrap');
+  const token = await restoreSessionFromNativeStorage();
+  if (!token) return false;
+
+  try {
+    window.dispatchEvent(new CustomEvent('restorebraine-session-updated', { detail: { token } }));
+    window.dispatchEvent(new CustomEvent('restorebraine-native-oauth-complete', { detail: { token } }));
+  } catch {}
+  return true;
+};
+
 export const captureOAuthTokenFromUrl = async (url) => {
   if (!url) return null;
   try {
@@ -57,17 +93,8 @@ let oauthListenerAttached = false;
 const finishOAuthLogin = async () => {
   const InAppBrowser = await getInAppBrowser();
   await InAppBrowser.close().catch(() => {});
-  try {
-    window.dispatchEvent(new CustomEvent('restorebraine-native-oauth-complete'));
-  } catch {}
-  const isBundled =
-    window.location?.protocol === 'capacitor:' ||
-    window.location?.protocol === 'ionic:' ||
-    window.__restorebraineMinimalBridge;
-  if (isBundled) {
-    window.location.reload();
-    return;
-  }
+  if (await tryRestoreSessionAfterOAuth()) return;
+  if (isBundledNativeShell()) return;
   window.location.replace(getAuthReturnOrigin());
 };
 
@@ -84,23 +111,15 @@ const attachOAuthCompletionListener = async () => {
 
   const InAppBrowser = await getInAppBrowser();
   await InAppBrowser.addListener('browserClosed', async () => {
-    const stored = localStorage.getItem('base44_access_token') || localStorage.getItem('token');
-    const isBundled =
-      window.location?.protocol === 'capacitor:' ||
-      window.location?.protocol === 'ionic:' ||
-      window.__restorebraineMinimalBridge;
-    if (stored) {
-      if (isBundled) window.location.reload();
-      else window.location.replace(getAuthReturnOrigin());
-      return;
-    }
+    if (await tryRestoreSessionAfterOAuth()) return;
     try {
       const { App } = await import('@capacitor/app');
       const launch = await App.getLaunchUrl();
       if (launch?.url) await handleNativeOAuthCallback(launch.url);
     } catch {}
-    if (isBundled) window.location.reload();
-    else window.location.replace(getAuthReturnOrigin());
+    if (!isBundledNativeShell()) {
+      window.location.replace(getAuthReturnOrigin());
+    }
   });
 };
 
@@ -164,6 +183,41 @@ export const launchProviderOAuth = (provider = 'google') => {
     return;
   }
   void openLoginInSystemBrowser(url, provider);
+};
+
+/** Install JS OAuth fallbacks when AppDelegate bridge is not ready yet. */
+export const installNativeOAuthListeners = async () => {
+  if (typeof window === 'undefined' || window.__restorebraineOAuthListenersInstalled) return;
+
+  const { waitForCapacitorBridge } = await import('@/lib/capacitor-ready');
+  if (!(await waitForCapacitorBridge(100))) return;
+
+  window.__restorebraineOAuthListenersInstalled = true;
+
+  if (!window.__restorebraineBundledOAuthInstalled && !window.__restorebraineSessionBridgeInstalled) {
+    window.__restorebraineOpenLogin = () => {
+      void openLoginInSystemBrowser(getGoogleOAuthUrl(), 'google');
+    };
+    window.__restorebraineOpenProviderLogin = (provider) => {
+      const p = provider || 'google';
+      const oauthUrl = p === 'google' ? getGoogleOAuthUrl() : getProviderOAuthUrl(p);
+      void openLoginInSystemBrowser(oauthUrl, p);
+    };
+  }
+
+  window.addEventListener('restorebraine-native-oauth-complete', () => {
+    void tryRestoreSessionAfterOAuth();
+  });
+
+  try {
+    const { installNativeOAuthDeepLinkHandler } = await import('@/lib/session-bootstrap');
+    await installNativeOAuthDeepLinkHandler();
+    oauthListenerAttached = false;
+    await attachOAuthCompletionListener();
+  } catch (error) {
+    window.__restorebraineOAuthListenersInstalled = false;
+    console.warn('Native OAuth listener setup failed:', error);
+  }
 };
 
 const handleAuthNavigation = (url, providerHint) => {

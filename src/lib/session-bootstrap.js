@@ -53,6 +53,14 @@ export const restoreSessionFromNativeStorage = async () => {
   try {
     if (typeof window !== 'undefined' && localStorage.getItem(SIGNED_OUT_KEY) === '1') return null;
   } catch {}
+
+  const syncToken = readSyncToken();
+  if (syncToken) {
+    appParams.token = syncToken;
+    base44.auth.setToken(syncToken, false);
+    return syncToken;
+  }
+
   const signedOut = await persistentStorage.get(SIGNED_OUT_KEY);
   if (signedOut === '1') return null;
 
@@ -80,12 +88,13 @@ export const installNativeOAuthDeepLinkHandler = async () => {
     await waitForCapacitorBridge();
 
     const { App } = await import('@capacitor/app');
-    const { handleNativeOAuthCallback } = await import('@/lib/native-google-oauth');
+    const { handleNativeOAuthCallback, tryRestoreSessionAfterOAuth } = await import('@/lib/native-google-oauth');
 
     await withTimeout(
       App.addListener('appUrlOpen', async ({ url }) => {
         if (!url || !url.includes('access_token=')) return;
-        await handleNativeOAuthCallback(url);
+        if (await handleNativeOAuthCallback(url)) return;
+        await tryRestoreSessionAfterOAuth();
       }),
       5000,
       'App.addListener(appUrlOpen)',

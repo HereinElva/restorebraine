@@ -138,7 +138,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate, ASWebAuthenticationPresen
                     window.dispatchEvent(new CustomEvent('restorebraine-session-updated'));
                     window.dispatchEvent(new CustomEvent('restorebraine-native-oauth-complete'));
                   } catch (e) {}
-                  window.location.reload();
                 })();
                 """,
                 completionHandler: nil
@@ -378,9 +377,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate, ASWebAuthenticationPresen
               window.dispatchEvent(new CustomEvent('restorebraine-native-oauth-complete'));
               window.dispatchEvent(new CustomEvent('restorebraine-session-updated'));
             } catch (e) {}
-            if (readToken()) {
-              window.location.reload();
-            }
           }
 
           function handleOAuthBrowserUrl(url, ib) {
@@ -412,11 +408,19 @@ class AppDelegate: UIResponder, UIApplicationDelegate, ASWebAuthenticationPresen
             });
             ib.addListener('browserClosed', function () {
               if (readToken()) {
-                window.location.reload();
+                try {
+                  window.dispatchEvent(new CustomEvent('restorebraine-session-updated'));
+                  window.dispatchEvent(new CustomEvent('restorebraine-native-oauth-complete'));
+                } catch (e) {}
                 return;
               }
               captureAccessTokenFromUrl();
-              if (readToken()) window.location.reload();
+              if (readToken()) {
+                try {
+                  window.dispatchEvent(new CustomEvent('restorebraine-session-updated'));
+                  window.dispatchEvent(new CustomEvent('restorebraine-native-oauth-complete'));
+                } catch (e) {}
+              }
             });
           }
 

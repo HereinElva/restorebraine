@@ -61,6 +61,14 @@ async function bootstrapApp() {
   window.__rbBooted = true;
   const fb = document.getElementById('rb-boot-fallback');
   if (fb) fb.remove();
+
+  if (isNativeShell()) {
+    import('@/lib/native-google-oauth').then(({ installNativeOAuthListeners }) => {
+      requestAnimationFrame(() => {
+        void installNativeOAuthListeners();
+      });
+    });
+  }
 }
 
 let bootstrapFinished = false;

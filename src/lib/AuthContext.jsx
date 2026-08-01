@@ -74,8 +74,10 @@ export const AuthProvider = ({ children }) => {
     const timeout = window.setTimeout(() => {
       if (finished) return;
       finished = true;
-      if (isBundledNativeShell() && hasStoredAuthToken()) {
-        void clearNativeSession().catch(() => {});
+      if (hasStoredAuthToken()) {
+        finishAuthBoot();
+        void checkUserAuth({ ignoreManualLogout: true, silent: true });
+        return;
       }
       finishAuthBoot({
         error: { type: 'auth_required', message: 'Session check timed out' },
@@ -95,6 +97,34 @@ export const AuthProvider = ({ children }) => {
         finishAuthBoot();
         finished = true;
         window.clearTimeout(timeout);
+        void withAuthTimeout(
+          createAxiosClient({
+            baseURL: `${appParams.serverUrl}/api/apps/public`,
+            headers: { 'X-App-Id': appParams.appId },
+            token: appParams.token,
+            interceptResponses: true,
+          }).get(`/prod/public-settings/by-id/${appParams.appId}`),
+          AUTH_API_TIMEOUT_MS,
+          'public-settings-background',
+        )
+          .then((publicSettings) => setAppPublicSettings(publicSettings))
+          .catch(() => {});
+        return;
+      }
+
+      // Bundled + token: show gallery immediately; validate session in background (Omega 3).
+      if (isBundledNativeShell() && hasStoredAuthToken()) {
+        setIsAuthenticated(true);
+        setAuthError(null);
+        finishAuthBoot();
+        finished = true;
+        window.clearTimeout(timeout);
+        try {
+          window.dispatchEvent(new CustomEvent('restorebraine-gallery-ready', {
+            detail: { token: appParams.token || localStorage.getItem('base44_access_token') },
+          }));
+        } catch {}
+        void checkUserAuth({ ignoreManualLogout: true, silent: true });
         void withAuthTimeout(
           createAxiosClient({
             baseURL: `${appParams.serverUrl}/api/apps/public`,
@@ -280,10 +310,19 @@ export const AuthProvider = ({ children }) => {
   };
 
   useEffect(() => {
-    const onSessionUpdated = () => {
-      if (authBootInFlightRef.current) return;
-      if (!hasStoredAuthToken()) return;
-      void resumeActiveSession();
+    const onSessionUpdated = (event) => {
+      try {
+        const token =
+          event?.detail?.token ||
+          (localStorage.getItem('b44_signed_out') === '1'
+            ? null
+            : (localStorage.getItem('base44_access_token') || localStorage.getItem('token')));
+        if (token) {
+          appParams.token = token;
+          ensureClientSessionToken();
+        }
+      } catch {}
+      void checkAppState();
     };
 
     window.addEventListener('restorebraine-session-updated', onSessionUpdated);
@@ -340,6 +379,10 @@ export const AuthProvider = ({ children }) => {
       setIsAuthenticated(true);
       finishAuthBoot();
       setAuthError(null);
+      try {
+        window.dispatchEvent(new CustomEvent('restorebraine-session-updated', { detail: { token: response.access_token } }));
+        window.dispatchEvent(new CustomEvent('restorebraine-gallery-ready', { detail: { token: response.access_token } }));
+      } catch {}
       await checkUserAuth({ ignoreManualLogout: true, silent: true });
     } catch (error) {
       setIsLoadingAuth(false);
