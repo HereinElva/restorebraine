@@ -39,7 +39,7 @@ console.log(`  BUILD_STAMP:       ${stamp || '(missing)'}`);
 console.log(`  ios config:        ${hostedIos ? 'HOSTED (live Base44 CDN)' : 'BUNDLED (Mac terminal UI — apply default)'}`);
 console.log(`  root config:       ${hostedRoot ? 'HOSTED' : 'BUNDLED'}`);
 console.log(`  bundled entry:     ${entry}`);
-console.log(`  SignedOutLanding:  ${appUsesSignedOut ? 'yes ✓' : 'no — check App.jsx'}`);
+console.log(`  SignedOutLanding:  ${read('src/App.jsx').includes('ClassicLoginLanding') ? 'no — using ClassicLoginLanding (pre-v87 card)' : appUsesSignedOut ? 'yes (gallery shell)' : 'no — check App.jsx'}`);
 console.log(`  crossorigin:       ${crossorigin ? 'YES ✗ breaks capacitor://' : 'no ✓'}`);
 console.log('');
 

@@ -31,6 +31,7 @@
     "diagnose:apply-regression": "node scripts/diagnose-apply-regression.mjs",
     "diagnose:auth-flow": "node scripts/diagnose-auth-flow.mjs",
     "diagnose:sign-in": "node scripts/diagnose-sign-in-tap.mjs",
+    "print:landing-history": "node scripts/print-landing-history.mjs",
     "prove:phone": "node scripts/prove-phone-load.mjs",
     "revert:terminal": "bash scripts/terminal-revert-all.sh",
     "revert:v87-all": "bash scripts/revert-to-v87-everywhere.sh",
