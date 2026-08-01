@@ -6,21 +6,20 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { execSync } from 'node:child_process';
 import { resolve } from 'node:path';
-import { OMEGA3_TO_V87_COMMITS, V87_TIP } from './base44-v87-publish-manifest.mjs';
+import { OMEGA3_TO_V87_COMMITS, V87_TIP, TIER_FULL } from './base44-v87-publish-manifest.mjs';
 
 const V87 = '87';
 const V87_UI_COMMIT = '5762b16';
 const V87_TIP_COMMIT = V87_TIP;
+/** Omega 3 gallery + v87 branch fixes — not "post-v87 breakdown" artifacts */
 const ALLOWED_AFTER_V87 = new Set([
-  'src/lib/build-info.js',
-  'src/lib/auth-urls.js',
-  'src/lib/native-hosted-redirect.js',
-  'src/lib/native-google-oauth.js',
-  'src/lib/native-platform-guard.js',
+  ...TIER_FULL,
   'ios/App/App/AppDelegate.swift',
   'ios/App/App/BUILD_STAMP.txt',
   'ios/App/App/ghost-builds.txt',
   'ios/App/App.xcodeproj/project.pbxproj',
+  'ios/App/verify-bundle.sh',
+  'capacitor.config.json',
 ]);
 const APP_PATHS = [
   'src/',

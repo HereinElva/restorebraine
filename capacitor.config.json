@@ -10,23 +10,5 @@
       "NSPhotoLibraryUsageDescription": "Restorebraine accesses photos and videos you select from your library so you can upload them to your memory collection, organize them into folders, and search them with AI.",
       "NSPhotoLibraryAddUsageDescription": "Restorebraine can save exported memories back to your photo library when you choose to download or save an item."
     }
-  },
-  "server": {
-    "url": "https://restorebraine.base44.app",
-    "cleartext": false,
-    "allowNavigation": [
-      "restorebraine.base44.app",
-      "restorebraine.com",
-      "www.restorebraine.com",
-      "app.base44.com",
-      "accounts.google.com",
-      "appleid.apple.com",
-      "checkout.stripe.com",
-      "pay.stripe.com",
-      "stripe.com",
-      "js.stripe.com",
-      "m.stripe.com",
-      "hooks.stripe.com"
-    ]
   }
 }
