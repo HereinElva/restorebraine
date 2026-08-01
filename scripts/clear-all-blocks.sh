@@ -1,27 +1,28 @@
 #!/usr/bin/env bash
 # clear-all-blocks.sh — remove ALL lingering blocks: ghosts + WKWebView cache + bundled UI
 #
-# Hosted Xcode builds CANNOT change iPhone UI (loads live Base44).
-# This script switches to BUNDLED mode so Mac terminal controls what the phone shows.
+# Hosted Xcode builds load live Base44 (default — most reliable on iPhone).
+# Use --bundled only when you need Mac terminal to control UI without Base44 Publish.
 #
 # Usage:
-#   npm run blocks:clear          # bundled v87 (recommended — no CDN ghosts)
-#   npm run blocks:clear -- --hosted   # purge cache only, stay on Base44 CDN
+#   npm run blocks:clear              # hosted (default — reliable on iPhone)
+#   npm run blocks:clear -- --bundled # bundled v87 from Mac (experimental)
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-MODE="bundled"
+MODE="hosted"
 for arg in "$@"; do
   case "$arg" in
+    --bundled) MODE="bundled" ;;
     --hosted) MODE="hosted" ;;
     -h|--help)
       cat << 'EOF'
 Clear all iPhone update blockers
 
-  npm run blocks:clear              Bundled v87 from Mac (bypasses Base44 CDN entirely)
-  npm run blocks:clear -- --hosted  WKWebView purge only (UI still from live Base44)
+  npm run blocks:clear              Hosted + WKWebView purge (default — reliable)
+  npm run blocks:clear -- --bundled Bundled v87 from Mac (experimental)
 
 After either mode:
   Delete Restorebraine on iPhone → Restart iPhone → Xcode Clean Build Folder → Run

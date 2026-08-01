@@ -21,6 +21,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
 
     private let sessionMessageHandler = RestorebraineSessionMessageHandler()
+    private var sessionBridgeScriptInstalled = false
 
     private var nativeBuildLabel: String {
         guard let url = Bundle.main.url(forResource: "BUILD_STAMP", withExtension: "txt"),
@@ -1067,9 +1068,12 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 
     @objc private func installSessionBridge() {
+        guard !sessionBridgeScriptInstalled else { return }
         guard let bridge = window?.rootViewController as? CAPBridgeViewController else { return }
         let userContentController = bridge.webView?.configuration.userContentController
         guard let userContentController = userContentController else { return }
+
+        sessionBridgeScriptInstalled = true
 
         userContentController.removeScriptMessageHandler(forName: "restorebraineNativeSession")
         userContentController.add(sessionMessageHandler, name: "restorebraineNativeSession")

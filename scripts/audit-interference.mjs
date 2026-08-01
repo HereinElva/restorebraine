@@ -49,6 +49,12 @@ const delegate = read('ios/App/App/AppDelegate.swift');
 const iosCapText = read('ios/App/App/capacitor.config.json');
 const iosBundled = iosCapText && !iosCapText.includes('"url"');
 
+if (delegate.includes('sessionBridgeScriptInstalled')) {
+  ok('AppDelegate session bridge installs once (no double Location patches at boot)');
+} else {
+  bad('AppDelegate may install session bridge twice — double Location patches cause white screen');
+}
+
 if (delegate.includes('bundledMinimalBridgeScript') || delegate.includes('__restorebraineMinimalBridge')) {
   ok('AppDelegate bundled mode uses minimal bridge (no Location patches at boot)');
 } else if (iosBundled && delegate.includes('installLocationNavigationGuard')) {

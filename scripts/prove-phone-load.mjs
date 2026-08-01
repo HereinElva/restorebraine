@@ -35,9 +35,10 @@ console.log(`
 `);
 
 if (hosted) {
-  console.log('⚠  Phone ignores Mac UI changes — need Base44 Publish OR run:');
-  console.log('   npm run fix:no-change   (bundled rebuild)\n');
-  process.exit(1);
+  console.log('✓ Hosted mode OK. Phone loads live Base44 (reliable — avoids bundled white screen).');
+  console.log('  UI changes need Base44 Publish: npm run base44:export-pack');
+  console.log('  Mac-only UI (experimental): npm run fix:no-change -- --bundled\n');
+  process.exit(0);
 }
 
 if (!existsSync('ios/App/App/public/assets')) {
