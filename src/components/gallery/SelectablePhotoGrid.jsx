@@ -8,7 +8,8 @@ export default function SelectablePhotoGrid({
   onPhotoClick, 
   selectionMode = false, 
   selectedIds = [], 
-  onToggleSelect
+  onToggleSelect,
+  fastRender = false,
 }) {
   const handleClick = (photo, e) => {
     if (selectionMode) {
@@ -18,6 +19,16 @@ export default function SelectablePhotoGrid({
       onPhotoClick(photo);
     }
   };
+
+  const getMotionProps = (index) => (
+    fastRender
+      ? { initial: false, animate: { opacity: 1, y: 0 }, transition: { duration: 0 } }
+      : {
+          initial: { opacity: 0, y: 20 },
+          animate: { opacity: 1, y: 0 },
+          transition: { duration: 0.3, delay: Math.min(index * 0.03, 0.3) },
+        }
+  );
 
   // If selection mode is active, render with drag-and-drop
   if (selectionMode) {
@@ -43,9 +54,7 @@ export default function SelectablePhotoGrid({
                       ref={provided.innerRef}
                       {...provided.draggableProps}
                       {...provided.dragHandleProps}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.3, delay: index * 0.03 }}
+                      {...getMotionProps(index)}
                       onClick={(e) => handleClick(photo, e)}
                       className="group cursor-move relative"
                       style={{
@@ -75,6 +84,7 @@ export default function SelectablePhotoGrid({
                             alt={photo.ai_description}
                             className="w-full h-full object-cover"
                             loading="eager"
+                            decoding="async"
                           />
                         )}
                         
@@ -112,9 +122,7 @@ export default function SelectablePhotoGrid({
       {photos.map((photo, index) => (
         <motion.div
           key={photo.id}
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3, delay: index * 0.03 }}
+          {...getMotionProps(index)}
           onClick={(e) => handleClick(photo, e)}
           className="group cursor-pointer relative"
         >
@@ -138,6 +146,7 @@ export default function SelectablePhotoGrid({
                 alt={photo.ai_description}
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                 loading="eager"
+                decoding="async"
               />
             )}
             

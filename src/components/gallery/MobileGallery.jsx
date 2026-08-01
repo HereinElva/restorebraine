@@ -345,7 +345,7 @@ export default function MobileGallery({
                 <p className="text-gray-400 text-sm">Try a different search</p>
               </div>
             ) : (
-              <SelectablePhotoGrid photos={filteredPhotos} onPhotoClick={setSelectedPhoto} selectionMode={false} selectedIds={[]} onToggleSelect={() => {}} />
+              <SelectablePhotoGrid photos={filteredPhotos} onPhotoClick={setSelectedPhoto} selectionMode={false} selectedIds={[]} onToggleSelect={() => {}} fastRender />
             )}
           </>
         ) : activeTab === "folders" ? (
@@ -427,6 +427,7 @@ export default function MobileGallery({
                       selectionMode={selectionMode}
                       selectedIds={selectedIds}
                       onToggleSelect={toggleSelect}
+                      fastRender
                     />
                   </div>
                 )}

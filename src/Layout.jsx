@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { isGalleryPath, navigateToGallery, persistActiveSession } from "@/lib/gallery-nav";
 import { useAuth } from "@/lib/AuthContext";
+import { getRestorebraineAppLogo } from "@/lib/app-branding";
 import { Search, Upload, User, ChevronLeft } from "lucide-react";
 import { resetAppScrollPosition } from "@/lib/scroll-reset";
 import { AnimatePresence, motion } from "framer-motion";
@@ -150,11 +151,14 @@ function LayoutInner({ children, currentPageName }) {
                 to={createPageUrl("Gallery")}
                 replace
                 data-rb-gallery-nav="header-logo"
-                className="flex items-center gap-2 select-none group min-h-[44px]"
+                className="flex items-center gap-1.5 select-none group min-h-[44px]"
               >
-                <div className="w-8 h-8 bg-gradient-to-br from-blue-300 to-purple-400 rounded-xl flex items-center justify-center transform group-hover:scale-105 transition-transform duration-200 shadow-md">
-                  <Search className="w-4 h-4 text-white" />
-                </div>
+                <img
+                  src={getRestorebraineAppLogo()}
+                  alt="Restorebraine"
+                  data-rb-logo="1"
+                  className="w-7 h-7 rounded-lg object-cover shadow-sm"
+                />
                 <span className="text-base font-semibold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent select-none">
                   Restorebraine
                 </span>

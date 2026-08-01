@@ -400,7 +400,6 @@ export default function Gallery() {
  
   // Pull-to-refresh — refetch gallery data; always completes so spinner clears
   const handleRefresh = async () => {
-    window.dispatchEvent(new Event("restorebraine-gallery-refresh"));
     if (!userEmail) return;
 
     await Promise.race([
@@ -410,7 +409,7 @@ export default function Gallery() {
       ]).catch((error) => {
         console.warn("Gallery refetch failed:", error);
       }),
-      new Promise((resolve) => setTimeout(resolve, 8000)),
+      new Promise((resolve) => setTimeout(resolve, 4000)),
     ]);
   };
  
