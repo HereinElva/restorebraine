@@ -9,28 +9,28 @@ export default function AiUploadConsentModal({ open, onAccept, onDecline }) {
 
   return (
     <div
-      className="fixed inset-0 z-[200] flex items-end justify-center bg-black/45"
+      className="fixed inset-0 z-[200] flex items-center justify-center bg-black/45 p-4"
       role="dialog"
       aria-modal="true"
       aria-labelledby="ai-consent-title"
     >
-      <div className="w-full max-w-lg bg-white rounded-t-3xl shadow-2xl flex flex-col max-h-[min(46vh,420px)]">
-        <div className="overflow-y-auto px-4 pt-4 pb-2 flex-1 min-h-0">
+      <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl flex flex-col max-h-[min(85vh,560px)]">
+        <div className="overflow-y-auto px-5 pt-5 pb-3 flex-1 min-h-0">
           <div className="flex items-start gap-3 mb-3">
-            <div className="w-9 h-9 rounded-xl bg-purple-100 flex items-center justify-center flex-shrink-0">
-              <Sparkles className="w-4 h-4 text-purple-600" />
+            <div className="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center flex-shrink-0">
+              <Sparkles className="w-5 h-5 text-purple-600" />
             </div>
             <div className="min-w-0">
-              <h2 id="ai-consent-title" className="text-base font-bold text-gray-900 leading-snug">
+              <h2 id="ai-consent-title" className="text-lg font-bold text-gray-900 leading-snug">
                 Before we analyze your photos
               </h2>
-              <p className="text-xs text-gray-600 mt-1 leading-relaxed">
-                Uploads are sent to <strong>OpenAI</strong> for short descriptions and search tags, saved to your private account only.
+              <p className="text-sm text-gray-600 mt-1 leading-relaxed">
+                When you upload, photos are sent to <strong>OpenAI</strong> for short descriptions and search tags, saved to your private account only.
               </p>
             </div>
           </div>
 
-          <div className="rounded-xl bg-gray-50 px-3 py-2.5 text-xs text-gray-700 space-y-1.5 leading-relaxed">
+          <div className="rounded-xl bg-purple-50/80 px-3 py-3 text-sm text-gray-700 space-y-1.5 leading-relaxed">
             <p><strong>Sent:</strong> only the photo or video you upload.</p>
             <p><strong>Used for:</strong> AI search tags — not used to train OpenAI models.</p>
             <a
@@ -40,20 +40,17 @@ export default function AiUploadConsentModal({ open, onAccept, onDecline }) {
               className="inline-flex items-center gap-1 text-purple-600 font-medium"
             >
               OpenAI Privacy Policy
-              <ExternalLink className="w-3 h-3" />
+              <ExternalLink className="w-3.5 h-3.5" />
             </a>
           </div>
 
-          <p className="flex items-start gap-1.5 text-[11px] text-gray-500 mt-2 leading-relaxed">
-            <Shield className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+          <p className="flex items-start gap-1.5 text-xs text-gray-500 mt-3 leading-relaxed">
+            <Shield className="w-4 h-4 mt-0.5 flex-shrink-0" />
             Delete items anytime. Revoke consent in Account settings.
           </p>
         </div>
 
-        <div
-          className="px-4 pt-3 pb-4 border-t border-gray-100 bg-white flex-shrink-0"
-          style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
-        >
+        <div className="px-5 pt-3 pb-5 border-t border-gray-100 bg-white flex-shrink-0 space-y-2">
           <Button
             type="button"
             onClick={onAccept}
@@ -64,7 +61,7 @@ export default function AiUploadConsentModal({ open, onAccept, onDecline }) {
           <button
             type="button"
             onClick={onDecline}
-            className="w-full mt-2 py-2 text-sm text-gray-500 font-medium"
+            className="w-full py-2 text-sm text-gray-500 font-medium"
           >
             Not now
           </button>

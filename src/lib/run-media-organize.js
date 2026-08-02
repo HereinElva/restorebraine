@@ -1,8 +1,11 @@
 import { invokeLLMWithRetry } from "@/lib/invoke-llm-retry";
 import {
   assignFolderLocally,
+  assignFolderToOrganizeBatch,
   buildFolderOptions,
   buildLabelPrompt,
+  consolidateOrganizeLabels,
+  getOrganizeFolderNames,
   parseCustomFolderHints,
   photoDataForOrganize,
 } from "@/lib/media-organize";
@@ -21,9 +24,9 @@ import {
   recordBatchFolderMembership,
 } from "@/lib/folder-membership-cache";
 
-const CHUNK_SIZE = 20;
-const SAVE_BATCH_SIZE = 250;
-const LLM_DELAY_MS = 1500;
+const CHUNK_SIZE = 40;
+const LLM_DELAY_MS = 800;
+const LOCAL_LABEL_THRESHOLD = 50;
 const MISC_FOLDER = "Miscellaneous";
 
 function sleep(ms) {
@@ -42,9 +45,9 @@ function sanitizeFoldersLocally(folders, photos, allPhotoIds) {
   });
 }
 
-async function labelChunkWithAI(chunk, existingFolderNames, customInstructions, customFolderHints) {
+async function labelChunkWithAI(chunk, folderNamesForLabel, customInstructions, customFolderHints) {
   const photoData = chunk.map(photoDataForOrganize);
-  const folderOptions = buildFolderOptions(existingFolderNames, customFolderHints);
+  const folderOptions = buildFolderOptions(folderNamesForLabel, customFolderHints);
 
   const result = await invokeLLMWithRetry(
     {
@@ -71,23 +74,35 @@ async function labelChunkWithAI(chunk, existingFolderNames, customInstructions, 
   return result.labels || [];
 }
 
-function labelChunkLocally(chunk) {
+function labelAllLocally(photosToOrganize, folderNamesForLabel) {
+  return photosToOrganize.map((photo) => ({
+    id: normalizePhotoId(photo.id),
+    folder: assignFolderToOrganizeBatch(photo, folderNamesForLabel),
+  }));
+}
+
+function labelChunkLocally(chunk, folderNamesForLabel) {
   return chunk.map((photo) => ({
     id: normalizePhotoId(photo.id),
-    folder: assignFolderLocally(photo),
+    folder: assignFolderToOrganizeBatch(photo, folderNamesForLabel),
   }));
 }
 
 async function buildLabelsFromDescriptions(
   photosToOrganize,
-  existingFolderNames,
+  folderNamesForLabel,
   customInstructions,
   validPhotoIds,
   onProgress
 ) {
+  if (photosToOrganize.length >= LOCAL_LABEL_THRESHOLD) {
+    onProgress?.(`Grouping ${photosToOrganize.length} items…`);
+    return labelAllLocally(photosToOrganize, folderNamesForLabel);
+  }
+
   const customFolderHints = parseCustomFolderHints(customInstructions);
   const chunks = [];
-  const chunkSize = photosToOrganize.length <= 20 ? photosToOrganize.length : CHUNK_SIZE;
+  const chunkSize = photosToOrganize.length <= CHUNK_SIZE ? photosToOrganize.length : CHUNK_SIZE;
   for (let i = 0; i < photosToOrganize.length; i += chunkSize) {
     chunks.push(photosToOrganize.slice(i, i + chunkSize));
   }
@@ -102,7 +117,7 @@ async function buildLabelsFromDescriptions(
     try {
       const labels = await labelChunkWithAI(
         chunk,
-        existingFolderNames,
+        folderNamesForLabel,
         customInstructions,
         customFolderHints
       );
@@ -114,7 +129,7 @@ async function buildLabelsFromDescriptions(
       }
     } catch (error) {
       console.warn("AI label batch failed, using local fallback:", error);
-      allLabels.push(...labelChunkLocally(chunk));
+      allLabels.push(...labelChunkLocally(chunk, folderNamesForLabel));
     }
   }
 
@@ -122,7 +137,10 @@ async function buildLabelsFromDescriptions(
   for (const photo of photosToOrganize) {
     const id = normalizePhotoId(photo.id);
     if (!labelledIds.has(id)) {
-      allLabels.push({ id, folder: assignFolderLocally(photo) });
+      allLabels.push({
+        id,
+        folder: assignFolderToOrganizeBatch(photo, folderNamesForLabel),
+      });
     }
   }
 
@@ -157,6 +175,7 @@ export async function runMediaOrganize({
 
   const liveFolderSource = uiShowsNoFolders ? [] : uiFolders.length ? uiFolders : apiFolders;
   const existingFolderNames = liveFolderSource.map((f) => f.name);
+  const folderNamesForLabel = getOrganizeFolderNames(existingFolderNames, includeOrganized);
 
   const photosToOrganize = includeOrganized
     ? photos
@@ -172,7 +191,6 @@ export async function runMediaOrganize({
   }
 
   const batchPhotos = photosToOrganize;
-  const remainingLoose = 0;
 
   if (includeOrganized && apiFolders.length > 0) {
     const confirmed = typeof window !== 'undefined' && window.confirm(
@@ -188,19 +206,24 @@ export async function runMediaOrganize({
 
   onProgress?.(
     batchPhotos.length > 1
-      ? `Sorting ${batchPhotos.length} loose items…`
+      ? `Sorting ${batchPhotos.length} loose items into up to 8 folders…`
       : `Sorting ${batchPhotos.length} loose item…`,
   );
 
   const validPhotoIds = new Set(batchPhotos.map((p) => normalizePhotoId(p.id)));
-  const folderNamesForLabel = includeOrganized ? [] : existingFolderNames;
 
-  const allLabels = await buildLabelsFromDescriptions(
+  const rawLabels = await buildLabelsFromDescriptions(
     batchPhotos,
     folderNamesForLabel,
     customInstructions,
     validPhotoIds,
     onProgress
+  );
+
+  const allLabels = consolidateOrganizeLabels(
+    rawLabels,
+    batchPhotos,
+    folderNamesForLabel,
   );
 
   onProgress?.("Saving folders…");
@@ -230,7 +253,7 @@ export async function runMediaOrganize({
       getUnorganizedPhotos([p], afterFolders).length > 0,
   );
   const actuallySaved = batchPhotos.length - missedPhotos.length;
-  const totalRemainingLoose = remainingLoose + missedPhotos.length;
+  const totalRemainingLoose = missedPhotos.length;
 
   if (actuallySaved === 0 && batchPhotos.length > 0) {
     return {

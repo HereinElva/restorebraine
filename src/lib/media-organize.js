@@ -14,6 +14,46 @@ export const CANONICAL_FOLDERS = [
   'Miscellaneous',
 ];
 
+/** Target folder count for each organize run — dense batches, not many tiny folders. */
+export const ORGANIZE_BATCH_FOLDER_COUNT = 8;
+
+/** Primary folders used when sorting a large loose library for the first time. */
+export const ORGANIZE_BATCH_FOLDERS = [
+  'People & Portraits',
+  'Nature & Landscapes',
+  'Travel & Landmarks',
+  'Home & Indoor',
+  'Food & Dining',
+  'Celebrations & Events',
+  'Outdoor Activities',
+  'Animals & Pets',
+];
+
+const BATCH_FOLDER_ALIASES = {
+  'quotes & text screenshots': 'Celebrations & Events',
+  'artwork & illustrations': 'Nature & Landscapes',
+  miscellaneous: 'Home & Indoor',
+  'documents & receipts': 'Home & Indoor',
+  'digital art & graphics': 'Nature & Landscapes',
+};
+
+export function getOrganizeFolderNames(existingFolderNames = [], includeOrganized = false) {
+  if (includeOrganized) return [...ORGANIZE_BATCH_FOLDERS];
+
+  if (existingFolderNames.length >= ORGANIZE_BATCH_FOLDER_COUNT) {
+    return existingFolderNames;
+  }
+
+  const merged = [...existingFolderNames];
+  for (const name of ORGANIZE_BATCH_FOLDERS) {
+    if (merged.length >= ORGANIZE_BATCH_FOLDER_COUNT) break;
+    if (!merged.some((folder) => folder.toLowerCase() === name.toLowerCase())) {
+      merged.push(name);
+    }
+  }
+  return merged.slice(0, ORGANIZE_BATCH_FOLDER_COUNT);
+}
+
 export function photoDataForOrganize(photo) {
   const tags = (photo.ai_tags || []).slice(0, 35);
   const desc = (photo.ai_description || '').trim();
@@ -201,6 +241,75 @@ export function assignFolderLocally(photo) {
   }
 
   return bestFolder;
+}
+
+/** Pick the best allowed folder when consolidating into a fixed batch size. */
+export function assignFolderToOrganizeBatch(photo, allowedFolderNames = ORGANIZE_BATCH_FOLDERS) {
+  const allowed = allowedFolderNames?.length ? allowedFolderNames : ORGANIZE_BATCH_FOLDERS;
+  const local = assignFolderLocally(photo);
+  const normalized = normalizeFolderName(local, allowed);
+  if (allowed.some((name) => name.toLowerCase() === normalized.toLowerCase())) {
+    return normalized;
+  }
+
+  const alias = BATCH_FOLDER_ALIASES[normalized.toLowerCase()];
+  if (alias && allowed.some((name) => name.toLowerCase() === alias.toLowerCase())) {
+    return allowed.find((name) => name.toLowerCase() === alias.toLowerCase()) || alias;
+  }
+
+  const text = photoSearchText(photo);
+  let bestFolder = allowed[0] || ORGANIZE_BATCH_FOLDERS[0];
+  let bestScore = 0;
+
+  for (const folder of allowed) {
+    const keywords = FOLDER_KEYWORD_MAP[folder] || [];
+    let score = 0;
+    for (const kw of keywords) {
+      if (keywordMatch(text, kw)) score += kw.length >= 5 ? 2 : 1;
+    }
+    if (score > bestScore) {
+      bestScore = score;
+      bestFolder = folder;
+    }
+  }
+
+  return bestFolder;
+}
+
+/** Remap labels into at most eight dense folders for one organize run. */
+export function consolidateOrganizeLabels(labels, photos, allowedFolderNames = ORGANIZE_BATCH_FOLDERS) {
+  const allowed = allowedFolderNames?.length ? allowedFolderNames : ORGANIZE_BATCH_FOLDERS;
+  const allowedLower = new Set(allowed.map((name) => name.toLowerCase()));
+  const photoById = new Map(
+    (photos || []).map((photo) => [String(photo.id), photo]),
+  );
+
+  let remapped = (labels || []).map((label) => {
+    const photo = photoById.get(String(label.id));
+    let folder = normalizeFolderName(label.folder, allowed);
+    if (!allowedLower.has(folder.toLowerCase())) {
+      folder = assignFolderToOrganizeBatch(photo, allowed);
+    }
+    return { ...label, folder };
+  });
+
+  const counts = new Map();
+  for (const label of remapped) {
+    counts.set(label.folder, (counts.get(label.folder) || 0) + 1);
+  }
+
+  if (counts.size <= ORGANIZE_BATCH_FOLDER_COUNT) return remapped;
+
+  const ranked = [...counts.entries()].sort((a, b) => b[1] - a[1]);
+  const keep = new Set(
+    ranked.slice(0, ORGANIZE_BATCH_FOLDER_COUNT).map(([name]) => name),
+  );
+  const overflowTarget = ranked[0][0];
+
+  return remapped.map((label) => ({
+    ...label,
+    folder: keep.has(label.folder) ? label.folder : overflowTarget,
+  }));
 }
 
 /** Match a folder label to an existing or canonical name without LLM. */

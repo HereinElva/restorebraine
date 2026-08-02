@@ -11,6 +11,7 @@ import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import SignInScreen from '@/screens/SignInScreen';
+import AiConsentGate from '@/components/auth/AiConsentGate';
 import { hasStoredSessionToken } from '@/lib/session-bootstrap';
 import { isNativeShell } from '@/lib/native-hosted-redirect';
 
@@ -62,15 +63,17 @@ const AuthenticatedApp = () => {
 
   // Token present — render gallery immediately; auth/settings finish in background (Omega 3).
   return (
-    <LayoutWrapper currentPageName={mainPageKey}>
-      <Routes>
-        <Route path="/" element={<MainPage />} />
-        {Object.entries(Pages).map(([path, Page]) => (
-          <Route key={path} path={`/${path.toLowerCase()}`} element={<Page />} />
-        ))}
-        <Route path="*" element={<PageNotFound />} />
-      </Routes>
-    </LayoutWrapper>
+    <AiConsentGate>
+      <LayoutWrapper currentPageName={mainPageKey}>
+        <Routes>
+          <Route path="/" element={<MainPage />} />
+          {Object.entries(Pages).map(([path, Page]) => (
+            <Route key={path} path={`/${path.toLowerCase()}`} element={<Page />} />
+          ))}
+          <Route path="*" element={<PageNotFound />} />
+        </Routes>
+      </LayoutWrapper>
+    </AiConsentGate>
   );
 };
 
