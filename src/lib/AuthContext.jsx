@@ -4,13 +4,14 @@ import { appParams } from '@/lib/app-params';
 import { createAxiosClient } from '@base44/sdk/dist/utils/axios-client';
 import { openRestorebraineLogin } from '@/lib/auth-urls';
 import { getAppOrigin } from '@/lib/app-params';
-import { clearNativeSession, persistSessionToNativeStorage, restoreSessionFromNativeStorage, ensureClientSessionToken } from '@/lib/session-bootstrap';
+import { clearNativeSession, persistSessionToNativeStorage, restoreSessionFromNativeStorage, ensureClientSessionToken, normalizeAuthEmail, prepareForNewRegistration } from '@/lib/session-bootstrap';
 import { isHostedAppOrigin, isNativeShell } from '@/lib/native-hosted-redirect';
 import { resetToGalleryHome } from '@/lib/gallery-nav';
 
 const AUTH_BOOT_TIMEOUT_MS = 12000;
 const AUTH_BOOT_TIMEOUT_BUNDLED_MS = 6000;
 const AUTH_API_TIMEOUT_MS = 10000;
+const AUTH_REGISTER_TIMEOUT_MS = 20000;
 
 const withAuthTimeout = (promise, ms, label) =>
   Promise.race([
@@ -363,6 +364,11 @@ export const AuthProvider = ({ children }) => {
     setAuthError(null);
     try { localStorage.removeItem('b44_signed_out'); } catch {}
 
+    const normalizedEmail = normalizeAuthEmail(email);
+    if (!normalizedEmail || !password) {
+      throw Object.assign(new Error('Enter your email and password.'), { status: 400 });
+    }
+
     try {
       const authClient = createAxiosClient({
         baseURL: `${appParams.serverUrl}/api`,
@@ -370,7 +376,7 @@ export const AuthProvider = ({ children }) => {
         interceptResponses: true,
       });
       const response = await withAuthTimeout(
-        authClient.post(`/apps/${appParams.appId}/auth/login`, { email, password }),
+        authClient.post(`/apps/${appParams.appId}/auth/login`, { email: normalizedEmail, password }),
         AUTH_API_TIMEOUT_MS,
         'auth.login',
       );
@@ -404,7 +410,17 @@ export const AuthProvider = ({ children }) => {
 
   const registerWithEmailPassword = async ({ email, password, fullName }) => {
     setAuthError(null);
-    try { localStorage.removeItem('b44_signed_out'); } catch {}
+
+    const normalizedEmail = normalizeAuthEmail(email);
+    const trimmedName = String(fullName || '').trim();
+    if (!normalizedEmail || !password) {
+      throw Object.assign(new Error('Enter your email and password.'), { status: 400 });
+    }
+    if (!trimmedName) {
+      throw Object.assign(new Error('Enter your name to create an account.'), { status: 400 });
+    }
+
+    await prepareForNewRegistration();
 
     try {
       const authClient = createAxiosClient({
@@ -414,12 +430,12 @@ export const AuthProvider = ({ children }) => {
       });
       const response = await withAuthTimeout(
         authClient.post(`/apps/${appParams.appId}/auth/register`, {
-          email,
+          email: normalizedEmail,
           password,
-          full_name: fullName,
-          name: fullName,
+          full_name: trimmedName,
+          name: trimmedName,
         }),
-        AUTH_API_TIMEOUT_MS,
+        AUTH_REGISTER_TIMEOUT_MS,
         'auth.register',
       );
 
@@ -440,11 +456,15 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       setIsLoadingAuth(false);
       setIsAuthenticated(false);
+      const rawMessage = error?.data?.message || error?.message || 'Unable to create account';
+      const message = /timed out/i.test(rawMessage)
+        ? 'Registration timed out. If this email was already created, try signing in instead.'
+        : rawMessage;
       setAuthError({
         type: 'auth_required',
-        message: error?.data?.message || error?.message || 'Unable to create account',
+        message,
       });
-      throw error;
+      throw Object.assign(error, { message, data: { ...(error?.data || {}), message } });
     }
   };
 

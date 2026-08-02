@@ -151,8 +151,49 @@ export const persistSessionToNativeStorage = async (token) => {
   await Promise.all(TOKEN_KEYS.map((key) => persistentStorage.set(key, token)));
 };
 
+export function normalizeAuthEmail(email) {
+  return String(email || '').trim().toLowerCase();
+}
+
+/** Clear HTTP-only auth cookies so a new registration is not tied to a prior session. */
+export async function clearServerAuthCookies() {
+  if (typeof window === 'undefined') return;
+  try {
+    await fetch(`${appParams.serverUrl}/api/apps/auth/logout`, {
+      method: 'GET',
+      credentials: 'include',
+    });
+  } catch (error) {
+    console.warn('Server auth cookie clear failed:', error);
+  }
+}
+
+async function clearStoredAuthTokensOnly() {
+  appParams.token = null;
+  try {
+    localStorage.removeItem('base44_access_token');
+    localStorage.removeItem('token');
+    localStorage.removeItem('base44_logged_out');
+    base44.auth.setToken(null, false);
+  } catch {}
+  for (const key of TOKEN_KEYS) {
+    await persistentStorage.remove(key);
+  }
+}
+
+/** Wipe client + server auth state before creating a brand-new account. */
+export async function prepareForNewRegistration() {
+  await clearStoredAuthTokensOnly();
+  await clearServerAuthCookies();
+  try {
+    localStorage.removeItem(SIGNED_OUT_KEY);
+  } catch {}
+  await persistentStorage.remove(SIGNED_OUT_KEY);
+}
+
 export const clearNativeSession = async () => {
   appParams.token = null;
+  await clearServerAuthCookies();
   await persistentStorage.set(SIGNED_OUT_KEY, '1');
   try {
     localStorage.setItem(SIGNED_OUT_KEY, '1');

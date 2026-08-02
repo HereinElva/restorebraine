@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/AuthContext';
 import { launchProviderOAuth } from '@/lib/native-google-oauth';
+import { normalizeAuthEmail } from '@/lib/session-bootstrap';
 import { AppleLogo, GoogleMark, MicrosoftMark } from '@/components/auth/ProviderLogos';
 
 const BRAND_GRADIENT = 'linear-gradient(135deg,#60a5fa,#a78bfa)';
@@ -61,6 +62,14 @@ const ProviderButton = ({ children, onClick, provider, dark = false, disabled = 
   </button>
 );
 
+function formatAuthError(error, mode) {
+  const raw = error?.data?.message || error?.message || (mode === 'signup' ? 'Unable to create account' : 'Invalid email or password');
+  if (mode === 'signup' && /already exists/i.test(raw)) {
+    return `${raw} Try signing in instead, or use a different email address.`;
+  }
+  return raw;
+}
+
 /** v4 bundled native login — all providers + email. No logo. */
 export default function NativeLoginCard({ clearSignedOut = false }) {
   const { loginWithEmailPassword, registerWithEmailPassword } = useAuth();
@@ -72,6 +81,17 @@ export default function NativeLoginCard({ clearSignedOut = false }) {
   const [noticeMessage, setNoticeMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [openingProvider, setOpeningProvider] = useState(null);
+
+  useEffect(() => {
+    if (clearSignedOut) {
+      setFullName('');
+      setEmail('');
+      setPassword('');
+      setErrorMessage('');
+      setNoticeMessage('');
+      setMode('signin');
+    }
+  }, [clearSignedOut]);
 
   useEffect(() => {
     const resetOpening = () => setOpeningProvider(null);
@@ -115,10 +135,10 @@ export default function NativeLoginCard({ clearSignedOut = false }) {
     event.preventDefault();
     setErrorMessage('');
     setNoticeMessage('');
-    clearSignedOutFlag();
 
-    if (!email.trim() || !password) {
-      setErrorMessage('Enter your email and password to sign in.');
+    const normalizedEmail = normalizeAuthEmail(email);
+    if (!normalizedEmail || !password) {
+      setErrorMessage('Enter your email and password to continue.');
       return;
     }
 
@@ -131,18 +151,27 @@ export default function NativeLoginCard({ clearSignedOut = false }) {
     setIsSubmitting(true);
     try {
       if (mode === 'signup') {
-        await registerWithEmailPassword({ fullName: fullName.trim(), email: email.trim(), password });
+        await registerWithEmailPassword({
+          fullName: fullName.trim(),
+          email: normalizedEmail,
+          password,
+        });
         setNoticeMessage('Account created.');
-        setMode('signin');
+        setFullName('');
+        setEmail('');
+        setPassword('');
       } else {
-        await loginWithEmailPassword({ email: email.trim(), password });
+        clearSignedOutFlag();
+        await loginWithEmailPassword({ email: normalizedEmail, password });
         setNoticeMessage('Signed in.');
       }
     } catch (error) {
       setNoticeMessage('');
-      setErrorMessage(
-        error?.data?.message || error?.message || (mode === 'signup' ? 'Unable to create account' : 'Invalid email or password'),
-      );
+      const message = formatAuthError(error, mode);
+      setErrorMessage(message);
+      if (mode === 'signup' && /already exists/i.test(message)) {
+        setMode('signin');
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -192,7 +221,10 @@ export default function NativeLoginCard({ clearSignedOut = false }) {
               type="text"
               autoComplete="name"
               value={fullName}
-              onChange={(event) => setFullName(event.target.value)}
+              onChange={(event) => {
+                setFullName(event.target.value);
+                if (errorMessage) setErrorMessage('');
+              }}
               required
               style={{ width: '100%', boxSizing: 'border-box', padding: '13px 14px', border: '1px solid #d1d5db', borderRadius: '12px', fontSize: '16px', marginBottom: '12px' }}
             />
@@ -202,9 +234,13 @@ export default function NativeLoginCard({ clearSignedOut = false }) {
         <input
           type="email"
           autoCapitalize="none"
-          autoComplete="email"
+          autoCorrect="off"
+          autoComplete={mode === 'signup' ? 'email' : 'username'}
           value={email}
-          onChange={(event) => setEmail(event.target.value)}
+          onChange={(event) => {
+            setEmail(event.target.value);
+            if (errorMessage) setErrorMessage('');
+          }}
           required
           style={{ width: '100%', boxSizing: 'border-box', padding: '13px 14px', border: '1px solid #d1d5db', borderRadius: '12px', fontSize: '16px', marginBottom: '12px' }}
         />
@@ -213,7 +249,10 @@ export default function NativeLoginCard({ clearSignedOut = false }) {
           type="password"
           autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
           value={password}
-          onChange={(event) => setPassword(event.target.value)}
+          onChange={(event) => {
+            setPassword(event.target.value);
+            if (errorMessage) setErrorMessage('');
+          }}
           required
           style={{ width: '100%', boxSizing: 'border-box', padding: '13px 14px', border: '1px solid #d1d5db', borderRadius: '12px', fontSize: '16px', marginBottom: '16px' }}
         />
