@@ -355,17 +355,22 @@ class AppDelegate: UIResponder, UIApplicationDelegate, ASWebAuthenticationPresen
             return null;
           }
 
-          function saveToken(token) {
+          function saveToken(token, options) {
             if (!token) return false;
+            var silent = options && options.silent;
             try {
               clearSignedOutFlag();
               try { delete window.__restorebrainePendingOAuth; } catch (e) {}
-              try { window.__restorebraineOAuthCompletedAt = Date.now(); } catch (e) {}
+              if (!silent) {
+                try { window.__restorebraineOAuthCompletedAt = Date.now(); } catch (e) {}
+              }
               localStorage.setItem('base44_access_token', token);
               localStorage.setItem('token', token);
-              try {
-                window.dispatchEvent(new CustomEvent('restorebraine-session-updated', { detail: { token: token } }));
-              } catch (e) {}
+              if (!silent) {
+                try {
+                  window.dispatchEvent(new CustomEvent('restorebraine-session-updated', { detail: { token: token } }));
+                } catch (e) {}
+              }
               return true;
             } catch (e) {}
             return false;
@@ -652,7 +657,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate, ASWebAuthenticationPresen
                   if (window.__restorebrainePendingOAuth) return;
                   prefs.get({ key: 'base44_access_token' }).then(function (result) {
                     if (!result || !result.value || isSignedOut() || window.__restorebrainePendingOAuth) return;
-                    saveToken(result.value);
+                    saveToken(result.value, { silent: true });
                   });
                 });
               }

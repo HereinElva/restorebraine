@@ -1,8 +1,17 @@
-import { redirectNativeToHostedApp, isNativeShell } from '@/lib/native-hosted-redirect';
+import { redirectNativeToHostedApp, isNativeShell, isBundledCapacitorShell } from '@/lib/native-hosted-redirect';
 import { installNativeOAuthFix } from '@/lib/native-oauth-fix';
 import { redirectBrokenCustomDomainLogin } from '@/lib/auth-urls';
 
 const BOOTSTRAP_TIMEOUT_MS = 15000;
+
+function ensureBundledHashRoute() {
+  if (!isBundledCapacitorShell()) return;
+  const hash = window.location.hash || '';
+  if (!hash || hash === '#') {
+    const base = `${window.location.pathname || '/'}${window.location.search || ''}`;
+    window.location.replace(`${base}#/`);
+  }
+}
 
 function showBootstrapError(message) {
   const root = document.getElementById('root');
@@ -44,6 +53,8 @@ async function bootstrapApp() {
   if (redirectNativeToHostedApp()) {
     return;
   }
+
+  ensureBundledHashRoute();
 
   // Warm session in background — must not block React mount (white screen if bridge is slow)
   if (isNativeShell()) {

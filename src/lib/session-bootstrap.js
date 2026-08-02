@@ -53,7 +53,7 @@ export function finishPendingOAuthLogin() {
   } catch {}
 }
 
-export function isWithinOAuthGracePeriod(ms = 30000) {
+export function isWithinOAuthGracePeriod(ms = 60000) {
   if (typeof window === 'undefined') return false;
   const at = window.__restorebraineOAuthCompletedAt;
   return typeof at === 'number' && Date.now() - at < ms;

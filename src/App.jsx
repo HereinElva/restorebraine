@@ -24,6 +24,7 @@ import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import SignInScreen from '@/screens/SignInScreen';
 import AiConsentGate from '@/components/auth/AiConsentGate';
+import BootErrorBoundary from '@/components/BootErrorBoundary';
 import { hasStoredSessionToken } from '@/lib/session-bootstrap';
 import { isNativeShell, isBundledCapacitorShell } from '@/lib/native-hosted-redirect';
 
@@ -35,8 +36,10 @@ if (!isNativeShell()) {
   setupIframeMessaging();
 }
 
-/** BrowserRouter breaks on capacitor:// — use HashRouter for bundled native builds. */
-const NativeRouter = isBundledCapacitorShell() ? HashRouter : BrowserRouter;
+function AppRouter({ children }) {
+  const Router = isBundledCapacitorShell() ? HashRouter : BrowserRouter;
+  return <Router>{children}</Router>;
+}
 
 const LayoutWrapper = ({ children, currentPageName }) => Layout ?
   <Layout currentPageName={currentPageName}>{children}</Layout>
@@ -85,10 +88,12 @@ function App() {
     <AuthProvider>
       <QueryClientProvider client={queryClientInstance}>
         <ClientCacheClearListener />
-        <NativeRouter>
-          <NavigationTracker />
-          <AuthenticatedApp />
-        </NativeRouter>
+        <BootErrorBoundary>
+          <AppRouter>
+            <NavigationTracker />
+            <AuthenticatedApp />
+          </AppRouter>
+        </BootErrorBoundary>
         <Toaster />
       </QueryClientProvider>
     </AuthProvider>

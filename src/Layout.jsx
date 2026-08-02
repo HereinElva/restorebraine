@@ -3,19 +3,15 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { isGalleryPath, navigateToGallery, persistActiveSession } from "@/lib/gallery-nav";
 import { useAuth } from "@/lib/AuthContext";
-import { isBundledCapacitorShell } from "@/lib/native-hosted-redirect";
 import { getRestorebraineAppLogo } from "@/lib/app-branding";
 import { Search, Upload, User, ChevronLeft } from "lucide-react";
 import { resetAppScrollPosition } from "@/lib/scroll-reset";
-import { AnimatePresence, motion } from "framer-motion";
 import { NavigationProvider, useNavigation } from "./components/NavigationContext";
 import { TabStateProvider } from "./components/TabStateContext";
 import { BrandGradientDefs } from "@/components/ui/BrandGradientIcon";
 
 const TAB_ORDER = ["Gallery", "Upload", "Account"];
 const HEADER_BAR_PX = 36;
-
-const useLocalNativeBundle = () => isBundledCapacitorShell();
 
 function LayoutInner({ children, currentPageName }) {
   const location = useLocation();
@@ -24,7 +20,6 @@ function LayoutInner({ children, currentPageName }) {
   const mainScrollRef = useRef(null);
   const { backState, popBack } = useNavigation();
   const { resumeActiveSession } = useAuth();
-  const localNativeBundle = useLocalNativeBundle();
 
   const isTabActive = (name) => {
     if (name === "Gallery") return isGalleryPath(location.pathname);
@@ -33,7 +28,6 @@ function LayoutInner({ children, currentPageName }) {
 
   const currentIndex = TAB_ORDER.findIndex((name) => isTabActive(name));
   const activeIndex = currentIndex === -1 ? 0 : currentIndex;
-  const direction = activeIndex >= prevIndexRef.current ? 1 : -1;
 
   useEffect(() => {
     prevIndexRef.current = activeIndex;
@@ -69,12 +63,6 @@ function LayoutInner({ children, currentPageName }) {
     { name: "Account", icon: User, label: "Account" },
   ];
 
-  const variants = {
-    enter: (dir) => ({ x: dir > 0 ? "100%" : "-100%", opacity: 0 }),
-    center: { x: 0, opacity: 1 },
-    exit: (dir) => ({ x: dir > 0 ? "-100%" : "100%", opacity: 0 }),
-  };
-
   const handleBack = () => {
     if (!backState) return;
 
@@ -92,22 +80,8 @@ function LayoutInner({ children, currentPageName }) {
     if (!isGalleryPath(location.pathname)) popBack();
   }, [location.pathname, popBack]);
 
-  const pageContent = localNativeBundle ? (
+  const pageContent = (
     <div key={location.pathname}>{children}</div>
-  ) : (
-    <AnimatePresence custom={direction} mode="wait">
-      <motion.div
-        key={location.pathname}
-        custom={direction}
-        variants={variants}
-        initial="enter"
-        animate="center"
-        exit="exit"
-        transition={{ type: "tween", duration: 0.22, ease: "easeInOut" }}
-      >
-        {children}
-      </motion.div>
-    </AnimatePresence>
   );
 
   return (

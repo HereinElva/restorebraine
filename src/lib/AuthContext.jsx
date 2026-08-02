@@ -299,6 +299,11 @@ export const AuthProvider = ({ children }) => {
       setIsLoadingAuth(false);
 
       if (error.status === 401) {
+        if (isBundledNativeShell() && (hasStoredAuthToken() || isWithinOAuthGracePeriod())) {
+          setIsAuthenticated(true);
+          setAuthError(null);
+          return;
+        }
         setIsAuthenticated(false);
         setAuthError({ type: 'auth_required', message: 'Authentication required' });
       } else if (error.status === 403) {
@@ -352,6 +357,7 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     const scheduleSilentAuthCheck = () => {
+      if (isWithinOAuthGracePeriod()) return;
       if (sessionAuthCheckTimerRef.current) {
         window.clearTimeout(sessionAuthCheckTimerRef.current);
       }
@@ -388,9 +394,7 @@ export const AuthProvider = ({ children }) => {
         setIsAuthenticated(true);
         setAuthError(null);
         setIsLoadingAuth(false);
-        if (isWithinOAuthGracePeriod()) {
-          resetToGalleryHome();
-        }
+        resetToGalleryHome();
         void persistSessionToNativeStorage(token);
       } catch {}
       scheduleSilentAuthCheck();

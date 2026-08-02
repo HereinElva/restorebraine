@@ -22,5 +22,9 @@ export function NavigationProvider({ children }) {
 }
 
 export function useNavigation() {
-  return useContext(NavigationContext);
+  const ctx = useContext(NavigationContext);
+  if (!ctx) {
+    return { backState: null, pushBack: () => {}, popBack: () => {} };
+  }
+  return ctx;
 }
