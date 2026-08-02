@@ -193,7 +193,10 @@ export default function Gallery() {
         (await base44.entities.Photo.filter({ created_by: me.email }, '-created_date'));
       const snapshot = await loadFullFolderSnapshotAsync(me.email);
       const fetched = await fetchGalleryFoldersWithMembership(me.email, photosData || []);
-      return mergeApiFoldersWithLocal(fetched, snapshot);
+      return dedupeFoldersByNormalizedName(
+        mergeApiFoldersWithLocal(fetched, snapshot),
+        ORGANIZE_BATCH_FOLDERS,
+      );
     },
     enabled: canFetchData && !!userEmail,
     staleTime: CACHE.folders.staleTime,
@@ -240,7 +243,7 @@ export default function Gallery() {
   );
 
   useEffect(() => {
-    if (!userEmail || folders.length <= ORGANIZE_BATCH_FOLDER_COUNT) return;
+    if (!userEmail || folders.length === 0) return;
     const keys = folders.map((folder) =>
       normalizeFolderName(folder.name, ORGANIZE_BATCH_FOLDERS).toLowerCase(),
     );
@@ -253,10 +256,16 @@ export default function Gallery() {
         const merged = await mergeDuplicateFoldersOnServer(folders, {
           canonicalNames: ORGANIZE_BATCH_FOLDERS,
         });
-        if (cancelled || merged.length >= folders.length) return;
-        queryClient.setQueryData(['folders', userEmail], merged);
-        persistGalleryFoldersSync(userEmail, merged);
-        void persistGalleryFoldersFast(userEmail, merged);
+        const deduped = dedupeFoldersByNormalizedName(merged, ORGANIZE_BATCH_FOLDERS);
+        if (cancelled) return;
+        const prevKeys = keys.join('|');
+        const nextKeys = deduped.map((folder) =>
+          normalizeFolderName(folder.name, ORGANIZE_BATCH_FOLDERS).toLowerCase(),
+        ).join('|');
+        if (deduped.length === folders.length && prevKeys === nextKeys) return;
+        queryClient.setQueryData(['folders', userEmail], deduped);
+        persistGalleryFoldersSync(userEmail, deduped);
+        void persistGalleryFoldersFast(userEmail, deduped);
       } catch (error) {
         console.warn('Background folder merge failed:', error);
       }
@@ -328,10 +337,10 @@ export default function Gallery() {
     : availablePhotos;
  
   const filteredFolders = debouncedQuery
-    ? folders.filter(folder =>
+    ? foldersForGallery.filter(folder =>
         folder.name.toLowerCase().includes(debouncedQuery.toLowerCase().trim())
       )
-    : folders;
+    : foldersForGallery;
  
   const toggleSelect = (id) => {
     setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);

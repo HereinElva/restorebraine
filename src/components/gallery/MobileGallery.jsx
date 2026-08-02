@@ -375,7 +375,7 @@ export default function MobileGallery({
           <div>
             {/* Action buttons — direct grid cells, no wrapper rim */}
             <div className="grid grid-cols-2 gap-1.5 mb-5">
-              <OrganizeButton photos={photos} squareStyle />
+              <OrganizeButton photos={photos} folders={folders} squareStyle />
               <CustomFolderButton photos={photos} squareStyle />
               <DuplicateDetector photos={photos} folders={folders} squareStyle />
               <button

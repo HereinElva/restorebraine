@@ -377,7 +377,15 @@ function pickDenseFolderTarget(smallFolder, candidates, labels, photoById, allow
 /** Match a folder label to an existing or canonical name without LLM. */
 export function normalizeFolderName(name, existingFolderNames = []) {
   const raw = (name || 'Miscellaneous').trim();
-  const lower = raw.toLowerCase();
+  let lower = raw.toLowerCase();
+
+  const alias = BATCH_FOLDER_ALIASES[lower];
+  if (alias) {
+    lower = alias.toLowerCase();
+    const aliasedExisting = existingFolderNames.find((f) => f.toLowerCase() === lower);
+    if (aliasedExisting) return aliasedExisting;
+    return alias;
+  }
 
   const existing = existingFolderNames.find((f) => f.toLowerCase() === lower);
   if (existing) return existing;

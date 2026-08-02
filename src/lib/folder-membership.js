@@ -316,7 +316,7 @@ export async function fetchGalleryFoldersWithMembership(email, photos = []) {
     persistGalleryFoldersSync(email, toPersist);
     void persistGalleryFolders(email, toPersist);
   }
-  return toPersist;
+  return dedupeFoldersByNormalizedName(toPersist, ORGANIZE_BATCH_FOLDERS);
 }
 async function updateFolderPhotoIds(folderId, photoIds, extra = {}) {
   return updateFolderPhotoIdsWithTimeout(folderId, photoIds, extra);

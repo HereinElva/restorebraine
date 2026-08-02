@@ -38,17 +38,13 @@ function organizeResultMessage({
   totalToOrganize,
   missed,
   remainingLoose,
-  totalFolders,
-  newFolderCount,
+  foldersUsedInRun,
 }) {
   if (totalSaved <= 0) {
     return "Organize could not save photos into folders. Pull down to refresh, then try again.";
   }
 
-  const folderDesc =
-    newFolderCount > 0 && newFolderCount < totalFolders
-      ? `${totalFolders} folders (${newFolderCount} new)`
-      : `${totalFolders} folder${totalFolders !== 1 ? "s" : ""}`;
+  const folderDesc = `${foldersUsedInRun} folder${foldersUsedInRun !== 1 ? "s" : ""}`;
 
   if (remainingLoose > 0) {
     return `Sorted ${totalSaved} of ${totalToOrganize} loose items into ${folderDesc}. ${remainingLoose} still in your main library — tap Organize again to continue.`;
@@ -106,8 +102,6 @@ export default function OrganizeButton({ photos, folders: foldersProp, squareSty
     setOrganizing(true);
     setProgressLabel("Starting…");
 
-    const folderIdsBefore = new Set((folders || []).map((f) => f.id));
-
     try {
       const email = getGalleryUserEmail(queryClient, authUser?.email);
 
@@ -142,13 +136,9 @@ export default function OrganizeButton({ photos, folders: foldersProp, squareSty
       }
 
       const syncedPhotos = queryClient.getQueryData(galleryPhotosKey(email)) ?? photos;
-      const existingFolders = queryClient.getQueryData(galleryFoldersKey(email)) ?? [];
 
       const verifiedFolders = foldersForGalleryView(
-        dedupeFoldersByNormalizedName(
-          mergeApiFoldersWithLocal(result.afterFolders || [], existingFolders),
-          ORGANIZE_BATCH_FOLDERS,
-        ),
+        dedupeFoldersByNormalizedName(result.afterFolders || [], ORGANIZE_BATCH_FOLDERS),
         syncedPhotos,
       );
       queryClient.setQueryData(galleryFoldersKey(email), verifiedFolders);
@@ -159,8 +149,7 @@ export default function OrganizeButton({ photos, folders: foldersProp, squareSty
         persistGalleryFoldersFast(email, verifiedFolders);
       }
 
-      const newFolderCount = verifiedFolders.filter((f) => !folderIdsBefore.has(f.id)).length;
-      const totalFolders = verifiedFolders.length;
+      const foldersUsedInRun = result.foldersUsedInRun ?? verifiedFolders.length;
 
       setOrganizing(false);
       setProgressLabel("");
@@ -171,8 +160,7 @@ export default function OrganizeButton({ photos, folders: foldersProp, squareSty
           totalToOrganize: result.totalToOrganize,
           missed: result.missed,
           remainingLoose: result.remainingLoose ?? 0,
-          totalFolders,
-          newFolderCount,
+          foldersUsedInRun,
         }),
       );
     } catch (error) {

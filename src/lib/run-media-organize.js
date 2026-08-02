@@ -5,6 +5,7 @@ import {
   buildLabelPrompt,
   consolidateOrganizeLabels,
   getOrganizeFolderNames,
+  normalizeFolderName,
   ORGANIZE_BATCH_FOLDER_COUNT,
   parseCustomFolderHints,
   photoDataForOrganize,
@@ -258,6 +259,14 @@ export async function runMediaOrganize({
     maxFolderCount,
   });
 
+  const foldersUsedInRun = new Set(
+    batchPhotos.map((photo) => {
+      const norm = normalizePhotoId(photo.id);
+      const label = labelByPhotoNormId.get(norm);
+      return normalizeFolderName(label || MISC_FOLDER, folderNamesForLabel).toLowerCase();
+    }).filter(Boolean),
+  ).size;
+
   onProgress?.("Verifying saves…");
 
   const reconcileResult = await reconcileOrganizeBatch({
@@ -303,6 +312,21 @@ export async function runMediaOrganize({
   });
   afterFolders = dedupeFoldersByNormalizedName(afterFolders, folderNamesForLabel);
 
+  onProgress?.("Refreshing folder list…");
+  let refreshedFolders = sanitizeFoldersLocally(
+    await listAllFoldersSafe({ timeoutMs: 12000 }),
+    photos,
+    allPhotoIds,
+  );
+  refreshedFolders = await mergeDuplicateFoldersOnServer(refreshedFolders, {
+    onProgress,
+    canonicalNames: folderNamesForLabel,
+  });
+  afterFolders = dedupeFoldersByNormalizedName(
+    mergeApiFoldersWithLocal(refreshedFolders, afterFolders),
+    folderNamesForLabel,
+  );
+
   const totalRemainingLoose = getUnorganizedPhotos(photos, afterFolders).length;
 
   onProgress?.("Done");
@@ -329,6 +353,7 @@ export async function runMediaOrganize({
   return {
     ok: true,
     foldersSaved: afterFolders.length,
+    foldersUsedInRun,
     totalSaved: actuallySaved,
     totalToOrganize: batchPhotos.length,
     missed,
