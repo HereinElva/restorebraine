@@ -5,6 +5,7 @@ import { createAxiosClient } from '@base44/sdk/dist/utils/axios-client';
 import { openRestorebraineLogin } from '@/lib/auth-urls';
 import { getAppOrigin } from '@/lib/app-params';
 import { clearNativeSession, persistSessionToNativeStorage, restoreSessionFromNativeStorage, ensureClientSessionToken, normalizeAuthEmail, prepareForNewRegistration, clearAxiosAuthHeaders } from '@/lib/session-bootstrap';
+import { postAuthEmail } from '@/lib/auth-email-api';
 import { isHostedAppOrigin, isNativeShell } from '@/lib/native-hosted-redirect';
 import { resetToGalleryHome } from '@/lib/gallery-nav';
 
@@ -382,13 +383,8 @@ export const AuthProvider = ({ children }) => {
     clearAxiosAuthHeaders();
 
     try {
-      const authClient = createAxiosClient({
-        baseURL: `${appParams.serverUrl}/api`,
-        headers: { 'X-App-Id': appParams.appId },
-        interceptResponses: true,
-      });
       const response = await withAuthTimeout(
-        authClient.post(`/apps/${appParams.appId}/auth/login`, { email: normalizedEmail, password }),
+        postAuthEmail('login', { email: normalizedEmail, password }),
         AUTH_API_TIMEOUT_MS,
         'auth.login',
       );
@@ -434,15 +430,6 @@ export const AuthProvider = ({ children }) => {
 
     await prepareForNewRegistration();
 
-    const createRegisterClient = () => {
-      clearAxiosAuthHeaders();
-      return createAxiosClient({
-        baseURL: `${appParams.serverUrl}/api`,
-        headers: { 'X-App-Id': appParams.appId },
-        interceptResponses: true,
-      });
-    };
-
     const finishRegistrationSuccess = async (response) => {
       if (!response?.access_token) {
         throw Object.assign(
@@ -466,9 +453,8 @@ export const AuthProvider = ({ children }) => {
     };
 
     try {
-      const authClient = createRegisterClient();
       let response = await withAuthTimeout(
-        authClient.post(`/apps/${appParams.appId}/auth/register`, {
+        postAuthEmail('register', {
           email: normalizedEmail,
           password,
           full_name: trimmedName,
@@ -479,13 +465,8 @@ export const AuthProvider = ({ children }) => {
       );
 
       if (!response?.access_token) {
-        clearAxiosAuthHeaders();
-        const loginClient = createRegisterClient();
         response = await withAuthTimeout(
-          loginClient.post(`/apps/${appParams.appId}/auth/login`, {
-            email: normalizedEmail,
-            password,
-          }),
+          postAuthEmail('login', { email: normalizedEmail, password }),
           AUTH_API_TIMEOUT_MS,
           'auth.login',
         );
@@ -497,13 +478,8 @@ export const AuthProvider = ({ children }) => {
 
       if (/already exists/i.test(rawMessage)) {
         try {
-          await prepareForNewRegistration();
-          const loginClient = createRegisterClient();
           const loginResponse = await withAuthTimeout(
-            loginClient.post(`/apps/${appParams.appId}/auth/login`, {
-              email: normalizedEmail,
-              password,
-            }),
+            postAuthEmail('login', { email: normalizedEmail, password }),
             AUTH_API_TIMEOUT_MS,
             'auth.login',
           );

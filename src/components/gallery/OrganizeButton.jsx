@@ -37,7 +37,7 @@ function organizeResultMessage({
   totalToOrganize,
   missed,
   remainingLoose,
-  totalFolders,
+  foldersUsedInRun,
   newFolderCount,
 }) {
   if (totalSaved <= 0) {
@@ -46,16 +46,16 @@ function organizeResultMessage({
 
   const folderDesc =
     newFolderCount > 0
-      ? `${totalFolders} folders (${newFolderCount} new)`
-      : `${totalFolders} folders`;
+      ? `${foldersUsedInRun} folders (${newFolderCount} new)`
+      : `${foldersUsedInRun} folders`;
 
   if (remainingLoose > 0) {
-    return `Sorted ${totalSaved} of ${totalToOrganize} loose items — now ${folderDesc}. ${remainingLoose} still in your main library — tap Organize again to continue.`;
+    return `Sorted ${totalSaved} of ${totalToOrganize} loose items into ${folderDesc}. ${remainingLoose} still in your main library — tap Organize again to continue.`;
   }
   if (missed > 0) {
-    return `Done! ${totalSaved} of ${totalToOrganize} loose photos sorted — ${folderDesc}. Tap Organize again for the ${missed} remaining.`;
+    return `Done! ${totalSaved} of ${totalToOrganize} loose photos sorted into ${folderDesc}. Tap Organize again for the ${missed} remaining.`;
   }
-  return `Done! ${totalSaved} loose photo${totalSaved !== 1 ? "s" : ""} sorted — ${folderDesc}.`;
+  return `Done! ${totalSaved} loose photo${totalSaved !== 1 ? "s" : ""} sorted into ${folderDesc}.`;
 }
 
 export default function OrganizeButton({ photos, folders: foldersProp, squareStyle = false }) {
@@ -163,7 +163,7 @@ export default function OrganizeButton({ photos, folders: foldersProp, squareSty
           totalToOrganize: result.totalToOrganize,
           missed: result.missed,
           remainingLoose: result.remainingLoose ?? 0,
-          totalFolders: verifiedFolders.length,
+          foldersUsedInRun: result.foldersSaved ?? newFolderCount,
           newFolderCount,
         }),
       );

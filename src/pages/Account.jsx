@@ -26,7 +26,8 @@ export default function Account() {
     popBack();
   }, [popBack]);
 
-  const handleLogout = async () => {
+  const handleLogout = async (event) => {
+    event?.preventDefault?.();
     setShowLogoutDialog(false);
     try {
       window.__restorebraineSigningOut = true;
@@ -35,6 +36,11 @@ export default function Account() {
     }
     queryClient.clear();
     await localLogout();
+    try {
+      window.dispatchEvent(new CustomEvent('restorebraine-signed-out'));
+    } catch {
+      /* ignore */
+    }
     if (typeof window !== 'undefined' && window.__restorebrainePerformSignOut) {
       window.__restorebrainePerformSignOut();
     }

@@ -327,6 +327,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate, ASWebAuthenticationPresen
 
           function readToken() {
             try {
+              if (isSignedOut()) return null;
               for (var i = 0; i < keys.length; i++) {
                 var value = localStorage.getItem(keys[i]);
                 if (value) return value;
@@ -557,7 +558,66 @@ class AppDelegate: UIResponder, UIApplicationDelegate, ASWebAuthenticationPresen
             document.addEventListener('click', onOAuthEvent, true);
           }
 
+          function notifyNativePersistedSessionClear() {
+            try {
+              if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.restorebraineNativeSession) {
+                window.webkit.messageHandlers.restorebraineNativeSession.postMessage({ action: 'clear' });
+              }
+            } catch (e) {}
+          }
+
+          function clearNativeSession() {
+            try {
+              localStorage.setItem(SIGNED_OUT_KEY, '1');
+              localStorage.removeItem('base44_access_token');
+              localStorage.removeItem('token');
+              localStorage.removeItem('base44_logged_out');
+            } catch (e) {}
+            notifyNativePersistedSessionClear();
+            try {
+              var prefs = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Preferences;
+              if (prefs) {
+                prefs.set({ key: SIGNED_OUT_KEY, value: '1' });
+                prefs.remove({ key: 'base44_access_token' });
+                prefs.remove({ key: 'token' });
+              }
+            } catch (e) {}
+          }
+
+          function performNativeSignOut() {
+            window.__restorebraineSigningOut = true;
+            clearNativeSession();
+            try {
+              window.dispatchEvent(new CustomEvent('restorebraine-signed-out'));
+            } catch (e) {}
+            var origin = window.location.origin || 'capacitor://localhost';
+            setTimeout(function () {
+              window.location.replace(origin + '/');
+            }, 120);
+          }
+
+          function restoreToken() {
+            try {
+              if (window.__restorebraineSigningOut || isSignedOut()) return;
+              var prefs = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Preferences;
+              if (prefs) {
+                prefs.get({ key: SIGNED_OUT_KEY }).then(function (flag) {
+                  if (flag && flag.value === '1') return;
+                  var syncToken = '\#(escapedToken)';
+                  if (syncToken && !isSignedOut()) saveToken(syncToken);
+                });
+                return;
+              }
+              var syncToken = '\#(escapedToken)';
+              if (syncToken && !isSignedOut()) saveToken(syncToken);
+            } catch (e) {}
+          }
+
+          window.__restorebraineClearSession = clearNativeSession;
+          window.__restorebrainePerformSignOut = performNativeSignOut;
+
           installOAuthDeepLinkHandler();
+          restoreToken();
           /* Provider taps handled by NativeLoginCard → __restorebraineOpenProviderLogin (no duplicate intercept). */
 
           function deferOAuthBridge() {
@@ -805,6 +865,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate, ASWebAuthenticationPresen
 
           function readToken() {
             try {
+              if (isSignedOut()) return null;
               for (var i = 0; i < keys.length; i++) {
                 var value = localStorage.getItem(keys[i]);
                 if (value) return value;

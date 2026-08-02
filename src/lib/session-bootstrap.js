@@ -194,6 +194,7 @@ export async function clearServerAuthCookies() {
 
 async function clearStoredAuthTokensOnly() {
   appParams.token = null;
+  base44.auth.setToken(null, false);
   clearAxiosAuthHeaders();
   try {
     localStorage.removeItem('base44_access_token');
@@ -232,17 +233,22 @@ export async function prepareForNewRegistration() {
 
 export const clearNativeSession = async () => {
   appParams.token = null;
-  await clearServerAuthCookies();
-  await persistentStorage.set(SIGNED_OUT_KEY, '1');
+  base44.auth.setToken(null, false);
+  clearAxiosAuthHeaders();
   try {
+    localStorage.setItem(SIGNED_OUT_KEY, '1');
     localStorage.removeItem('base44_access_token');
     localStorage.removeItem('token');
     localStorage.removeItem('base44_logged_out');
-    clearAxiosAuthHeaders();
   } catch {}
-  if (typeof window !== 'undefined' && window.__restorebraineClearSession) {
-    window.__restorebraineClearSession();
+  if (typeof window !== 'undefined') {
+    window.__restorebraineSigningOut = true;
+    if (window.__restorebraineClearSession) {
+      window.__restorebraineClearSession();
+    }
   }
+  await clearServerAuthCookies();
+  await persistentStorage.set(SIGNED_OUT_KEY, '1');
   for (const key of TOKEN_KEYS) {
     await persistentStorage.remove(key);
   }

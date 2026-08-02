@@ -1,5 +1,5 @@
 import { base44 } from '@/api/base44Client';
-import { normalizeFolderName } from '@/lib/media-organize';
+import { normalizeFolderName, ORGANIZE_BATCH_FOLDER_COUNT, ORGANIZE_BATCH_FOLDERS } from '@/lib/media-organize';
 import {
   getUnorganizedPhotos,
   normalizePhotoId,
@@ -19,8 +19,23 @@ import {
   saveFolderSnapshotCache,
 } from '@/lib/folder-membership-cache';
 
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+function countDistinctFolderKeys(folders, nameContext = []) {
+  const keys = new Set();
+  for (const folder of folders || []) {
+    keys.add(normalizeFolderName(folder.name, nameContext).toLowerCase());
+  }
+  return keys.size;
+}
+
+function pickOverflowFolder(folders, nameContext = []) {
+  const ranked = [...(folders || [])].sort(
+    (a, b) => (b.photo_ids?.length || 0) - (a.photo_ids?.length || 0),
+  );
+  return ranked[0] || null;
+}
+
+function resolveOrganizeFolderName(labelName, nameContext) {
+  return normalizeFolderName(labelName || 'Miscellaneous', nameContext);
 }
 
 /** Unwrap Base44 records that nest fields under `.data`. */
@@ -346,8 +361,11 @@ export async function assignLoosePhotosByFolder({
   onProgress,
   onPartialSave,
   userEmail,
+  canonicalFolderNames = ORGANIZE_BATCH_FOLDERS,
+  maxFolderCount = ORGANIZE_BATCH_FOLDER_COUNT,
 }) {
   let folders = [...(liveFolders || [])];
+  const nameContext = canonicalFolderNames?.length ? canonicalFolderNames : ORGANIZE_BATCH_FOLDERS;
   const names = () => folders.map((f) => f.name);
   const total = photosToAssign.filter((p) => p?.id != null).length;
 
@@ -355,9 +373,9 @@ export async function assignLoosePhotosByFolder({
   for (const photo of photosToAssign) {
     if (photo?.id == null) continue;
     const norm = normalizePhotoId(photo.id);
-    const folderName = normalizeFolderName(
-      labelByPhotoNormId.get(norm) || 'Miscellaneous',
-      names(),
+    const folderName = resolveOrganizeFolderName(
+      labelByPhotoNormId.get(norm),
+      nameContext,
     );
     if (!groups.has(folderName)) groups.set(folderName, []);
     groups.get(folderName).push(photo);
@@ -367,6 +385,7 @@ export async function assignLoosePhotosByFolder({
   const groupCount = groups.size;
   const cacheEntries = [];
   const failedPhotoIds = [];
+  const foldersUsedKeys = new Set();
 
   for (const [folderName, groupPhotos] of groups) {
     groupIndex += 1;
@@ -376,9 +395,18 @@ export async function assignLoosePhotosByFolder({
     let folderId = null;
 
     try {
-      const target = findFolderByDisplayName(folders, folderName, names());
+      let target = findFolderByDisplayName(folders, folderName, nameContext);
+      const targetKey = resolveOrganizeFolderName(folderName, nameContext).toLowerCase();
+
+      if (!target) {
+        const atFolderCap = countDistinctFolderKeys(folders, nameContext) >= maxFolderCount;
+        if (atFolderCap) {
+          target = pickOverflowFolder(folders, nameContext);
+        }
+      }
 
       if (target) {
+        foldersUsedKeys.add(resolveOrganizeFolderName(target.name, nameContext).toLowerCase());
         const coverUrl = target.cover_photo_url || groupPhotos[0]?.file_url || '';
         let saved = target;
         try {
@@ -437,6 +465,7 @@ export async function assignLoosePhotosByFolder({
           continue;
         }
         folderId = created.id;
+        foldersUsedKeys.add(targetKey);
         folders.push({
           ...created,
           name: folderName,
@@ -459,7 +488,7 @@ export async function assignLoosePhotosByFolder({
     void recordBatchFolderMembership(userEmail, cacheEntries);
   }
 
-  return { folders, failedPhotoIds };
+  return { folders, failedPhotoIds, foldersUsedInRun: foldersUsedKeys.size || groupCount };
 }
 
 /**
@@ -472,9 +501,11 @@ export async function assignLoosePhotosOneByOne({
   includeOrganized,
   onProgress,
   userEmail,
+  canonicalFolderNames = ORGANIZE_BATCH_FOLDERS,
+  maxFolderCount = ORGANIZE_BATCH_FOLDER_COUNT,
 }) {
   let folders = [...liveFolders];
-  const names = () => folders.map((f) => f.name);
+  const nameContext = canonicalFolderNames?.length ? canonicalFolderNames : ORGANIZE_BATCH_FOLDERS;
   const total = photosToAssign.filter((p) => p?.id != null).length;
   let saved = 0;
   const cacheEntries = [];
@@ -485,11 +516,15 @@ export async function assignLoosePhotosOneByOne({
     onProgress?.(`Saving ${saved}/${total}…`);
 
     const norm = normalizePhotoId(photo.id);
-    const folderName = normalizeFolderName(
-      labelByPhotoNormId.get(norm) || 'Miscellaneous',
-      names(),
+    const folderName = resolveOrganizeFolderName(
+      labelByPhotoNormId.get(norm),
+      nameContext,
     );
-    let target = findFolderByDisplayName(folders, folderName, names());
+    let target = findFolderByDisplayName(folders, folderName, nameContext);
+
+    if (!target && countDistinctFolderKeys(folders, nameContext) >= maxFolderCount) {
+      target = pickOverflowFolder(folders, nameContext);
+    }
 
     if (target) {
       const verified = await appendPhotoToFolderOnServer(target.id, photo, userEmail);
@@ -642,6 +677,7 @@ export async function reconcileOrganizeBatch({
       liveFolders: mergeApiFoldersWithLocal(apiFolders, desiredFolders),
       onProgress,
       userEmail,
+      canonicalFolderNames: ORGANIZE_BATCH_FOLDERS,
     });
     desiredFolders = retryResult.folders;
   }
