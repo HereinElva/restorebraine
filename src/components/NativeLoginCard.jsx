@@ -156,7 +156,10 @@ export default function NativeLoginCard({ clearSignedOut = false }) {
     setEmail(normalized);
     setOtpCode('');
     setErrorMessage('');
-    setNoticeMessage(message || `Enter the verification code sent to ${normalized}.`);
+    setNoticeMessage(
+      message
+      || `Enter the verification code sent to ${normalized}, plus the same password you used to sign up.`,
+    );
   };
 
   const handleSubmit = async (event) => {
@@ -179,7 +182,7 @@ export default function NativeLoginCard({ clearSignedOut = false }) {
         setIsSubmitting(false);
         setNoticeMessage('');
         setErrorMessage('Verification is taking too long. Check your connection and try again.');
-      }, 25000);
+      }, 20000);
       try {
         await verifyEmailOtp({ email: verificationEmail, otpCode: otpCode.trim(), password });
         setNoticeMessage('Welcome! You are signed in.');
@@ -290,7 +293,7 @@ export default function NativeLoginCard({ clearSignedOut = false }) {
         {showVerificationStep ? (
           <>
             <p style={{ textAlign: 'left', fontSize: '13px', color: '#4b5563', margin: '0 0 12px', lineHeight: 1.5 }}>
-              {noticeMessage || `Enter the verification code sent to ${verificationEmail}.`}
+              {noticeMessage || `Enter the code from your email and the same password you used to sign up.`}
             </p>
             <label style={{ display: 'block', textAlign: 'left', fontSize: '13px', fontWeight: '600', color: '#374151', marginBottom: '6px' }}>Email</label>
             <input

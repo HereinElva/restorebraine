@@ -4,13 +4,12 @@ import { appParams } from '@/lib/app-params';
 import { createAxiosClient } from '@base44/sdk/dist/utils/axios-client';
 import { openRestorebraineLogin } from '@/lib/auth-urls';
 import { getAppOrigin } from '@/lib/app-params';
-import { clearNativeSession, persistSessionToNativeStorage, restoreSessionFromNativeStorage, ensureClientSessionToken, normalizeAuthEmail, prepareForNewRegistration, clearAxiosAuthHeaders } from '@/lib/session-bootstrap';
+import { clearNativeSession, persistSessionToNativeStorage, applyAuthSessionTokenSync, restoreSessionFromNativeStorage, ensureClientSessionToken, normalizeAuthEmail, prepareForNewRegistration, clearAxiosAuthHeaders } from '@/lib/session-bootstrap';
 import {
   postAuthEmail,
   verifyAuthOtp,
   resendAuthOtp,
   extractAuthAccessToken,
-  isOtpVerifiedResponse,
   isVerificationRequiredResponse,
   isVerificationPendingError,
   verificationRequiredError,
@@ -22,6 +21,7 @@ const AUTH_BOOT_TIMEOUT_MS = 12000;
 const AUTH_BOOT_TIMEOUT_BUNDLED_MS = 6000;
 const AUTH_API_TIMEOUT_MS = 10000;
 const AUTH_REGISTER_TIMEOUT_MS = 20000;
+const AUTH_VERIFY_TOTAL_TIMEOUT_MS = 18000;
 
 const withAuthTimeout = (promise, ms, label) =>
   Promise.race([
@@ -402,18 +402,7 @@ export const AuthProvider = ({ children }) => {
         throw new Error('Sign in failed. Please try again.');
       }
 
-      await persistSessionToNativeStorage(response.access_token);
-      setManuallyLoggedOut(false);
-      setUser(response.user ?? null);
-      setIsAuthenticated(true);
-      finishAuthBoot();
-      setAuthError(null);
-      resetToGalleryHome();
-      try {
-        window.dispatchEvent(new CustomEvent('restorebraine-session-updated', { detail: { token: response.access_token } }));
-        window.dispatchEvent(new CustomEvent('restorebraine-gallery-ready', { detail: { token: response.access_token } }));
-      } catch {}
-      void checkUserAuth({ ignoreManualLogout: true, silent: true });
+      finishAuthSession({ accessToken: response.access_token, user: response.user });
     } catch (error) {
       setIsLoadingAuth(false);
       setIsAuthenticated(false);
@@ -431,63 +420,72 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const verifyEmailOtp = async ({ email, otpCode, password }) => {
+  const finishAuthSession = ({ accessToken, user }) => {
+    applyAuthSessionTokenSync(accessToken);
+    setManuallyLoggedOut(false);
+    setUser(user ?? null);
+    setIsAuthenticated(true);
+    finishAuthBoot();
+    setAuthError(null);
+    resetToGalleryHome();
+    try {
+      window.dispatchEvent(new CustomEvent('restorebraine-session-updated', { detail: { token: accessToken } }));
+      window.dispatchEvent(new CustomEvent('restorebraine-gallery-ready', { detail: { token: accessToken } }));
+    } catch {}
+    void persistSessionToNativeStorage(accessToken);
+    void checkUserAuth({ ignoreManualLogout: true, silent: true });
+  };
+
+  const verifyEmailOtpInternal = async ({ email, otpCode, password }) => {
     setAuthError(null);
     const normalizedEmail = normalizeAuthEmail(email);
     const code = String(otpCode || '').trim();
     if (!normalizedEmail || !code) {
       throw Object.assign(new Error('Enter the verification code from your email.'), { status: 400 });
     }
+    if (!password) {
+      throw Object.assign(
+        new Error('Enter the password you used when signing up.'),
+        { status: 400, code: 'PASSWORD_REQUIRED' },
+      );
+    }
 
     clearAxiosAuthHeaders();
 
-    try {
-      const verifyResponse = await withAuthTimeout(
-        verifyAuthOtp(normalizedEmail, code),
+    const verifyResponse = await withAuthTimeout(
+      verifyAuthOtp(normalizedEmail, code),
+      AUTH_API_TIMEOUT_MS,
+      'auth.verify-otp',
+    );
+
+    let accessToken = extractAuthAccessToken(verifyResponse);
+    let user = verifyResponse?.user ?? null;
+
+    if (!accessToken) {
+      const loginResponse = await withAuthTimeout(
+        postAuthEmail('login', { email: normalizedEmail, password }),
         AUTH_API_TIMEOUT_MS,
-        'auth.verify-otp',
+        'auth.login',
       );
+      accessToken = extractAuthAccessToken(loginResponse);
+      user = loginResponse?.user ?? user;
+    }
 
-      let accessToken = extractAuthAccessToken(verifyResponse);
-      let user = verifyResponse?.user ?? null;
+    if (!accessToken) {
+      throw new Error('Verification succeeded but sign-in failed. Check your password and try again.');
+    }
 
-      if (!accessToken) {
-        if (!isOtpVerifiedResponse(verifyResponse)) {
-          throw new Error('Invalid verification code. Check the code from your email and try again.');
-        }
-        if (!password) {
-          throw Object.assign(
-            new Error('Enter the password you used when signing up, then tap Verify again.'),
-            { status: 400, code: 'PASSWORD_REQUIRED' },
-          );
-        }
+    finishAuthSession({ accessToken, user });
+    return { ...verifyResponse, access_token: accessToken, user };
+  };
 
-        const loginResponse = await withAuthTimeout(
-          postAuthEmail('login', { email: normalizedEmail, password }),
-          AUTH_API_TIMEOUT_MS,
-          'auth.login',
-        );
-        accessToken = extractAuthAccessToken(loginResponse);
-        user = loginResponse?.user ?? user;
-      }
-
-      if (!accessToken) {
-        throw new Error('Verification succeeded but sign-in failed. Check your password and try again.');
-      }
-
-      await persistSessionToNativeStorage(accessToken);
-      setManuallyLoggedOut(false);
-      setUser(user);
-      setIsAuthenticated(true);
-      finishAuthBoot();
-      setAuthError(null);
-      resetToGalleryHome();
-      try {
-        window.dispatchEvent(new CustomEvent('restorebraine-session-updated', { detail: { token: accessToken } }));
-        window.dispatchEvent(new CustomEvent('restorebraine-gallery-ready', { detail: { token: accessToken } }));
-      } catch {}
-      void checkUserAuth({ ignoreManualLogout: true, silent: true });
-      return { ...verifyResponse, access_token: accessToken, user };
+  const verifyEmailOtp = async ({ email, otpCode, password }) => {
+    try {
+      return await withAuthTimeout(
+        verifyEmailOtpInternal({ email, otpCode, password }),
+        AUTH_VERIFY_TOTAL_TIMEOUT_MS,
+        'verifyEmailOtp',
+      );
     } catch (error) {
       setIsLoadingAuth(false);
       setIsAuthenticated(false);
@@ -533,18 +531,7 @@ export const AuthProvider = ({ children }) => {
           { status: 401 },
         );
       }
-      await persistSessionToNativeStorage(response.access_token);
-      setManuallyLoggedOut(false);
-      setUser(response.user ?? null);
-      setIsAuthenticated(true);
-      setAuthError(null);
-      finishAuthBoot();
-      resetToGalleryHome();
-      try {
-        window.dispatchEvent(new CustomEvent('restorebraine-session-updated', { detail: { token: response.access_token } }));
-        window.dispatchEvent(new CustomEvent('restorebraine-gallery-ready', { detail: { token: response.access_token } }));
-      } catch {}
-      void checkUserAuth({ ignoreManualLogout: true, silent: true });
+      finishAuthSession({ accessToken: response.access_token, user: response.user });
       return response;
     };
 
