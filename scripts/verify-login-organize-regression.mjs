@@ -50,7 +50,14 @@ const srcChecks = [
   ['src/lib/folder-membership-cache.js', 'export function repairMembershipCache'],
   ['src/lib/run-media-organize.js', 'export async function runMediaOrganize'],
   ['src/lib/media-organize.js', 'ORGANIZE_BATCH_FOLDERS'],
+  ['src/lib/media-organize.js', 'ORGANIZE_BATCH_FOLDER_COUNT = 8'],
   ['src/Layout.jsx', 'pageContent'],
+  ['src/lib/native-hosted-redirect.js', "protocol === 'capacitor:'"],
+  ['src/main.jsx', 'ensureBundledHashRoute'],
+  ['src/lib/AuthContext.jsx', 'finishPendingOAuthLogin'],
+  ['src/lib/AuthContext.jsx', 'isBundledNativeShell() && !hasStoredAuthToken()'],
+  ['src/App.jsx', 'function AppRouter'],
+  ['src/components/BootErrorBoundary.jsx', 'hit a display error'],
 ];
 
 for (const [file, needle] of srcChecks) {
@@ -65,6 +72,16 @@ if (read('src/Layout.jsx').includes('AnimatePresence')) {
 
 if (read('src/App.jsx').includes('NativeRouter =')) {
   fail('App.jsx picks router at module load — use AppRouter render-time selection');
+}
+
+const mainJs = read('src/main.jsx');
+if (mainJs.includes('location.replace') && mainJs.includes('ensureBundledHashRoute')) {
+  fail('main.jsx hash bootstrap uses location.replace — can blank bundled WKWebView');
+}
+
+const hostedRedirect = read('src/lib/native-hosted-redirect.js');
+if (hostedRedirect.includes('redirectNativeToHostedApp') && !hostedRedirect.includes("protocol === 'capacitor:'")) {
+  fail('native-hosted-redirect.js missing capacitor:// guard — bundled shell may redirect to CDN');
 }
 
 if (entry && appJs) {
@@ -99,9 +116,9 @@ if (errors.length) {
   process.exit(1);
 }
 
-console.log('✓ Login page wiring intact (SignInScreen / NativeLoginCard / OAuth buttons)');
-console.log('✓ Organize stack intact (folder-membership, cache repair, run-media-organize)');
-console.log('✓ Bundled mode default correct (no server.url in ios capacitor config)');
+console.log('✓ Login page wiring intact (SignInScreen / NativeLoginCard / OAuth + email session sync)');
+console.log('✓ Organize stack intact (8-folder batch model, cache repair, run-media-organize)');
+console.log('✓ Bundled mode default correct (capacitor:// guard, no server.url in ios config)');
 console.log('✓ No tab AnimatePresence regression in Layout');
-console.log('✓ Bundled JS includes auth boot hardening (HashRouter path, error boundary)\n');
+console.log('✓ Auth boot hardening intact (HashRouter, hash bootstrap, error boundary, OAuth grace)\n');
 process.exit(0);
