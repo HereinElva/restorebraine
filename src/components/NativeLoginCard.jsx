@@ -116,19 +116,23 @@ export default function NativeLoginCard({ clearSignedOut = false }) {
     }
   };
 
-  const handleProviderClick = (provider) => {
+  const handleProviderClick = (provider, event) => {
+    event?.preventDefault?.();
+    event?.stopPropagation?.();
     if (isSubmitting || openingProvider) return;
     clearSignedOutFlag();
     setErrorMessage('');
     setOpeningProvider(provider);
     window.setTimeout(() => setOpeningProvider(null), 12000);
 
+    try {
+      window.__restorebraineLastOAuthProvider = provider;
+    } catch {
+      /* ignore */
+    }
+
     if (typeof window.__restorebraineOpenProviderLogin === 'function') {
       window.__restorebraineOpenProviderLogin(provider);
-      return;
-    }
-    if (typeof window.__restorebraineOpenLogin === 'function') {
-      window.__restorebraineOpenLogin();
       return;
     }
     launchProviderOAuth(provider);
@@ -168,7 +172,7 @@ export default function NativeLoginCard({ clearSignedOut = false }) {
           email: normalizedEmail,
           password,
         });
-        setNoticeMessage('Account created.');
+        setNoticeMessage('Welcome! You are signed in.');
         setFullName('');
         setEmail('');
         setPassword('');
@@ -207,15 +211,15 @@ export default function NativeLoginCard({ clearSignedOut = false }) {
           Restorebraine
         </h1>
 
-        <ProviderButton provider="google" onClick={() => handleProviderClick('google')} disabled={isSubmitting || openingProvider === 'google'}>
+        <ProviderButton provider="google" onClick={(event) => handleProviderClick('google', event)} disabled={isSubmitting || openingProvider === 'google'}>
           <GoogleMark />
           {openingProvider === 'google' ? 'Opening Google…' : 'Continue With Google'}
         </ProviderButton>
-        <ProviderButton provider="apple" dark onClick={() => handleProviderClick('apple')} disabled={isSubmitting || openingProvider === 'apple'}>
+        <ProviderButton provider="apple" dark onClick={(event) => handleProviderClick('apple', event)} disabled={isSubmitting || openingProvider === 'apple'}>
           <AppleLogo />
           {openingProvider === 'apple' ? 'Opening Apple…' : 'Continue With Apple'}
         </ProviderButton>
-        <ProviderButton provider="microsoft" onClick={() => handleProviderClick('microsoft')} disabled={isSubmitting || openingProvider === 'microsoft'}>
+        <ProviderButton provider="microsoft" onClick={(event) => handleProviderClick('microsoft', event)} disabled={isSubmitting || openingProvider === 'microsoft'}>
           <MicrosoftMark />
           {openingProvider === 'microsoft' ? 'Opening Microsoft…' : 'Continue With Microsoft'}
         </ProviderButton>

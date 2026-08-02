@@ -444,29 +444,30 @@ export const AuthProvider = ({ children }) => {
     };
 
     const finishRegistrationSuccess = async (response) => {
-      if (response?.access_token) {
-        await persistSessionToNativeStorage(response.access_token);
-        setManuallyLoggedOut(false);
-        setUser(response.user ?? null);
-        setIsAuthenticated(true);
-        setAuthError(null);
-        finishAuthBoot();
-        resetToGalleryHome();
-        try {
-          window.dispatchEvent(new CustomEvent('restorebraine-session-updated', { detail: { token: response.access_token } }));
-          window.dispatchEvent(new CustomEvent('restorebraine-gallery-ready', { detail: { token: response.access_token } }));
-        } catch {}
-        void checkUserAuth({ ignoreManualLogout: true, silent: true });
-      } else {
-        setAuthError({ type: 'auth_required', message: 'Account created. Please sign in.' });
-        finishAuthBoot();
+      if (!response?.access_token) {
+        throw Object.assign(
+          new Error('Account created but sign-in failed. Try signing in with your email and password.'),
+          { status: 401 },
+        );
       }
+      await persistSessionToNativeStorage(response.access_token);
+      setManuallyLoggedOut(false);
+      setUser(response.user ?? null);
+      setIsAuthenticated(true);
+      setAuthError(null);
+      finishAuthBoot();
+      resetToGalleryHome();
+      try {
+        window.dispatchEvent(new CustomEvent('restorebraine-session-updated', { detail: { token: response.access_token } }));
+        window.dispatchEvent(new CustomEvent('restorebraine-gallery-ready', { detail: { token: response.access_token } }));
+      } catch {}
+      void checkUserAuth({ ignoreManualLogout: true, silent: true });
       return response;
     };
 
     try {
       const authClient = createRegisterClient();
-      const response = await withAuthTimeout(
+      let response = await withAuthTimeout(
         authClient.post(`/apps/${appParams.appId}/auth/register`, {
           email: normalizedEmail,
           password,
@@ -476,6 +477,19 @@ export const AuthProvider = ({ children }) => {
         AUTH_REGISTER_TIMEOUT_MS,
         'auth.register',
       );
+
+      if (!response?.access_token) {
+        clearAxiosAuthHeaders();
+        const loginClient = createRegisterClient();
+        response = await withAuthTimeout(
+          loginClient.post(`/apps/${appParams.appId}/auth/login`, {
+            email: normalizedEmail,
+            password,
+          }),
+          AUTH_API_TIMEOUT_MS,
+          'auth.login',
+        );
+      }
 
       return finishRegistrationSuccess(response);
     } catch (error) {

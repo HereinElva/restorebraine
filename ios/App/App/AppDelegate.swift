@@ -113,7 +113,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate, ASWebAuthenticationPresen
             }
         }
         session.presentationContextProvider = self
-        session.prefersEphemeralWebBrowserSession = false
+        session.prefersEphemeralWebBrowserSession = true
         oauthAuthSession = session
         if !session.start() {
             print("Restorebraine: ASWebAuthenticationSession.start() failed — trying JS InAppBrowser fallback")
@@ -497,16 +497,17 @@ class AppDelegate: UIResponder, UIApplicationDelegate, ASWebAuthenticationPresen
 
           function openProviderOAuth(provider) {
             var p = provider || 'google';
+            window.__restorebraineLastOAuthProvider = p;
             var url = getCanonicalOAuthUrl(p);
             markOpeningOAuth();
-            if (launchOAuthInBrowser(url)) return true;
             if (postNativeOpenLogin(p)) return true;
+            if (launchOAuthInBrowser(url)) return true;
             openLoginInSystemBrowser(url, p);
             return true;
           }
 
           window.__restorebraineOpenLoginJsFallback = function () {
-            openProviderOAuth('google');
+            openProviderOAuth(window.__restorebraineLastOAuthProvider || 'google');
           };
 
           window.__restorebraineOpenProviderLogin = function (provider) {
@@ -557,7 +558,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate, ASWebAuthenticationPresen
           }
 
           installOAuthDeepLinkHandler();
-          interceptNativeSignInClicks();
+          /* Provider taps handled by NativeLoginCard → __restorebraineOpenProviderLogin (no duplicate intercept). */
 
           function deferOAuthBridge() {
             installOAuthDeepLinkHandler();
@@ -1418,7 +1419,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate, ASWebAuthenticationPresen
             guardGoogleOAuthInWebView();
             hideBase44EditorWidget();
             fixRestorebraineBranding();
-            interceptNativeSignInClicks();
+            /* Provider taps handled by NativeLoginCard — avoid duplicate OAuth opens. */
             window.addEventListener('popstate', function () {
               guardPlatformNavigation();
               guardGoogleOAuthInWebView();

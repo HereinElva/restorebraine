@@ -134,6 +134,12 @@ export const openLoginInSystemBrowser = async (url = getGoogleOAuthUrl(), provid
     return;
   }
 
+  const provider = providerHint || 'google';
+  if (typeof window.__restorebraineOpenProviderLogin === 'function') {
+    window.__restorebraineOpenProviderLogin(provider);
+    return;
+  }
+
   const { waitForCapacitorBridge } = await import('@/lib/capacitor-ready');
   await waitForCapacitorBridge();
 
@@ -172,7 +178,9 @@ export const openLoginInSystemBrowser = async (url = getGoogleOAuthUrl(), provid
 };
 
 export const launchProviderOAuth = (provider = 'google') => {
-  const url = provider === 'google' ? getGoogleOAuthUrl() : getProviderOAuthUrl(provider);
+  if (typeof window !== 'undefined') {
+    window.__restorebraineLastOAuthProvider = provider;
+  }
   if (typeof window !== 'undefined' && typeof window.__restorebraineOpenProviderLogin === 'function') {
     try {
       window.__restorebraineOpenProviderLogin(provider);
@@ -181,10 +189,7 @@ export const launchProviderOAuth = (provider = 'google') => {
       console.warn('Native provider login bridge failed:', error);
     }
   }
-  if (typeof window.__restorebraineOpenLogin === 'function') {
-    window.__restorebraineOpenLogin();
-    return;
-  }
+  const url = provider === 'google' ? getGoogleOAuthUrl() : getProviderOAuthUrl(provider);
   void openLoginInSystemBrowser(url, provider);
 };
 

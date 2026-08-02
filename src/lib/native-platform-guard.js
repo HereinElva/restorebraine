@@ -58,7 +58,12 @@ export const getAppScopedLoginUrl = () => {
 
 export const getGoogleOAuthUrl = () => getCanonicalOAuthUrl('google');
 
-export const getProviderOAuthUrl = (label = '') => getCanonicalOAuthUrl(providerFromLabel(label));
+export const getProviderOAuthUrl = (provider = 'google') => {
+  const normalized = ['google', 'apple', 'microsoft'].includes(String(provider).toLowerCase())
+    ? String(provider).toLowerCase()
+    : providerFromLabel(provider);
+  return getCanonicalOAuthUrl(normalized);
+};
 
 export const isAuthNavigationUrl = (url) => {
   if (!url) return false;
@@ -190,8 +195,8 @@ export const installNativePlatformGuard = () => {
   guardPlatformNavigation();
   guardSignedOutLoginPage();
   hideBase44EditorWidget();
-  interceptNativeSignInClicks();
   guardGoogleOAuthInWebView();
+  /* OAuth provider taps use NativeLoginCard + __restorebraineOpenProviderLogin — no click intercept. */
   window.addEventListener('popstate', () => {
     guardPlatformNavigation();
     guardSignedOutLoginPage();
