@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useMemo } from "react";
 import { Search, X, Sparkles, ImageIcon, Grid3x3, Layers, MousePointer2, Check, Pencil, Loader2, FolderInput, Folder, FolderMinus } from "lucide-react";
 
 import SelectablePhotoGrid from "./SelectablePhotoGrid";
@@ -12,7 +12,7 @@ import MobileFolderCard from "./MobileFolderCard";
 import MobileDrawerMenu from "./MobileDrawerMenu";
 import { base44 } from "@/api/base44Client";
 import { DEPLOY_BUILD } from "@/deploy-marker";
-import { normalizePhotoId, resolveFolderPhotos, countFolderPhotos, sanitizeFolderPhotoIds } from "@/lib/gallery-organize-snapshot";
+import { normalizePhotoId, resolveFolderPhotos, countFolderPhotos, sanitizeFolderPhotoIds, buildPhotoToFolderMap } from "@/lib/gallery-organize-snapshot";
 import { loadFolderMembershipCacheSync, saveFolderMembershipCache } from "@/lib/folder-membership-cache";
 
 export default function MobileGallery({
@@ -55,6 +55,20 @@ export default function MobileGallery({
     folders.flatMap((f) => sanitizeFolderPhotoIds(f.photo_ids, photos).map(normalizePhotoId)),
   );
   const unorganizedPhotos = photos.filter(p => !photosInFolders.has(normalizePhotoId(p.id)));
+  const photoToFolderMap = useMemo(
+    () => buildPhotoToFolderMap(folders, photos),
+    [folders, photos],
+  );
+
+  const openFolder = (folder) => {
+    const liveFolder = folders.find((f) => f.id === folder.id) || folder;
+    setSelectedFolder(liveFolder);
+    pushBack(liveFolder.name, () => {
+      setSelectedFolder(null);
+      setSelectionMode(false);
+      setSelectedIds([]);
+    });
+  };
 
   const exitSelection = () => {
     setSelectionMode(false);
@@ -135,7 +149,8 @@ export default function MobileGallery({
 
   // Folder view
   if (selectedFolder) {
-    const folderPhotos = resolveFolderPhotos(selectedFolder, photos);
+    const liveFolder = folders.find((f) => f.id === selectedFolder.id) || selectedFolder;
+    const folderPhotos = resolveFolderPhotos(liveFolder, photos);
 
     const handleFolderPhotoMove = async (targetFolderId) => {
       setMergeDrawerOpen(false);
@@ -148,8 +163,9 @@ export default function MobileGallery({
         cover_photo_url: targetFolder.cover_photo_url || photos.find(p => p.id === updatedTargetIds[0])?.file_url,
       });
       // Remove selected photos from current folder
-      const updatedSourceIds = (selectedFolder.photo_ids || []).filter(id => !selectedIds.includes(id));
-      await base44.entities.Folder.update(selectedFolder.id, { photo_ids: updatedSourceIds });
+      const updatedSourceIds = (liveFolder.photo_ids || []).filter(id => !selectedIds.includes(id));
+      await base44.entities.Folder.update(liveFolder.id, { photo_ids: updatedSourceIds });
+      setSelectedFolder({ ...liveFolder, photo_ids: updatedSourceIds });
       queryClient.invalidateQueries({ queryKey: ['folders'] });
       exitSelection();
     };
@@ -269,8 +285,7 @@ export default function MobileGallery({
           if (selectionMode) {
             toggleFolderSelect(folder.id);
           } else {
-            setSelectedFolder(folder);
-            pushBack(folder.name, () => { setSelectedFolder(null); setSelectionMode(false); setSelectedIds([]); });
+            openFolder(folder);
           }
         }}
       >
@@ -370,7 +385,15 @@ export default function MobileGallery({
                 <p className="text-gray-400 text-sm">Try a different search</p>
               </div>
             ) : (
-              <SelectablePhotoGrid photos={filteredPhotos} onPhotoClick={setSelectedPhoto} selectionMode={false} selectedIds={[]} onToggleSelect={() => {}} fastRender />
+              <SelectablePhotoGrid
+                photos={filteredPhotos}
+                onPhotoClick={setSelectedPhoto}
+                selectionMode={false}
+                selectedIds={[]}
+                onToggleSelect={() => {}}
+                fastRender
+                folderLabelForPhoto={(photo) => photoToFolderMap.get(normalizePhotoId(photo.id))?.name ?? null}
+              />
             )}
           </>
         ) : activeTab === "folders" ? (
@@ -429,10 +452,7 @@ export default function MobileGallery({
                           key={folder.id}
                           folder={folder}
                           photos={photos}
-                          onClick={() => {
-                            setSelectedFolder(folder);
-                            pushBack(folder.name, () => { setSelectedFolder(null); setSelectionMode(false); setSelectedIds([]); });
-                          }}
+                          onClick={() => openFolder(folder)}
                         />
                       ))}
                     </div>

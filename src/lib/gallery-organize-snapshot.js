@@ -80,6 +80,26 @@ export function countFolderPhotos(folder, photos = snapshot.photos) {
   return resolveFolderPhotos(folder, photos).length;
 }
 
+/** Map normalized photo id → folder record (first match wins). */
+export function buildPhotoToFolderMap(folders, photos = snapshot.photos) {
+  const map = new Map();
+  for (const folder of folders || []) {
+    for (const photo of resolveFolderPhotos(folder, photos)) {
+      const norm = normalizePhotoId(photo.id);
+      if (norm && !map.has(norm)) {
+        map.set(norm, folder);
+      }
+    }
+  }
+  return map;
+}
+
+export function findFolderForPhoto(photoId, folders, photos = snapshot.photos) {
+  const norm = normalizePhotoId(photoId);
+  if (!norm) return null;
+  return buildPhotoToFolderMap(folders, photos).get(norm) || null;
+}
+
 /** Merge folder photo_ids preserving canonical Photo.id values (deduped by normalized id). */
 export function mergeStoredPhotoIds(existingIds = [], newIds = [], photos = snapshot.photos) {
   const byNorm = new Map();

@@ -168,6 +168,9 @@ export default function OrganizeButton({ photos, folders: foldersProp, squareSty
         persistGalleryFoldersFast(email, verifiedFolders);
       }
 
+      queryClient.invalidateQueries({ queryKey: galleryPhotosKey(email) });
+      queryClient.invalidateQueries({ queryKey: galleryFoldersKey(email) });
+
       const folderCount = result.foldersUsedInRun ?? countFoldersWithPhotos(verifiedFolders, syncedPhotos);
 
       setOrganizing(false);

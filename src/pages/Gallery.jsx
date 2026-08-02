@@ -301,6 +301,20 @@ export default function Gallery() {
   useEffect(() => {
     setGalleryOrganizeSnapshot({ photos, folders: foldersForGallery });
   }, [photos, foldersForGallery]);
+
+  useEffect(() => {
+    if (!selectedFolder?.id) return;
+    const fresh = foldersForGallery.find((folder) => folder.id === selectedFolder.id);
+    if (!fresh) {
+      setSelectedFolder(null);
+      return;
+    }
+    const prevNorm = (selectedFolder.photo_ids || []).map(normalizePhotoId).sort().join(',');
+    const nextNorm = (fresh.photo_ids || []).map(normalizePhotoId).sort().join(',');
+    if (prevNorm !== nextNorm || selectedFolder.name !== fresh.name) {
+      setSelectedFolder(fresh);
+    }
+  }, [foldersForGallery, selectedFolder?.id]);
  
   // Auto-update folders without cover photos
   useEffect(() => {
@@ -425,11 +439,12 @@ export default function Gallery() {
  
   const handleRemoveFromFolder = async () => {
     if (!selectedFolder || selectedIds.length === 0) return;
+    const liveFolder = foldersForGallery.find((f) => f.id === selectedFolder.id) || selectedFolder;
     setIsMoving(true);
     try {
-      const updatedIds = selectedFolder.photo_ids.filter(id => !selectedIds.includes(id));
-      await base44.entities.Folder.update(selectedFolder.id, { photo_ids: updatedIds });
-      setSelectedFolder({ ...selectedFolder, photo_ids: updatedIds });
+      const updatedIds = (liveFolder.photo_ids || []).filter((id) => !selectedIds.includes(id));
+      await base44.entities.Folder.update(liveFolder.id, { photo_ids: updatedIds });
+      setSelectedFolder({ ...liveFolder, photo_ids: updatedIds });
       queryClient.invalidateQueries({ queryKey: ['folders'] });
       setSelectedIds([]);
       setSelectionMode(false);

@@ -156,6 +156,7 @@ export const installNativeSessionPersistence = async () => {
 
 export function applyAuthSessionTokenSync(token) {
   if (!token) return;
+  finishPendingOAuthLogin();
   try { localStorage.removeItem(SIGNED_OUT_KEY); } catch {}
   appParams.token = token;
   base44.auth.setToken(token, false);

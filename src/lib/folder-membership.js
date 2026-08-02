@@ -460,6 +460,51 @@ async function removePhotosFromOtherFoldersOnServer(photoIds, keepFolderId, fold
 }
 
 /** Gallery load: Folder.list (with timeout) + merged local snapshot fallback. */
+export async function syncCachedFolderMembershipToServer(folders, photos, { maxUpdates = 16 } = {}) {
+  if (!folders?.length || !photos?.length) return 0;
+
+  const listed = await listAllFoldersSafe({ timeoutMs: 8000 });
+  const serverById = new Map(listed.map((f) => [f.id, normalizeFolderRecord(f)]));
+  let updates = 0;
+
+  for (const folder of folders) {
+    if (updates >= maxUpdates) break;
+    if (!folder?.id) continue;
+
+    const server = serverById.get(folder.id);
+    if (!server) continue;
+
+    const desiredIds = sanitizeFolderPhotoIds(folder.photo_ids, photos);
+    const serverIds = sanitizeFolderPhotoIds(server.photo_ids, photos);
+    const desiredNorm = new Set(desiredIds.map(normalizePhotoId));
+    const serverNorm = new Set(serverIds.map(normalizePhotoId));
+
+    let missingOnServer = false;
+    for (const norm of desiredNorm) {
+      if (!serverNorm.has(norm)) {
+        missingOnServer = true;
+        break;
+      }
+    }
+    if (!missingOnServer) continue;
+
+    try {
+      await updateFolderPhotoIdsWithTimeout(
+        folder.id,
+        toStoredPhotoIds(desiredIds, photos),
+        {},
+        ORGANIZE_SAVE_TIMEOUT_MS,
+      );
+      updates += 1;
+    } catch (error) {
+      console.warn('syncCachedFolderMembershipToServer failed:', folder.name, error);
+    }
+  }
+
+  return updates;
+}
+
+/** Gallery load: Folder.list (with timeout) + merged local snapshot fallback. */
 export async function fetchGalleryFoldersWithMembership(email, photos = []) {
   const snapshot = email ? await loadFullFolderSnapshotAsync(email) : [];
   const listed = await listAllFoldersSafe();
@@ -501,6 +546,11 @@ export async function fetchGalleryFoldersWithMembership(email, photos = []) {
     persistGalleryFoldersSync(email, toPersist);
     void persistGalleryFolders(email, toPersist);
   }
+
+  if (email && photos.length > 0 && toPersist.length > 0) {
+    void syncCachedFolderMembershipToServer(toPersist, photos);
+  }
+
   return dedupeFoldersByNormalizedName(toPersist, ORGANIZE_BATCH_FOLDERS);
 }
 async function updateFolderPhotoIds(folderId, photoIds, extra = {}) {

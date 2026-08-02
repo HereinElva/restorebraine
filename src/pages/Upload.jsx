@@ -50,8 +50,11 @@ export default function Upload() {
     return installStripeReturnRefresh(() => {
       queryClient.invalidateQueries({ queryKey: ["current-user"] });
       queryClient.invalidateQueries({ queryKey: ["photos"] });
+      if (currentUser?.email) {
+        queryClient.invalidateQueries({ queryKey: ["folders", currentUser.email] });
+      }
     });
-  }, [queryClient]);
+  }, [queryClient, currentUser?.email]);
 
   const updateFileAt = useCallback((index, patch) => {
     setFiles((prev) =>
@@ -145,6 +148,9 @@ export default function Upload() {
         },
       });
       queryClient.invalidateQueries({ queryKey: ["photos"] });
+      if (currentUser?.email) {
+        queryClient.invalidateQueries({ queryKey: ["folders", currentUser.email] });
+      }
     } catch (error) {
       console.error("Batch upload failed:", error);
       const message = error?.message || "Upload failed";
