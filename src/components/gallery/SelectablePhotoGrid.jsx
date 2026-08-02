@@ -11,6 +11,7 @@ export default function SelectablePhotoGrid({
   onToggleSelect,
   fastRender = false,
   folderLabelForPhoto,
+  onFolderLabelClick,
 }) {
   const handleClick = (photo, e) => {
     if (selectionMode) {
@@ -155,11 +156,18 @@ export default function SelectablePhotoGrid({
             )}
 
             {folderLabelForPhoto?.(photo) ? (
-              <div className="absolute top-1 left-1 right-1">
-                <span className="inline-block max-w-full truncate rounded-md bg-black/55 px-1.5 py-0.5 text-[10px] font-medium text-white">
-                  {folderLabelForPhoto(photo)}
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onFolderLabelClick?.(photo);
+                }}
+                className="absolute top-1 left-1 right-1 text-left"
+              >
+                <span className="inline-block max-w-full truncate rounded-md bg-purple-700/90 px-1.5 py-0.5 text-[10px] font-semibold text-white shadow-sm">
+                  In: {folderLabelForPhoto(photo)}
                 </span>
-              </div>
+              </button>
             ) : null}
             
             <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">

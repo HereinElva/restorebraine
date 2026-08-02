@@ -22,8 +22,7 @@ import {
   setGalleryOrganizeSnapshot,
 } from "@/lib/gallery-organize-snapshot";
 import { persistGalleryFoldersFast, persistGalleryFoldersSync } from "@/lib/folder-membership-cache";
-import { mergeApiFoldersWithLocal, dedupeFoldersByNormalizedName, dedupePhotoMembershipInFolderList, countFoldersWithPhotos } from "@/lib/folder-membership";
-import { ORGANIZE_BATCH_FOLDERS } from "@/lib/media-organize";
+import { mergeApiFoldersWithLocal, countFoldersWithPhotos, buildFoldersForGalleryView } from "@/lib/folder-membership";
 import { getGalleryUserEmail, galleryFoldersKey, galleryPhotosKey } from "@/lib/gallery-query-keys";
 import { runMediaOrganize } from "@/lib/run-media-organize";
 import { loadFolderMembershipCacheSync } from "@/lib/folder-membership-cache";
@@ -123,12 +122,10 @@ export default function OrganizeButton({ photos, folders: foldersProp, squareSty
           const existing = queryClient.getQueryData(galleryFoldersKey(email)) ?? [];
           const membershipMap = email ? loadFolderMembershipCacheSync(email) : {};
           const verified = foldersForGalleryView(
-            dedupeFoldersByNormalizedName(
-              dedupePhotoMembershipInFolderList(
-                mergeApiFoldersWithLocal(partialFolders, existing),
-                { membershipMap, canonicalNames: ORGANIZE_BATCH_FOLDERS },
-              ),
-              ORGANIZE_BATCH_FOLDERS,
+            buildFoldersForGalleryView(
+              mergeApiFoldersWithLocal(partialFolders, existing),
+              photos,
+              { userEmail: email, membershipMap },
             ),
             photos,
           );
@@ -151,13 +148,7 @@ export default function OrganizeButton({ photos, folders: foldersProp, squareSty
       const membershipMap = email ? loadFolderMembershipCacheSync(email) : {};
 
       const verifiedFolders = foldersForGalleryView(
-        dedupeFoldersByNormalizedName(
-          dedupePhotoMembershipInFolderList(result.afterFolders || [], {
-            membershipMap,
-            canonicalNames: ORGANIZE_BATCH_FOLDERS,
-          }),
-          ORGANIZE_BATCH_FOLDERS,
-        ),
+        buildFoldersForGalleryView(result.afterFolders || [], syncedPhotos, { userEmail: email }),
         syncedPhotos,
       );
       queryClient.setQueryData(galleryFoldersKey(email), verifiedFolders);

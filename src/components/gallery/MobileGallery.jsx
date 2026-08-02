@@ -393,6 +393,12 @@ export default function MobileGallery({
                 onToggleSelect={() => {}}
                 fastRender
                 folderLabelForPhoto={(photo) => photoToFolderMap.get(normalizePhotoId(photo.id))?.name ?? null}
+                onFolderLabelClick={(photo) => {
+                  const folder = photoToFolderMap.get(normalizePhotoId(photo.id));
+                  if (!folder) return;
+                  setSearchQuery("");
+                  openFolder(folder);
+                }}
               />
             )}
           </>

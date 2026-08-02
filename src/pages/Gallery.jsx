@@ -22,8 +22,8 @@ import { DragDropContext } from "@hello-pangea/dnd";
 import { useNavigation } from "../components/NavigationContext";
 import { useTabState } from "../components/TabStateContext";
 import MobileGallery from "../components/gallery/MobileGallery";
-import { setGalleryOrganizeSnapshot, sanitizeFolderPhotoIds, normalizePhotoId } from "@/lib/gallery-organize-snapshot";
-import { fetchGalleryFoldersWithMembership, mergeApiFoldersWithLocal, dedupeFoldersByNormalizedName, dedupePhotoMembershipInFolderList, findCrossFolderPhotoDuplicates, mergeDuplicateFoldersOnServer, enforceUniquePhotoMembershipOnServer } from "@/lib/folder-membership";
+import { setGalleryOrganizeSnapshot, normalizePhotoId } from "@/lib/gallery-organize-snapshot";
+import { fetchGalleryFoldersWithMembership, mergeApiFoldersWithLocal, dedupeFoldersByNormalizedName, dedupePhotoMembershipInFolderList, findCrossFolderPhotoDuplicates, mergeDuplicateFoldersOnServer, enforceUniquePhotoMembershipOnServer, buildFoldersForGalleryView, syncCachedFolderMembershipToServer } from "@/lib/folder-membership";
 import { ORGANIZE_BATCH_FOLDERS, ORGANIZE_BATCH_FOLDER_COUNT, normalizeFolderName } from "@/lib/media-organize";
 import { loadFullFolderSnapshotAsync, loadFolderSnapshotCacheSync, loadFolderMembershipCacheSync, persistGalleryFoldersSync, persistGalleryFoldersFast } from "@/lib/folder-membership-cache";
 import "../components/gallery/mobile-gallery-layout.css";
@@ -106,6 +106,7 @@ export default function Gallery() {
   const [selectedFolderIds, setSelectedFolderIds] = useState([]);
   const [isMoving, setIsMoving] = useState(false);
   const queryClient = useQueryClient();
+  const prevPhotoCountRef = useRef(0);
  
   useEffect(() => {
     setTabState("Gallery", { searchQuery, debouncedQuery, selectedFolder });
@@ -232,24 +233,24 @@ export default function Gallery() {
   // Only show the loading spinner on the very first load (no cached data yet)
   const isLoading = photosLoading && photos.length === 0;
 
-  /** Align folder photo_ids with Photo.id values so Recents clears after organize. */
+  /** Align folder photo_ids with Photo.id values and cached membership. */
   const foldersForGallery = useMemo(
-    () =>
-      dedupeFoldersByNormalizedName(
-        dedupePhotoMembershipInFolderList(
-          folders.map((folder) => ({
-            ...folder,
-            photo_ids: sanitizeFolderPhotoIds(folder.photo_ids, photos),
-          })),
-          {
-            membershipMap: userEmail ? loadFolderMembershipCacheSync(userEmail) : {},
-            canonicalNames: ORGANIZE_BATCH_FOLDERS,
-          },
-        ),
-        ORGANIZE_BATCH_FOLDERS,
-      ),
+    () => buildFoldersForGalleryView(folders, photos, { userEmail }),
     [folders, photos, userEmail],
   );
+
+  useEffect(() => {
+    if (!userEmail || photos.length === 0) return;
+    if (photos.length > prevPhotoCountRef.current) {
+      queryClient.invalidateQueries({ queryKey: ['folders', userEmail] });
+    }
+    prevPhotoCountRef.current = photos.length;
+  }, [photos.length, userEmail, queryClient]);
+
+  useEffect(() => {
+    if (!userEmail || !photos.length || !foldersForGallery.length) return;
+    void syncCachedFolderMembershipToServer(foldersForGallery, photos);
+  }, [foldersForGallery, photos, userEmail]);
 
   useEffect(() => {
     if (!userEmail || folders.length === 0) return;

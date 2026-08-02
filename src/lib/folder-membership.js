@@ -217,6 +217,27 @@ export function countFoldersWithPhotos(folders, photos) {
   ).length;
 }
 
+/** Gallery folder list — merge membership cache so new uploads appear in folder tiles/views. */
+export function buildFoldersForGalleryView(
+  folders,
+  photos,
+  { userEmail, canonicalNames = ORGANIZE_BATCH_FOLDERS, membershipMap } = {},
+) {
+  const map = membershipMap ?? (userEmail ? loadFolderMembershipCacheSync(userEmail) : {});
+  const sanitized = (folders || []).map((folder) => ({
+    ...folder,
+    photo_ids: sanitizeFolderPhotoIds(folder.photo_ids, photos),
+  }));
+  const withCache = applyFolderMembershipCache(sanitized, photos, map);
+  return dedupeFoldersByNormalizedName(
+    dedupePhotoMembershipInFolderList(withCache, {
+      membershipMap: map,
+      canonicalNames,
+    }),
+    canonicalNames,
+  );
+}
+
 /** Merge server folders that share the same canonical name into one folder each. */
 export async function mergeDuplicateFoldersOnServer(
   folders,
@@ -459,7 +480,7 @@ async function removePhotosFromOtherFoldersOnServer(photoIds, keepFolderId, fold
   return updatedFolders;
 }
 
-/** Gallery load: Folder.list (with timeout) + merged local snapshot fallback. */
+/** Push cached folder membership back to the server when local view has photos the API missed. */
 export async function syncCachedFolderMembershipToServer(folders, photos, { maxUpdates = 16 } = {}) {
   if (!folders?.length || !photos?.length) return 0;
 

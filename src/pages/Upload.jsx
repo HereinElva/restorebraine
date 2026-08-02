@@ -196,6 +196,9 @@ export default function Upload() {
 
     setProcessing(false);
     queryClient.invalidateQueries({ queryKey: ["photos"] });
+    if (currentUser?.email) {
+      queryClient.invalidateQueries({ queryKey: ["folders", currentUser.email] });
+    }
   };
 
   const allProcessed =
