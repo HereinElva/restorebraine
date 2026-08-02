@@ -66,7 +66,7 @@ export default function Account() {
   };
 
   return (
-    <div className="relative z-0 min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 py-12 pb-36">
+    <div className="relative z-0 min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 py-4 pb-6">
       <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8">
         <button
           type="button"

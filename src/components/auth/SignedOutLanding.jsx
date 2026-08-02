@@ -12,9 +12,9 @@ export default function SignedOutLanding({ onSignIn }) {
   };
 
   return (
-    <div className="min-h-[calc(100vh-8rem)] pb-28">
-      <div className="px-4 pt-5 pb-2">
-        <h1 className="text-2xl font-bold text-gray-900">
+    <div className="min-h-[calc(100vh-6rem)] pb-4">
+      <div className="px-4 pt-2 pb-1">
+        <h1 className="text-xl font-bold text-gray-900">
           Find Your{" "}
           <span className="bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
             Memories
@@ -37,7 +37,7 @@ export default function SignedOutLanding({ onSignIn }) {
 
       <div
         className="fixed left-0 right-0 z-[90] px-4"
-        style={{ bottom: "calc(4.5rem + env(safe-area-inset-bottom, 0px))" }}
+        style={{ bottom: "calc(var(--rb-tab-bar, 2.75rem) + 0.5rem)" }}
       >
         <button
           type="button"

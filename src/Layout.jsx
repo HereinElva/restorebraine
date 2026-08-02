@@ -12,7 +12,7 @@ import { TabStateProvider } from "./components/TabStateContext";
 import { BrandGradientDefs } from "@/components/ui/BrandGradientIcon";
 
 const TAB_ORDER = ["Gallery", "Upload", "Account"];
-const HEADER_BAR_PX = 44;
+const HEADER_BAR_PX = 36;
 
 const useLocalNativeBundle = () => {
   try {
@@ -122,7 +122,7 @@ function LayoutInner({ children, currentPageName }) {
         :root {
           --rb-header-bar: ${HEADER_BAR_PX}px;
           --rb-header-total: calc(var(--rb-header-bar) + env(safe-area-inset-top, 0px));
-          --rb-tab-bar: calc(3.25rem + env(safe-area-inset-bottom, 0px));
+          --rb-tab-bar: calc(2.75rem + env(safe-area-inset-bottom, 0px));
         }
         * { -webkit-tap-highlight-color: transparent; }
         button, a, [role="button"] { user-select: none; -webkit-user-select: none; }
@@ -133,15 +133,15 @@ function LayoutInner({ children, currentPageName }) {
         style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}
       >
         <div className="max-w-7xl mx-auto px-3 sm:px-4">
-          <div className="flex items-center h-11 relative">
+          <div className="flex items-center h-9 relative">
             {backState ? (
               <button
                 type="button"
                 data-rb-gallery-nav="header-back"
                 onClick={handleBack}
-                className="flex items-center gap-1 text-purple-600 font-medium select-none absolute left-0 z-10 min-h-[44px]"
+                className="flex items-center gap-1 text-purple-600 font-medium select-none absolute left-0 z-10 py-1"
               >
-                <ChevronLeft className="w-5 h-5" />
+                <ChevronLeft className="w-4 h-4" />
                 <span className="text-sm">{backState.label}</span>
               </button>
             ) : null}
@@ -151,15 +151,15 @@ function LayoutInner({ children, currentPageName }) {
                 to={createPageUrl("Gallery")}
                 replace
                 data-rb-gallery-nav="header-logo"
-                className="flex items-center gap-1.5 select-none group min-h-[44px]"
+                className="flex items-center gap-1 select-none group py-1"
               >
                 <img
                   src={getRestorebraineAppLogo()}
                   alt="Restorebraine"
                   data-rb-logo="1"
-                  className="w-7 h-7 rounded-lg object-cover shadow-sm"
+                  className="w-6 h-6 rounded-md object-cover shadow-sm"
                 />
-                <span className="text-base font-semibold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent select-none">
+                <span className="text-sm font-semibold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent select-none">
                   Restorebraine
                 </span>
               </Link>
@@ -198,10 +198,10 @@ function LayoutInner({ children, currentPageName }) {
                     void persistActiveSession().then(() => resumeActiveSession?.());
                   }
                 }}
-                className="flex-1 flex flex-col items-center justify-center py-2.5 gap-0.5 select-none relative min-h-[52px]"
+                className="flex-1 flex flex-col items-center justify-center py-1.5 gap-0.5 select-none relative"
               >
                 <Icon
-                  className={`w-5 h-5 transition-colors select-none ${
+                  className={`w-[18px] h-[18px] transition-colors select-none ${
                     isActive ? "text-purple-600" : "text-gray-400"
                   }`}
                 />

@@ -35,7 +35,7 @@ export default function MobileUpload({
   const showBatchActive = processing || processingCount > 0;
 
   return (
-    <div className="min-h-screen pb-24 px-4 pt-4">
+    <div className="min-h-screen pb-4 px-4 pt-3">
       {/* Always mounted — iOS loses picker result if input unmounts */}
       <input
         ref={inputRef}
