@@ -10,10 +10,16 @@ import { OMEGA3_TAG } from './base44-v87-publish-manifest.mjs';
 
 /** v87 branch owns these — Omega 3 caps organize at 20 items/run. Do not overwrite. */
 const V87_ORGANIZE_KEEP = new Set([
+  'src/lib/gallery-organize-snapshot.js',
   'src/lib/run-media-organize.js',
   'src/lib/folder-membership.js',
   'src/lib/media-organize.js',
+  'src/lib/organize-progress.js',
   'src/components/gallery/OrganizeButton.jsx',
+  'src/components/gallery/MobileGallery.jsx',
+  'src/components/gallery/MobileFolderCard.jsx',
+  'src/components/gallery/FolderView.jsx',
+  'src/pages/Gallery.jsx',
 ]);
 
 const GALLERY_FILES = [

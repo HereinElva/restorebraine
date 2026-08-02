@@ -127,6 +127,8 @@ if (usesOmegaLogin) {
 
 if (!existsSync('src/lib/gallery-organize-snapshot.js')) {
   errors.push('Missing gallery-organize-snapshot.js (Omega 3 folder persistence)');
+} else if (!read('src/lib/gallery-organize-snapshot.js').includes('export function resolveFolderPhotos')) {
+  errors.push('gallery-organize-snapshot.js missing resolveFolderPhotos — run git reset --hard origin/cursor/apple-privacy-plist-bacf (do not let port-omega3 overwrite it)');
 }
 if (!existsSync('src/lib/run-media-organize.js')) {
   errors.push('Missing run-media-organize.js (Omega 3 multi-batch organize)');
