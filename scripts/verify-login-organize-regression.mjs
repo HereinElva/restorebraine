@@ -48,6 +48,7 @@ const srcChecks = [
   ['src/components/NativeLoginCard.jsx', 'Continue With Google'],
   ['src/lib/folder-membership.js', 'export function buildFoldersForGalleryView'],
   ['src/lib/folder-membership.js', 'loadFolderMembershipCacheSync'],
+  ['src/lib/folder-membership.js', 'return deduped.filter((folder) => folder.photo_ids.length > 0)'],
   ['src/lib/folder-membership-cache.js', 'export function repairMembershipCache'],
   ['src/lib/folder-membership-cache.js', 'export function loadFolderMembershipCacheSync'],
   ['src/lib/run-media-organize.js', 'export async function runMediaOrganize'],

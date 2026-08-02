@@ -23,9 +23,10 @@ import { useNavigation } from "../components/NavigationContext";
 import { useTabState } from "../components/TabStateContext";
 import MobileGallery from "../components/gallery/MobileGallery";
 import { setGalleryOrganizeSnapshot, normalizePhotoId } from "@/lib/gallery-organize-snapshot";
-import { fetchGalleryFoldersWithMembership, mergeApiFoldersWithLocal, dedupeFoldersByNormalizedName, dedupePhotoMembershipInFolderList, findCrossFolderPhotoDuplicates, mergeDuplicateFoldersOnServer, enforceUniquePhotoMembershipOnServer, buildFoldersForGalleryView, syncCachedFolderMembershipToServer } from "@/lib/folder-membership";
+import { fetchGalleryFoldersWithMembership, mergeApiFoldersWithLocal, dedupeFoldersByNormalizedName, dedupePhotoMembershipInFolderList, findCrossFolderPhotoDuplicates, mergeDuplicateFoldersOnServer, enforceUniquePhotoMembershipOnServer, buildFoldersForGalleryView, syncCachedFolderMembershipToServer, pruneEmptyGalleryFolders } from "@/lib/folder-membership";
 import { ORGANIZE_BATCH_FOLDERS, ORGANIZE_BATCH_FOLDER_COUNT, normalizeFolderName } from "@/lib/media-organize";
 import { loadFullFolderSnapshotAsync, loadFolderSnapshotCacheSync, loadFolderMembershipCacheSync, persistGalleryFoldersSync, persistGalleryFoldersFast } from "@/lib/folder-membership-cache";
+import { sanitizeFolderPhotoIds } from "@/lib/gallery-organize-snapshot";
 import "../components/gallery/mobile-gallery-layout.css";
  
 // ---------------------------------------------------------------------------
@@ -259,7 +260,10 @@ export default function Gallery() {
     );
     const hasDuplicateNames = new Set(keys).size !== keys.length;
     const hasDuplicatePhotos = findCrossFolderPhotoDuplicates(folders).length > 0;
-    if (!hasDuplicateNames && !hasDuplicatePhotos && folders.length <= ORGANIZE_BATCH_FOLDER_COUNT) return;
+    const hasEmptyFolders = photos.length > 0 && folders.some(
+      (folder) => sanitizeFolderPhotoIds(folder.photo_ids, photos).length === 0,
+    );
+    if (!hasDuplicateNames && !hasDuplicatePhotos && folders.length <= ORGANIZE_BATCH_FOLDER_COUNT && !hasEmptyFolders) return;
 
     let cancelled = false;
     void (async () => {
@@ -273,22 +277,26 @@ export default function Gallery() {
             membershipMap: loadFolderMembershipCacheSync(userEmail),
           });
         }
-        const deduped = dedupeFoldersByNormalizedName(
+        let deduped = dedupeFoldersByNormalizedName(
           dedupePhotoMembershipInFolderList(merged, {
             membershipMap: loadFolderMembershipCacheSync(userEmail),
             canonicalNames: ORGANIZE_BATCH_FOLDERS,
           }),
           ORGANIZE_BATCH_FOLDERS,
         );
+        if (photos.length > 0) {
+          deduped = await pruneEmptyGalleryFolders(deduped, photos, { deleteOnServer: true });
+          deduped = dedupeFoldersByNormalizedName(deduped, ORGANIZE_BATCH_FOLDERS);
+        }
         if (cancelled) return;
         const prevKeys = keys.join('|');
         const nextKeys = deduped.map((folder) =>
           normalizeFolderName(folder.name, ORGANIZE_BATCH_FOLDERS).toLowerCase(),
         ).join('|');
-        if (deduped.length === folders.length && prevKeys === nextKeys && !hasDuplicatePhotos) return;
+        if (deduped.length === folders.length && prevKeys === nextKeys && !hasDuplicatePhotos && !hasEmptyFolders) return;
         queryClient.setQueryData(['folders', userEmail], deduped);
-        persistGalleryFoldersSync(userEmail, deduped);
-        void persistGalleryFoldersFast(userEmail, deduped);
+        persistGalleryFoldersSync(userEmail, deduped, { replace: true });
+        void persistGalleryFoldersFast(userEmail, deduped, { replace: true });
       } catch (error) {
         console.warn('Background folder merge failed:', error);
       }
@@ -297,7 +305,7 @@ export default function Gallery() {
     return () => {
       cancelled = true;
     };
-  }, [folders, userEmail, queryClient]);
+  }, [folders, photos, userEmail, queryClient]);
 
   useEffect(() => {
     setGalleryOrganizeSnapshot({ photos, folders: foldersForGallery });

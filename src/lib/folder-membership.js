@@ -249,7 +249,7 @@ export function buildFoldersForGalleryView(
     }
   }
 
-  return deduped;
+  return deduped.filter((folder) => folder.photo_ids.length > 0);
 }
 
 /** Merge server folders that share the same canonical name into one folder each. */
@@ -569,24 +569,25 @@ export async function fetchGalleryFoldersWithMembership(email, photos = []) {
     membershipMap: cached,
     canonicalNames: ORGANIZE_BATCH_FOLDERS,
   });
+  result = dedupeFoldersByNormalizedName(result, ORGANIZE_BATCH_FOLDERS);
 
-  // Never shrink local snapshot — merge with what we already had on disk
-  const snapshotOnDisk = email ? loadFolderSnapshotCacheSync(email) : [];
-  const toPersist = dedupePhotoMembershipInFolderList(
-    mergeApiFoldersWithLocal(result, snapshotOnDisk),
-    { membershipMap: cached, canonicalNames: ORGANIZE_BATCH_FOLDERS },
-  );
-
-  if (email && toPersist.length > 0) {
-    persistGalleryFoldersSync(email, toPersist);
-    void persistGalleryFolders(email, toPersist);
+  if (photos.length > 0) {
+    result = await pruneEmptyGalleryFolders(result, photos, { deleteOnServer: true });
+    result = dedupeFoldersByNormalizedName(result, ORGANIZE_BATCH_FOLDERS);
+  } else {
+    result = result.filter((folder) => (folder.photo_ids || []).length > 0);
   }
 
-  if (email && photos.length > 0 && toPersist.length > 0) {
-    void syncCachedFolderMembershipToServer(toPersist, photos);
+  if (email && result.length > 0) {
+    persistGalleryFoldersSync(email, result, { replace: true });
+    void persistGalleryFolders(email, result, { replace: true });
   }
 
-  return dedupeFoldersByNormalizedName(toPersist, ORGANIZE_BATCH_FOLDERS);
+  if (email && photos.length > 0 && result.length > 0) {
+    void syncCachedFolderMembershipToServer(result, photos);
+  }
+
+  return result;
 }
 async function updateFolderPhotoIds(folderId, photoIds, extra = {}) {
   return updateFolderPhotoIdsWithTimeout(folderId, photoIds, extra);
@@ -678,16 +679,31 @@ export async function assignLoosePhotosByFolder({
   onProgress,
   onPartialSave,
   userEmail,
+  galleryPhotos,
   canonicalFolderNames = ORGANIZE_BATCH_FOLDERS,
   maxFolderCount = ORGANIZE_BATCH_FOLDER_COUNT,
 }) {
   const nameContext = canonicalFolderNames?.length ? canonicalFolderNames : ORGANIZE_BATCH_FOLDERS;
+  const photosForPrune = galleryPhotos?.length ? galleryPhotos : photosToAssign;
   let folders = dedupeFoldersByNormalizedName(liveFolders || [], nameContext);
   const folderByKey = new Map();
   for (const folder of folders) {
     const key = resolveOrganizeFolderName(folder.name, nameContext).toLowerCase();
     if (!folderByKey.has(key)) folderByKey.set(key, folder);
   }
+
+  const rebuildFolderByKey = (nextFolders) => {
+    folderByKey.clear();
+    for (const folder of nextFolders) {
+      const key = resolveOrganizeFolderName(folder.name, nameContext).toLowerCase();
+      if (!folderByKey.has(key)) folderByKey.set(key, folder);
+    }
+  };
+
+  const pruneEmptyFolders = async (nextFolders) => {
+    const pruned = await pruneEmptyGalleryFolders(nextFolders, photosForPrune, { deleteOnServer: true });
+    return dedupeFoldersByNormalizedName(pruned, nameContext);
+  };
 
   const groups = new Map();
   for (const photo of photosToAssign) {
@@ -825,7 +841,9 @@ export async function assignLoosePhotosByFolder({
         cacheEntries.push({ photoId: photo.id, folderId });
       }
 
-      onPartialSave?.(dedupeFoldersByNormalizedName(folders, nameContext));
+      folders = await pruneEmptyFolders(folders);
+      rebuildFolderByKey(folders);
+      onPartialSave?.(folders);
     } catch (error) {
       console.warn('Folder group save failed:', folderName, error);
       failedPhotoIds.push(...photoIds);
@@ -836,8 +854,11 @@ export async function assignLoosePhotosByFolder({
     void recordBatchFolderMembership(userEmail, cacheEntries);
   }
 
+  folders = await pruneEmptyFolders(folders);
+  rebuildFolderByKey(folders);
+
   return {
-    folders: dedupeFoldersByNormalizedName(folders, nameContext),
+    folders,
     failedPhotoIds,
     foldersUsedInRun: foldersUsedKeys.size || groupCount,
   };

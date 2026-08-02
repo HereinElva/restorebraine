@@ -258,6 +258,7 @@ export async function runMediaOrganize({
     onProgress,
     onPartialSave,
     userEmail,
+    galleryPhotos: photos,
     canonicalFolderNames: folderNamesForLabel,
     maxFolderCount,
   });

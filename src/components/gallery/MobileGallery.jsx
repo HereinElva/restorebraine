@@ -14,6 +14,7 @@ import { base44 } from "@/api/base44Client";
 import { DEPLOY_BUILD } from "@/deploy-marker";
 import { normalizePhotoId, resolveFolderPhotos, countFolderPhotos, sanitizeFolderPhotoIds, buildPhotoToFolderMap } from "@/lib/gallery-organize-snapshot";
 import { loadFolderMembershipCacheSync, saveFolderMembershipCache } from "@/lib/folder-membership-cache";
+import { countFoldersWithPhotos } from "@/lib/folder-membership";
 
 export default function MobileGallery({
   photos,
@@ -57,6 +58,10 @@ export default function MobileGallery({
   const unorganizedPhotos = photos.filter(p => !photosInFolders.has(normalizePhotoId(p.id)));
   const photoToFolderMap = useMemo(
     () => buildPhotoToFolderMap(folders, photos),
+    [folders, photos],
+  );
+  const foldersWithPhotosCount = useMemo(
+    () => countFoldersWithPhotos(folders, photos),
     [folders, photos],
   );
 
@@ -360,7 +365,7 @@ export default function MobileGallery({
             className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-sm font-medium transition-colors ${activeTab === "folders" ? "bg-purple-100 text-purple-700" : "text-gray-500"}`}
           >
             <Layers className="w-3.5 h-3.5" />
-            Folders ({folders.length})
+            Folders ({foldersWithPhotosCount})
           </button>
         </div>
       )}

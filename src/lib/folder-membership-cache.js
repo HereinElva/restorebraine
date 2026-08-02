@@ -132,12 +132,14 @@ export async function loadFullFolderSnapshotAsync(email) {
 }
 
 /** Synchronous write to localStorage — survives app kill before Preferences finishes. */
-function mirrorSnapshotToLocalStorage(email, folders) {
+function mirrorSnapshotToLocalStorage(email, folders, { replace = false } = {}) {
   if (!email || !folders?.length) return;
-  const existing = loadFolderSnapshotCacheSync(email);
-  const merged = mergeSnapshotRecords(existing, folders);
+  const snapshot = slimFolderSnapshot(folders);
+  const merged = replace
+    ? snapshot
+    : mergeSnapshotRecords(loadFolderSnapshotCacheSync(email), folders);
   try {
-    persistentStorage._mirror(snapshotKey(email), JSON.stringify(slimFolderSnapshot(merged)));
+    persistentStorage._mirror(snapshotKey(email), JSON.stringify(merged));
   } catch {
     /* ignore quota errors */
   }
@@ -152,10 +154,12 @@ function mirrorMembershipToLocalStorage(email, map) {
   }
 }
 
-async function writeFolderSnapshot(email, folders) {
-  mirrorSnapshotToLocalStorage(email, folders);
-  const merged = mergeSnapshotRecords(loadFolderSnapshotCacheSync(email), folders);
-  await persistentStorage.set(snapshotKey(email), JSON.stringify(slimFolderSnapshot(merged)));
+async function writeFolderSnapshot(email, folders, { replace = false } = {}) {
+  mirrorSnapshotToLocalStorage(email, folders, { replace });
+  const merged = replace
+    ? slimFolderSnapshot(folders)
+    : mergeSnapshotRecords(loadFolderSnapshotCacheSync(email), folders);
+  await persistentStorage.set(snapshotKey(email), JSON.stringify(merged));
 }
 
 export async function saveFolderSnapshotCache(email, folders) {
@@ -275,7 +279,7 @@ export function buildMembershipMapFromFolders(folders) {
   return map;
 }
 
-async function persistGalleryFoldersCore(email, folders) {
+async function persistGalleryFoldersCore(email, folders, { replace = true } = {}) {
   const validFolderIds = new Set((folders || []).map((f) => f.id).filter(Boolean));
   const existingMap = loadFolderMembershipCacheSync(email);
   const prunedExisting = {};
@@ -284,14 +288,14 @@ async function persistGalleryFoldersCore(email, folders) {
   }
   const fromFolders = buildMembershipMapFromFolders(folders);
   const mergedMap = { ...prunedExisting, ...fromFolders };
-  mirrorSnapshotToLocalStorage(email, folders);
+  mirrorSnapshotToLocalStorage(email, folders, { replace });
   mirrorMembershipToLocalStorage(email, mergedMap);
-  await writeFolderSnapshot(email, folders);
+  await writeFolderSnapshot(email, folders, { replace });
   await saveFolderMembershipCache(email, mergedMap);
 }
 
 /** Instant durable write — call before success alert so folders survive app close. */
-export function persistGalleryFoldersSync(email, folders) {
+export function persistGalleryFoldersSync(email, folders, { replace = true } = {}) {
   if (!email || !folders?.length) return;
   const validFolderIds = new Set((folders || []).map((f) => f.id).filter(Boolean));
   const existingMap = loadFolderMembershipCacheSync(email);
@@ -300,23 +304,23 @@ export function persistGalleryFoldersSync(email, folders) {
     if (validFolderIds.has(folderId)) prunedExisting[photoNorm] = folderId;
   }
   const fromFolders = buildMembershipMapFromFolders(folders);
-  mirrorSnapshotToLocalStorage(email, folders);
+  mirrorSnapshotToLocalStorage(email, folders, { replace });
   mirrorMembershipToLocalStorage(email, { ...prunedExisting, ...fromFolders });
 }
 
 /** Await Preferences backup (localStorage already written synchronously). Times out so UI never hangs. */
-export async function persistGalleryFolders(email, folders, { maxWaitMs = 4000 } = {}) {
+export async function persistGalleryFolders(email, folders, { maxWaitMs = 4000, replace = true } = {}) {
   if (!email || !folders?.length) return;
-  persistGalleryFoldersSync(email, folders);
+  persistGalleryFoldersSync(email, folders, { replace });
   await Promise.race([
-    enqueuePersist(() => persistGalleryFoldersCore(email, folders)),
+    enqueuePersist(() => persistGalleryFoldersCore(email, folders, { replace })),
     new Promise((resolve) => setTimeout(resolve, maxWaitMs)),
   ]);
 }
 
 /** Queued Preferences backup during organize — sync mirror happens immediately. */
-export function persistGalleryFoldersFast(email, folders) {
+export function persistGalleryFoldersFast(email, folders, { replace = true } = {}) {
   if (!email || !folders?.length) return;
-  persistGalleryFoldersSync(email, folders);
-  void enqueuePersist(() => persistGalleryFoldersCore(email, folders));
+  persistGalleryFoldersSync(email, folders, { replace });
+  void enqueuePersist(() => persistGalleryFoldersCore(email, folders, { replace }));
 }
