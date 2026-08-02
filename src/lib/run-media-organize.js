@@ -21,8 +21,8 @@ import {
   recordBatchFolderMembership,
 } from "@/lib/folder-membership-cache";
 
-const CHUNK_SIZE = 15;
-const SAVE_BATCH_SIZE = 20;
+const CHUNK_SIZE = 20;
+const SAVE_BATCH_SIZE = 250;
 const LLM_DELAY_MS = 1500;
 const MISC_FOLDER = "Miscellaneous";
 
@@ -87,7 +87,7 @@ async function buildLabelsFromDescriptions(
 ) {
   const customFolderHints = parseCustomFolderHints(customInstructions);
   const chunks = [];
-  const chunkSize = photosToOrganize.length <= 15 ? photosToOrganize.length : CHUNK_SIZE;
+  const chunkSize = photosToOrganize.length <= 20 ? photosToOrganize.length : CHUNK_SIZE;
   for (let i = 0; i < photosToOrganize.length; i += chunkSize) {
     chunks.push(photosToOrganize.slice(i, i + chunkSize));
   }
@@ -171,8 +171,8 @@ export async function runMediaOrganize({
     };
   }
 
-  const batchPhotos = photosToOrganize.slice(0, SAVE_BATCH_SIZE);
-  const remainingLoose = photosToOrganize.length - batchPhotos.length;
+  const batchPhotos = photosToOrganize;
+  const remainingLoose = 0;
 
   if (includeOrganized && apiFolders.length > 0) {
     const confirmed = typeof window !== 'undefined' && window.confirm(
@@ -187,9 +187,9 @@ export async function runMediaOrganize({
   }
 
   onProgress?.(
-    remainingLoose > 0
-      ? `Sorting ${batchPhotos.length} of ${photosToOrganize.length} loose items…`
-      : `Sorting ${batchPhotos.length} loose item${batchPhotos.length !== 1 ? "s" : ""}…`,
+    batchPhotos.length > 1
+      ? `Sorting ${batchPhotos.length} loose items…`
+      : `Sorting ${batchPhotos.length} loose item…`,
   );
 
   const validPhotoIds = new Set(batchPhotos.map((p) => normalizePhotoId(p.id)));

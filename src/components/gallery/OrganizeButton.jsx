@@ -255,12 +255,6 @@ export default function OrganizeButton({ photos, folders: foldersProp, squareSty
               />
             </div>
 
-            {unorganizedCount > 20 && !includeOrganized && (
-              <p className="text-xs text-gray-500 ml-1">
-                Organize processes up to 20 loose photos per run. Tap again to continue until all are sorted.
-              </p>
-            )}
-
             <div className="flex items-center space-x-2">
               <Checkbox
                 id="include-organized"

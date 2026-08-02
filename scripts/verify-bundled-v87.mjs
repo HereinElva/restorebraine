@@ -30,6 +30,8 @@ const ALLOWED_AFTER_V87 = new Set([
   'src/components/gallery/MobileGallery.jsx',
   'src/components/gallery/mobile-gallery-layout.css',
   'src/pages/Gallery.jsx',
+  'src/pages/Upload.jsx',
+  'src/lib/run-media-organize.js',
   'ios/App/App/AppDelegate.swift',
   'ios/App/App/BUILD_STAMP.txt',
   'ios/App/App/ghost-builds.txt',
