@@ -222,6 +222,47 @@ export function applyFolderMembershipCache(folders, photos, membershipMap) {
   return [...folderById.values()];
 }
 
+/** Drop stale folder ids and merge cache with current folder photo_ids. */
+export function repairMembershipCache(email, folders, photos) {
+  if (!email) return {};
+
+  const validFolderIds = new Set((folders || []).map((f) => f.id).filter(Boolean));
+  const photoNorms = new Set(
+    (photos || []).map((p) => normalizePhotoId(p.id)).filter(Boolean),
+  );
+  const existing = loadFolderMembershipCacheSync(email);
+  const fromFolders = buildMembershipMapFromFolders(folders);
+  const repaired = { ...fromFolders };
+
+  for (const [photoNorm, folderId] of Object.entries(existing)) {
+    if (!photoNorms.has(photoNorm)) continue;
+    if (repaired[photoNorm]) continue;
+
+    if (validFolderIds.has(folderId)) {
+      repaired[photoNorm] = folderId;
+      continue;
+    }
+
+    const hostFolder = (folders || []).find((folder) =>
+      (folder.photo_ids || []).some((id) => normalizePhotoId(id) === photoNorm),
+    );
+    if (hostFolder?.id) {
+      repaired[photoNorm] = hostFolder.id;
+    }
+  }
+
+  try {
+    if (JSON.stringify(existing) !== JSON.stringify(repaired)) {
+      mirrorMembershipToLocalStorage(email, repaired);
+      void saveFolderMembershipCache(email, repaired);
+    }
+  } catch {
+    /* ignore */
+  }
+
+  return repaired;
+}
+
 /** Build cache map from current folder photo_ids. */
 export function buildMembershipMapFromFolders(folders) {
   const map = {};
@@ -235,9 +276,14 @@ export function buildMembershipMapFromFolders(folders) {
 }
 
 async function persistGalleryFoldersCore(email, folders) {
+  const validFolderIds = new Set((folders || []).map((f) => f.id).filter(Boolean));
   const existingMap = loadFolderMembershipCacheSync(email);
+  const prunedExisting = {};
+  for (const [photoNorm, folderId] of Object.entries(existingMap)) {
+    if (validFolderIds.has(folderId)) prunedExisting[photoNorm] = folderId;
+  }
   const fromFolders = buildMembershipMapFromFolders(folders);
-  const mergedMap = { ...existingMap, ...fromFolders };
+  const mergedMap = { ...prunedExisting, ...fromFolders };
   mirrorSnapshotToLocalStorage(email, folders);
   mirrorMembershipToLocalStorage(email, mergedMap);
   await writeFolderSnapshot(email, folders);
@@ -247,10 +293,15 @@ async function persistGalleryFoldersCore(email, folders) {
 /** Instant durable write — call before success alert so folders survive app close. */
 export function persistGalleryFoldersSync(email, folders) {
   if (!email || !folders?.length) return;
+  const validFolderIds = new Set((folders || []).map((f) => f.id).filter(Boolean));
   const existingMap = loadFolderMembershipCacheSync(email);
+  const prunedExisting = {};
+  for (const [photoNorm, folderId] of Object.entries(existingMap)) {
+    if (validFolderIds.has(folderId)) prunedExisting[photoNorm] = folderId;
+  }
   const fromFolders = buildMembershipMapFromFolders(folders);
   mirrorSnapshotToLocalStorage(email, folders);
-  mirrorMembershipToLocalStorage(email, { ...existingMap, ...fromFolders });
+  mirrorMembershipToLocalStorage(email, { ...prunedExisting, ...fromFolders });
 }
 
 /** Await Preferences backup (localStorage already written synchronously). Times out so UI never hangs. */

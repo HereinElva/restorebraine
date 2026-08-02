@@ -18,6 +18,8 @@ import {
   recordPhotoFolderMembership,
   saveFolderMembershipCache,
   saveFolderSnapshotCache,
+  repairMembershipCache,
+  buildMembershipMapFromFolders,
 } from '@/lib/folder-membership-cache';
 
 function sleep(ms) {
@@ -223,19 +225,30 @@ export function buildFoldersForGalleryView(
   photos,
   { userEmail, canonicalNames = ORGANIZE_BATCH_FOLDERS, membershipMap } = {},
 ) {
-  const map = membershipMap ?? (userEmail ? loadFolderMembershipCacheSync(userEmail) : {});
+  const map = membershipMap
+    ?? (userEmail ? repairMembershipCache(userEmail, folders, photos) : {});
   const sanitized = (folders || []).map((folder) => ({
     ...folder,
     photo_ids: sanitizeFolderPhotoIds(folder.photo_ids, photos),
   }));
   const withCache = applyFolderMembershipCache(sanitized, photos, map);
-  return dedupeFoldersByNormalizedName(
+  const deduped = dedupeFoldersByNormalizedName(
     dedupePhotoMembershipInFolderList(withCache, {
       membershipMap: map,
       canonicalNames,
     }),
     canonicalNames,
   );
+
+  if (userEmail) {
+    const fromView = buildMembershipMapFromFolders(deduped);
+    const existing = loadFolderMembershipCacheSync(userEmail);
+    if (JSON.stringify(existing) !== JSON.stringify(fromView)) {
+      void saveFolderMembershipCache(userEmail, fromView);
+    }
+  }
+
+  return deduped;
 }
 
 /** Merge server folders that share the same canonical name into one folder each. */
