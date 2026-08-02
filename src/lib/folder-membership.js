@@ -19,6 +19,10 @@ import {
   saveFolderSnapshotCache,
 } from '@/lib/folder-membership-cache';
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function countDistinctFolderKeys(folders, nameContext = []) {
   const keys = new Set();
   for (const folder of folders || []) {
