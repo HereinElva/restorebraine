@@ -25,13 +25,22 @@ export const isHostedAppOrigin = () => {
   }
 };
 
-const useLocalNativeBundle = () => {
+/** Bundled UI in ios/public (capacitor://) — not hosted CDN in WebView. */
+export const isBundledCapacitorShell = () => {
   try {
-    return typeof __RESTOREBRAINE_NATIVE_LOCAL__ !== 'undefined' && __RESTOREBRAINE_NATIVE_LOCAL__;
+    if (typeof __RESTOREBRAINE_NATIVE_LOCAL__ !== 'undefined' && __RESTOREBRAINE_NATIVE_LOCAL__) {
+      return true;
+    }
+    if (typeof window === 'undefined') return false;
+    const protocol = window.location?.protocol;
+    if (protocol === 'capacitor:' || protocol === 'ionic:') return true;
+    return Boolean(window.__restorebraineMinimalBridge);
   } catch {
     return false;
   }
 };
+
+const useLocalNativeBundle = () => isBundledCapacitorShell();
 
 /** Native installs load the hosted app unless built with NATIVE_LOCAL=1 (bundled UI in Xcode). */
 export const redirectNativeToHostedApp = () => {

@@ -8,7 +8,7 @@ import {
 } from '@/lib/native-platform-guard';
 import { getAuthReturnOrigin } from '@/lib/app-domains';
 import { persistSessionToNativeStorage, finishPendingOAuthLogin } from '@/lib/session-bootstrap';
-import { isNativeShell } from '@/lib/native-hosted-redirect';
+import { isNativeShell, isBundledCapacitorShell } from '@/lib/native-hosted-redirect';
 
 const GOOGLE_OAUTH_PATTERN = /accounts\.google\.com|google\.com\/o\/oauth|oauth2\.googleapis\.com|\/api\/apps\/auth\/login/i;
 
@@ -38,15 +38,7 @@ export const isGoogleOAuthUrl = (url) => {
 export const isOAuthCallbackUrl = (url) =>
   Boolean(url && typeof url === 'string' && url.includes('access_token='));
 
-const isBundledNativeShell = () => {
-  try {
-    if (typeof __RESTOREBRAINE_NATIVE_LOCAL__ !== 'undefined' && __RESTOREBRAINE_NATIVE_LOCAL__) return true;
-    const p = window.location?.protocol;
-    return p === 'capacitor:' || p === 'ionic:' || Boolean(window.__restorebraineMinimalBridge);
-  } catch {
-    return false;
-  }
-};
+const isBundledNativeShell = () => isBundledCapacitorShell();
 
 /** After OAuth, native bridge may save token before React listeners attach. */
 export const tryRestoreSessionAfterOAuth = async () => {

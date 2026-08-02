@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { isGalleryPath, navigateToGallery, persistActiveSession } from "@/lib/gallery-nav";
 import { useAuth } from "@/lib/AuthContext";
+import { isBundledCapacitorShell } from "@/lib/native-hosted-redirect";
 import { getRestorebraineAppLogo } from "@/lib/app-branding";
 import { Search, Upload, User, ChevronLeft } from "lucide-react";
 import { resetAppScrollPosition } from "@/lib/scroll-reset";
@@ -14,13 +15,7 @@ import { BrandGradientDefs } from "@/components/ui/BrandGradientIcon";
 const TAB_ORDER = ["Gallery", "Upload", "Account"];
 const HEADER_BAR_PX = 36;
 
-const useLocalNativeBundle = () => {
-  try {
-    return typeof __RESTOREBRAINE_NATIVE_LOCAL__ !== "undefined" && __RESTOREBRAINE_NATIVE_LOCAL__;
-  } catch {
-    return false;
-  }
-};
+const useLocalNativeBundle = () => isBundledCapacitorShell();
 
 function LayoutInner({ children, currentPageName }) {
   const location = useLocation();

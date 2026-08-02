@@ -14,7 +14,7 @@ import {
   isVerificationPendingError,
   verificationRequiredError,
 } from '@/lib/auth-email-api';
-import { isHostedAppOrigin, isNativeShell } from '@/lib/native-hosted-redirect';
+import { isHostedAppOrigin, isNativeShell, isBundledCapacitorShell } from '@/lib/native-hosted-redirect';
 import { resetToGalleryHome } from '@/lib/gallery-nav';
 
 const AUTH_BOOT_TIMEOUT_MS = 12000;
@@ -33,17 +33,7 @@ const withAuthTimeout = (promise, ms, label) =>
     }),
   ]);
 
-const isBundledNativeShell = () => {
-  try {
-    if (typeof __RESTOREBRAINE_NATIVE_LOCAL__ !== 'undefined' && __RESTOREBRAINE_NATIVE_LOCAL__) {
-      return true;
-    }
-    const p = window.location?.protocol;
-    return p === 'capacitor:' || p === 'ionic:';
-  } catch {
-    return false;
-  }
-};
+const isBundledNativeShell = () => isBundledCapacitorShell();
 
 const hasStoredAuthToken = () => {
   try {
@@ -398,7 +388,9 @@ export const AuthProvider = ({ children }) => {
         setIsAuthenticated(true);
         setAuthError(null);
         setIsLoadingAuth(false);
-        resetToGalleryHome();
+        if (isWithinOAuthGracePeriod()) {
+          resetToGalleryHome();
+        }
         void persistSessionToNativeStorage(token);
       } catch {}
       scheduleSilentAuthCheck();

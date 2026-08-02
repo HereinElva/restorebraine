@@ -25,7 +25,7 @@ import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import SignInScreen from '@/screens/SignInScreen';
 import AiConsentGate from '@/components/auth/AiConsentGate';
 import { hasStoredSessionToken } from '@/lib/session-bootstrap';
-import { isNativeShell } from '@/lib/native-hosted-redirect';
+import { isNativeShell, isBundledCapacitorShell } from '@/lib/native-hosted-redirect';
 
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
@@ -36,18 +36,7 @@ if (!isNativeShell()) {
 }
 
 /** BrowserRouter breaks on capacitor:// — use HashRouter for bundled native builds. */
-const NativeRouter = (() => {
-  try {
-    if (typeof __RESTOREBRAINE_NATIVE_LOCAL__ !== 'undefined' && __RESTOREBRAINE_NATIVE_LOCAL__) {
-      return HashRouter;
-    }
-    if (typeof window !== 'undefined') {
-      const p = window.location?.protocol;
-      if (p === 'capacitor:' || p === 'ionic:') return HashRouter;
-    }
-  } catch {}
-  return BrowserRouter;
-})();
+const NativeRouter = isBundledCapacitorShell() ? HashRouter : BrowserRouter;
 
 const LayoutWrapper = ({ children, currentPageName }) => Layout ?
   <Layout currentPageName={currentPageName}>{children}</Layout>
