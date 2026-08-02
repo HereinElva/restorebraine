@@ -65,7 +65,7 @@ const ProviderButton = ({ children, onClick, provider, dark = false, disabled = 
 function formatAuthError(error, mode) {
   const raw = error?.data?.message || error?.message || (mode === 'signup' ? 'Unable to create account' : 'Invalid email or password');
   if (mode === 'signup' && /already exists/i.test(raw)) {
-    return `${raw} Try signing in instead, or use a different email address.`;
+    return 'That email may already have an account (for example from Apple sign-in or a previous attempt). Try signing in with the same email and password.';
   }
   return raw;
 }
@@ -178,7 +178,7 @@ export default function NativeLoginCard({ clearSignedOut = false }) {
       setNoticeMessage('');
       const message = formatAuthError(error, mode);
       setErrorMessage(message);
-      if (mode === 'signup' && /already exists/i.test(message)) {
+      if (mode === 'signup' && /already exists|already have an account/i.test(message)) {
         setMode('signin');
       }
     } finally {

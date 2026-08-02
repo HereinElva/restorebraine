@@ -1,5 +1,6 @@
+import axios from 'axios';
 import { base44 } from '@/api/base44Client';
-import { appParams } from '@/lib/app-params';
+import { appParams, getAppOrigin } from '@/lib/app-params';
 import { captureAccessTokenFromUrl } from '@/lib/native-oauth-fix';
 import { persistentStorage } from '@/lib/persistentStorage';
 
@@ -155,29 +156,49 @@ export function normalizeAuthEmail(email) {
   return String(email || '').trim().toLowerCase();
 }
 
+/** Remove Bearer auth from axios global defaults (setToken(null) does not). */
+export function clearAxiosAuthHeaders() {
+  try {
+    delete axios.defaults.headers.common.Authorization;
+  } catch {}
+}
+
+function clearNativePersistedTokensForRegistration() {
+  if (typeof window === 'undefined') return;
+  try {
+    delete window.__RESTOREBRAINE_NATIVE_SYNC_TOKEN__;
+  } catch {}
+  try {
+    if (window.webkit?.messageHandlers?.restorebraineNativeSession) {
+      window.webkit.messageHandlers.restorebraineNativeSession.postMessage({ action: 'clearTokens' });
+    }
+  } catch {}
+}
+
 /** Clear HTTP-only auth cookies so a new registration is not tied to a prior session. */
 export async function clearServerAuthCookies() {
   if (typeof window === 'undefined') return;
-  try {
-    await Promise.race([
-      fetch(`${appParams.serverUrl}/api/apps/auth/logout`, {
-        method: 'GET',
-        credentials: 'include',
-      }),
-      new Promise((resolve) => setTimeout(resolve, 3000)),
-    ]);
-  } catch (error) {
-    console.warn('Server auth cookie clear failed:', error);
-  }
+  const logoutUrls = [
+    `${appParams.serverUrl}/api/apps/auth/logout`,
+    `${getAppOrigin()}/api/apps/auth/logout`,
+  ];
+  await Promise.all(
+    logoutUrls.map((url) =>
+      Promise.race([
+        fetch(url, { method: 'GET', credentials: 'include', cache: 'no-store' }).catch(() => {}),
+        new Promise((resolve) => setTimeout(resolve, 2500)),
+      ]),
+    ),
+  );
 }
 
 async function clearStoredAuthTokensOnly() {
   appParams.token = null;
+  clearAxiosAuthHeaders();
   try {
     localStorage.removeItem('base44_access_token');
     localStorage.removeItem('token');
     localStorage.removeItem('base44_logged_out');
-    base44.auth.setToken(null, false);
   } catch {}
   for (const key of TOKEN_KEYS) {
     await persistentStorage.remove(key);
@@ -198,12 +219,15 @@ function withStorageTimeout(promise, ms, label) {
 
 /** Wipe client + server auth state before creating a brand-new account. */
 export async function prepareForNewRegistration() {
+  clearNativePersistedTokensForRegistration();
   await withStorageTimeout(clearStoredAuthTokensOnly(), 4000, 'clearStoredAuthTokensOnly');
+  clearAxiosAuthHeaders();
   await clearServerAuthCookies();
   try {
     localStorage.removeItem(SIGNED_OUT_KEY);
   } catch {}
   await withStorageTimeout(persistentStorage.remove(SIGNED_OUT_KEY), 2000, 'persistentStorage.remove(signed_out)');
+  clearAxiosAuthHeaders();
 }
 
 export const clearNativeSession = async () => {
@@ -211,11 +235,10 @@ export const clearNativeSession = async () => {
   await clearServerAuthCookies();
   await persistentStorage.set(SIGNED_OUT_KEY, '1');
   try {
-    localStorage.setItem(SIGNED_OUT_KEY, '1');
     localStorage.removeItem('base44_access_token');
     localStorage.removeItem('token');
     localStorage.removeItem('base44_logged_out');
-    base44.auth.setToken(null, false);
+    clearAxiosAuthHeaders();
   } catch {}
   if (typeof window !== 'undefined' && window.__restorebraineClearSession) {
     window.__restorebraineClearSession();

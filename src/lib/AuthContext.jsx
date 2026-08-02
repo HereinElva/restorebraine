@@ -4,7 +4,7 @@ import { appParams } from '@/lib/app-params';
 import { createAxiosClient } from '@base44/sdk/dist/utils/axios-client';
 import { openRestorebraineLogin } from '@/lib/auth-urls';
 import { getAppOrigin } from '@/lib/app-params';
-import { clearNativeSession, persistSessionToNativeStorage, restoreSessionFromNativeStorage, ensureClientSessionToken, normalizeAuthEmail, prepareForNewRegistration } from '@/lib/session-bootstrap';
+import { clearNativeSession, persistSessionToNativeStorage, restoreSessionFromNativeStorage, ensureClientSessionToken, normalizeAuthEmail, prepareForNewRegistration, clearAxiosAuthHeaders } from '@/lib/session-bootstrap';
 import { isHostedAppOrigin, isNativeShell } from '@/lib/native-hosted-redirect';
 import { resetToGalleryHome } from '@/lib/gallery-nav';
 
@@ -422,23 +422,16 @@ export const AuthProvider = ({ children }) => {
 
     await prepareForNewRegistration();
 
-    try {
-      const authClient = createAxiosClient({
+    const createRegisterClient = () => {
+      clearAxiosAuthHeaders();
+      return createAxiosClient({
         baseURL: `${appParams.serverUrl}/api`,
         headers: { 'X-App-Id': appParams.appId },
         interceptResponses: true,
       });
-      const response = await withAuthTimeout(
-        authClient.post(`/apps/${appParams.appId}/auth/register`, {
-          email: normalizedEmail,
-          password,
-          full_name: trimmedName,
-          name: trimmedName,
-        }),
-        AUTH_REGISTER_TIMEOUT_MS,
-        'auth.register',
-      );
+    };
 
+    const finishRegistrationSuccess = async (response) => {
       if (response?.access_token) {
         await persistSessionToNativeStorage(response.access_token);
         setManuallyLoggedOut(false);
@@ -456,15 +449,58 @@ export const AuthProvider = ({ children }) => {
         setAuthError({ type: 'auth_required', message: 'Account created. Please sign in.' });
         finishAuthBoot();
       }
-
       return response;
+    };
+
+    try {
+      const authClient = createRegisterClient();
+      const response = await withAuthTimeout(
+        authClient.post(`/apps/${appParams.appId}/auth/register`, {
+          email: normalizedEmail,
+          password,
+          full_name: trimmedName,
+          name: trimmedName,
+        }),
+        AUTH_REGISTER_TIMEOUT_MS,
+        'auth.register',
+      );
+
+      return finishRegistrationSuccess(response);
     } catch (error) {
+      const rawMessage = error?.data?.message || error?.message || 'Unable to create account';
+
+      if (/already exists/i.test(rawMessage)) {
+        try {
+          await prepareForNewRegistration();
+          const loginClient = createRegisterClient();
+          const loginResponse = await withAuthTimeout(
+            loginClient.post(`/apps/${appParams.appId}/auth/login`, {
+              email: normalizedEmail,
+              password,
+            }),
+            AUTH_API_TIMEOUT_MS,
+            'auth.login',
+          );
+          if (loginResponse?.access_token) {
+            return finishRegistrationSuccess(
+              Object.assign(loginResponse, {
+                user: loginResponse.user,
+                recoveredExistingAccount: true,
+              }),
+            );
+          }
+        } catch (loginError) {
+          console.warn('Register already-exists fallback login failed:', loginError);
+        }
+      }
+
       setIsLoadingAuth(false);
       setIsAuthenticated(false);
-      const rawMessage = error?.data?.message || error?.message || 'Unable to create account';
       const message = /timed out/i.test(rawMessage)
         ? 'Registration timed out. If this email was already created, try signing in instead.'
-        : rawMessage;
+        : /already exists/i.test(rawMessage)
+          ? 'That email may already have an account (for example from Apple sign-in or a previous attempt). Try signing in with the same email and password.'
+          : rawMessage;
       setAuthError({
         type: 'auth_required',
         message,

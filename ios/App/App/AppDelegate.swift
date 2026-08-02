@@ -17,6 +17,11 @@ private final class RestorebraineSessionMessageHandler: NSObject, WKScriptMessag
             defaults.removeObject(forKey: "CapacitorStorage.base44_access_token")
             defaults.removeObject(forKey: "CapacitorStorage.token")
             defaults.set("1", forKey: "CapacitorStorage.b44_signed_out")
+        case "clearTokens":
+            let tokenDefaults = UserDefaults.standard
+            tokenDefaults.removeObject(forKey: "CapacitorStorage.base44_access_token")
+            tokenDefaults.removeObject(forKey: "CapacitorStorage.token")
+            tokenDefaults.removeObject(forKey: "CapacitorStorage.b44_signed_out")
         case "openLogin":
             let url = body["url"] as? String
             // Must start ASWebAuthenticationSession synchronously — async breaks iOS user-gesture requirement
