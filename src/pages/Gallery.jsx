@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useLayoutEffect, useMemo } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/lib/AuthContext";
@@ -129,11 +129,10 @@ export default function Gallery() {
     };
   }, [canFetchData, queryClient]);
 
-  useLayoutEffect(() => {
+  useEffect(() => {
     if (!canFetchData) return;
     resetAppScrollPosition();
-    void loadGalleryData(queryClient);
-  }, [canFetchData, queryClient]);
+  }, [canFetchData]);
 
   useEffect(() => {
     if (selectedFolder) {
@@ -177,8 +176,9 @@ export default function Gallery() {
     enabled: canFetchData,
     staleTime: CACHE.photos.staleTime,
     gcTime: CACHE.photos.gcTime,
-    retry: 2,
-    refetchOnMount: 'always',
+    retry: 1,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
   });
 
   const { data: folders = [] } = useQuery({
@@ -203,8 +203,9 @@ export default function Gallery() {
       const snapshot = loadFolderSnapshotCacheSync(userEmail);
       return snapshot.length ? snapshot : [];
     },
-    retry: 2,
-    refetchOnMount: 'always',
+    retry: 1,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
   });
 
   useEffect(() => {
@@ -215,11 +216,6 @@ export default function Gallery() {
         mergeApiFoldersWithLocal(prev ?? [], snapshot),
       );
     });
-  }, [userEmail, canFetchData, queryClient]);
-
-  useEffect(() => {
-    if (!userEmail || !canFetchData) return;
-    queryClient.invalidateQueries({ queryKey: ['photos', userEmail] });
   }, [userEmail, canFetchData, queryClient]);
 
   // Only show the loading spinner on the very first load (no cached data yet)

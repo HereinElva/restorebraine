@@ -114,6 +114,7 @@ export const AuthProvider = ({ children }) => {
 
       // Bundled + token: show gallery immediately; validate session in background (Omega 3).
       if (isBundledNativeShell() && hasStoredAuthToken()) {
+        setManuallyLoggedOut(false);
         setIsAuthenticated(true);
         setAuthError(null);
         finishAuthBoot();
@@ -255,21 +256,28 @@ export const AuthProvider = ({ children }) => {
             console.warn('Auth retry after session restore failed:', retryError);
           }
         }
-      }
-
-      if (error.status === 401 || error.status === 408) {
         await clearNativeSession().catch(() => {});
+      } else if (error.status === 408 && isBundledNativeShell() && hasStoredAuthToken()) {
+        // Slow network on native — keep gallery open when a token is still stored.
+        if (!silent) setIsLoadingAuth(false);
+        return;
       }
 
       setIsLoadingAuth(false);
-      setIsAuthenticated(false);
 
-      if (error.status === 401 || error.status === 408) {
+      if (error.status === 401) {
+        setIsAuthenticated(false);
         setAuthError({ type: 'auth_required', message: 'Authentication required' });
       } else if (error.status === 403) {
+        setIsAuthenticated(false);
         setAuthError({ type: 'user_not_registered', message: 'User not registered for this app' });
+      } else if (isBundledNativeShell() && hasStoredAuthToken()) {
+        setIsAuthenticated(true);
       } else if (isBundledNativeShell()) {
+        setIsAuthenticated(false);
         setAuthError({ type: 'auth_required', message: 'Authentication required' });
+      } else {
+        setIsAuthenticated(false);
       }
     }
   };
@@ -320,6 +328,9 @@ export const AuthProvider = ({ children }) => {
         if (token) {
           appParams.token = token;
           ensureClientSessionToken();
+          setManuallyLoggedOut(false);
+          setIsAuthenticated(true);
+          setAuthError(null);
         }
       } catch {}
       void checkAppState();

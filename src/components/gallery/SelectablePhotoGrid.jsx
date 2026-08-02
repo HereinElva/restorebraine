@@ -117,12 +117,14 @@ export default function SelectablePhotoGrid({
   }
 
   // Regular grid without drag-and-drop
+  const TileWrapper = fastRender ? 'div' : motion.div;
+
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
       {photos.map((photo, index) => (
-        <motion.div
+        <TileWrapper
           key={photo.id}
-          {...getMotionProps(index)}
+          {...(fastRender ? {} : getMotionProps(index))}
           onClick={(e) => handleClick(photo, e)}
           className="group cursor-pointer relative"
         >
@@ -147,6 +149,7 @@ export default function SelectablePhotoGrid({
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                 loading="eager"
                 decoding="async"
+                fetchPriority={fastRender && index < 6 ? 'high' : 'auto'}
               />
             )}
             
@@ -158,7 +161,7 @@ export default function SelectablePhotoGrid({
               </div>
             </div>
           </div>
-        </motion.div>
+        </TileWrapper>
       ))}
     </div>
   );

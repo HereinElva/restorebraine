@@ -42,12 +42,11 @@ const LayoutWrapper = ({ children, currentPageName }) => Layout ?
 
 const AuthenticatedApp = () => {
   const { authError, isAuthenticated, manuallyLoggedOut } = useAuth();
+  const hasToken = hasStoredSessionToken();
 
-  if (manuallyLoggedOut) {
+  if (manuallyLoggedOut && !hasToken) {
     return <SignInScreen clearSignedOut />;
   }
-
-  const hasToken = hasStoredSessionToken();
 
   if (!hasToken && !isAuthenticated) {
     return <SignInScreen />;
