@@ -1401,6 +1401,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate, ASWebAuthenticationPresen
 
           function interceptNativeSignInClicks() {
             if (window.__restorebraineSignInInterceptor) return;
+            if (typeof resolveOAuthTarget !== 'function' || typeof handleOAuthTapFromEvent !== 'function') return;
             window.__restorebraineSignInInterceptor = true;
             var onOAuthEvent = function (event) {
               var provider = resolveOAuthTarget(event);
