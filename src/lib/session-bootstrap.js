@@ -61,6 +61,13 @@ export const restoreSessionFromNativeStorage = async () => {
   }
 
   if (typeof window !== 'undefined' && window.__restorebrainePendingOAuth) {
+    const pendingToken = readSyncToken();
+    if (pendingToken) {
+      finishPendingOAuthLogin();
+      appParams.token = pendingToken;
+      base44.auth.setToken(pendingToken, false);
+      return pendingToken;
+    }
     return null;
   }
 
