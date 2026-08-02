@@ -13,15 +13,13 @@ private final class RestorebraineSessionMessageHandler: NSObject, WKScriptMessag
 
         switch action {
         case "clear":
-            appDelegate?.oauthAuthSession?.cancel()
-            appDelegate?.oauthAuthSession = nil
+            appDelegate?.cancelNativeOAuthSession()
             let defaults = UserDefaults.standard
             defaults.removeObject(forKey: "CapacitorStorage.base44_access_token")
             defaults.removeObject(forKey: "CapacitorStorage.token")
             defaults.set("1", forKey: "CapacitorStorage.b44_signed_out")
         case "clearTokens":
-            appDelegate?.oauthAuthSession?.cancel()
-            appDelegate?.oauthAuthSession = nil
+            appDelegate?.cancelNativeOAuthSession()
             let tokenDefaults = UserDefaults.standard
             tokenDefaults.removeObject(forKey: "CapacitorStorage.base44_access_token")
             tokenDefaults.removeObject(forKey: "CapacitorStorage.token")
@@ -71,6 +69,11 @@ class AppDelegate: UIResponder, UIApplicationDelegate, ASWebAuthenticationPresen
         }
         return defaults.string(forKey: "CapacitorStorage.base44_access_token")
             ?? defaults.string(forKey: "CapacitorStorage.token")
+    }
+
+    func cancelNativeOAuthSession() {
+        oauthAuthSession?.cancel()
+        oauthAuthSession = nil
     }
 
     private func defaultGoogleOAuthURL() -> URL {
