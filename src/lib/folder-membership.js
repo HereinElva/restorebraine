@@ -23,14 +23,6 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function countDistinctFolderKeys(folders, nameContext = []) {
-  const keys = new Set();
-  for (const folder of folders || []) {
-    keys.add(normalizeFolderName(folder.name, nameContext).toLowerCase());
-  }
-  return keys.size;
-}
-
 function pickOverflowFolder(folders, nameContext = []) {
   const ranked = [...(folders || [])].sort(
     (a, b) => (b.photo_ids?.length || 0) - (a.photo_ids?.length || 0),
@@ -193,49 +185,100 @@ export async function deleteFoldersWithTimeout(folderIds, { timeoutMs = FOLDER_D
   return { deleted, failed };
 }
 
-/** Merge server folders that share the same display name into one folder each. */
-export async function mergeDuplicateFoldersOnServer(folders, { onProgress } = {}) {
+/** Merge server folders that share the same canonical name into one folder each. */
+export async function mergeDuplicateFoldersOnServer(
+  folders,
+  { onProgress, canonicalNames = ORGANIZE_BATCH_FOLDERS } = {},
+) {
   const groups = new Map();
   for (const folder of folders || []) {
-    const key = normalizeFolderName(folder.name, []).toLowerCase();
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key).push(folder);
+    const canonical = normalizeFolderName(folder.name, canonicalNames);
+    const key = canonical.toLowerCase();
+    if (!groups.has(key)) groups.set(key, { name: canonical, folders: [] });
+    groups.get(key).folders.push(folder);
   }
 
   let mergedFolders = [...(folders || [])];
   for (const group of groups.values()) {
-    if (group.length <= 1) continue;
+    const dupes = group.folders;
+    if (dupes.length <= 1) {
+      const only = dupes[0];
+      if (only && only.name !== group.name) {
+        try {
+          const renamed = await updateFolderPhotoIdsWithTimeout(
+            only.id,
+            only.photo_ids || [],
+            { name: group.name },
+            ORGANIZE_SAVE_TIMEOUT_MS,
+          );
+          mergedFolders = mergedFolders.map((folder) =>
+            folder.id === only.id ? { ...folder, ...renamed, name: group.name } : folder,
+          );
+        } catch (error) {
+          console.warn('Folder rename failed:', group.name, error);
+        }
+      }
+      continue;
+    }
 
-    group.sort((a, b) => (b.photo_ids?.length || 0) - (a.photo_ids?.length || 0));
-    const keeper = { ...group[0] };
+    dupes.sort((a, b) => (b.photo_ids?.length || 0) - (a.photo_ids?.length || 0));
+    const keeper = { ...dupes[0], name: group.name };
     const duplicateIds = [];
 
-    for (const dupe of group.slice(1)) {
+    for (const dupe of dupes.slice(1)) {
       keeper.photo_ids = mergePhotoIdsLikeManualMove(keeper.photo_ids, dupe.photo_ids);
       duplicateIds.push(dupe.id);
     }
 
-    onProgress?.(`Merging ${group.length} "${keeper.name}" folders…`);
+    onProgress?.(`Merging ${dupes.length} "${group.name}" folders…`);
 
     try {
       const saved = await updateFolderPhotoIdsWithTimeout(
         keeper.id,
         keeper.photo_ids,
         {
-          cover_photo_url: keeper.cover_photo_url || group.find((f) => f.cover_photo_url)?.cover_photo_url || '',
+          name: group.name,
+          cover_photo_url: keeper.cover_photo_url || dupes.find((f) => f.cover_photo_url)?.cover_photo_url || '',
         },
         ORGANIZE_SAVE_TIMEOUT_MS,
       );
       await deleteFoldersWithTimeout(duplicateIds);
       mergedFolders = mergedFolders
         .filter((folder) => !duplicateIds.includes(folder.id))
-        .map((folder) => (folder.id === keeper.id ? { ...folder, ...saved } : folder));
+        .map((folder) => (folder.id === keeper.id ? { ...folder, ...saved, name: group.name } : folder));
     } catch (error) {
-      console.warn('mergeDuplicateFoldersOnServer failed:', keeper.name, error);
+      console.warn('mergeDuplicateFoldersOnServer failed:', group.name, error);
     }
   }
 
-  return dedupeFoldersByNormalizedName(mergedFolders);
+  return dedupeFoldersByNormalizedName(mergedFolders, canonicalNames);
+}
+
+async function removePhotosFromOtherFoldersOnServer(photoIds, keepFolderId, folders) {
+  const removeNorm = new Set((photoIds || []).map(normalizePhotoId).filter(Boolean));
+  if (!removeNorm.size || !keepFolderId) return folders;
+
+  let updatedFolders = [...(folders || [])];
+  for (const folder of folders || []) {
+    if (!folder?.id || folder.id === keepFolderId) continue;
+    const currentIds = folder.photo_ids || [];
+    const filtered = currentIds.filter((id) => !removeNorm.has(normalizePhotoId(id)));
+    if (filtered.length === currentIds.length) continue;
+
+    try {
+      const saved = await updateFolderPhotoIdsWithTimeout(folder.id, filtered, {}, ORGANIZE_SAVE_TIMEOUT_MS);
+      updatedFolders = updatedFolders.map((entry) =>
+        entry.id === folder.id ? { ...entry, ...saved, photo_ids: saved.photo_ids || filtered } : entry,
+      );
+    } catch (error) {
+      console.warn('Remove photo from duplicate folder failed:', folder.name, error);
+      updatedFolders = updatedFolders.map((entry) =>
+        entry.id === folder.id ? { ...entry, photo_ids: filtered } : entry,
+      );
+    }
+  }
+
+  return updatedFolders;
 }
 
 /** Gallery load: Folder.list (with timeout) + merged local snapshot fallback. */
@@ -368,10 +411,13 @@ export async function assignLoosePhotosByFolder({
   canonicalFolderNames = ORGANIZE_BATCH_FOLDERS,
   maxFolderCount = ORGANIZE_BATCH_FOLDER_COUNT,
 }) {
-  let folders = [...(liveFolders || [])];
   const nameContext = canonicalFolderNames?.length ? canonicalFolderNames : ORGANIZE_BATCH_FOLDERS;
-  const names = () => folders.map((f) => f.name);
-  const total = photosToAssign.filter((p) => p?.id != null).length;
+  let folders = dedupeFoldersByNormalizedName(liveFolders || [], nameContext);
+  const folderByKey = new Map();
+  for (const folder of folders) {
+    const key = resolveOrganizeFolderName(folder.name, nameContext).toLowerCase();
+    if (!folderByKey.has(key)) folderByKey.set(key, folder);
+  }
 
   const groups = new Map();
   for (const photo of photosToAssign) {
@@ -396,17 +442,16 @@ export async function assignLoosePhotosByFolder({
     onProgress?.(`Save ${groupIndex}/${groupCount}…`);
 
     const photoIds = groupPhotos.map((p) => p.id);
+    const targetKey = resolveOrganizeFolderName(folderName, nameContext).toLowerCase();
     let folderId = null;
 
     try {
-      let target = findFolderByDisplayName(folders, folderName, nameContext);
-      const targetKey = resolveOrganizeFolderName(folderName, nameContext).toLowerCase();
+      let target =
+        folderByKey.get(targetKey)
+        || findFolderByDisplayName(folders, folderName, nameContext);
 
-      if (!target) {
-        const atFolderCap = countDistinctFolderKeys(folders, nameContext) >= maxFolderCount;
-        if (atFolderCap) {
-          target = pickOverflowFolder(folders, nameContext);
-        }
+      if (!target && folderByKey.size >= maxFolderCount) {
+        target = pickOverflowFolder([...folderByKey.values()], nameContext);
       }
 
       if (target) {
@@ -420,36 +465,54 @@ export async function assignLoosePhotosByFolder({
               target.id,
               updatedIds,
               {
+                name: resolveOrganizeFolderName(folderName, nameContext),
                 ...(!target.cover_photo_url && coverUrl ? { cover_photo_url: coverUrl } : {}),
               },
               ORGANIZE_SAVE_TIMEOUT_MS,
             );
-            saved = { ...target, ...api, photo_ids: api.photo_ids || updatedIds };
+            saved = {
+              ...target,
+              ...api,
+              name: resolveOrganizeFolderName(folderName, nameContext),
+              photo_ids: api.photo_ids || updatedIds,
+            };
           } else {
             saved = await appendPhotoIdsToFolderInChunks({
               folderId: target.id,
               photos: groupPhotos,
               existingFolder: target,
             });
+            saved = { ...saved, name: resolveOrganizeFolderName(folderName, nameContext) };
           }
         } catch (error) {
           console.warn('Folder.update failed, using local state:', error);
           saved = {
             ...target,
+            name: resolveOrganizeFolderName(folderName, nameContext),
             photo_ids: mergePhotoIdsLikeManualMove(target.photo_ids, photoIds),
             cover_photo_url: coverUrl || target.cover_photo_url,
           };
         }
         folderId = target.id;
         folders = folders.map((f) => (f.id === target.id ? saved : f));
-      } else {
+        folderByKey.set(targetKey, saved);
+        folders = await removePhotosFromOtherFoldersOnServer(photoIds, folderId, folders);
+        for (const [key, folder] of [...folderByKey.entries()]) {
+          if (folder.id === folderId) folderByKey.set(key, saved);
+          else {
+            const refreshed = folders.find((entry) => entry.id === folder.id);
+            if (refreshed) folderByKey.set(key, refreshed);
+          }
+        }
+      } else if (folderByKey.size < maxFolderCount) {
+        const canonicalName = resolveOrganizeFolderName(folderName, nameContext);
         let created;
         try {
           const firstChunk = groupPhotos.slice(0, FOLDER_SAVE_CHUNK_SIZE);
           const rest = groupPhotos.slice(FOLDER_SAVE_CHUNK_SIZE);
           created = await createFolderOnServer(
             {
-              name: folderName,
+              name: canonicalName,
               description: '',
               photo_ids: firstChunk.map((photo) => photo.id),
               cover_photo_url: groupPhotos[0]?.file_url || '',
@@ -470,18 +533,29 @@ export async function assignLoosePhotosByFolder({
         }
         folderId = created.id;
         foldersUsedKeys.add(targetKey);
-        folders.push({
-          ...created,
-          name: folderName,
-          photo_ids: created.photo_ids || photoIds,
-        });
+        const savedCreated = { ...created, name: canonicalName, photo_ids: created.photo_ids || photoIds };
+        folders.push(savedCreated);
+        folderByKey.set(targetKey, savedCreated);
+        folders = await removePhotosFromOtherFoldersOnServer(photoIds, folderId, folders);
+      } else {
+        const overflow = pickOverflowFolder([...folderByKey.values()], nameContext);
+        if (!overflow) {
+          failedPhotoIds.push(...photoIds);
+          continue;
+        }
+        const verified = await appendPhotosToFolderOnServer(overflow.id, groupPhotos, userEmail);
+        folderId = overflow.id;
+        const saved = { ...overflow, ...verified, photo_ids: verified?.photo_ids || overflow.photo_ids };
+        folders = folders.map((f) => (f.id === overflow.id ? saved : f));
+        folderByKey.set(targetKey, saved);
+        folders = await removePhotosFromOtherFoldersOnServer(photoIds, folderId, folders);
       }
 
       for (const photo of groupPhotos) {
         cacheEntries.push({ photoId: photo.id, folderId });
       }
 
-      onPartialSave?.(folders);
+      onPartialSave?.(dedupeFoldersByNormalizedName(folders, nameContext));
     } catch (error) {
       console.warn('Folder group save failed:', folderName, error);
       failedPhotoIds.push(...photoIds);
@@ -492,7 +566,11 @@ export async function assignLoosePhotosByFolder({
     void recordBatchFolderMembership(userEmail, cacheEntries);
   }
 
-  return { folders, failedPhotoIds, foldersUsedInRun: foldersUsedKeys.size || groupCount };
+  return {
+    folders: dedupeFoldersByNormalizedName(folders, nameContext),
+    failedPhotoIds,
+    foldersUsedInRun: foldersUsedKeys.size || groupCount,
+  };
 }
 
 /**
@@ -508,8 +586,14 @@ export async function assignLoosePhotosOneByOne({
   canonicalFolderNames = ORGANIZE_BATCH_FOLDERS,
   maxFolderCount = ORGANIZE_BATCH_FOLDER_COUNT,
 }) {
-  let folders = [...liveFolders];
   const nameContext = canonicalFolderNames?.length ? canonicalFolderNames : ORGANIZE_BATCH_FOLDERS;
+  let folders = dedupeFoldersByNormalizedName(liveFolders || [], nameContext);
+  const folderByKey = new Map();
+  for (const folder of folders) {
+    const key = resolveOrganizeFolderName(folder.name, nameContext).toLowerCase();
+    if (!folderByKey.has(key)) folderByKey.set(key, folder);
+  }
+
   const total = photosToAssign.filter((p) => p?.id != null).length;
   let saved = 0;
   const cacheEntries = [];
@@ -524,21 +608,31 @@ export async function assignLoosePhotosOneByOne({
       labelByPhotoNormId.get(norm),
       nameContext,
     );
-    let target = findFolderByDisplayName(folders, folderName, nameContext);
+    const targetKey = folderName.toLowerCase();
+    let target =
+      folderByKey.get(targetKey)
+      || findFolderByDisplayName(folders, folderName, nameContext);
 
-    if (!target && countDistinctFolderKeys(folders, nameContext) >= maxFolderCount) {
-      target = pickOverflowFolder(folders, nameContext);
+    if (!target && folderByKey.size >= maxFolderCount) {
+      target = pickOverflowFolder([...folderByKey.values()], nameContext);
     }
 
     if (target) {
       const verified = await appendPhotoToFolderOnServer(target.id, photo, userEmail);
-      folders = folders.map((f) =>
-        f.id === target.id ? { ...f, ...verified, photo_ids: verified?.photo_ids || f.photo_ids } : f,
-      );
+      const next = {
+        ...target,
+        ...verified,
+        name: resolveOrganizeFolderName(folderName, nameContext),
+        photo_ids: verified?.photo_ids || target.photo_ids,
+      };
+      folders = folders.map((f) => (f.id === target.id ? next : f));
+      folderByKey.set(targetKey, next);
+      folders = await removePhotosFromOtherFoldersOnServer([photo.id], target.id, folders);
       cacheEntries.push({ photoId: photo.id, folderId: target.id });
-    } else {
+    } else if (folderByKey.size < maxFolderCount) {
+      const canonicalName = resolveOrganizeFolderName(folderName, nameContext);
       const created = await createFolderOnServer({
-        name: folderName,
+        name: canonicalName,
         description: '',
         photo_ids: [photo.id],
         cover_photo_url: photo.file_url || '',
@@ -549,12 +643,15 @@ export async function assignLoosePhotosOneByOne({
       } else if (userEmail) {
         await recordPhotoFolderMembership(userEmail, photo.id, created.id);
       }
-      folders.push({
+      const next = {
         ...created,
         ...verified,
-        name: folderName,
+        name: canonicalName,
         photo_ids: verified?.photo_ids || [photo.id],
-      });
+      };
+      folders.push(next);
+      folderByKey.set(targetKey, next);
+      folders = await removePhotosFromOtherFoldersOnServer([photo.id], created.id, folders);
       cacheEntries.push({ photoId: photo.id, folderId: created.id });
     }
   }
@@ -563,7 +660,7 @@ export async function assignLoosePhotosOneByOne({
     await recordBatchFolderMembership(userEmail, cacheEntries);
   }
 
-  return folders;
+  return dedupeFoldersByNormalizedName(folders, nameContext);
 }
 
 /** @deprecated Use assignLoosePhotosOneByOne */
@@ -657,17 +754,25 @@ export async function reconcileOrganizeBatch({
   labelByPhotoNormId,
   onProgress,
   userEmail,
+  canonicalFolderNames = ORGANIZE_BATCH_FOLDERS,
 }) {
   let desiredFolders = afterFolders || [];
 
   for (let attempt = 0; attempt < 5; attempt++) {
     await sleep(attempt === 0 ? 300 : 500 * attempt);
-    const apiFolders = await listAllFolders();
+    let apiFolders = await listAllFolders();
+    apiFolders = await mergeDuplicateFoldersOnServer(apiFolders, {
+      onProgress,
+      canonicalNames: canonicalFolderNames,
+    });
 
     const missedPhotos = getUnorganizedPhotos(batchPhotos, apiFolders);
     if (missedPhotos.length === 0) {
       return {
-        folders: mergeApiFoldersWithLocal(apiFolders, desiredFolders),
+        folders: dedupeFoldersByNormalizedName(
+          mergeApiFoldersWithLocal(apiFolders, desiredFolders),
+          canonicalFolderNames,
+        ),
         apiFolders,
         totalSaved: batchPhotos.length,
         missed: 0,
@@ -681,16 +786,23 @@ export async function reconcileOrganizeBatch({
       liveFolders: mergeApiFoldersWithLocal(apiFolders, desiredFolders),
       onProgress,
       userEmail,
-      canonicalFolderNames: ORGANIZE_BATCH_FOLDERS,
+      canonicalFolderNames,
     });
     desiredFolders = retryResult.folders;
   }
 
-  const apiFolders = await listAllFolders();
+  let apiFolders = await listAllFolders();
+  apiFolders = await mergeDuplicateFoldersOnServer(apiFolders, {
+    onProgress,
+    canonicalNames: canonicalFolderNames,
+  });
   const missedPhotos = getUnorganizedPhotos(batchPhotos, apiFolders);
 
   return {
-    folders: mergeApiFoldersWithLocal(apiFolders, desiredFolders),
+    folders: dedupeFoldersByNormalizedName(
+      mergeApiFoldersWithLocal(apiFolders, desiredFolders),
+      canonicalFolderNames,
+    ),
     apiFolders,
     totalSaved: batchPhotos.length - missedPhotos.length,
     missed: missedPhotos.length,

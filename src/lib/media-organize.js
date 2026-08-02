@@ -296,18 +296,82 @@ export function consolidateOrganizeLabels(
     counts.set(label.folder, (counts.get(label.folder) || 0) + 1);
   }
 
-  if (counts.size <= folderCap) return remapped;
+  if (counts.size > folderCap) {
+    const ranked = [...counts.entries()].sort((a, b) => b[1] - a[1]);
+    const keep = new Set(
+      ranked.slice(0, folderCap).map(([name]) => name),
+    );
+    const overflowTarget = ranked[0][0];
 
-  const ranked = [...counts.entries()].sort((a, b) => b[1] - a[1]);
-  const keep = new Set(
-    ranked.slice(0, folderCap).map(([name]) => name),
-  );
-  const overflowTarget = ranked[0][0];
+    remapped = remapped.map((label) => ({
+      ...label,
+      folder: keep.has(label.folder) ? label.folder : overflowTarget,
+    }));
+  }
 
-  return remapped.map((label) => ({
-    ...label,
-    folder: keep.has(label.folder) ? label.folder : overflowTarget,
-  }));
+  return densifyOrganizeLabels(remapped, photos, allowed);
+}
+
+/** Merge tiny folder groups into larger related folders for denser batches. */
+export function densifyOrganizeLabels(
+  labels,
+  photos,
+  allowedFolderNames = ORGANIZE_BATCH_FOLDERS,
+  minPerFolder = 5,
+) {
+  const allowed = allowedFolderNames?.length ? allowedFolderNames : ORGANIZE_BATCH_FOLDERS;
+  const photoById = new Map((photos || []).map((photo) => [String(photo.id), photo]));
+  let remapped = (labels || []).map((label) => ({ ...label }));
+
+  for (let pass = 0; pass < 12; pass += 1) {
+    const counts = new Map();
+    for (const label of remapped) {
+      counts.set(label.folder, (counts.get(label.folder) || 0) + 1);
+    }
+    if (counts.size <= 1) break;
+
+    const ranked = [...counts.entries()].sort((a, b) => a[1] - b[1]);
+    const [smallFolder, smallCount] = ranked[0];
+    if (smallCount >= minPerFolder) break;
+
+    const candidates = ranked.filter(([name]) => name !== smallFolder);
+    const targetFolder = pickDenseFolderTarget(smallFolder, candidates, remapped, photoById, allowed);
+    if (!targetFolder || targetFolder === smallFolder) break;
+
+    remapped = remapped.map((label) =>
+      label.folder === smallFolder ? { ...label, folder: targetFolder } : label,
+    );
+  }
+
+  return remapped;
+}
+
+function pickDenseFolderTarget(smallFolder, candidates, labels, photoById, allowed) {
+  if (!candidates.length) return null;
+
+  const smallPhotos = labels
+    .filter((label) => label.folder === smallFolder)
+    .map((label) => photoById.get(String(label.id)))
+    .filter(Boolean);
+
+  let bestFolder = candidates[candidates.length - 1][0];
+  let bestScore = -1;
+
+  for (const [candidateName] of candidates) {
+    const score = candidateName === smallFolder
+      ? 0
+      : smallPhotos.reduce((sum, photo) => {
+          const local = assignFolderToOrganizeBatch(photo, allowed);
+          return sum + (local.toLowerCase() === candidateName.toLowerCase() ? 3 : 0);
+        }, 0) + (candidates.find(([name]) => name === candidateName)?.[1] || 0);
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestFolder = candidateName;
+    }
+  }
+
+  return bestFolder;
 }
 
 /** Match a folder label to an existing or canonical name without LLM. */

@@ -22,7 +22,8 @@ import {
   setGalleryOrganizeSnapshot,
 } from "@/lib/gallery-organize-snapshot";
 import { persistGalleryFoldersFast, persistGalleryFoldersSync } from "@/lib/folder-membership-cache";
-import { mergeApiFoldersWithLocal } from "@/lib/folder-membership";
+import { mergeApiFoldersWithLocal, dedupeFoldersByNormalizedName } from "@/lib/folder-membership";
+import { ORGANIZE_BATCH_FOLDERS } from "@/lib/media-organize";
 import { getGalleryUserEmail, galleryFoldersKey, galleryPhotosKey } from "@/lib/gallery-query-keys";
 import { runMediaOrganize } from "@/lib/run-media-organize";
 import { ORGANIZE_ICON_CLASS, ORGANIZE_LABEL_CLASS, SQUARE_FOLDER_ACTION_CLASS, SQUARE_FOLDER_ACTION_STYLE } from "./folderActionStyles";
@@ -119,7 +120,10 @@ export default function OrganizeButton({ photos, folders: foldersProp, squareSty
         onPartialSave: (partialFolders) => {
           const existing = queryClient.getQueryData(galleryFoldersKey(email)) ?? [];
           const verified = foldersForGalleryView(
-            mergeApiFoldersWithLocal(partialFolders, existing),
+            dedupeFoldersByNormalizedName(
+              mergeApiFoldersWithLocal(partialFolders, existing),
+              ORGANIZE_BATCH_FOLDERS,
+            ),
             photos,
           );
           queryClient.setQueryData(galleryFoldersKey(email), verified);
@@ -141,7 +145,10 @@ export default function OrganizeButton({ photos, folders: foldersProp, squareSty
       const existingFolders = queryClient.getQueryData(galleryFoldersKey(email)) ?? [];
 
       const verifiedFolders = foldersForGalleryView(
-        mergeApiFoldersWithLocal(result.afterFolders || [], existingFolders),
+        dedupeFoldersByNormalizedName(
+          mergeApiFoldersWithLocal(result.afterFolders || [], existingFolders),
+          ORGANIZE_BATCH_FOLDERS,
+        ),
         syncedPhotos,
       );
       queryClient.setQueryData(galleryFoldersKey(email), verifiedFolders);

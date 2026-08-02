@@ -23,8 +23,9 @@ import { useNavigation } from "../components/NavigationContext";
 import { useTabState } from "../components/TabStateContext";
 import MobileGallery from "../components/gallery/MobileGallery";
 import { setGalleryOrganizeSnapshot, toStoredPhotoIds, normalizePhotoId } from "@/lib/gallery-organize-snapshot";
-import { fetchGalleryFoldersWithMembership, mergeApiFoldersWithLocal } from "@/lib/folder-membership";
-import { loadFullFolderSnapshotAsync, loadFolderSnapshotCacheSync } from "@/lib/folder-membership-cache";
+import { fetchGalleryFoldersWithMembership, mergeApiFoldersWithLocal, dedupeFoldersByNormalizedName, mergeDuplicateFoldersOnServer } from "@/lib/folder-membership";
+import { ORGANIZE_BATCH_FOLDERS, ORGANIZE_BATCH_FOLDER_COUNT, normalizeFolderName } from "@/lib/media-organize";
+import { loadFullFolderSnapshotAsync, loadFolderSnapshotCacheSync, persistGalleryFoldersSync, persistGalleryFoldersFast } from "@/lib/folder-membership-cache";
 import "../components/gallery/mobile-gallery-layout.css";
  
 // ---------------------------------------------------------------------------
@@ -228,12 +229,43 @@ export default function Gallery() {
   /** Align folder photo_ids with Photo.id values so Recents clears after organize. */
   const foldersForGallery = useMemo(
     () =>
-      folders.map((folder) => ({
-        ...folder,
-        photo_ids: toStoredPhotoIds(folder.photo_ids, photos),
-      })),
+      dedupeFoldersByNormalizedName(
+        folders.map((folder) => ({
+          ...folder,
+          photo_ids: toStoredPhotoIds(folder.photo_ids, photos),
+        })),
+        ORGANIZE_BATCH_FOLDERS,
+      ),
     [folders, photos],
   );
+
+  useEffect(() => {
+    if (!userEmail || folders.length <= ORGANIZE_BATCH_FOLDER_COUNT) return;
+    const keys = folders.map((folder) =>
+      normalizeFolderName(folder.name, ORGANIZE_BATCH_FOLDERS).toLowerCase(),
+    );
+    const hasDuplicateNames = new Set(keys).size !== keys.length;
+    if (!hasDuplicateNames && folders.length <= ORGANIZE_BATCH_FOLDER_COUNT) return;
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        const merged = await mergeDuplicateFoldersOnServer(folders, {
+          canonicalNames: ORGANIZE_BATCH_FOLDERS,
+        });
+        if (cancelled || merged.length >= folders.length) return;
+        queryClient.setQueryData(['folders', userEmail], merged);
+        persistGalleryFoldersSync(userEmail, merged);
+        void persistGalleryFoldersFast(userEmail, merged);
+      } catch (error) {
+        console.warn('Background folder merge failed:', error);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [folders, userEmail, queryClient]);
 
   useEffect(() => {
     setGalleryOrganizeSnapshot({ photos, folders: foldersForGallery });
