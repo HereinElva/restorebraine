@@ -1,0 +1,28 @@
+Paste this reply to Base44 AI:
+
+---
+Correct — do NOT use URL fetch. The batch .txt URLs get mangled by markdown (JSX destroyed). I will paste file contents directly into chat, the same way the 7 files came through clean.
+
+Skip these 7 — already saved and clean in Base44:
+- index.html
+- src/lib/native-platform-guard.js
+- src/lib/auth-urls.js
+- src/lib/native-google-oauth.js
+- src/lib/AuthContext.jsx
+- src/App.jsx
+- src/components/auth/SignedOutLanding.jsx
+
+I will send the remaining 64 files in ~30 small chat messages. Each message contains FILE blocks with paths and full source. Do NOT Publish until I say all groups are done.
+
+Reply "ready for group 1" and I will paste the first message.
+---
+
+Then on Mac after git pull:
+
+  cat ~/restorebraine/base44-paste-chat/CHAT-01.txt | pbcopy
+
+Paste into Base44 chat. Wait for write. Repeat CHAT-02 through CHAT-XX.
+
+List groups: npm run base44:remaining -- chat 1
+
+After last group tell Base44: "All groups done. Publish once now."

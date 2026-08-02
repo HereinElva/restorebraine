@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		A1B2C3D51FED79650016851F /* BUILD_STAMP.txt in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D41FED79650016851F /* BUILD_STAMP.txt */; };
+		A1B2C3D91FED79650016851F /* ghost-builds.txt in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D81FED79650016851F /* ghost-builds.txt */; };
 		2FAD9763203C412B000D30F8 /* config.xml in Resources */ = {isa = PBXBuildFile; fileRef = 2FAD9762203C412B000D30F8 /* config.xml */; };
 		50379B232058CBB4000EE86E /* capacitor.config.json in Resources */ = {isa = PBXBuildFile; fileRef = 50379B222058CBB4000EE86E /* capacitor.config.json */; };
 		504EC3081FED79650016851F /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 504EC3071FED79650016851F /* AppDelegate.swift */; };
@@ -21,6 +22,7 @@
 /* Begin PBXFileReference section */
 		2FAD9762203C412B000D30F8 /* config.xml */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = config.xml; sourceTree = "<group>"; };
 		A1B2C3D41FED79650016851F /* BUILD_STAMP.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = BUILD_STAMP.txt; sourceTree = "<group>"; };
+		A1B2C3D81FED79650016851F /* ghost-builds.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = ghost-builds.txt; sourceTree = "<group>"; };
 		50379B222058CBB4000EE86E /* capacitor.config.json */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.json; path = capacitor.config.json; sourceTree = "<group>"; };
 		504EC3041FED79650016851F /* App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = App.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		504EC3071FED79650016851F /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
@@ -77,6 +79,7 @@
 			children = (
 				50379B222058CBB4000EE86E /* capacitor.config.json */,
 				A1B2C3D41FED79650016851F /* BUILD_STAMP.txt */,
+				A1B2C3D81FED79650016851F /* ghost-builds.txt */,
 				504EC3071FED79650016851F /* AppDelegate.swift */,
 				504EC30B1FED79650016851F /* Main.storyboard */,
 				504EC30E1FED79650016851F /* Assets.xcassets */,
@@ -166,6 +169,7 @@
 				504EC30F1FED79650016851F /* Assets.xcassets in Resources */,
 				50379B232058CBB4000EE86E /* capacitor.config.json in Resources */,
 				A1B2C3D51FED79650016851F /* BUILD_STAMP.txt in Resources */,
+				A1B2C3D91FED79650016851F /* ghost-builds.txt in Resources */,
 				504EC30D1FED79650016851F /* Main.storyboard in Resources */,
 				2FAD9763203C412B000D30F8 /* config.xml in Resources */,
 			);
@@ -220,7 +224,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "BUILD_STAMP=\"${SRCROOT}/App/BUILD_STAMP.txt\"\nCONFIG=\"${SRCROOT}/App/capacitor.config.json\"\nPUBLIC=\"${SRCROOT}/App/public/index.html\"\nAPPSTORE_ICON=\"${SRCROOT}/App/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png\"\necho \"=========================================\"\necho \"Restorebraine iOS bundle check\"\nif [ -f \"$BUILD_STAMP\" ]; then\n  echo \"BUILD_STAMP: $(cat \"$BUILD_STAMP\")\"\nelse\n  echo \"warning: BUILD_STAMP.txt missing. Run npm run build from repo root.\"\nfi\nif [ -f \"$APPSTORE_ICON\" ]; then\n  echo \"AppIcon: AppIcon-1024.png OK ($(wc -c < \"$APPSTORE_ICON\") bytes)\"\nelse\n  echo \"error: Missing App Store 1024pt icon at AppIcon.appiconset/AppIcon-1024.png\"\n  echo \"       Run from repo root: bash scripts/mac-fix-app-icon.sh\"\n  exit 1\nfi\nif [ -f \"$CONFIG\" ] && grep -q \"\\*.google.com\" \"$CONFIG\"; then\n  echo \"capacitor.config.json: OAuth allowlist OK\"\nelse\n  echo \"warning: Old capacitor.config.json. Run npm run build from repo root.\"\nfi\nif [ -f \"$PUBLIC\" ] && grep -q \"__restorebraineOAuthFixInstalled\" \"$PUBLIC\"; then\n  echo \"public/index.html: OAuth fix OK\"\nelse\n  echo \"warning: Stale ios/App/App/public bundle. Run npm run build from repo root.\"\nfi\necho \"=========================================\"\n";
+			shellScript = "bash \"${SRCROOT}/verify-bundle.sh\"\n";
 			showEnvVarsInLog = 0;
 		};
 

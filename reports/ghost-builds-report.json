@@ -1,0 +1,109 @@
+{
+  "gitRange": "omega-3..HEAD",
+  "live": {
+    "index": "index-BtNzh8Fh.js",
+    "app": "App-DvoqTTOC.js"
+  },
+  "active": [
+    "App-DvoqTTOC.js",
+    "index-BdouiOEY.js",
+    "index-BtNzh8Fh.js",
+    "index-CzAhCPOL.js",
+    "index-Dzn3_rKv.js",
+    "index-JaQD2tBX.js"
+  ],
+  "deviceBlocklist": [
+    "App-B4VcOATW.js",
+    "App-BMryy2H5.js",
+    "index-BdI0OyrO.js",
+    "index-C0QSqhq1.js",
+    "index-CJJVGreG.js",
+    "index-CLtZjYMv.js",
+    "index-CV4Cquht.js",
+    "index-DU9XZ7q7.js",
+    "index-gi7V8MEL.js",
+    "index-jnFezVWb.js",
+    "index-lILXYrc5.js"
+  ],
+  "falsePositiveInBlocklist": [],
+  "stats": {
+    "appCandidates": 4,
+    "indexCandidates": 13,
+    "liveDeps": 6,
+    "onCdn": 3,
+    "gone404": 14,
+    "cdnGhosts": 0,
+    "deviceBlocklist": 11,
+    "ghosts": 11
+  },
+  "chains": [],
+  "ghosts": [
+    {
+      "file": "App-B4VcOATW.js",
+      "onCdn": false,
+      "active": false,
+      "isGhost": true
+    },
+    {
+      "file": "App-BMryy2H5.js",
+      "onCdn": false,
+      "active": false,
+      "isGhost": true
+    },
+    {
+      "file": "index-BdI0OyrO.js",
+      "onCdn": false,
+      "active": false,
+      "isGhost": true
+    },
+    {
+      "file": "index-C0QSqhq1.js",
+      "onCdn": false,
+      "active": false,
+      "isGhost": true
+    },
+    {
+      "file": "index-CJJVGreG.js",
+      "onCdn": false,
+      "active": false,
+      "isGhost": true
+    },
+    {
+      "file": "index-CLtZjYMv.js",
+      "onCdn": false,
+      "active": false,
+      "isGhost": true
+    },
+    {
+      "file": "index-CV4Cquht.js",
+      "onCdn": false,
+      "active": false,
+      "isGhost": true
+    },
+    {
+      "file": "index-DU9XZ7q7.js",
+      "onCdn": false,
+      "active": false,
+      "isGhost": true
+    },
+    {
+      "file": "index-gi7V8MEL.js",
+      "onCdn": false,
+      "active": false,
+      "isGhost": true
+    },
+    {
+      "file": "index-jnFezVWb.js",
+      "onCdn": false,
+      "active": false,
+      "isGhost": true
+    },
+    {
+      "file": "index-lILXYrc5.js",
+      "onCdn": false,
+      "active": false,
+      "isGhost": true
+    }
+  ],
+  "cdnGhosts": []
+}

@@ -1,4 +1,3 @@
-import { InAppBrowser } from '@capacitor/inappbrowser';
 import {
   getGoogleOAuthUrl,
   getProviderOAuthUrl,
@@ -8,10 +7,18 @@ import {
   normalizeAuthUrl,
 } from '@/lib/native-platform-guard';
 import { getAuthReturnOrigin } from '@/lib/app-domains';
-import { persistSessionToNativeStorage } from '@/lib/session-bootstrap';
-import { isNativeShell } from '@/lib/native-hosted-redirect';
+import { persistSessionToNativeStorage, finishPendingOAuthLogin } from '@/lib/session-bootstrap';
+import { isNativeShell, isBundledCapacitorShell } from '@/lib/native-hosted-redirect';
 
 const GOOGLE_OAUTH_PATTERN = /accounts\.google\.com|google\.com\/o\/oauth|oauth2\.googleapis\.com|\/api\/apps\/auth\/login/i;
+
+let _InAppBrowser = null;
+async function getInAppBrowser() {
+  if (_InAppBrowser) return _InAppBrowser;
+  const mod = await import('@capacitor/inappbrowser');
+  _InAppBrowser = mod.InAppBrowser;
+  return _InAppBrowser;
+}
 
 const SYSTEM_BROWSER_OPTIONS = {
   iOS: { closeButtonText: 2, viewStyle: 2, animationEffect: 2, enableBarsCollapsing: true, enableReadersMode: false },
@@ -28,13 +35,65 @@ export const isGoogleOAuthUrl = (url) => {
   }
 };
 
+export const isOAuthCallbackUrl = (url) =>
+  Boolean(url && typeof url === 'string' && url.includes('access_token='));
+
+const isBundledNativeShell = () => isBundledCapacitorShell();
+
+/** After OAuth, native bridge may save token before React listeners attach. */
+export const tryRestoreSessionAfterOAuth = async () => {
+  const urlToken = await captureOAuthTokenFromUrl(window.location?.href);
+  if (urlToken) {
+    finishPendingOAuthLogin();
+    try {
+      window.dispatchEvent(new CustomEvent('restorebraine-session-updated', { detail: { token: urlToken } }));
+    } catch {}
+    return true;
+  }
+
+  if (typeof window !== 'undefined' && window.__restorebrainePendingOAuth) {
+    const { restoreSessionFromNativeStorage } = await import('@/lib/session-bootstrap');
+    const freshToken = await restoreSessionFromNativeStorage();
+    if (!freshToken) return false;
+    finishPendingOAuthLogin();
+    try {
+      window.dispatchEvent(new CustomEvent('restorebraine-session-updated', { detail: { token: freshToken } }));
+    } catch {}
+    return true;
+  }
+
+  const existing = localStorage.getItem('base44_access_token') || localStorage.getItem('token');
+  if (existing && localStorage.getItem('b44_signed_out') !== '1') {
+    await persistSessionToNativeStorage(existing);
+    try {
+      window.dispatchEvent(new CustomEvent('restorebraine-session-updated', { detail: { token: existing } }));
+    } catch {}
+    return true;
+  }
+
+  const { restoreSessionFromNativeStorage } = await import('@/lib/session-bootstrap');
+  const token = await restoreSessionFromNativeStorage();
+  if (!token) return false;
+
+  finishPendingOAuthLogin();
+  try {
+    window.dispatchEvent(new CustomEvent('restorebraine-session-updated', { detail: { token } }));
+  } catch {}
+  return true;
+};
+
 export const captureOAuthTokenFromUrl = async (url) => {
   if (!url) return null;
   try {
     const parsed = new URL(url, getAuthReturnOrigin());
     const token = parsed.searchParams.get('access_token');
     if (!token) return null;
+    try { localStorage.removeItem('b44_signed_out'); } catch {}
+    finishPendingOAuthLogin();
     await persistSessionToNativeStorage(token);
+    try {
+      window.dispatchEvent(new CustomEvent('restorebraine-session-updated', { detail: { token } }));
+    } catch {}
     return token;
   } catch {
     return null;
@@ -44,7 +103,10 @@ export const captureOAuthTokenFromUrl = async (url) => {
 let oauthListenerAttached = false;
 
 const finishOAuthLogin = async () => {
+  const InAppBrowser = await getInAppBrowser();
   await InAppBrowser.close().catch(() => {});
+  if (await tryRestoreSessionAfterOAuth()) return;
+  if (isBundledNativeShell()) return;
   window.location.replace(getAuthReturnOrigin());
 };
 
@@ -59,32 +121,123 @@ const attachOAuthCompletionListener = async () => {
   if (oauthListenerAttached) return;
   oauthListenerAttached = true;
 
+  const InAppBrowser = await getInAppBrowser();
   await InAppBrowser.addListener('browserClosed', async () => {
-    const stored = localStorage.getItem('base44_access_token') || localStorage.getItem('token');
-    if (stored) {
-      window.location.replace(getAuthReturnOrigin());
-      return;
-    }
+    if (await tryRestoreSessionAfterOAuth()) return;
     try {
       const { App } = await import('@capacitor/app');
       const launch = await App.getLaunchUrl();
       if (launch?.url) await handleNativeOAuthCallback(launch.url);
     } catch {}
-    window.location.replace(getAuthReturnOrigin());
+    if (!isBundledNativeShell()) {
+      window.location.replace(getAuthReturnOrigin());
+    }
   });
 };
 
 /** Google blocks embedded WebViews — must use SFSafariViewController (openInSystemBrowser). */
 export const openLoginInSystemBrowser = async (url = getGoogleOAuthUrl(), providerHint) => {
+  const { prepareForOAuthLogin } = await import('@/lib/session-bootstrap');
+  await prepareForOAuthLogin();
+
   const normalizedUrl = normalizeAuthUrl(url, providerHint);
   if (!isNativeShell()) {
     window.location.replace(normalizedUrl);
     return;
   }
 
+  const provider = providerHint || 'google';
+  if (typeof window.__restorebraineOpenProviderLogin === 'function') {
+    window.__restorebraineOpenProviderLogin(provider);
+    return;
+  }
+
+  const { waitForCapacitorBridge } = await import('@/lib/capacitor-ready');
+  await waitForCapacitorBridge();
+
   oauthListenerAttached = false;
   await attachOAuthCompletionListener();
-  await InAppBrowser.openInSystemBrowser({ url: normalizedUrl, options: SYSTEM_BROWSER_OPTIONS });
+  const InAppBrowser = await getInAppBrowser();
+
+  const tryOpen = async () => {
+    if (InAppBrowser?.openInSystemBrowser) {
+      await InAppBrowser.openInSystemBrowser({ url: normalizedUrl, options: SYSTEM_BROWSER_OPTIONS });
+      return true;
+    }
+    try {
+      const { Browser } = await import('@capacitor/browser');
+      await Browser.open({ url: normalizedUrl });
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  if (await tryOpen()) return;
+
+  for (let attempt = 0; attempt < 80; attempt += 1) {
+    await new Promise((resolve) => { window.setTimeout(resolve, 100); });
+    if (await tryOpen()) return;
+  }
+
+  if (typeof window.__restorebraineOpenLogin === 'function') {
+    window.__restorebraineOpenLogin();
+    return;
+  }
+
+  console.warn('InAppBrowser/Browser plugins unavailable — falling back to navigation');
+  window.location.assign(normalizedUrl);
+};
+
+export const launchProviderOAuth = (provider = 'google') => {
+  if (typeof window !== 'undefined') {
+    window.__restorebraineLastOAuthProvider = provider;
+  }
+  void (async () => {
+    if (typeof window !== 'undefined' && typeof window.__restorebraineOpenProviderLogin === 'function') {
+      const { prepareForOAuthLogin } = await import('@/lib/session-bootstrap');
+      await prepareForOAuthLogin();
+      try {
+        window.__restorebraineOpenProviderLogin(provider);
+        return;
+      } catch (error) {
+        console.warn('Native provider login bridge failed:', error);
+      }
+    }
+    const url = provider === 'google' ? getGoogleOAuthUrl() : getProviderOAuthUrl(provider);
+    void openLoginInSystemBrowser(url, provider);
+  })();
+};
+
+/** Install JS OAuth fallbacks when AppDelegate bridge is not ready yet. */
+export const installNativeOAuthListeners = async () => {
+  if (typeof window === 'undefined' || window.__restorebraineOAuthListenersInstalled) return;
+
+  const { waitForCapacitorBridge } = await import('@/lib/capacitor-ready');
+  if (!(await waitForCapacitorBridge(100))) return;
+
+  window.__restorebraineOAuthListenersInstalled = true;
+
+  if (!window.__restorebraineBundledOAuthInstalled && !window.__restorebraineSessionBridgeInstalled) {
+    window.__restorebraineOpenLogin = () => {
+      void openLoginInSystemBrowser(getGoogleOAuthUrl(), 'google');
+    };
+    window.__restorebraineOpenProviderLogin = (provider) => {
+      const p = provider || 'google';
+      const oauthUrl = p === 'google' ? getGoogleOAuthUrl() : getProviderOAuthUrl(p);
+      void openLoginInSystemBrowser(oauthUrl, p);
+    };
+  }
+
+  try {
+    const { installNativeOAuthDeepLinkHandler } = await import('@/lib/session-bootstrap');
+    await installNativeOAuthDeepLinkHandler();
+    oauthListenerAttached = false;
+    await attachOAuthCompletionListener();
+  } catch (error) {
+    window.__restorebraineOAuthListenersInstalled = false;
+    console.warn('Native OAuth listener setup failed:', error);
+  }
 };
 
 const handleAuthNavigation = (url, providerHint) => {

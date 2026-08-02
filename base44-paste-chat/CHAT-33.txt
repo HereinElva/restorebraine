@@ -1,0 +1,250 @@
+# Base44 chat paste 33/34 (4 files)
+
+Apply every FILE block below to the Restorebraine code editor.
+Write each file at the exact path shown — replace entire file contents.
+Do NOT Publish until I confirm all chat groups are done.
+Do NOT fetch URLs — paste content only (JSX must stay intact).
+
+Files in this message:
+1. src/pages/PrivacyPolicy.jsx
+2. src/pages/PaymentSuccess.jsx
+3. src/api/base44Client.js
+4. src/lib/gallery-nav.js
+
+========================================================================
+FILE: src/pages/PrivacyPolicy.jsx
+========================================================================
+import React from "react";
+import { ArrowLeft } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+
+export default function PrivacyPolicy() {
+  const navigate = useNavigate();
+
+  return (
+    <div className="min-h-screen pb-20">
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 pt-12">
+        <button
+          type="button"
+          onClick={() => navigate('/')}
+          className="inline-flex items-center gap-2 text-purple-600 hover:text-purple-700 mb-8"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Back to Gallery
+        </button>
+
+        <h1 className="text-4xl font-bold text-gray-900 mb-2">Privacy Policy</h1>
+        <p className="text-gray-500 mb-8">Last Updated: December 3, 2025</p>
+
+        <div className="prose prose-gray max-w-none space-y-8">
+          <section>
+            <h2 className="text-xl font-semibold text-gray-900 mb-3">What We Collect</h2>
+            <ul className="list-disc list-inside text-gray-600 space-y-2">
+              <li>Photos and videos you upload</li>
+              <li>AI-generated descriptions and tags of your media</li>
+              <li>Basic account information (email, name)</li>
+            </ul>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-semibold text-gray-900 mb-3">How We Use Your Data</h2>
+            <ul className="list-disc list-inside text-gray-600 space-y-2">
+              <li>To store and organize your media</li>
+              <li>To analyze content with AI for searchability</li>
+              <li>To process payments via Stripe</li>
+            </ul>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-semibold text-gray-900 mb-3">Data Sharing</h2>
+            <ul className="list-disc list-inside text-gray-600 space-y-2">
+              <li>We do not sell your data</li>
+              <li>Media is analyzed by AI services to generate descriptions</li>
+              <li>Payment processing is handled securely by Stripe</li>
+            </ul>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-semibold text-gray-900 mb-3">Data Security</h2>
+            <ul className="list-disc list-inside text-gray-600 space-y-2">
+              <li>Your files are stored securely</li>
+              <li>Only you can access your uploaded media</li>
+            </ul>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-semibold text-gray-900 mb-3">Your Rights</h2>
+            <ul className="list-disc list-inside text-gray-600 space-y-2">
+              <li>You can delete your media at any time</li>
+              <li>Contact us to request account deletion</li>
+            </ul>
+          </section>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+========================================================================
+FILE: src/pages/PaymentSuccess.jsx
+========================================================================
+import React, { useEffect, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { createPageUrl } from "@/utils";
+import { CheckCircle, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { base44 } from "@/api/base44Client";
+
+export default function PaymentSuccess() {
+  const [loading, setLoading] = useState(true);
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const updatePaidTier = async () => {
+      try {
+        const sessionId = searchParams.get('session_id');
+        if (sessionId) {
+          // Verify payment and update paid tier
+          const response = await base44.functions.invoke('verifyPayment', { sessionId });
+          if (response.data.success) {
+            await queryClient.invalidateQueries({ queryKey: ['current-user'] });
+            setLoading(false);
+          } else {
+            setLoading(false);
+          }
+        } else {
+          setLoading(false);
+        }
+      } catch (error) {
+        console.error('Error verifying payment:', error);
+        setLoading(false);
+      }
+    };
+
+    updatePaidTier();
+  }, [searchParams]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
+        <div className="text-center">
+          <Loader2 className="w-12 h-12 animate-spin text-purple-500 mx-auto mb-4" />
+          <p className="text-gray-600">Verifying payment...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 p-4">
+      <div className="max-w-md w-full bg-white rounded-3xl shadow-2xl p-8 text-center">
+        <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
+          <CheckCircle className="w-10 h-10 text-green-600" />
+        </div>
+        
+        <h1 className="text-3xl font-bold text-gray-900 mb-3">
+          Payment Successful!
+        </h1>
+        
+        <p className="text-gray-600 mb-8">
+          Your storage has been upgraded. You can now continue uploading your photos and videos.
+        </p>
+
+        <div className="space-y-3">
+          <Button
+            onClick={() => navigate(createPageUrl("Upload"))}
+            className="w-full bg-gradient-to-r from-blue-400 to-purple-500 hover:from-blue-500 hover:to-purple-600 text-white"
+          >
+            Continue Uploading
+          </Button>
+          
+          <Button
+            variant="outline"
+            onClick={() => navigate(createPageUrl("Gallery"))}
+            className="w-full"
+          >
+            Go to Gallery
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+========================================================================
+FILE: src/api/base44Client.js
+========================================================================
+import { createClient } from '@base44/sdk';
+import { appParams, getAppOrigin } from '@/lib/app-params';
+import { getPlatformLoginUrl, openRestorebraineLogin } from '@/lib/auth-urls';
+import { isNativeShell } from '@/lib/native-hosted-redirect';
+
+const { appId, serverUrl, token, functionsVersion } = appParams;
+
+//Create a client with authentication required
+export const base44 = createClient({
+  appId,
+  serverUrl,
+  appBaseUrl: getAppOrigin(),
+  token,
+  functionsVersion,
+  requiresAuth: false
+});
+
+// Custom-domain /login is a broken Base44 platform page — always use app.base44.com.
+const originalRedirectToLogin = base44.auth.redirectToLogin.bind(base44.auth);
+base44.auth.redirectToLogin = (nextUrl) => {
+  if (typeof window === 'undefined') {
+    return originalRedirectToLogin(nextUrl);
+  }
+  if (isNativeShell()) {
+    openRestorebraineLogin();
+    return;
+  }
+  const returnTo = nextUrl
+    ? new URL(nextUrl, window.location.origin).toString()
+    : window.location.href;
+  window.location.href = getPlatformLoginUrl(returnTo);
+};
+
+
+========================================================================
+FILE: src/lib/gallery-nav.js
+========================================================================
+import { base44 } from '@/api/base44Client';
+import { createPageUrl } from '@/utils';
+import { persistSessionToNativeStorage } from '@/lib/session-bootstrap';
+
+export const GALLERY_PATH = createPageUrl('Gallery');
+const SIGNED_OUT_KEY = 'b44_signed_out';
+
+export function isGalleryPath(pathname = '') {
+  const path = pathname.toLowerCase();
+  return path === '/' || path === GALLERY_PATH;
+}
+
+export async function persistActiveSession() {
+  const token =
+    localStorage.getItem('base44_access_token') || localStorage.getItem('token');
+  if (!token) return null;
+
+  try {
+    localStorage.removeItem(SIGNED_OUT_KEY);
+    base44.auth.setToken(token, false);
+    await persistSessionToNativeStorage(token);
+  } catch {
+    // Keep navigation working even if persistence fails
+  }
+
+  return token;
+}
+
+export async function navigateToGallery(navigate, { popBack, resumeActiveSession } = {}) {
+  popBack?.();
+  await persistActiveSession();
+  if (resumeActiveSession) {
+    await resumeActiveSession();
+  }
+  navigate(GALLERY_PATH, { replace: true });
+}

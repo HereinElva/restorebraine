@@ -1,0 +1,217 @@
+# Paste this ENTIRE message into Base44 AI chat (file 32/71)
+
+Apply this single file to the Restorebraine code editor. Do NOT Publish yet.
+
+========================================================================
+FILE: src/components/gallery/PhotoModal.jsx
+========================================================================
+import React, { useState } from "react";
+import { X, Tag, Calendar, Sparkles, Video as VideoIcon, Image as ImageIcon, Download, Trash2, Share2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { format } from "date-fns";
+import { base44 } from "@/api/base44Client";
+import { useQueryClient } from "@tanstack/react-query";
+
+export default function PhotoModal({ photo, onClose }) {
+  const queryClient = useQueryClient();
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDelete = async () => {
+    if (!confirm(`Delete this ${photo.file_type}? This action cannot be undone.`)) return;
+    
+    setDeleting(true);
+    try {
+      await base44.entities.Photo.delete(photo.id);
+      queryClient.invalidateQueries({ queryKey: ['photos'] });
+      queryClient.invalidateQueries({ queryKey: ['folders'] });
+      onClose();
+    } catch (error) {
+      console.error('Delete failed:', error);
+      alert('Failed to delete. Please try again.');
+      setDeleting(false);
+    }
+  };
+
+  const handleShare = async () => {
+    try {
+      if (navigator.share) {
+        const response = await fetch(photo.file_url);
+        const blob = await response.blob();
+        const file = new File([blob], photo.original_filename || `media.${photo.file_type === 'video' ? 'mp4' : 'jpg'}`, { type: blob.type });
+        
+        await navigator.share({
+          files: [file],
+          title: photo.file_type === 'video' ? 'Share Video' : 'Share Photo',
+          text: photo.ai_description
+        });
+      } else {
+        // Fallback: copy URL to clipboard
+        await navigator.clipboard.writeText(photo.file_url);
+        alert('Link copied to clipboard!');
+      }
+    } catch (error) {
+      if (error.name !== 'AbortError') {
+        console.error('Share failed:', error);
+      }
+    }
+  };
+
+  const handleDownload = async () => {
+    try {
+      const response = await fetch(photo.file_url);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = photo.original_filename || `media-${Date.now()}.${photo.file_type === 'video' ? 'mp4' : 'jpg'}`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      a.remove();
+    } catch (error) {
+      console.error('Download failed:', error);
+    }
+  };
+
+  return (
+    <div 
+      className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <div 
+        className="bg-white rounded-3xl max-w-6xl w-full max-h-[90vh] overflow-hidden shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="grid lg:grid-cols-2 h-full max-h-[90vh]">
+          {/* Media Side */}
+          <div className="relative bg-gray-900 flex items-center justify-center">
+            {photo.file_type === 'video' ? (
+              <video
+                src={photo.file_url}
+                controls
+                className="w-full h-full object-contain"
+                autoPlay
+              />
+            ) : (
+              <img
+                src={photo.file_url}
+                alt={photo.ai_description}
+                className="w-full h-full object-contain"
+              />
+            )}
+          </div>
+
+          {/* Details Side */}
+          <div className="p-8 overflow-y-auto">
+            <div className="flex items-start justify-between mb-6">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-purple-50 rounded-lg">
+                  {photo.file_type === 'video' ? (
+                    <VideoIcon className="w-5 h-5 text-purple-500" />
+                  ) : (
+                    <ImageIcon className="w-5 h-5 text-purple-500" />
+                  )}
+                </div>
+                <h2 className="text-2xl font-bold text-gray-900">
+                  {photo.file_type === 'video' ? 'Video' : 'Photo'} Details
+                </h2>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={onClose}
+                className="hover:bg-gray-100 rounded-full"
+              >
+                <X className="w-5 h-5" />
+              </Button>
+            </div>
+
+            {/* AI Description */}
+            <div className="mb-6">
+              <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
+                AI Description
+              </h3>
+              <p className="text-gray-900 text-lg leading-relaxed">
+                {photo.ai_description}
+              </p>
+            </div>
+
+            {/* Tags */}
+            {photo.ai_tags && photo.ai_tags.length > 0 && (
+              <div className="mb-6">
+                <div className="flex items-center gap-2 mb-3">
+                  <Tag className="w-4 h-4 text-gray-500" />
+                  <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">
+                    Tags
+                  </h3>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {photo.ai_tags.map((tag, index) => (
+                    <Badge
+                      key={index}
+                      variant="secondary"
+                      className="bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100"
+                    >
+                      {tag}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Metadata */}
+            <div className="pt-6 border-t border-gray-200 space-y-3">
+              {photo.upload_date && (
+                <div className="flex items-center gap-3 text-sm">
+                  <Calendar className="w-4 h-4 text-gray-400" />
+                  <span className="text-gray-600">Uploaded:</span>
+                  <span className="text-gray-900 font-medium">
+                    {format(new Date(photo.upload_date), "MMM d, yyyy 'at' h:mm a")}
+                  </span>
+                </div>
+              )}
+              
+              {photo.original_filename && (
+                <div className="flex items-center gap-3 text-sm">
+                  <span className="text-gray-600">Filename:</span>
+                  <span className="text-gray-900 font-medium truncate">
+                    {photo.original_filename}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Action Buttons */}
+            <div className="mt-8 space-y-3">
+              <Button
+                onClick={handleShare}
+                className="w-full bg-gradient-to-r from-blue-400 to-purple-500 hover:from-blue-500 hover:to-purple-600 gap-2"
+              >
+                <Share2 className="w-4 h-4" />
+                Share {photo.file_type === 'video' ? 'Video' : 'Photo'}
+              </Button>
+              <Button
+                onClick={handleDownload}
+                variant="outline"
+                className="w-full gap-2"
+              >
+                <Download className="w-4 h-4" />
+                Download {photo.file_type === 'video' ? 'Video' : 'Photo'}
+              </Button>
+              <Button
+                onClick={handleDelete}
+                disabled={deleting}
+                variant="outline"
+                className="w-full text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200 gap-2"
+              >
+                <Trash2 className="w-4 h-4" />
+                {deleting ? 'Deleting...' : `Delete ${photo.file_type === 'video' ? 'Video' : 'Photo'}`}
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

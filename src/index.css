@@ -154,6 +154,18 @@ button:focus-visible {
   }
   body {
     @apply bg-background text-foreground;
+    min-height: 100dvh;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+  }
+  #root {
+    min-height: 100dvh;
+  }
+  html[data-rb-screen="sign-in"],
+  html[data-rb-screen="sign-in"] body {
+    height: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
   }
 }
 

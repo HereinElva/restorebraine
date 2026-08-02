@@ -1,0 +1,367 @@
+import { invokeLLMWithRetry } from "@/lib/invoke-llm-retry";
+import {
+  assignFolderToOrganizeBatch,
+  buildFolderOptions,
+  buildLabelPrompt,
+  consolidateOrganizeLabels,
+  getOrganizeFolderNames,
+  normalizeFolderName,
+  ORGANIZE_BATCH_FOLDER_COUNT,
+  parseCustomFolderHints,
+  photoDataForOrganize,
+} from "@/lib/media-organize";
+import {
+  getUnorganizedPhotos,
+  loosePhotosForOrganize,
+  normalizePhotoId,
+  toStoredPhotoIds,
+} from "@/lib/gallery-organize-snapshot";
+import {
+  assignLoosePhotosByFolder,
+  assignLoosePhotosOneByOne,
+  deleteFoldersWithTimeout,
+  dedupeFoldersByNormalizedName,
+  dedupePhotoMembershipInFolderList,
+  listAllFoldersSafe,
+  mergeApiFoldersWithLocal,
+  mergeDuplicateFoldersOnServer,
+  enforceUniquePhotoMembershipOnServer,
+  reconcileOrganizeBatch,
+  pruneEmptyGalleryFolders,
+  countFoldersWithPhotos,
+} from "@/lib/folder-membership";
+import {
+  recordBatchFolderMembership,
+  loadFolderMembershipCacheSync,
+} from "@/lib/folder-membership-cache";
+
+const CHUNK_SIZE = 40;
+const LLM_DELAY_MS = 800;
+const LOCAL_LABEL_THRESHOLD = 1;
+const MISC_FOLDER = "Miscellaneous";
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function sanitizeFoldersLocally(folders, photos, allPhotoIds) {
+  return (folders || []).map((folder) => {
+    const normalized = (folder.photo_ids || [])
+      .map(normalizePhotoId)
+      .filter((id) => allPhotoIds.has(id));
+    return {
+      ...folder,
+      photo_ids: toStoredPhotoIds(normalized, photos),
+    };
+  });
+}
+
+async function labelChunkWithAI(chunk, folderNamesForLabel, customInstructions, customFolderHints) {
+  const photoData = chunk.map(photoDataForOrganize);
+  const folderOptions = buildFolderOptions(folderNamesForLabel, customFolderHints);
+
+  const result = await invokeLLMWithRetry(
+    {
+      prompt: buildLabelPrompt({ photoData, folderOptions, customInstructions }),
+      response_json_schema: {
+        type: "object",
+        properties: {
+          labels: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                id: { type: "string" },
+                folder: { type: "string" },
+              },
+            },
+          },
+        },
+      },
+    },
+    { maxRetries: 1, baseDelayMs: 2500, timeoutMs: 50000 }
+  );
+
+  return result.labels || [];
+}
+
+function labelAllLocally(photosToOrganize, folderNamesForLabel) {
+  return photosToOrganize.map((photo) => ({
+    id: normalizePhotoId(photo.id),
+    folder: assignFolderToOrganizeBatch(photo, folderNamesForLabel),
+  }));
+}
+
+function labelChunkLocally(chunk, folderNamesForLabel) {
+  return chunk.map((photo) => ({
+    id: normalizePhotoId(photo.id),
+    folder: assignFolderToOrganizeBatch(photo, folderNamesForLabel),
+  }));
+}
+
+async function buildLabelsFromDescriptions(
+  photosToOrganize,
+  folderNamesForLabel,
+  customInstructions,
+  validPhotoIds,
+  onProgress
+) {
+  if (photosToOrganize.length >= LOCAL_LABEL_THRESHOLD) {
+    onProgress?.('Batch 1/1');
+    return labelAllLocally(photosToOrganize, folderNamesForLabel);
+  }
+
+  const customFolderHints = parseCustomFolderHints(customInstructions);
+  const chunks = [];
+  const chunkSize = photosToOrganize.length <= CHUNK_SIZE ? photosToOrganize.length : CHUNK_SIZE;
+  for (let i = 0; i < photosToOrganize.length; i += chunkSize) {
+    chunks.push(photosToOrganize.slice(i, i + chunkSize));
+  }
+
+  const allLabels = [];
+
+  for (let i = 0; i < chunks.length; i++) {
+    const chunk = chunks[i];
+    if (i > 0) await sleep(LLM_DELAY_MS);
+    onProgress?.(`Batch ${i + 1}/${chunks.length}`);
+
+    try {
+      const labels = await labelChunkWithAI(
+        chunk,
+        folderNamesForLabel,
+        customInstructions,
+        customFolderHints
+      );
+      for (const label of labels) {
+        const id = normalizePhotoId(label.id);
+        if (validPhotoIds.has(id)) {
+          allLabels.push({ id, folder: label.folder || MISC_FOLDER });
+        }
+      }
+    } catch (error) {
+      console.warn("AI label batch failed, using local fallback:", error);
+      allLabels.push(...labelChunkLocally(chunk, folderNamesForLabel));
+    }
+  }
+
+  const labelledIds = new Set(allLabels.map((l) => l.id));
+  for (const photo of photosToOrganize) {
+    const id = normalizePhotoId(photo.id);
+    if (!labelledIds.has(id)) {
+      allLabels.push({
+        id,
+        folder: assignFolderToOrganizeBatch(photo, folderNamesForLabel),
+      });
+    }
+  }
+
+  return allLabels;
+}
+
+export async function runMediaOrganize({
+  photos,
+  folders: foldersSnapshot,
+  includeOrganized,
+  customInstructions,
+  onProgress,
+  onPartialSave,
+  userEmail,
+}) {
+  onProgress?.("Preparing…");
+
+  const allPhotoIds = new Set(photos.map((p) => normalizePhotoId(p.id)).filter(Boolean));
+  const uiFolders = foldersSnapshot ?? [];
+  const uiShowsNoFolders = uiFolders.length === 0;
+
+  let apiFolders = [];
+  if (includeOrganized || !uiShowsNoFolders) {
+    onProgress?.("Checking folders…");
+    apiFolders = sanitizeFoldersLocally(
+      await listAllFoldersSafe({ timeoutMs: 8000 }),
+      photos,
+      allPhotoIds,
+    );
+  }
+
+  const liveFolderSource = uiShowsNoFolders ? [] : uiFolders.length ? uiFolders : apiFolders;
+  const folderNamesForLabel = getOrganizeFolderNames(liveFolderSource.map((f) => f.name), includeOrganized);
+  const maxFolderCount = ORGANIZE_BATCH_FOLDER_COUNT;
+
+  const photosToOrganize = includeOrganized
+    ? photos
+    : loosePhotosForOrganize(photos, uiFolders);
+
+  if (photosToOrganize.length === 0) {
+    return {
+      ok: false,
+      reason: includeOrganized
+        ? "No photos to organize."
+        : "No loose photos found in your gallery. Photos already in folders are skipped — check \"Re-organize everything\" to re-sort all media.",
+    };
+  }
+
+  const batchPhotos = photosToOrganize;
+
+  if (includeOrganized && apiFolders.length > 0) {
+    const confirmed = typeof window !== 'undefined' && window.confirm(
+      `Delete all ${apiFolders.length} existing folders and re-sort every photo? Your photos will not be deleted.`,
+    );
+    if (!confirmed) {
+      return { ok: false, reason: 'Re-organize cancelled.' };
+    }
+    onProgress?.("Clearing folders…");
+    await deleteFoldersWithTimeout(apiFolders.map((f) => f.id));
+    apiFolders = [];
+  } else if (apiFolders.length > 0) {
+    apiFolders = await mergeDuplicateFoldersOnServer(apiFolders, {
+      canonicalNames: folderNamesForLabel,
+    });
+  }
+
+  const mergedLiveFolders = dedupeFoldersByNormalizedName(
+    mergeApiFoldersWithLocal(apiFolders, liveFolderSource),
+    folderNamesForLabel,
+  );
+
+  onProgress?.(
+    batchPhotos.length > 1
+      ? `Sorting ${batchPhotos.length} loose items into up to ${maxFolderCount} folders…`
+      : `Sorting ${batchPhotos.length} loose item…`,
+  );
+
+  const validPhotoIds = new Set(batchPhotos.map((p) => normalizePhotoId(p.id)));
+
+  const rawLabels = await buildLabelsFromDescriptions(
+    batchPhotos,
+    folderNamesForLabel,
+    customInstructions,
+    validPhotoIds,
+    onProgress
+  );
+
+  const allLabels = consolidateOrganizeLabels(
+    rawLabels,
+    batchPhotos,
+    folderNamesForLabel,
+    maxFolderCount,
+  );
+
+  onProgress?.("Batch 1/1");
+
+  const liveFolders = includeOrganized ? [] : mergedLiveFolders;
+  const labelByPhotoNormId = new Map(allLabels.map((l) => [l.id, l.folder]));
+
+  const saveResult = await assignLoosePhotosByFolder({
+    photosToAssign: batchPhotos,
+    labelByPhotoNormId,
+    liveFolders,
+    onProgress,
+    onPartialSave,
+    userEmail,
+    galleryPhotos: photos,
+    canonicalFolderNames: folderNamesForLabel,
+    maxFolderCount,
+  });
+
+  const reconcileResult = await reconcileOrganizeBatch({
+    batchPhotos,
+    afterFolders: saveResult.folders,
+    labelByPhotoNormId,
+    userEmail,
+    canonicalFolderNames: folderNamesForLabel,
+  });
+
+  let afterFolders = reconcileResult.folders;
+  let actuallySaved = reconcileResult.totalSaved;
+  let missed = reconcileResult.missed;
+
+  if (missed > 0) {
+    const missedPhotos = batchPhotos.filter(
+      (photo) => getUnorganizedPhotos([photo], afterFolders).length > 0,
+    );
+    if (missedPhotos.length > 0) {
+      afterFolders = await assignLoosePhotosOneByOne({
+        photosToAssign: missedPhotos,
+        labelByPhotoNormId,
+        liveFolders: afterFolders,
+        userEmail,
+        canonicalFolderNames: folderNamesForLabel,
+        maxFolderCount,
+      });
+      const stillMissed = batchPhotos.filter(
+        (photo) => getUnorganizedPhotos([photo], afterFolders).length > 0,
+      );
+      actuallySaved = batchPhotos.length - stillMissed.length;
+      missed = stillMissed.length;
+    }
+  }
+
+  afterFolders = await mergeDuplicateFoldersOnServer(afterFolders, {
+    canonicalNames: folderNamesForLabel,
+  });
+  afterFolders = dedupeFoldersByNormalizedName(afterFolders, folderNamesForLabel);
+
+  let refreshedFolders = sanitizeFoldersLocally(
+    await listAllFoldersSafe({ timeoutMs: 12000 }),
+    photos,
+    allPhotoIds,
+  );
+  refreshedFolders = await mergeDuplicateFoldersOnServer(refreshedFolders, {
+    canonicalNames: folderNamesForLabel,
+  });
+  const membershipMap = userEmail ? loadFolderMembershipCacheSync(userEmail) : {};
+  refreshedFolders = await enforceUniquePhotoMembershipOnServer(refreshedFolders, {
+    canonicalNames: folderNamesForLabel,
+    membershipMap,
+  });
+  afterFolders = dedupeFoldersByNormalizedName(
+    dedupePhotoMembershipInFolderList(
+      mergeApiFoldersWithLocal(refreshedFolders, afterFolders),
+      { membershipMap, canonicalNames: folderNamesForLabel },
+    ),
+    folderNamesForLabel,
+  );
+
+  afterFolders = await pruneEmptyGalleryFolders(afterFolders, photos, { deleteOnServer: true });
+  afterFolders = dedupeFoldersByNormalizedName(afterFolders, folderNamesForLabel);
+
+  const foldersUsedInRun = countFoldersWithPhotos(afterFolders, photos);
+
+  const totalRemainingLoose = getUnorganizedPhotos(photos, afterFolders).length;
+
+  onProgress?.("Done");
+
+  if (actuallySaved === 0 && batchPhotos.length > 0) {
+    return {
+      ok: false,
+      reason: "Organize could not save photos into folders. Pull down to refresh, then try again.",
+    };
+  }
+
+  if (userEmail && actuallySaved > 0) {
+    const entries = [];
+    for (const photo of batchPhotos) {
+      if (getUnorganizedPhotos([photo], afterFolders).length > 0) continue;
+      const folder = afterFolders.find((f) =>
+        (f.photo_ids || []).some((id) => normalizePhotoId(id) === normalizePhotoId(photo.id)),
+      );
+      if (folder) entries.push({ photoId: photo.id, folderId: folder.id });
+    }
+    if (entries.length) void recordBatchFolderMembership(userEmail, entries);
+  }
+
+  return {
+    ok: true,
+    foldersSaved: afterFolders.length,
+    foldersUsedInRun,
+    totalSaved: actuallySaved,
+    totalToOrganize: batchPhotos.length,
+    missed,
+    remainingLoose: totalRemainingLoose,
+    partial: totalRemainingLoose > 0,
+    afterFolders,
+    apiFolders: reconcileResult.apiFolders || afterFolders,
+    photosToOrganize: batchPhotos,
+    labelByPhotoNormId,
+  };
+}

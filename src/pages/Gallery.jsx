@@ -1,6 +1,10 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useLayoutEffect, useMemo } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/lib/AuthContext";
+import { ensureClientSessionToken, hasStoredSessionToken } from "@/lib/session-bootstrap";
+import { loadGalleryData } from "@/lib/gallery-data";
+import { resetAppScrollPosition } from "@/lib/scroll-reset";
 import { Search, Image as ImageIcon, Sparkles, MousePointer2 } from "lucide-react";
 import PullToRefresh from "../components/gallery/PullToRefresh";
 import { Input } from "@/components/ui/input";
@@ -18,6 +22,12 @@ import { DragDropContext } from "@hello-pangea/dnd";
 import { useNavigation } from "../components/NavigationContext";
 import { useTabState } from "../components/TabStateContext";
 import MobileGallery from "../components/gallery/MobileGallery";
+import { setGalleryOrganizeSnapshot, normalizePhotoId } from "@/lib/gallery-organize-snapshot";
+import { fetchGalleryFoldersWithMembership, mergeApiFoldersWithLocal, dedupeFoldersByNormalizedName, dedupePhotoMembershipInFolderList, findCrossFolderPhotoDuplicates, mergeDuplicateFoldersOnServer, enforceUniquePhotoMembershipOnServer, buildFoldersForGalleryView, syncCachedFolderMembershipToServer, pruneEmptyGalleryFolders } from "@/lib/folder-membership";
+import { ORGANIZE_BATCH_FOLDERS, ORGANIZE_BATCH_FOLDER_COUNT, normalizeFolderName } from "@/lib/media-organize";
+import { loadFullFolderSnapshotAsync, loadFolderSnapshotCacheSync, loadFolderMembershipCacheSync, persistGalleryFoldersSync, persistGalleryFoldersFast } from "@/lib/folder-membership-cache";
+import { sanitizeFolderPhotoIds } from "@/lib/gallery-organize-snapshot";
+import "../components/gallery/mobile-gallery-layout.css";
  
 // ---------------------------------------------------------------------------
 // Search helpers
@@ -82,6 +92,8 @@ const CACHE = {
 export default function Gallery() {
   const { pushBack, popBack } = useNavigation();
   const { getTabState, setTabState } = useTabState();
+  const { isAuthenticated, user: authUser } = useAuth();
+  const canFetchData = isAuthenticated || hasStoredSessionToken();
   const isIOS = true;
  
   const saved = getTabState("Gallery") ?? {};
@@ -95,11 +107,37 @@ export default function Gallery() {
   const [selectedFolderIds, setSelectedFolderIds] = useState([]);
   const [isMoving, setIsMoving] = useState(false);
   const queryClient = useQueryClient();
+  const prevPhotoCountRef = useRef(0);
  
   useEffect(() => {
     setTabState("Gallery", { searchQuery, debouncedQuery, selectedFolder });
   }, [searchQuery, debouncedQuery, selectedFolder]);
- 
+
+  useEffect(() => {
+    if (!canFetchData) return;
+    ensureClientSessionToken();
+    const refreshGallery = () => {
+      ensureClientSessionToken();
+      void loadGalleryData(queryClient);
+      resetAppScrollPosition();
+    };
+    void loadGalleryData(queryClient);
+    window.addEventListener('restorebraine-session-updated', refreshGallery);
+    window.addEventListener('restorebraine-native-oauth-complete', refreshGallery);
+    window.addEventListener('restorebraine-gallery-ready', refreshGallery);
+    return () => {
+      window.removeEventListener('restorebraine-session-updated', refreshGallery);
+      window.removeEventListener('restorebraine-native-oauth-complete', refreshGallery);
+      window.removeEventListener('restorebraine-gallery-ready', refreshGallery);
+    };
+  }, [canFetchData, queryClient]);
+
+  useLayoutEffect(() => {
+    if (!canFetchData) return;
+    resetAppScrollPosition();
+    void loadGalleryData(queryClient);
+  }, [canFetchData, queryClient]);
+
   useEffect(() => {
     if (selectedFolder) {
       pushBack(selectedFolder.name, () => {
@@ -117,39 +155,175 @@ export default function Gallery() {
   // currentUser is fetched once and cached — no blocking on re-opens
   const { data: currentUser } = useQuery({
     queryKey: ['current-user'],
-    queryFn: () => base44.auth.me(),
+    queryFn: () => {
+      ensureClientSessionToken();
+      return base44.auth.me();
+    },
+    enabled: canFetchData,
     staleTime: CACHE.user.staleTime,
     gcTime: CACHE.user.gcTime,
-    // Show stale data immediately while re-fetching in background
-    placeholderData: (prev) => prev,
+    placeholderData: (prev) => prev ?? authUser ?? undefined,
+    retry: 2,
+    refetchOnMount: 'always',
   });
- 
+
+  const userEmail = currentUser?.email || authUser?.email;
+
   const { data: photos = [], isLoading: photosLoading } = useQuery({
-    queryKey: ['photos', currentUser?.email],
-    queryFn: () => base44.entities.Photo.filter({ created_by: currentUser.email }, '-created_date'),
-    enabled: !!currentUser?.email,
+    queryKey: ['photos', userEmail ?? 'pending'],
+    queryFn: async () => {
+      ensureClientSessionToken();
+      const me = userEmail ? { email: userEmail } : await base44.auth.me();
+      if (!me?.email) throw new Error('Gallery requires signed-in user');
+      return base44.entities.Photo.filter({ created_by: me.email }, '-created_date');
+    },
+    enabled: canFetchData,
     staleTime: CACHE.photos.staleTime,
     gcTime: CACHE.photos.gcTime,
-    // Keep showing previous data while new data loads — no blank flash
-    placeholderData: (prev) => prev,
-    initialData: [],
+    retry: 2,
+    refetchOnMount: 'always',
   });
- 
+
   const { data: folders = [] } = useQuery({
-    queryKey: ['folders', currentUser?.email],
+    queryKey: ['folders', userEmail ?? 'pending'],
     queryFn: async () => {
-      const result = await base44.entities.Folder.list('-created_date', 200);
-      return (result || []).filter(f => !f.created_by || f.created_by === currentUser.email);
+      ensureClientSessionToken();
+      const me = userEmail ? { email: userEmail } : await base44.auth.me();
+      if (!me?.email) throw new Error('Gallery requires signed-in user');
+      const photosData =
+        queryClient.getQueryData(['photos', me.email]) ??
+        (await base44.entities.Photo.filter({ created_by: me.email }, '-created_date'));
+      const snapshot = await loadFullFolderSnapshotAsync(me.email);
+      const fetched = await fetchGalleryFoldersWithMembership(me.email, photosData || []);
+      return dedupeFoldersByNormalizedName(
+        mergeApiFoldersWithLocal(fetched, snapshot),
+        ORGANIZE_BATCH_FOLDERS,
+      );
     },
-    enabled: !!currentUser?.email,
+    enabled: canFetchData && !!userEmail,
     staleTime: CACHE.folders.staleTime,
     gcTime: CACHE.folders.gcTime,
-    placeholderData: (prev) => prev,
-    initialData: [],
+    placeholderData: (previousData) => {
+      if (previousData?.length) return previousData;
+      if (!userEmail) return [];
+      const snapshot = loadFolderSnapshotCacheSync(userEmail);
+      return snapshot.length ? snapshot : [];
+    },
+    retry: 2,
+    refetchOnMount: 'always',
   });
- 
+
+  useEffect(() => {
+    if (!userEmail || !canFetchData) return;
+    loadFullFolderSnapshotAsync(userEmail).then((snapshot) => {
+      if (!snapshot.length) return;
+      queryClient.setQueryData(['folders', userEmail], (prev) =>
+        dedupeFoldersByNormalizedName(
+          mergeApiFoldersWithLocal(prev ?? [], snapshot),
+          ORGANIZE_BATCH_FOLDERS,
+        ),
+      );
+    });
+  }, [userEmail, canFetchData, queryClient]);
+
+  useEffect(() => {
+    if (!userEmail || !canFetchData) return;
+    queryClient.invalidateQueries({ queryKey: ['photos', userEmail] });
+  }, [userEmail, canFetchData, queryClient]);
+
   // Only show the loading spinner on the very first load (no cached data yet)
   const isLoading = photosLoading && photos.length === 0;
+
+  /** Align folder photo_ids with Photo.id values and cached membership. */
+  const foldersForGallery = useMemo(
+    () => buildFoldersForGalleryView(folders, photos, { userEmail }),
+    [folders, photos, userEmail],
+  );
+
+  useEffect(() => {
+    if (!userEmail || photos.length === 0) return;
+    if (photos.length > prevPhotoCountRef.current) {
+      queryClient.invalidateQueries({ queryKey: ['folders', userEmail] });
+    }
+    prevPhotoCountRef.current = photos.length;
+  }, [photos.length, userEmail, queryClient]);
+
+  useEffect(() => {
+    if (!userEmail || !photos.length || !foldersForGallery.length) return;
+    void syncCachedFolderMembershipToServer(foldersForGallery, photos);
+  }, [foldersForGallery, photos, userEmail]);
+
+  useEffect(() => {
+    if (!userEmail || folders.length === 0) return;
+    const keys = folders.map((folder) =>
+      normalizeFolderName(folder.name, ORGANIZE_BATCH_FOLDERS).toLowerCase(),
+    );
+    const hasDuplicateNames = new Set(keys).size !== keys.length;
+    const hasDuplicatePhotos = findCrossFolderPhotoDuplicates(folders).length > 0;
+    const hasEmptyFolders = photos.length > 0 && folders.some(
+      (folder) => sanitizeFolderPhotoIds(folder.photo_ids, photos).length === 0,
+    );
+    if (!hasDuplicateNames && !hasDuplicatePhotos && folders.length <= ORGANIZE_BATCH_FOLDER_COUNT && !hasEmptyFolders) return;
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        let merged = await mergeDuplicateFoldersOnServer(folders, {
+          canonicalNames: ORGANIZE_BATCH_FOLDERS,
+        });
+        if (hasDuplicatePhotos) {
+          merged = await enforceUniquePhotoMembershipOnServer(merged, {
+            canonicalNames: ORGANIZE_BATCH_FOLDERS,
+            membershipMap: loadFolderMembershipCacheSync(userEmail),
+          });
+        }
+        let deduped = dedupeFoldersByNormalizedName(
+          dedupePhotoMembershipInFolderList(merged, {
+            membershipMap: loadFolderMembershipCacheSync(userEmail),
+            canonicalNames: ORGANIZE_BATCH_FOLDERS,
+          }),
+          ORGANIZE_BATCH_FOLDERS,
+        );
+        if (photos.length > 0) {
+          deduped = await pruneEmptyGalleryFolders(deduped, photos, { deleteOnServer: true });
+          deduped = dedupeFoldersByNormalizedName(deduped, ORGANIZE_BATCH_FOLDERS);
+        }
+        if (cancelled) return;
+        const prevKeys = keys.join('|');
+        const nextKeys = deduped.map((folder) =>
+          normalizeFolderName(folder.name, ORGANIZE_BATCH_FOLDERS).toLowerCase(),
+        ).join('|');
+        if (deduped.length === folders.length && prevKeys === nextKeys && !hasDuplicatePhotos && !hasEmptyFolders) return;
+        queryClient.setQueryData(['folders', userEmail], deduped);
+        persistGalleryFoldersSync(userEmail, deduped, { replace: true });
+        void persistGalleryFoldersFast(userEmail, deduped, { replace: true });
+      } catch (error) {
+        console.warn('Background folder merge failed:', error);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [folders, photos, userEmail, queryClient]);
+
+  useEffect(() => {
+    setGalleryOrganizeSnapshot({ photos, folders: foldersForGallery });
+  }, [photos, foldersForGallery]);
+
+  useEffect(() => {
+    if (!selectedFolder?.id) return;
+    const fresh = foldersForGallery.find((folder) => folder.id === selectedFolder.id);
+    if (!fresh) {
+      setSelectedFolder(null);
+      return;
+    }
+    const prevNorm = (selectedFolder.photo_ids || []).map(normalizePhotoId).sort().join(',');
+    const nextNorm = (fresh.photo_ids || []).map(normalizePhotoId).sort().join(',');
+    if (prevNorm !== nextNorm || selectedFolder.name !== fresh.name) {
+      setSelectedFolder(fresh);
+    }
+  }, [foldersForGallery, selectedFolder?.id]);
  
   // Auto-update folders without cover photos
   useEffect(() => {
@@ -192,10 +366,12 @@ export default function Gallery() {
     return () => clearTimeout(timer);
   }, [searchQuery]);
  
-  const photosInFolders = new Set(folders.flatMap(f => f.photo_ids || []));
+  const photosInFolders = new Set(
+    foldersForGallery.flatMap((f) => (f.photo_ids || []).map(normalizePhotoId)),
+  );
   const availablePhotos = debouncedQuery
     ? photos
-    : photos.filter(p => !photosInFolders.has(p.id));
+    : photos.filter((p) => p?.id != null && !photosInFolders.has(normalizePhotoId(p.id)));
  
   const filteredPhotos = debouncedQuery
     ? availablePhotos
@@ -206,10 +382,10 @@ export default function Gallery() {
     : availablePhotos;
  
   const filteredFolders = debouncedQuery
-    ? folders.filter(folder =>
+    ? foldersForGallery.filter(folder =>
         folder.name.toLowerCase().includes(debouncedQuery.toLowerCase().trim())
       )
-    : folders;
+    : foldersForGallery;
  
   const toggleSelect = (id) => {
     setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
@@ -272,11 +448,12 @@ export default function Gallery() {
  
   const handleRemoveFromFolder = async () => {
     if (!selectedFolder || selectedIds.length === 0) return;
+    const liveFolder = foldersForGallery.find((f) => f.id === selectedFolder.id) || selectedFolder;
     setIsMoving(true);
     try {
-      const updatedIds = selectedFolder.photo_ids.filter(id => !selectedIds.includes(id));
-      await base44.entities.Folder.update(selectedFolder.id, { photo_ids: updatedIds });
-      setSelectedFolder({ ...selectedFolder, photo_ids: updatedIds });
+      const updatedIds = (liveFolder.photo_ids || []).filter((id) => !selectedIds.includes(id));
+      await base44.entities.Folder.update(liveFolder.id, { photo_ids: updatedIds });
+      setSelectedFolder({ ...liveFolder, photo_ids: updatedIds });
       queryClient.invalidateQueries({ queryKey: ['folders'] });
       setSelectedIds([]);
       setSelectionMode(false);
@@ -308,19 +485,29 @@ export default function Gallery() {
     }
   };
  
-  // Pull-to-refresh forces a fresh fetch bypassing the cache
+  // Pull-to-refresh — refetch gallery data; always completes so spinner clears
   const handleRefresh = async () => {
-    await queryClient.invalidateQueries({ queryKey: ['photos'] });
-    await queryClient.invalidateQueries({ queryKey: ['folders'] });
-    await queryClient.invalidateQueries({ queryKey: ['current-user'] });
+    window.dispatchEvent(new Event("restorebraine-gallery-refresh"));
+    if (!userEmail) return;
+
+    await Promise.race([
+      Promise.all([
+        queryClient.refetchQueries({ queryKey: ["photos", userEmail] }),
+        queryClient.refetchQueries({ queryKey: ["folders", userEmail] }),
+      ]).catch((error) => {
+        console.warn("Gallery refetch failed:", error);
+      }),
+      new Promise((resolve) => setTimeout(resolve, 8000)),
+    ]);
   };
  
   if (isIOS) {
     return (
       <PullToRefresh onRefresh={handleRefresh}>
+        <div className="rb-mobile-gallery-shell">
         <MobileGallery
           photos={photos}
-          folders={folders}
+          folders={foldersForGallery}
           isLoading={isLoading}
           filteredPhotos={filteredPhotos}
           filteredFolders={filteredFolders}
@@ -343,6 +530,7 @@ export default function Gallery() {
           onDeletePhotos={handleDeletePhotos}
           onMoveToFolder={handleMoveToFolder}
         />
+        </div>
       </PullToRefresh>
     );
   }
@@ -363,7 +551,7 @@ export default function Gallery() {
  
           {photos.length >= 2 && (
             <div className="mt-6 flex justify-center gap-3 flex-wrap">
-              <OrganizeButton photos={photos} />
+              <OrganizeButton photos={photos} folders={foldersForGallery} />
               <CustomFolderButton photos={photos} />
               <DuplicateDetector photos={photos} folders={folders} />
               <Button

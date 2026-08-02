@@ -58,5 +58,11 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>Restorebraine uses the camera when you choose Take Photo or Take Video while adding memories. Your photo or video is saved to your Restorebraine library so you can search and organize it with AI.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Restorebraine accesses photos and videos you select from your library so you can upload them to your memory collection, organize them into folders, and search them with AI.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Restorebraine can save exported memories back to your photo library when you choose to download or save an item.</string>
 </dict>
 </plist>

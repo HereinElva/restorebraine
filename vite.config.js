@@ -9,10 +9,27 @@ export default defineConfig(({ mode }) => {
   return {
     // Required for Capacitor — absolute /assets/ paths cause a white screen in the WebView.
     base: './',
+    define: {
+      __RESTOREBRAINE_NATIVE_LOCAL__: JSON.stringify(process.env.NATIVE_LOCAL === '1'),
+    },
     plugins: [
       mode === 'development' && visualEditPlugin(),
       react(),
       errorOverlayPlugin(),
+      {
+        name: 'capacitor-strip-crossorigin',
+        apply: 'build',
+        transformIndexHtml(html) {
+          let out = html.replace(/\s+crossorigin(?:="[^"]*")?/g, '');
+          // Bundled capacitor:// does not need hosted-only redirect scripts (can block boot)
+          if (process.env.NATIVE_LOCAL === '1') {
+            return out
+              .replace(/<script src="\.\/native-oauth-return\.js"><\/script>\s*/g, '')
+              .replace(/<script src="\.\/login-redirect\.js"><\/script>\s*/g, '');
+          }
+          return out;
+        },
+      },
       {
         name: 'iframe-hmr',
         configureServer(server) {

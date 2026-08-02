@@ -1,6 +1,6 @@
 import { isNativeShell } from '@/lib/native-hosted-redirect';
 import { getAuthReturnOrigin } from '@/lib/app-domains';
-import { BASE44_APP_ID, BASE44_PLATFORM_URL } from '@/lib/native-platform-guard';
+import { BASE44_APP_ID, BASE44_PLATFORM_URL, getGoogleOAuthUrl } from '@/lib/native-platform-guard';
 
 export { RESTOREBRAINE_FROM_URL, getGoogleOAuthUrl } from '@/lib/native-platform-guard';
 export { getAuthReturnOrigin } from '@/lib/app-domains';
@@ -21,20 +21,24 @@ export const getPlatformLoginUrl = (fromUrl) => {
 
 export const getRestorebraineLoginUrl = getPlatformLoginUrl;
 
-/** Open Restorebraine login — never the broken custom-domain /login route. */
+/** Native: Google OAuth in system browser (required by Google). Web: platform login page. */
 export const openRestorebraineLogin = () => {
   if (typeof window === 'undefined') return;
 
-  const url = getPlatformLoginUrl();
-
-  if (isNativeShell()) {
-    import('@/lib/native-google-oauth').then(({ openLoginInSystemBrowser }) => {
-      openLoginInSystemBrowser(url);
-    });
+  // AppDelegate bridge (hosted + bundled Capacitor) — must run synchronously on tap (iOS user gesture)
+  if (typeof window.__restorebraineOpenLogin === 'function') {
+    window.__restorebraineOpenLogin();
     return;
   }
 
-  window.location.href = url;
+  if (isNativeShell()) {
+    void import('@/lib/native-google-oauth')
+      .then(({ openLoginInSystemBrowser }) => openLoginInSystemBrowser(getGoogleOAuthUrl(), 'google'))
+      .catch((error) => console.error('Sign In failed — could not open OAuth browser', error));
+    return;
+  }
+
+  window.location.href = getPlatformLoginUrl();
 };
 
 /** If the user lands on /login on a custom domain, escape the broken platform page. */

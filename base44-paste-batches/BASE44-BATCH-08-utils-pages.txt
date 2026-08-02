@@ -1,0 +1,736 @@
+# Base44 AI — apply batch 8/8: Utils, hooks, remaining pages
+
+Write EVERY file below into the Restorebraine Base44 code editor at the exact path shown.
+Do NOT Publish until batch 8 is done — user will Publish once after all batches.
+
+For each FILE block:
+1. Open or create that path in the code editor
+2. Replace entire file contents with the code below
+3. Save
+
+1. src/utils/index.ts
+2. src/lib/utils.js
+3. src/hooks/use-mobile.jsx
+4. src/pages/Account.jsx
+5. src/pages/Home.jsx
+6. src/pages/PrivacyPolicy.jsx
+7. src/pages/PaymentSuccess.jsx
+8. src/lib/gallery-nav.js
+9. src/lib/app-params.js
+10. src/lib/capacitor-ready.js
+11. src/lib/persistentStorage.js
+12. src/lib/forceLogout.js
+
+========================================================================
+FILE: src/utils/index.ts
+========================================================================
+
+
+
+export function createPageUrl(pageName: string) {
+    return '/' + pageName.toLowerCase().replace(/ /g, '-');
+}
+
+========================================================================
+FILE: src/lib/utils.js
+========================================================================
+import { clsx } from "clsx"
+import { twMerge } from "tailwind-merge"
+
+export function cn(...inputs) {
+  return twMerge(clsx(inputs))
+} 
+
+
+export const isIframe = window.self !== window.top;
+
+
+========================================================================
+FILE: src/hooks/use-mobile.jsx
+========================================================================
+import * as React from "react"
+
+const MOBILE_BREAKPOINT = 768
+
+export function useIsMobile() {
+  const [isMobile, setIsMobile] = React.useState(undefined)
+
+  React.useEffect(() => {
+    const mql = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`)
+    const onChange = () => {
+      setIsMobile(window.innerWidth < MOBILE_BREAKPOINT)
+    }
+    mql.addEventListener("change", onChange)
+    setIsMobile(window.innerWidth < MOBILE_BREAKPOINT)
+    return () => mql.removeEventListener("change", onChange);
+  }, [])
+
+  return !!isMobile
+}
+
+
+========================================================================
+FILE: src/pages/Account.jsx
+========================================================================
+import React, { useState, useEffect } from "react";
+import { base44 } from "@/api/base44Client";
+import { useAuth } from "@/lib/AuthContext";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Button } from "@/components/ui/button";
+import { ArrowLeft, Trash2, AlertTriangle, LogOut } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { useNavigation } from "@/components/NavigationContext";
+import { navigateToGallery } from "@/lib/gallery-nav";
+import { revokeAiUploadConsent, hasAiUploadConsent } from "@/lib/ai-upload-consent";
+
+export default function Account() {
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showLogoutDialog, setShowLogoutDialog] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const { popBack } = useNavigation();
+  const { localLogout, resumeActiveSession } = useAuth();
+  const [consentGranted, setConsentGranted] = useState(() => hasAiUploadConsent());
+
+  const { data: user } = useQuery({
+    queryKey: ['user'],
+    queryFn: () => base44.auth.me(),
+  });
+
+  useEffect(() => {
+    popBack();
+  }, [popBack]);
+
+  const handleLogout = async () => {
+    queryClient.clear();
+    if (typeof window !== 'undefined' && window.__restorebrainePerformSignOut) {
+      window.__restorebrainePerformSignOut();
+      return;
+    }
+    await localLogout();
+  };
+
+  const goToGallery = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.nativeEvent?.stopImmediatePropagation) {
+      e.nativeEvent.stopImmediatePropagation();
+    }
+    navigateToGallery(navigate, { popBack, resumeActiveSession });
+  };
+
+  const handleDeleteAccount = async () => {
+    setIsDeleting(true);
+    try {
+      const photos = await base44.entities.Photo.list();
+      await Promise.all(photos.map(photo => base44.entities.Photo.delete(photo.id)));
+      const folders = await base44.entities.Folder.list();
+      await Promise.all(folders.map(folder => base44.entities.Folder.delete(folder.id)));
+      handleLogout();
+    } catch (error) {
+      alert("Failed to delete account. Please try again.");
+      setIsDeleting(false);
+    }
+  };
+
+  return (
+    <div className="relative z-0 min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 py-12 pb-36">
+      <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8">
+        <Button
+          type="button"
+          variant="ghost"
+          className="mb-6"
+          data-rb-gallery-nav
+          onClick={goToGallery}
+          onTouchEnd={(e) => e.stopPropagation()}
+        >
+          <ArrowLeft className="w-4 h-4 mr-2" />
+          Back to Gallery
+        </Button>
+        <div className="bg-white rounded-2xl shadow-lg p-8">
+          <h1 className="text-3xl font-bold text-gray-900 mb-6">Account Settings</h1>
+          {user && (
+            <div className="mb-8 p-4 bg-purple-50 rounded-lg">
+              <p className="text-sm text-gray-600 mb-1">Email</p>
+              <p className="font-medium text-gray-900">{user.email}</p>
+            </div>
+          )}
+          <div className="mb-6 p-4 bg-gray-50 border border-gray-200 rounded-lg flex items-center justify-between gap-4">
+            <div className="min-w-0">
+              <h3 className="font-semibold text-gray-900">AI upload consent</h3>
+              <p className="text-sm text-gray-600 mt-0.5">
+                {consentGranted
+                  ? "You agreed to send uploads to OpenAI for search tags."
+                  : "Not granted — you will be asked before your first upload."}
+              </p>
+            </div>
+            {consentGranted && (
+              <Button
+                type="button"
+                variant="outline"
+                className="flex-shrink-0"
+                onClick={() => {
+                  revokeAiUploadConsent();
+                  setConsentGranted(false);
+                }}
+              >
+                Revoke
+              </Button>
+            )}
+          </div>
+          <div data-rb-sign-out-row className="mb-6 p-4 bg-gray-50 border border-gray-200 rounded-lg flex items-center justify-between gap-4">
+            <div className="min-w-0">
+              <h3 className="font-semibold text-gray-900">Sign Out</h3>
+              <p className="text-sm text-gray-600 mt-0.5">Sign out of your Restorebraine account</p>
+            </div>
+            <Button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowLogoutDialog(true);
+              }}
+              variant="outline"
+              className="gap-2 border-gray-300 flex-shrink-0"
+            >
+              <LogOut className="w-4 h-4" />
+              Sign Out
+            </Button>
+          </div>
+          <div className="border-t pt-8">
+            <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-red-500" />
+              Danger Zone
+            </h2>
+            <div className="bg-red-50 border border-red-200 rounded-lg p-6">
+              <h3 className="font-semibold text-gray-900 mb-2">Delete Account</h3>
+              <p className="text-sm text-gray-600 mb-4">Permanently delete your account and all associated data. This cannot be undone.</p>
+              <Button onClick={() => setShowDeleteDialog(true)} variant="destructive" className="gap-2">
+                <Trash2 className="w-4 h-4" />
+                Delete My Account
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <AlertDialog open={showLogoutDialog} onOpenChange={setShowLogoutDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Sign out?</AlertDialogTitle>
+            <AlertDialogDescription>
+              You will need to sign in again to access your photos and folders.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleLogout} className="bg-gray-900 hover:bg-gray-800">
+              Sign Out
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+            <AlertDialogDescription>This will permanently delete your account and all your photos, videos, and folders.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteAccount} disabled={isDeleting} className="bg-red-600 hover:bg-red-700">
+              {isDeleting ? "Deleting..." : "Delete Account"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}
+
+
+========================================================================
+FILE: src/pages/Home.jsx
+========================================================================
+// Placeholder file, this should be overridden by the generated code
+
+
+export default function Home() {
+
+  return (
+    <div>
+    </div>
+  );
+}
+
+========================================================================
+FILE: src/pages/PrivacyPolicy.jsx
+========================================================================
+import React from "react";
+import { ArrowLeft } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+
+export default function PrivacyPolicy() {
+  const navigate = useNavigate();
+
+  return (
+    <div className="min-h-screen pb-20">
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 pt-12">
+        <button
+          type="button"
+          onClick={() => navigate('/')}
+          className="inline-flex items-center gap-2 text-purple-600 hover:text-purple-700 mb-8"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Back to Gallery
+        </button>
+
+        <h1 className="text-4xl font-bold text-gray-900 mb-2">Privacy Policy</h1>
+        <p className="text-gray-500 mb-8">Last Updated: December 3, 2025</p>
+
+        <div className="prose prose-gray max-w-none space-y-8">
+          <section>
+            <h2 className="text-xl font-semibold text-gray-900 mb-3">What We Collect</h2>
+            <ul className="list-disc list-inside text-gray-600 space-y-2">
+              <li>Photos and videos you upload</li>
+              <li>AI-generated descriptions and tags of your media</li>
+              <li>Basic account information (email, name)</li>
+            </ul>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-semibold text-gray-900 mb-3">How We Use Your Data</h2>
+            <ul className="list-disc list-inside text-gray-600 space-y-2">
+              <li>To store and organize your media</li>
+              <li>To analyze content with AI for searchability</li>
+              <li>To process payments via Stripe</li>
+            </ul>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-semibold text-gray-900 mb-3">Data Sharing</h2>
+            <ul className="list-disc list-inside text-gray-600 space-y-2">
+              <li>We do not sell your data</li>
+              <li>Media is analyzed by AI services to generate descriptions</li>
+              <li>Payment processing is handled securely by Stripe</li>
+            </ul>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-semibold text-gray-900 mb-3">Data Security</h2>
+            <ul className="list-disc list-inside text-gray-600 space-y-2">
+              <li>Your files are stored securely</li>
+              <li>Only you can access your uploaded media</li>
+            </ul>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-semibold text-gray-900 mb-3">Your Rights</h2>
+            <ul className="list-disc list-inside text-gray-600 space-y-2">
+              <li>You can delete your media at any time</li>
+              <li>Contact us to request account deletion</li>
+            </ul>
+          </section>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+========================================================================
+FILE: src/pages/PaymentSuccess.jsx
+========================================================================
+import React, { useEffect, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { createPageUrl } from "@/utils";
+import { CheckCircle, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { base44 } from "@/api/base44Client";
+
+export default function PaymentSuccess() {
+  const [loading, setLoading] = useState(true);
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const updatePaidTier = async () => {
+      try {
+        const sessionId = searchParams.get('session_id');
+        if (sessionId) {
+          // Verify payment and update paid tier
+          const response = await base44.functions.invoke('verifyPayment', { sessionId });
+          if (response.data.success) {
+            await queryClient.invalidateQueries({ queryKey: ['current-user'] });
+            setLoading(false);
+          } else {
+            setLoading(false);
+          }
+        } else {
+          setLoading(false);
+        }
+      } catch (error) {
+        console.error('Error verifying payment:', error);
+        setLoading(false);
+      }
+    };
+
+    updatePaidTier();
+  }, [searchParams]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
+        <div className="text-center">
+          <Loader2 className="w-12 h-12 animate-spin text-purple-500 mx-auto mb-4" />
+          <p className="text-gray-600">Verifying payment...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 p-4">
+      <div className="max-w-md w-full bg-white rounded-3xl shadow-2xl p-8 text-center">
+        <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
+          <CheckCircle className="w-10 h-10 text-green-600" />
+        </div>
+        
+        <h1 className="text-3xl font-bold text-gray-900 mb-3">
+          Payment Successful!
+        </h1>
+        
+        <p className="text-gray-600 mb-8">
+          Your storage has been upgraded. You can now continue uploading your photos and videos.
+        </p>
+
+        <div className="space-y-3">
+          <Button
+            onClick={() => navigate(createPageUrl("Upload"))}
+            className="w-full bg-gradient-to-r from-blue-400 to-purple-500 hover:from-blue-500 hover:to-purple-600 text-white"
+          >
+            Continue Uploading
+          </Button>
+          
+          <Button
+            variant="outline"
+            onClick={() => navigate(createPageUrl("Gallery"))}
+            className="w-full"
+          >
+            Go to Gallery
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+========================================================================
+FILE: src/lib/gallery-nav.js
+========================================================================
+import { base44 } from '@/api/base44Client';
+import { createPageUrl } from '@/utils';
+import { persistSessionToNativeStorage } from '@/lib/session-bootstrap';
+
+export const GALLERY_PATH = createPageUrl('Gallery');
+const SIGNED_OUT_KEY = 'b44_signed_out';
+
+export function isGalleryPath(pathname = '') {
+  const path = pathname.toLowerCase();
+  return path === '/' || path === GALLERY_PATH;
+}
+
+export async function persistActiveSession() {
+  const token =
+    localStorage.getItem('base44_access_token') || localStorage.getItem('token');
+  if (!token) return null;
+
+  try {
+    localStorage.removeItem(SIGNED_OUT_KEY);
+    base44.auth.setToken(token, false);
+    await persistSessionToNativeStorage(token);
+  } catch {
+    // Keep navigation working even if persistence fails
+  }
+
+  return token;
+}
+
+export async function navigateToGallery(navigate, { popBack, resumeActiveSession } = {}) {
+  popBack?.();
+  await persistActiveSession();
+  if (resumeActiveSession) {
+    await resumeActiveSession();
+  }
+  navigate(GALLERY_PATH, { replace: true });
+}
+
+
+========================================================================
+FILE: src/lib/app-params.js
+========================================================================
+/**
+ * app-params.js
+ *
+ * Reads app configuration from URL params or persistent storage.
+ * Uses Capacitor Preferences (native) when available so the auth token
+ * survives app closes and relaunches. Falls back to localStorage in browser.
+ */
+
+import { persistentStorage } from './persistentStorage';
+import { DEFAULT_APP_ORIGIN, getAppOrigin } from './app-domains';
+
+const isNode = typeof window === 'undefined';
+
+const toSnakeCase = (str) => str.replace(/([A-Z])/g, '_$1').toLowerCase();
+
+const STORAGE_PREFIX = 'base44_';
+
+export const BASE44_APP_ID = '68fdc5f42768c4d045fe1bac';
+export const BASE44_API_URL = 'https://base44.app';
+export { getAppOrigin, getAppOrigin as getRestorebraineAppUrl, getAuthReturnOrigin, DEFAULT_APP_ORIGIN, isAppHost } from './app-domains';
+/** Resolved once at module load in the browser — prefer getAppOrigin() for dynamic reads. */
+export const RESTOREBRAINE_APP_URL = isNode ? DEFAULT_APP_ORIGIN : getAppOrigin();
+
+const getAppParamValueSync = (paramName, { defaultValue = undefined, removeFromUrl = false } = {}) => {
+  if (isNode) return defaultValue;
+
+  if (paramName === 'app_id') return BASE44_APP_ID;
+  if (paramName === 'server_url') return BASE44_API_URL;
+
+  const storageKey = `${STORAGE_PREFIX}${toSnakeCase(paramName)}`;
+  const urlParams = new URLSearchParams(window.location.search);
+  const searchParam = urlParams.get(paramName);
+
+  if (removeFromUrl && searchParam) {
+    urlParams.delete(paramName);
+    const newUrl = `${window.location.pathname}${urlParams.toString() ? `?${urlParams.toString()}` : ''}${window.location.hash}`;
+    window.history.replaceState({}, document.title, newUrl);
+  }
+
+  if (searchParam) {
+    persistentStorage.set(storageKey, searchParam);
+    return searchParam;
+  }
+
+  if (defaultValue) {
+    return defaultValue;
+  }
+
+  if (paramName === "access_token" && localStorage.getItem("base44_logged_out") === "true") return null;
+  return persistentStorage.getSync(storageKey);
+};
+
+const getAppParams = () => {
+  return {
+    appId: getAppParamValueSync('app_id', { defaultValue: BASE44_APP_ID }),
+    serverUrl: getAppParamValueSync('server_url', { defaultValue: BASE44_API_URL }),
+    token: getAppParamValueSync('access_token', { removeFromUrl: true }),
+    fromUrl: getAppParamValueSync('from_url', { defaultValue: isNode ? '' : window.location.href }),
+    functionsVersion: getAppParamValueSync('functions_version'),
+  };
+};
+
+export const appParams = {
+  ...getAppParams(),
+};
+
+export const clearPersistedToken = async () => {
+  appParams.token = null;
+  await persistentStorage.remove(`${STORAGE_PREFIX}access_token`);
+  await persistentStorage.remove('token');
+};
+
+
+========================================================================
+FILE: src/lib/capacitor-ready.js
+========================================================================
+/** Wait until Capacitor native plugins are callable (bridge can be late on cold start). */
+export function waitForCapacitorBridge(timeoutMs = 8000) {
+  if (typeof window === 'undefined') return Promise.resolve(false);
+
+  return new Promise((resolve) => {
+    const started = Date.now();
+
+    const ready = () => {
+      try {
+        if (!window.Capacitor?.isNativePlatform?.()) return true;
+        return Boolean(window.Capacitor?.Plugins?.App || window.Capacitor?.Plugins?.Preferences);
+      } catch {
+        return false;
+      }
+    };
+
+    if (ready()) {
+      resolve(true);
+      return;
+    }
+
+    const tick = () => {
+      if (ready()) {
+        resolve(true);
+        return;
+      }
+      if (Date.now() - started >= timeoutMs) {
+        console.warn('Capacitor bridge not ready before timeout — continuing with localStorage fallbacks');
+        resolve(false);
+        return;
+      }
+      requestAnimationFrame(tick);
+    };
+
+    tick();
+  });
+}
+
+export function withTimeout(promise, timeoutMs, label = 'operation') {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      setTimeout(() => reject(new Error(`${label} timed out after ${timeoutMs}ms`)), timeoutMs);
+    }),
+  ]);
+}
+
+
+========================================================================
+FILE: src/lib/persistentStorage.js
+========================================================================
+/**
+ * persistentStorage.js
+ *
+ * A drop-in replacement for localStorage that uses Capacitor's Preferences
+ * plugin when running as a native app. This survives app closes and relaunches.
+ *
+ * Falls back to localStorage automatically when running in a browser.
+ */
+
+// Detect if we're running inside Capacitor
+const isCapacitor = () => {
+  return typeof window !== 'undefined' && window.Capacitor?.isNativePlatform?.();
+};
+
+// Lazily import Capacitor Preferences so the web build doesn't break
+let _Preferences = null;
+async function getPreferences() {
+  if (_Preferences) return _Preferences;
+  try {
+    const mod = await import('@capacitor/preferences');
+    _Preferences = mod.Preferences;
+    return _Preferences;
+  } catch {
+    return null;
+  }
+}
+
+export const persistentStorage = {
+  /**
+   * Get a value by key. Returns null if not found.
+   */
+  async get(key) {
+    if (isCapacitor()) {
+      const Preferences = await getPreferences();
+      if (Preferences) {
+        try {
+          const result = await Promise.race([
+            Preferences.get({ key }),
+            new Promise((_, reject) => {
+              setTimeout(() => reject(new Error('Preferences.get timeout')), 3000);
+            }),
+          ]);
+          return result?.value ?? null;
+        } catch (error) {
+          console.warn(`persistentStorage.get(${key}) fallback to localStorage`, error);
+        }
+      }
+    }
+    // Fallback to localStorage
+    try {
+      return window.localStorage.getItem(key);
+    } catch {
+      return null;
+    }
+  },
+
+  /**
+   * Set a value by key.
+   */
+  async set(key, value) {
+    if (isCapacitor()) {
+      const Preferences = await getPreferences();
+      if (Preferences) {
+        await Preferences.set({ key, value: String(value) });
+        return;
+      }
+    }
+    try {
+      window.localStorage.setItem(key, value);
+    } catch {}
+  },
+
+  /**
+   * Remove a value by key.
+   */
+  async remove(key) {
+    if (isCapacitor()) {
+      const Preferences = await getPreferences();
+      if (Preferences) {
+        await Preferences.remove({ key });
+        return;
+      }
+    }
+    try {
+      window.localStorage.removeItem(key);
+    } catch {}
+  },
+
+  /**
+   * Synchronous get — for code that can't use async (uses localStorage only).
+   * In Capacitor this will return the last value written via set(),
+   * which we mirror into localStorage so it's always available synchronously.
+   */
+  getSync(key) {
+    try {
+      return window.localStorage.getItem(key);
+    } catch {
+      return null;
+    }
+  },
+
+  /**
+   * Mirror a value into localStorage so getSync() works.
+   * Called automatically by set().
+   */
+  _mirror(key, value) {
+    try {
+      if (value == null) {
+        window.localStorage.removeItem(key);
+      } else {
+        window.localStorage.setItem(key, value);
+      }
+    } catch {}
+  },
+};
+
+// Override set to also mirror into localStorage for sync access
+const _originalSet = persistentStorage.set.bind(persistentStorage);
+persistentStorage.set = async (key, value) => {
+  persistentStorage._mirror(key, value);
+  await _originalSet(key, value);
+};
+
+const _originalRemove = persistentStorage.remove.bind(persistentStorage);
+persistentStorage.remove = async (key) => {
+  persistentStorage._mirror(key, null);
+  await _originalRemove(key);
+};
+
+
+========================================================================
+FILE: src/lib/forceLogout.js
+========================================================================
+// Clear all auth tokens on launch so user can log in fresh
+try {
+  Object.keys(localStorage)
+    .filter(k => k.includes('base44'))
+    .forEach(k => localStorage.removeItem(k));
+} catch {}

@@ -1,15 +1,18 @@
 import { writeFileSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { spawnSync } from 'node:child_process';
 
-const BUILD_NUMBER = 80;
+const BUILD_NUMBER = 107;
+const OMEGA_ARCHIVE = 'Omega 7';
 const stamp = new Date().toISOString().slice(0, 16).replace('T', ' ');
-const nativeLabel = `kbrown native v${BUILD_NUMBER} · ${stamp}`;
+const nativeLabel = `kbrown native v${BUILD_NUMBER} · ${OMEGA_ARCHIVE} · ${stamp}`;
 const webLabel = `restorebraine web v${BUILD_NUMBER}`;
 
 writeFileSync(
   resolve('src/lib/build-info.js'),
   `export const BASE44_APP_ID = '68fdc5f42768c4d045fe1bac';
 export const BUILD_NUMBER = ${BUILD_NUMBER};
+export const OMEGA_ARCHIVE = '${OMEGA_ARCHIVE}';
 export const NATIVE_BUILD_LABEL = '${nativeLabel}';
 export const WEB_BUILD_LABEL = '${webLabel}';
 `
@@ -33,4 +36,5 @@ writeFileSync(
 
 console.log(`Wrote build stamp: ${nativeLabel}`);
 console.log(`Web build label: ${webLabel}`);
+spawnSync('node', ['scripts/sync-ghost-builds-native.mjs'], { stdio: 'inherit' });
 console.log('Run: node scripts/print-base44-publish-hint.mjs');

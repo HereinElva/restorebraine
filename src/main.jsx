@@ -1,6 +1,16 @@
-import { redirectNativeToHostedApp } from '@/lib/native-hosted-redirect';
+import { redirectNativeToHostedApp, isNativeShell, isBundledCapacitorShell } from '@/lib/native-hosted-redirect';
 import { installNativeOAuthFix } from '@/lib/native-oauth-fix';
 import { redirectBrokenCustomDomainLogin } from '@/lib/auth-urls';
+
+const BOOTSTRAP_TIMEOUT_MS = 15000;
+
+function ensureBundledHashRoute() {
+  if (!isBundledCapacitorShell()) return;
+  const hash = window.location.hash || '';
+  if (!hash || hash === '#') {
+    window.location.hash = '#/';
+  }
+}
 
 function showBootstrapError(message) {
   const root = document.getElementById('root');
@@ -18,6 +28,20 @@ function showBootstrapError(message) {
   `;
 }
 
+async function warmNativeSessionForLocalBundle() {
+  try {
+    const { waitForCapacitorBridge, withTimeout } = await import('@/lib/capacitor-ready');
+    await waitForCapacitorBridge(6000);
+    const { restoreSessionFromNativeStorage, installNativeSessionPersistence } = await import('@/lib/session-bootstrap');
+    await withTimeout(restoreSessionFromNativeStorage(), 4000, 'restoreSession');
+    installNativeSessionPersistence().catch((error) => {
+      console.warn('Native session listeners unavailable:', error);
+    });
+  } catch (error) {
+    console.warn('Native session warm-up skipped:', error);
+  }
+}
+
 async function bootstrapApp() {
   if (redirectBrokenCustomDomainLogin()) {
     return;
@@ -29,22 +53,51 @@ async function bootstrapApp() {
     return;
   }
 
-  const { restoreSessionFromNativeStorage, installNativeSessionPersistence } = await import('@/lib/session-bootstrap');
-  await restoreSessionFromNativeStorage();
-  await installNativeSessionPersistence();
+  ensureBundledHashRoute();
 
-  const { default: React } = await import('react');
-  const { default: ReactDOM } = await import('react-dom/client');
-  const { default: App } = await import('@/App.jsx');
+  // Warm session in background — must not block React mount (white screen if bridge is slow)
+  if (isNativeShell()) {
+    warmNativeSessionForLocalBundle().catch(() => {});
+  }
+
+  const [{ default: React }, { default: ReactDOM }, { default: App }] = await Promise.all([
+    import('react'),
+    import('react-dom/client'),
+    import('@/App.jsx'),
+  ]);
   await import('@/index.css');
 
   ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  window.__rbBooted = true;
+  const fb = document.getElementById('rb-boot-fallback');
+  if (fb) fb.remove();
+
+  if (isNativeShell()) {
+    import('@/lib/native-google-oauth').then(({ installNativeOAuthListeners }) => {
+      requestAnimationFrame(() => {
+        void installNativeOAuthListeners();
+      });
+    });
+  }
 }
 
-bootstrapApp().catch((error) => {
-  console.error('Restorebraine bootstrap failed:', error);
-  showBootstrapError(error?.message || 'Unknown startup error');
-});
+let bootstrapFinished = false;
+const bootstrapTimer = window.setTimeout(() => {
+  if (bootstrapFinished) return;
+  showBootstrapError('Startup is taking too long. Check your network connection and tap Retry.');
+}, BOOTSTRAP_TIMEOUT_MS);
+
+bootstrapApp()
+  .then(() => {
+    bootstrapFinished = true;
+    window.clearTimeout(bootstrapTimer);
+  })
+  .catch((error) => {
+    bootstrapFinished = true;
+    window.clearTimeout(bootstrapTimer);
+    console.error('Restorebraine bootstrap failed:', error);
+    showBootstrapError(error?.message || 'Unknown startup error');
+  });
 
 if (import.meta.hot) {
   import.meta.hot.on('vite:beforeUpdate', () => {

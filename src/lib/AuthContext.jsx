@@ -1,11 +1,48 @@
-import React, { createContext, useState, useContext, useEffect } from 'react';
+import React, { createContext, useState, useContext, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import { appParams } from '@/lib/app-params';
 import { createAxiosClient } from '@base44/sdk/dist/utils/axios-client';
 import { openRestorebraineLogin } from '@/lib/auth-urls';
 import { getAppOrigin } from '@/lib/app-params';
-import { clearNativeSession, persistSessionToNativeStorage, restoreSessionFromNativeStorage } from '@/lib/session-bootstrap';
-import { isHostedAppOrigin } from '@/lib/native-hosted-redirect';
+import { clearNativeSession, persistSessionToNativeStorage, applyAuthSessionTokenSync, restoreSessionFromNativeStorage, ensureClientSessionToken, finishPendingOAuthLogin, isWithinOAuthGracePeriod, normalizeAuthEmail, prepareForNewRegistration, clearAxiosAuthHeaders } from '@/lib/session-bootstrap';
+import {
+  postAuthEmail,
+  verifyAuthOtp,
+  resendAuthOtp,
+  extractAuthAccessToken,
+  isVerificationRequiredResponse,
+  isVerificationPendingError,
+  verificationRequiredError,
+} from '@/lib/auth-email-api';
+import { isHostedAppOrigin, isNativeShell, isBundledCapacitorShell } from '@/lib/native-hosted-redirect';
+import { resetToGalleryHome } from '@/lib/gallery-nav';
+
+const AUTH_BOOT_TIMEOUT_MS = 12000;
+const AUTH_BOOT_TIMEOUT_BUNDLED_MS = 6000;
+const AUTH_API_TIMEOUT_MS = 10000;
+const AUTH_REGISTER_TIMEOUT_MS = 20000;
+const AUTH_VERIFY_TOTAL_TIMEOUT_MS = 18000;
+
+const withAuthTimeout = (promise, ms, label) =>
+  Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      window.setTimeout(() => {
+        reject(Object.assign(new Error(`${label} timed out`), { status: 408 }));
+      }, ms);
+    }),
+  ]);
+
+const isBundledNativeShell = () => isBundledCapacitorShell();
+
+const hasStoredAuthToken = () => {
+  try {
+    if (localStorage.getItem('b44_signed_out') === '1') return false;
+    return Boolean(localStorage.getItem('base44_access_token') || localStorage.getItem('token'));
+  } catch {
+    return false;
+  }
+};
 
 const AuthContext = createContext();
 
@@ -13,23 +50,110 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
-  const [isLoadingPublicSettings, setIsLoadingPublicSettings] = useState(true);
+  const [isLoadingPublicSettings, setIsLoadingPublicSettings] = useState(false);
   const [authError, setAuthError] = useState(null);
   const [appPublicSettings, setAppPublicSettings] = useState(null);
   const [manuallyLoggedOut, setManuallyLoggedOut] = useState(false);
+  const authBootInFlightRef = useRef(false);
+  const lastSessionUpdateRef = useRef({ token: null, at: 0 });
+  const sessionAuthCheckTimerRef = useRef(null);
 
   useEffect(() => {
     checkAppState();
   }, []);
 
+  const finishAuthBoot = ({ loadingAuth = false, error = null } = {}) => {
+    authBootInFlightRef.current = false;
+    setIsLoadingPublicSettings(false);
+    setIsLoadingAuth(loadingAuth);
+    if (error) {
+      setAuthError(error);
+    }
+  };
+
   const checkAppState = async () => {
+    let finished = false;
+    authBootInFlightRef.current = true;
+    const bootTimeoutMs = isBundledNativeShell() ? AUTH_BOOT_TIMEOUT_BUNDLED_MS : AUTH_BOOT_TIMEOUT_MS;
+    const timeout = window.setTimeout(() => {
+      if (finished) return;
+      finished = true;
+      if (hasStoredAuthToken()) {
+        finishAuthBoot();
+        void checkUserAuth({ ignoreManualLogout: true, silent: true });
+        return;
+      }
+      finishAuthBoot({
+        error: { type: 'auth_required', message: 'Session check timed out' },
+      });
+    }, bootTimeoutMs);
+
     try {
-      setIsLoadingPublicSettings(true);
+      setIsLoadingAuth(true);
       setAuthError(null);
 
-      const restoredToken = await restoreSessionFromNativeStorage();
+      ensureClientSessionToken();
+
+      // Bundled + no token: show SignInScreen immediately (don't wait on public-settings API)
+      if (isBundledNativeShell() && !hasStoredAuthToken()) {
+        setIsAuthenticated(false);
+        setAuthError({ type: 'auth_required', message: 'Authentication required' });
+        finishAuthBoot();
+        finished = true;
+        window.clearTimeout(timeout);
+        void withAuthTimeout(
+          createAxiosClient({
+            baseURL: `${appParams.serverUrl}/api/apps/public`,
+            headers: { 'X-App-Id': appParams.appId },
+            token: appParams.token,
+            interceptResponses: true,
+          }).get(`/prod/public-settings/by-id/${appParams.appId}`),
+          AUTH_API_TIMEOUT_MS,
+          'public-settings-background',
+        )
+          .then((publicSettings) => setAppPublicSettings(publicSettings))
+          .catch(() => {});
+        return;
+      }
+
+      // Bundled + token: show gallery immediately; validate session in background (Omega 3).
+      if (isBundledNativeShell() && hasStoredAuthToken()) {
+        setManuallyLoggedOut(false);
+        setIsAuthenticated(true);
+        setAuthError(null);
+        finishAuthBoot();
+        finished = true;
+        window.clearTimeout(timeout);
+        try {
+          window.dispatchEvent(new CustomEvent('restorebraine-gallery-ready', {
+            detail: { token: appParams.token || localStorage.getItem('base44_access_token') },
+          }));
+        } catch {}
+        void checkUserAuth({ ignoreManualLogout: true, silent: true });
+        void withAuthTimeout(
+          createAxiosClient({
+            baseURL: `${appParams.serverUrl}/api/apps/public`,
+            headers: { 'X-App-Id': appParams.appId },
+            token: appParams.token,
+            interceptResponses: true,
+          }).get(`/prod/public-settings/by-id/${appParams.appId}`),
+          AUTH_API_TIMEOUT_MS,
+          'public-settings-background',
+        )
+          .then((publicSettings) => setAppPublicSettings(publicSettings))
+          .catch(() => {});
+        return;
+      }
+
+      const restoredToken = await withAuthTimeout(
+        restoreSessionFromNativeStorage(),
+        4000,
+        'restoreSessionFromNativeStorage',
+      ).catch(() => null);
       if (restoredToken) {
         appParams.token = restoredToken;
+      } else if (hasStoredAuthToken()) {
+        appParams.token = localStorage.getItem('base44_access_token') || localStorage.getItem('token');
       }
 
       const appClient = createAxiosClient({
@@ -40,17 +164,26 @@ export const AuthProvider = ({ children }) => {
       });
 
       try {
-        const publicSettings = await appClient.get(`/prod/public-settings/by-id/${appParams.appId}`);
+        const publicSettings = await withAuthTimeout(
+          appClient.get(`/prod/public-settings/by-id/${appParams.appId}`),
+          AUTH_API_TIMEOUT_MS,
+          'public-settings',
+        );
+        if (finished) return;
         setAppPublicSettings(publicSettings);
 
         if (appParams.token) {
           await checkUserAuth();
         } else {
-          setIsLoadingAuth(false);
           setIsAuthenticated(false);
+          setAuthError({ type: 'auth_required', message: 'Authentication required' });
         }
-        setIsLoadingPublicSettings(false);
+
+        if (!finished) {
+          finishAuthBoot();
+        }
       } catch (appError) {
+        if (finished) return;
         console.error('App state check failed:', appError);
 
         if (appError.status === 403 && appError.data?.extra_data?.reason) {
@@ -66,27 +199,39 @@ export const AuthProvider = ({ children }) => {
           setAuthError({ type: 'auth_required', message: 'Authentication required' });
         } else if (appParams.token) {
           await checkUserAuth();
+        } else {
+          setAuthError({ type: 'auth_required', message: 'Authentication required' });
         }
 
-        setIsLoadingPublicSettings(false);
-        setIsLoadingAuth(false);
+        finishAuthBoot();
       }
     } catch (error) {
+      if (finished) return;
       console.error('Unexpected error:', error);
-      setAuthError({ type: 'unknown', message: error.message || 'An unexpected error occurred' });
+      finishAuthBoot({
+        error: { type: 'auth_required', message: error.message || 'Authentication required' },
+      });
+    } finally {
+      finished = true;
+      window.clearTimeout(timeout);
+      authBootInFlightRef.current = false;
       setIsLoadingPublicSettings(false);
       setIsLoadingAuth(false);
     }
   };
 
-  const checkUserAuth = async ({ ignoreManualLogout = false } = {}) => {
-    if (manuallyLoggedOut && !ignoreManualLogout) return;
+  const checkUserAuth = async ({ ignoreManualLogout = false, silent = false } = {}) => {
+    if (manuallyLoggedOut && !ignoreManualLogout) {
+      if (!silent) setIsLoadingAuth(false);
+      return;
+    }
 
     try {
-      setIsLoadingAuth(true);
-      const currentUser = await base44.auth.me();
+      if (!silent) setIsLoadingAuth(true);
+      const currentUser = await withAuthTimeout(base44.auth.me(), AUTH_API_TIMEOUT_MS, 'auth.me');
       setUser(currentUser);
       setIsAuthenticated(true);
+      setAuthError(null);
       setIsLoadingAuth(false);
 
       const token = appParams.token || localStorage.getItem('base44_access_token') || localStorage.getItem('token');
@@ -97,12 +242,17 @@ export const AuthProvider = ({ children }) => {
       console.error('User auth check failed:', error);
 
       if (error.status === 401) {
-        const restoredToken = await restoreSessionFromNativeStorage();
+        const restoredToken = await withAuthTimeout(
+          restoreSessionFromNativeStorage(),
+          4000,
+          'restoreSessionFromNativeStorage',
+        ).catch(() => null);
         if (restoredToken) {
           try {
-            const currentUser = await base44.auth.me();
+            const currentUser = await withAuthTimeout(base44.auth.me(), AUTH_API_TIMEOUT_MS, 'auth.me');
             setUser(currentUser);
             setIsAuthenticated(true);
+            setAuthError(null);
             setIsLoadingAuth(false);
             await persistSessionToNativeStorage(restoredToken);
             return;
@@ -110,15 +260,62 @@ export const AuthProvider = ({ children }) => {
             console.warn('Auth retry after session restore failed:', retryError);
           }
         }
+        if (hasStoredAuthToken()) {
+          finishPendingOAuthLogin();
+          const localToken = localStorage.getItem('base44_access_token') || localStorage.getItem('token');
+          if (localToken) {
+            applyAuthSessionTokenSync(localToken);
+            try {
+              const currentUser = await withAuthTimeout(base44.auth.me(), AUTH_API_TIMEOUT_MS, 'auth.me');
+              setUser(currentUser);
+              setIsAuthenticated(true);
+              setAuthError(null);
+              setIsLoadingAuth(false);
+              await persistSessionToNativeStorage(localToken);
+              return;
+            } catch (retryError) {
+              console.warn('Auth retry with stored token failed:', retryError);
+            }
+          }
+        }
+        if (isBundledNativeShell() && (hasStoredAuthToken() || isWithinOAuthGracePeriod())) {
+          finishPendingOAuthLogin();
+          const localToken = localStorage.getItem('base44_access_token') || localStorage.getItem('token');
+          if (localToken) {
+            applyAuthSessionTokenSync(localToken);
+          }
+          setIsAuthenticated(true);
+          setAuthError(null);
+          setIsLoadingAuth(false);
+          return;
+        }
+        await clearNativeSession().catch(() => {});
+      } else if (error.status === 408 && isBundledNativeShell() && hasStoredAuthToken()) {
+        // Slow network on native — keep gallery open when a token is still stored.
+        if (!silent) setIsLoadingAuth(false);
+        return;
       }
 
       setIsLoadingAuth(false);
-      setIsAuthenticated(false);
 
       if (error.status === 401) {
+        if (isBundledNativeShell() && (hasStoredAuthToken() || isWithinOAuthGracePeriod())) {
+          setIsAuthenticated(true);
+          setAuthError(null);
+          return;
+        }
+        setIsAuthenticated(false);
         setAuthError({ type: 'auth_required', message: 'Authentication required' });
       } else if (error.status === 403) {
+        setIsAuthenticated(false);
         setAuthError({ type: 'user_not_registered', message: 'User not registered for this app' });
+      } else if (isBundledNativeShell() && hasStoredAuthToken()) {
+        setIsAuthenticated(true);
+      } else if (isBundledNativeShell()) {
+        setIsAuthenticated(false);
+        setAuthError({ type: 'auth_required', message: 'Authentication required' });
+      } else {
+        setIsAuthenticated(false);
       }
     }
   };
@@ -154,9 +351,74 @@ export const AuthProvider = ({ children }) => {
     } catch {}
 
     await persistSessionToNativeStorage(token);
-    await checkUserAuth({ ignoreManualLogout: true });
+    await checkUserAuth({ ignoreManualLogout: true, silent: true });
     return true;
   };
+
+  useEffect(() => {
+    const scheduleSilentAuthCheck = () => {
+      if (isWithinOAuthGracePeriod()) return;
+      if (sessionAuthCheckTimerRef.current) {
+        window.clearTimeout(sessionAuthCheckTimerRef.current);
+      }
+      sessionAuthCheckTimerRef.current = window.setTimeout(() => {
+        sessionAuthCheckTimerRef.current = null;
+        void checkUserAuth({ ignoreManualLogout: true, silent: true });
+      }, 250);
+    };
+
+    const onSessionUpdated = (event) => {
+      try {
+        const token =
+          event?.detail?.token ||
+          (localStorage.getItem('b44_signed_out') === '1'
+            ? null
+            : (localStorage.getItem('base44_access_token') || localStorage.getItem('token')));
+        if (!token) {
+          scheduleSilentAuthCheck();
+          return;
+        }
+
+        const now = Date.now();
+        if (
+          lastSessionUpdateRef.current.token === token
+          && now - lastSessionUpdateRef.current.at < 1500
+        ) {
+          return;
+        }
+        lastSessionUpdateRef.current = { token, at: now };
+
+        finishPendingOAuthLogin();
+        applyAuthSessionTokenSync(token);
+        setManuallyLoggedOut(false);
+        setIsAuthenticated(true);
+        setAuthError(null);
+        setIsLoadingAuth(false);
+        resetToGalleryHome();
+        void persistSessionToNativeStorage(token);
+      } catch {}
+      scheduleSilentAuthCheck();
+    };
+
+    window.addEventListener('restorebraine-session-updated', onSessionUpdated);
+
+    const onSignedOut = () => {
+      setManuallyLoggedOut(true);
+      setUser(null);
+      setIsAuthenticated(false);
+      setIsLoadingAuth(false);
+      setAuthError({ type: 'auth_required', message: 'Authentication required' });
+    };
+    window.addEventListener('restorebraine-signed-out', onSignedOut);
+
+    return () => {
+      if (sessionAuthCheckTimerRef.current) {
+        window.clearTimeout(sessionAuthCheckTimerRef.current);
+      }
+      window.removeEventListener('restorebraine-session-updated', onSessionUpdated);
+      window.removeEventListener('restorebraine-signed-out', onSignedOut);
+    };
+  }, []);
 
   const logout = async () => {
     await localLogout();
@@ -168,6 +430,263 @@ export const AuthProvider = ({ children }) => {
   const navigateToLogin = () => {
     setManuallyLoggedOut(false);
     openRestorebraineLogin();
+  };
+
+  const loginWithEmailPassword = async ({ email, password }) => {
+    setAuthError(null);
+    try { localStorage.removeItem('b44_signed_out'); } catch {}
+
+    const normalizedEmail = normalizeAuthEmail(email);
+    if (!normalizedEmail || !password) {
+      throw Object.assign(new Error('Enter your email and password.'), { status: 400 });
+    }
+
+    clearAxiosAuthHeaders();
+
+    try {
+      const response = await withAuthTimeout(
+        postAuthEmail('login', { email: normalizedEmail, password }),
+        AUTH_API_TIMEOUT_MS,
+        'auth.login',
+      );
+
+      if (!response?.access_token) {
+        throw new Error('Sign in failed. Please try again.');
+      }
+
+      finishAuthSession({ accessToken: response.access_token, user: response.user });
+    } catch (error) {
+      setIsLoadingAuth(false);
+      setIsAuthenticated(false);
+      if (isVerificationPendingError(error)) {
+        throw verificationRequiredError(
+          normalizedEmail,
+          'Your email is not verified yet. Enter the verification code sent to your inbox.',
+        );
+      }
+      setAuthError({
+        type: 'auth_required',
+        message: error?.data?.message || error?.message || 'Invalid email or password',
+      });
+      throw error;
+    }
+  };
+
+  const finishAuthSession = ({ accessToken, user }) => {
+    finishPendingOAuthLogin();
+    applyAuthSessionTokenSync(accessToken);
+    setManuallyLoggedOut(false);
+    setUser(user ?? null);
+    setIsAuthenticated(true);
+    finishAuthBoot();
+    setAuthError(null);
+    resetToGalleryHome();
+    try {
+      window.dispatchEvent(new CustomEvent('restorebraine-session-updated', { detail: { token: accessToken } }));
+      window.dispatchEvent(new CustomEvent('restorebraine-gallery-ready', { detail: { token: accessToken } }));
+    } catch {}
+    void persistSessionToNativeStorage(accessToken);
+    void checkUserAuth({ ignoreManualLogout: true, silent: true });
+  };
+
+  const verifyEmailOtpInternal = async ({ email, otpCode, password }) => {
+    setAuthError(null);
+    const normalizedEmail = normalizeAuthEmail(email);
+    const code = String(otpCode || '').trim();
+    if (!normalizedEmail || !code) {
+      throw Object.assign(new Error('Enter the verification code from your email.'), { status: 400 });
+    }
+    if (!password) {
+      throw Object.assign(
+        new Error('Enter the password you used when signing up.'),
+        { status: 400, code: 'PASSWORD_REQUIRED' },
+      );
+    }
+
+    clearAxiosAuthHeaders();
+
+    const verifyResponse = await withAuthTimeout(
+      verifyAuthOtp(normalizedEmail, code),
+      AUTH_API_TIMEOUT_MS,
+      'auth.verify-otp',
+    );
+
+    let accessToken = extractAuthAccessToken(verifyResponse);
+    let user = verifyResponse?.user ?? null;
+
+    if (!accessToken) {
+      const loginResponse = await withAuthTimeout(
+        postAuthEmail('login', { email: normalizedEmail, password }),
+        AUTH_API_TIMEOUT_MS,
+        'auth.login',
+      );
+      accessToken = extractAuthAccessToken(loginResponse);
+      user = loginResponse?.user ?? user;
+    }
+
+    if (!accessToken) {
+      throw new Error('Verification succeeded but sign-in failed. Check your password and try again.');
+    }
+
+    finishAuthSession({ accessToken, user });
+    return { ...verifyResponse, access_token: accessToken, user };
+  };
+
+  const verifyEmailOtp = async ({ email, otpCode, password }) => {
+    try {
+      return await withAuthTimeout(
+        verifyEmailOtpInternal({ email, otpCode, password }),
+        AUTH_VERIFY_TOTAL_TIMEOUT_MS,
+        'verifyEmailOtp',
+      );
+    } catch (error) {
+      setIsLoadingAuth(false);
+      setIsAuthenticated(false);
+      setAuthError({
+        type: 'auth_required',
+        message: error?.data?.message || error?.message || 'Invalid verification code',
+      });
+      throw error;
+    }
+  };
+
+  const resendEmailVerification = async ({ email }) => {
+    const normalizedEmail = normalizeAuthEmail(email);
+    if (!normalizedEmail) {
+      throw Object.assign(new Error('Enter your email address.'), { status: 400 });
+    }
+    await withAuthTimeout(
+      resendAuthOtp(normalizedEmail),
+      AUTH_API_TIMEOUT_MS,
+      'auth.resend-otp',
+    );
+    return { ok: true, email: normalizedEmail };
+  };
+
+  const registerWithEmailPassword = async ({ email, password, fullName }) => {
+    setAuthError(null);
+
+    const normalizedEmail = normalizeAuthEmail(email);
+    const trimmedName = String(fullName || '').trim();
+    if (!normalizedEmail || !password) {
+      throw Object.assign(new Error('Enter your email and password.'), { status: 400 });
+    }
+    if (!trimmedName) {
+      throw Object.assign(new Error('Enter your name to create an account.'), { status: 400 });
+    }
+
+    await prepareForNewRegistration();
+
+    const finishRegistrationSuccess = async (response) => {
+      if (!response?.access_token) {
+        throw Object.assign(
+          new Error('Account created but sign-in failed. Try signing in with your email and password.'),
+          { status: 401 },
+        );
+      }
+      finishAuthSession({ accessToken: response.access_token, user: response.user });
+      return response;
+    };
+
+    try {
+      let response = await withAuthTimeout(
+        postAuthEmail('register', {
+          email: normalizedEmail,
+          password,
+          full_name: trimmedName,
+          name: trimmedName,
+        }),
+        AUTH_REGISTER_TIMEOUT_MS,
+        'auth.register',
+      );
+
+      if (response?.access_token) {
+        return finishRegistrationSuccess(response);
+      }
+
+      if (isVerificationRequiredResponse(response)) {
+        throw verificationRequiredError(normalizedEmail);
+      }
+
+      try {
+        response = await withAuthTimeout(
+          postAuthEmail('login', { email: normalizedEmail, password }),
+          AUTH_API_TIMEOUT_MS,
+          'auth.login',
+        );
+        if (response?.access_token) {
+          return finishRegistrationSuccess(response);
+        }
+      } catch (loginError) {
+        if (isVerificationPendingError(loginError)) {
+          throw verificationRequiredError(normalizedEmail);
+        }
+      }
+
+      throw verificationRequiredError(
+        normalizedEmail,
+        'Account created. Check your email for a verification code to finish signing up.',
+      );
+    } catch (error) {
+      const rawMessage = error?.data?.message || error?.message || 'Unable to create account';
+
+      if (error?.code === 'VERIFICATION_REQUIRED') {
+        throw error;
+      }
+
+      if (/already exists/i.test(rawMessage)) {
+        try {
+          const loginResponse = await withAuthTimeout(
+            postAuthEmail('login', { email: normalizedEmail, password }),
+            AUTH_API_TIMEOUT_MS,
+            'auth.login',
+          );
+          if (loginResponse?.access_token) {
+            return finishRegistrationSuccess(
+              Object.assign(loginResponse, {
+                user: loginResponse.user,
+                recoveredExistingAccount: true,
+              }),
+            );
+          }
+        } catch (loginError) {
+          if (isVerificationPendingError(loginError)) {
+            try {
+              await resendAuthOtp(normalizedEmail);
+            } catch {
+              /* resend optional */
+            }
+            throw verificationRequiredError(
+              normalizedEmail,
+              'That email is already registered but not verified yet. Enter the code from your email, or sign in if you already verified.',
+            );
+          }
+        }
+
+        try {
+          await resendAuthOtp(normalizedEmail);
+          throw verificationRequiredError(
+            normalizedEmail,
+            'That email may already be registered. If you received a verification code, enter it below. Otherwise sign in with your password.',
+          );
+        } catch (resendError) {
+          if (resendError?.code === 'VERIFICATION_REQUIRED') throw resendError;
+        }
+      }
+
+      setIsLoadingAuth(false);
+      setIsAuthenticated(false);
+      const message = /timed out/i.test(rawMessage)
+        ? 'Registration timed out. If this email was already created, try signing in instead.'
+        : /already exists/i.test(rawMessage)
+          ? 'That email is already registered. Sign in with your password, or enter a verification code if you received one.'
+          : rawMessage;
+      setAuthError({
+        type: 'auth_required',
+        message,
+      });
+      throw Object.assign(error, { message, data: { ...(error?.data || {}), message } });
+    }
   };
 
   return (
@@ -183,6 +702,10 @@ export const AuthProvider = ({ children }) => {
       resumeActiveSession,
       manuallyLoggedOut,
       navigateToLogin,
+      loginWithEmailPassword,
+      registerWithEmailPassword,
+      verifyEmailOtp,
+      resendEmailVerification,
       checkAppState,
     }}>
       {children}

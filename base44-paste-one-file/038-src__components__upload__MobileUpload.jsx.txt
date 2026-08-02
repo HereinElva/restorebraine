@@ -1,0 +1,207 @@
+# Paste this ENTIRE message into Base44 AI chat (file 38/71)
+
+Apply this single file to the Restorebraine code editor. Do NOT Publish yet.
+
+========================================================================
+FILE: src/components/upload/MobileUpload.jsx
+========================================================================
+import React from "react";
+import { motion } from "framer-motion";
+import { Camera, Image, Video, CheckCircle2, Sparkles, ChevronRight } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { createPageUrl } from "@/utils";
+import ProcessingList from "./ProcessingList";
+import { useNativeMediaInput } from "@/lib/native-media-input";
+import { MAX_BATCH_SIZE } from "@/lib/media-upload";
+
+export default function MobileUpload({
+  files,
+  processing,
+  allProcessed,
+  hasSuccess,
+  currentPhotoCount,
+  handleFileSelection,
+  processPhotos,
+  removeFile,
+  retryFile,
+}) {
+  const navigate = useNavigate();
+  const { inputRef, openPicker, handleInput } = useNativeMediaInput(handleFileSelection);
+
+  const pendingCount = files.filter(f => f.status === 'pending').length;
+  const successCount = files.filter(f => f.status === 'success').length;
+  const errorCount = files.filter(f => f.status === 'error').length;
+  const processingCount = files.filter(f => f.status === 'processing').length;
+  const inFlightProgress = files
+    .filter(f => f.status === 'processing')
+    .reduce((sum, f) => sum + (f.progress || 0), 0) / 100;
+  const progress = files.length > 0
+    ? Math.round(((successCount + inFlightProgress) / files.length) * 100)
+    : 0;
+  const showCompleteBanner = allProcessed && hasSuccess;
+  const showBatchActive = processing || processingCount > 0;
+
+  return (
+    <div className="min-h-screen pb-24 px-4 pt-4">
+      {/* Always mounted — iOS loses picker result if input unmounts */}
+      <input
+        ref={inputRef}
+        type="file"
+        multiple
+        accept="image/*,video/*,.mp4,.mov,.m4v"
+        onChange={handleInput}
+        onInput={handleInput}
+        className="hidden"
+        aria-hidden="true"
+        tabIndex={-1}
+      />
+
+      {/* Header */}
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-gray-900">Add Memories</h1>
+        <p className="text-sm text-gray-500 mt-1">
+          {currentPhotoCount} {currentPhotoCount === 1 ? 'memory' : 'memories'} stored
+        </p>
+      </div>
+
+      {/* Add from Camera Roll — idle when no batch in flight */}
+      {!showBatchActive && (
+        <motion.button
+          type="button"
+          whileTap={{ scale: 0.97 }}
+          onClick={openPicker}
+          className="w-full bg-gradient-to-br from-purple-500 to-blue-500 rounded-3xl p-8 flex flex-col items-center gap-3 shadow-lg shadow-purple-200 mb-4"
+        >
+          <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center">
+            <Camera className="w-9 h-9 text-white" />
+          </div>
+          <div className="text-center">
+            <p className="text-white font-semibold text-lg">Add from Camera Roll</p>
+            <p className="text-white/70 text-sm mt-1">Photos & Videos • Up to {MAX_BATCH_SIZE} at a time</p>
+          </div>
+        </motion.button>
+      )}
+
+      {/* Upload Complete — always directly below Add button */}
+      {showCompleteBanner && (
+        <motion.button
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          onClick={() => navigate(createPageUrl("Gallery"))}
+          className="w-full bg-gradient-to-r from-green-400 to-emerald-500 text-white rounded-2xl p-4 flex items-center justify-between mb-4 shadow-sm"
+        >
+          <div className="flex items-center gap-3">
+            <CheckCircle2 className="w-6 h-6" />
+            <div className="text-left">
+              <p className="font-semibold">Upload Complete!</p>
+              <p className="text-sm text-white/80">{successCount} item{successCount !== 1 ? 's' : ''} added</p>
+            </div>
+          </div>
+          <ChevronRight className="w-5 h-5" />
+        </motion.button>
+      )}
+
+      {/* Processing progress */}
+      {showBatchActive && files.length > 0 && (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 mb-4 flex items-center gap-4">
+          <div className="relative w-14 h-14 flex-shrink-0">
+            <svg className="w-14 h-14 -rotate-90" viewBox="0 0 56 56">
+              <circle cx="28" cy="28" r="24" fill="none" stroke="#f3f4f6" strokeWidth="5" />
+              <circle
+                cx="28" cy="28" r="24"
+                fill="none"
+                stroke="url(#grad)"
+                strokeWidth="5"
+                strokeLinecap="round"
+                strokeDasharray={`${2 * Math.PI * 24}`}
+                strokeDashoffset={`${2 * Math.PI * 24 * (1 - progress / 100)}`}
+                className="transition-all duration-500"
+              />
+              <defs>
+                <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stopColor="#818cf8" />
+                  <stop offset="100%" stopColor="#a78bfa" />
+                </linearGradient>
+              </defs>
+            </svg>
+            <span className="absolute inset-0 flex items-center justify-center text-xs font-bold text-purple-600">{progress}%</span>
+          </div>
+          <div>
+            <p className="font-semibold text-gray-900">
+              {successCount === files.length ? 'Saving complete' : 'Saving memories...'}
+            </p>
+            <p className="text-sm text-gray-500">
+              {successCount} saved
+              {processingCount > 0 ? ` · ${processingCount} uploading` : ''}
+              {errorCount > 0 ? ` · ${errorCount} failed` : ''}
+              {successCount > 0 && processingCount > 0 ? ' · AI tags added in background' : ''}
+              {` · ${files.length} total`}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Batch finished with failures */}
+      {!showBatchActive && allProcessed && errorCount > 0 && (
+        <div className="bg-amber-50 rounded-2xl border border-amber-200 p-4 mb-4">
+          <p className="font-semibold text-amber-900">
+            {successCount > 0 ? 'Upload finished with errors' : 'Upload failed'}
+          </p>
+          <p className="text-sm text-amber-800 mt-1">
+            {successCount} saved, {errorCount} failed — tap retry on failed items below.
+          </p>
+        </div>
+      )}
+
+      {/* Tips — below banner / progress, hidden once upload succeeds */}
+      {!showBatchActive && !showCompleteBanner && (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 divide-y divide-gray-50 mb-4">
+          <div className="flex items-center gap-3 px-4 py-3.5">
+            <div className="w-8 h-8 bg-purple-100 rounded-xl flex items-center justify-center flex-shrink-0">
+              <Sparkles className="w-4 h-4 text-purple-600" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-gray-800">AI-powered search</p>
+              <p className="text-xs text-gray-500">Large photos are optimized before upload for faster saving</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3 px-4 py-3.5">
+            <div className="w-8 h-8 bg-blue-100 rounded-xl flex items-center justify-center flex-shrink-0">
+              <Image className="w-4 h-4 text-blue-600" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-gray-800">Photos & videos</p>
+              <p className="text-xs text-gray-500">JPG, PNG, WebP, GIF, MP4, MOV, AVI</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3 px-4 py-3.5">
+            <div className="w-8 h-8 bg-green-100 rounded-xl flex items-center justify-center flex-shrink-0">
+              <Video className="w-4 h-4 text-green-600" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-gray-800">Smart organization</p>
+              <p className="text-xs text-gray-500">AI auto-organizes into albums after upload</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {files.length > 0 && (
+        <div>
+          {!showBatchActive && !allProcessed && pendingCount > 0 && (
+            <motion.button
+              whileTap={{ scale: 0.97 }}
+              onClick={processPhotos}
+              className="w-full bg-gradient-to-r from-purple-500 to-blue-500 text-white rounded-2xl p-4 flex items-center justify-center gap-2 shadow-sm mb-4"
+            >
+              <Sparkles className="w-5 h-5" />
+              <span className="font-semibold">Save {pendingCount} {pendingCount === 1 ? 'Memory' : 'Memories'}</span>
+            </motion.button>
+          )}
+
+          <ProcessingList files={files} onRemove={removeFile} onRetry={retryFile} processing={processing} />
+        </div>
+      )}
+    </div>
+  );
+}

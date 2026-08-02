@@ -1,0 +1,101 @@
+# Base44 chat paste 10/34 (2 files)
+
+Apply every FILE block below to the Restorebraine code editor.
+Write each file at the exact path shown — replace entire file contents.
+Do NOT Publish until I confirm all chat groups are done.
+Do NOT fetch URLs — paste content only (JSX must stay intact).
+
+Files in this message:
+1. src/components/gallery/folderActionStyles.js
+2. src/components/gallery/PullToRefresh.jsx
+
+========================================================================
+FILE: src/components/gallery/folderActionStyles.js
+========================================================================
+/** Compact tile — mostly white with a subtle purple hint at the corner */
+export const SQUARE_FOLDER_ACTION_CLASS =
+  'w-full min-h-[4.25rem] flex flex-col items-center justify-center gap-1 py-3 rounded-2xl bg-gradient-to-br from-white via-white to-purple-50/60 text-gray-700 border border-gray-200/80 shadow-sm text-sm font-semibold disabled:opacity-50';
+
+export const ORGANIZE_ICON_CLASS = 'w-5 h-5 text-purple-500';
+export const ORGANIZE_LABEL_CLASS = 'text-purple-600 font-semibold';
+
+export const SQUARE_FOLDER_ACTION_STYLE = {
+  width: '100%',
+  minHeight: '4.25rem',
+  boxSizing: 'border-box',
+};
+
+export const SQUARE_FOLDER_ACTION_ACTIVE_CLASS =
+  'w-full min-h-[4.25rem] flex flex-col items-center justify-center gap-1 py-3 rounded-2xl text-sm font-semibold shadow-sm border-0 transition-colors bg-purple-600 text-white';
+
+export const SQUARE_FOLDER_ACTION_ACTIVE_STYLE = SQUARE_FOLDER_ACTION_STYLE;
+
+
+========================================================================
+FILE: src/components/gallery/PullToRefresh.jsx
+========================================================================
+import React, { useRef, useState } from "react";
+import { RefreshCw } from "lucide-react";
+
+const THRESHOLD = 70;
+
+export default function PullToRefresh({ onRefresh, children }) {
+  const [pullDistance, setPullDistance] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
+  const startY = useRef(null);
+  const containerRef = useRef(null);
+
+  const isModalOpen = () => document.body.classList.contains('modal-open');
+
+  const handleTouchStart = (e) => {
+    if (isModalOpen()) return;
+    if (containerRef.current?.scrollTop === 0) {
+      startY.current = e.touches[0].clientY;
+    }
+  };
+
+  const handleTouchMove = (e) => {
+    if (isModalOpen()) return;
+    if (startY.current === null) return;
+    const delta = e.touches[0].clientY - startY.current;
+    if (delta > 0) {
+      setPullDistance(Math.min(delta * 0.5, THRESHOLD + 20));
+    }
+  };
+
+  const handleTouchEnd = async () => {
+    if (isModalOpen()) return;
+    if (pullDistance >= THRESHOLD && !refreshing) {
+      setRefreshing(true);
+      await onRefresh();
+      setRefreshing(false);
+    }
+    setPullDistance(0);
+    startY.current = null;
+  };
+
+  const indicatorVisible = pullDistance > 10 || refreshing;
+
+  return (
+    <div
+      ref={containerRef}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+      className="relative"
+    >
+      {indicatorVisible && (
+        <div
+          className="flex items-center justify-center transition-all duration-200"
+          style={{ height: refreshing ? 48 : pullDistance }}
+        >
+          <RefreshCw
+            className={`w-5 h-5 text-purple-500 ${refreshing ? "animate-spin" : ""}`}
+            style={{ transform: `rotate(${(pullDistance / THRESHOLD) * 180}deg)` }}
+          />
+        </div>
+      )}
+      {children}
+    </div>
+  );
+}

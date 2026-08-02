@@ -33,8 +33,17 @@ export const persistentStorage = {
     if (isCapacitor()) {
       const Preferences = await getPreferences();
       if (Preferences) {
-        const { value } = await Preferences.get({ key });
-        return value ?? null;
+        try {
+          const result = await Promise.race([
+            Preferences.get({ key }),
+            new Promise((_, reject) => {
+              setTimeout(() => reject(new Error('Preferences.get timeout')), 3000);
+            }),
+          ]);
+          return result?.value ?? null;
+        } catch (error) {
+          console.warn(`persistentStorage.get(${key}) fallback to localStorage`, error);
+        }
       }
     }
     // Fallback to localStorage
@@ -52,8 +61,18 @@ export const persistentStorage = {
     if (isCapacitor()) {
       const Preferences = await getPreferences();
       if (Preferences) {
-        await Preferences.set({ key, value: String(value) });
-        return;
+        try {
+          await Promise.race([
+            Preferences.set({ key, value: String(value) }),
+            new Promise((_, reject) => {
+              setTimeout(() => reject(new Error('Preferences.set timeout')), 3000);
+            }),
+          ]);
+          return;
+        } catch (error) {
+          console.warn(`persistentStorage.set(${key}) fallback to localStorage mirror`, error);
+          return;
+        }
       }
     }
     try {
@@ -68,8 +87,15 @@ export const persistentStorage = {
     if (isCapacitor()) {
       const Preferences = await getPreferences();
       if (Preferences) {
-        await Preferences.remove({ key });
-        return;
+        try {
+          await Promise.race([
+            Preferences.remove({ key }),
+            new Promise((resolve) => setTimeout(resolve, 2000)),
+          ]);
+          return;
+        } catch (error) {
+          console.warn(`persistentStorage.remove(${key}) fallback to localStorage`, error);
+        }
       }
     }
     try {

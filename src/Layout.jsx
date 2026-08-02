@@ -3,46 +3,58 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { isGalleryPath, navigateToGallery, persistActiveSession } from "@/lib/gallery-nav";
 import { useAuth } from "@/lib/AuthContext";
+import { getRestorebraineAppLogo } from "@/lib/app-branding";
 import { Search, Upload, User, ChevronLeft } from "lucide-react";
-import { AnimatePresence, motion } from "framer-motion";
+import { resetAppScrollPosition } from "@/lib/scroll-reset";
 import { NavigationProvider, useNavigation } from "./components/NavigationContext";
 import { TabStateProvider } from "./components/TabStateContext";
 import { BrandGradientDefs } from "@/components/ui/BrandGradientIcon";
+
 const TAB_ORDER = ["Gallery", "Upload", "Account"];
+const HEADER_BAR_PX = 36;
 
 function LayoutInner({ children, currentPageName }) {
   const location = useLocation();
   const navigate = useNavigate();
   const prevIndexRef = useRef(0);
+  const mainScrollRef = useRef(null);
   const { backState, popBack } = useNavigation();
   const { resumeActiveSession } = useAuth();
 
   const isTabActive = (name) => {
-    if (name === 'Gallery') return isGalleryPath(location.pathname);
+    if (name === "Gallery") return isGalleryPath(location.pathname);
     return location.pathname === createPageUrl(name);
   };
 
   const currentIndex = TAB_ORDER.findIndex((name) => isTabActive(name));
   const activeIndex = currentIndex === -1 ? 0 : currentIndex;
-  const direction = activeIndex >= prevIndexRef.current ? 1 : -1;
 
   useEffect(() => {
     prevIndexRef.current = activeIndex;
   }, [activeIndex]);
 
-  // Dark mode detection
   useEffect(() => {
-    const mq = window.matchMedia("(prefers-color-scheme: dark)");
-    const apply = (e) => document.documentElement.classList.toggle("dark", e.matches);
-    apply(mq);
-    mq.addEventListener("change", apply);
-    return () => mq.removeEventListener("change", apply);
+    resetAppScrollPosition();
+    requestAnimationFrame(resetAppScrollPosition);
+    const t = window.setTimeout(resetAppScrollPosition, 50);
+    return () => window.clearTimeout(t);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    resetAppScrollPosition();
   }, []);
 
-  // Prevent overscroll bounce
   useEffect(() => {
     document.body.style.overscrollBehaviorY = "none";
-    return () => { document.body.style.overscrollBehaviorY = ""; };
+    document.documentElement.style.height = "100%";
+    document.body.style.height = "100%";
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overscrollBehaviorY = "";
+      document.documentElement.style.height = "";
+      document.body.style.height = "";
+      document.body.style.overflow = "";
+    };
   }, []);
 
   const tabs = [
@@ -50,12 +62,6 @@ function LayoutInner({ children, currentPageName }) {
     { name: "Upload", icon: Upload, label: "Upload" },
     { name: "Account", icon: User, label: "Account" },
   ];
-
-  const variants = {
-    enter: (dir) => ({ x: dir > 0 ? "100%" : "-100%", opacity: 0 }),
-    center: { x: 0, opacity: 1 },
-    exit: (dir) => ({ x: dir > 0 ? "-100%" : "100%", opacity: 0 }),
-  };
 
   const handleBack = () => {
     if (!backState) return;
@@ -74,44 +80,55 @@ function LayoutInner({ children, currentPageName }) {
     if (!isGalleryPath(location.pathname)) popBack();
   }, [location.pathname, popBack]);
 
+  const pageContent = (
+    <div key={location.pathname}>{children}</div>
+  );
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
+    <div className="h-[100dvh] flex flex-col bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 overflow-hidden">
       <BrandGradientDefs />
       <style>{`
         :root {
-          --primary: 250 70% 75%;
-          --primary-dark: 250 65% 65%;
+          --rb-header-bar: ${HEADER_BAR_PX}px;
+          --rb-header-total: calc(var(--rb-header-bar) + env(safe-area-inset-top, 0px));
+          --rb-tab-bar: calc(2.75rem + env(safe-area-inset-bottom, 0px));
         }
-        .safe-top { padding-top: env(safe-area-inset-top); }
-        .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
         * { -webkit-tap-highlight-color: transparent; }
         button, a, [role="button"] { user-select: none; -webkit-user-select: none; }
       `}</style>
 
-      {/* Top brand header */}
-      <header className="fixed top-0 left-0 right-0 z-50 bg-white/70 backdrop-blur-xl border-b border-purple-100 shadow-sm safe-top select-none">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center h-14 relative">
-            {/* Back button — shown on child routes */}
+      <header
+        className="flex-shrink-0 z-50 bg-white/80 backdrop-blur-xl border-b border-purple-100 shadow-sm select-none"
+        style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}
+      >
+        <div className="max-w-7xl mx-auto px-3 sm:px-4">
+          <div className="flex items-center h-9 relative">
             {backState ? (
               <button
                 type="button"
-                data-rb-gallery-nav
+                data-rb-gallery-nav="header-back"
                 onClick={handleBack}
-                className="flex items-center gap-1 text-purple-600 font-medium select-none absolute left-0"
+                className="flex items-center gap-1 text-purple-600 font-medium select-none absolute left-0 z-10 py-1"
               >
-                <ChevronLeft className="w-5 h-5" />
+                <ChevronLeft className="w-4 h-4" />
                 <span className="text-sm">{backState.label}</span>
               </button>
             ) : null}
 
-            {/* Centered brand logo — hide when back button is shown to avoid overlap */}
-            <div className={`flex-1 flex justify-center ${backState ? 'invisible' : ''}`}>
-              <Link to={createPageUrl("Gallery")} className="flex items-center gap-2 select-none group">
-                <div className="w-8 h-8 bg-gradient-to-br from-blue-300 to-purple-400 rounded-xl flex items-center justify-center transform group-hover:scale-105 transition-transform duration-200 shadow-md">
-                  <Search className="w-4 h-4 text-white" />
-                </div>
-                <span className="text-lg font-semibold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent select-none">
+            <div className={`flex-1 flex justify-center ${backState ? "invisible" : ""}`}>
+              <Link
+                to={createPageUrl("Gallery")}
+                replace
+                data-rb-gallery-nav="header-logo"
+                className="flex items-center gap-1 select-none group py-1"
+              >
+                <img
+                  src={getRestorebraineAppLogo()}
+                  alt="Restorebraine"
+                  data-rb-logo="1"
+                  className="w-6 h-6 rounded-md object-cover shadow-sm"
+                />
+                <span className="text-sm font-semibold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent select-none">
                   Restorebraine
                 </span>
               </Link>
@@ -120,62 +137,56 @@ function LayoutInner({ children, currentPageName }) {
         </div>
       </header>
 
-      {/* Main Content with slide transition */}
-      <main className="pt-14 pb-20 safe-bottom overflow-hidden">
-        <AnimatePresence custom={direction} mode="wait">
-          <motion.div
-            key={location.pathname}
-            custom={direction}
-            variants={variants}
-            initial="enter"
-            animate="center"
-            exit="exit"
-            transition={{ type: "tween", duration: 0.22, ease: "easeInOut" }}
-          >
-            {children}
-          </motion.div>
-        </AnimatePresence>
+      <main
+        id="rb-app-scroll"
+        ref={mainScrollRef}
+        className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-y-contain -webkit-overflow-scrolling-touch"
+      >
+        {pageContent}
       </main>
 
-      {/* Bottom Tab Bar — always visible (hide toggle removed; broken on iOS) */}
       <nav
-        className="fixed bottom-0 left-0 right-0 z-[100] select-none"
+        className="flex-shrink-0 z-[100] select-none bg-white/90 backdrop-blur-xl border-t border-purple-100 shadow-lg"
+        style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
         aria-label="App navigation"
       >
-        <div className="bg-white/90 backdrop-blur-xl border-t border-purple-100 shadow-lg safe-bottom">
-          <div className="flex items-stretch max-w-lg mx-auto">
-            {tabs.map(({ name, icon: Icon, label }) => {
-              const isActive = isTabActive(name);
-              return (
-                <Link
-                  key={name}
-                  to={name === 'Gallery' ? createPageUrl('Gallery') : createPageUrl(name)}
-                  replace={isActive}
-                  data-rb-gallery-nav={name === 'Gallery' ? 'tab' : undefined}
-                  onClick={name === 'Gallery' ? () => {
-                    persistActiveSession().then(() => resumeActiveSession?.());
-                  } : undefined}
-                  className="flex-1 flex flex-col items-center justify-center py-3 gap-0.5 select-none relative"
+        <div className="flex items-stretch max-w-lg mx-auto">
+          {tabs.map(({ name, icon: Icon, label }) => {
+            const isActive = isTabActive(name);
+            const galleryTarget = name === "Gallery" ? createPageUrl("Gallery") : createPageUrl(name);
+            return (
+              <Link
+                key={name}
+                to={galleryTarget}
+                replace={isActive}
+                data-rb-gallery-nav={name === "Gallery" ? "tab" : undefined}
+                onClick={() => {
+                  popBack();
+                  resetAppScrollPosition();
+                  if (name === "Gallery") {
+                    void persistActiveSession().then(() => resumeActiveSession?.());
+                  }
+                }}
+                className="flex-1 flex flex-col items-center justify-center py-1.5 gap-0.5 select-none relative"
+              >
+                <Icon
+                  className={`w-[18px] h-[18px] transition-colors select-none ${
+                    isActive ? "text-purple-600" : "text-gray-400"
+                  }`}
+                />
+                <span
+                  className={`text-xs font-medium transition-colors select-none ${
+                    isActive ? "text-purple-600" : "text-gray-400"
+                  }`}
                 >
-                  <Icon
-                    className={`w-5 h-5 transition-colors select-none ${
-                      isActive ? "text-purple-600" : "text-gray-400"
-                    }`}
-                  />
-                  <span
-                    className={`text-xs font-medium transition-colors select-none ${
-                      isActive ? "text-purple-600" : "text-gray-400"
-                    }`}
-                  >
-                    {label}
-                  </span>
-                  {isActive && (
-                    <span className="absolute bottom-0 w-8 h-0.5 bg-purple-500 rounded-full" />
-                  )}
-                </Link>
-              );
-            })}
-          </div>
+                  {label}
+                </span>
+                {isActive ? (
+                  <span className="absolute bottom-0 w-8 h-0.5 bg-purple-500 rounded-full" />
+                ) : null}
+              </Link>
+            );
+          })}
         </div>
       </nav>
     </div>

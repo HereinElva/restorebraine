@@ -9,7 +9,9 @@ import SelectablePhotoGrid from "./SelectablePhotoGrid";
 import { DragDropContext, Droppable } from "@hello-pangea/dnd";
 import { filterAndRankPhotos } from "@/lib/media-search";
 
-export default function FolderView({ 
+import { resolveFolderPhotos } from "@/lib/gallery-organize-snapshot";
+
+export default function FolderView({
   folder, 
   photos, 
   onBack, 
@@ -25,9 +27,7 @@ export default function FolderView({
   const [newName, setNewName] = useState(folder.name);
   const [folderSearch, setFolderSearch] = useState("");
   
-  // Filter photos that belong to this folder - ensure photo_ids is an array
-  const photoIds = Array.isArray(folder.photo_ids) ? folder.photo_ids : [];
-  const allFolderPhotos = photos.filter(p => photoIds.includes(p.id));
+  const allFolderPhotos = resolveFolderPhotos(folder, photos);
   const folderPhotos = folderSearch
     ? allFolderPhotos.filter(p =>
         p.ai_description?.toLowerCase().includes(folderSearch.toLowerCase()) ||

@@ -6,9 +6,22 @@ Known-good Restorebraine native iOS builds. Use these to revert if a later chang
 |-----|-------------|-------|
 | `omega-v55` | `kbrown native v55` | Login worked; sign-out showed native overlay |
 | `omega-v57` | `kbrown native v57` | Login + logout perfect; home screen icon still missing |
-| **`omega`** | **`kbrown native v58`** | **Current Omega — login, logout, official app icon** |
+| **`omega-3`** | **`kbrown v4-core v261`** | **Bundled gallery/organize reference — folder persistence, PullToRefresh** |
+| **`omega`** | **`kbrown native v58`** | **Hosted login, logout, official app icon** |
+| **`v87-baseline`** | **v87** | **Hosted + SignedOutLanding + OAuth fix** |
+| **`omega-7`** | **`kbrown native v107 · Omega 7`** | **Bundled login + organize; empty-folder prune; folder count matches alert** |
 
-## Revert to current Omega (recommended)
+See [OMEGA-3.md](./OMEGA-3.md), [OMEGA-7.md](./OMEGA-7.md), and [V87-FROM-OMEGA3.md](./V87-FROM-OMEGA3.md) for bundled archive paths.
+
+## Revert to Omega 7 (current bundled archive)
+
+```bash
+npm run restore:omega-7
+```
+
+See [OMEGA-7.md](./OMEGA-7.md) for full pin, ghost rules, and verify steps.
+
+## Revert to current Omega (hosted v58)
 
 ```bash
 cd /Users/ari/Desktop/restorebraine

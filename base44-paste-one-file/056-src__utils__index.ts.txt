@@ -1,0 +1,13 @@
+# Paste this ENTIRE message into Base44 AI chat (file 56/71)
+
+Apply this single file to the Restorebraine code editor. Do NOT Publish yet.
+
+========================================================================
+FILE: src/utils/index.ts
+========================================================================
+
+
+
+export function createPageUrl(pageName: string) {
+    return '/' + pageName.toLowerCase().replace(/ /g, '-');
+}

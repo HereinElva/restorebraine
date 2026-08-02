@@ -8,16 +8,10 @@ Base44 does NOT auto-update from GitHub. After git pull + npm run build, you mus
 
 1. Open https://app.base44.com → Restorebraine → Code editor
 2. Sync or paste updated files from your Mac repo (minimum set):
-   - index.html
-   - src/index.css
-   - src/components/gallery/MobileGallery.jsx
-   - src/components/gallery/OrganizeButton.jsx
-   - src/components/gallery/CustomFolderButton.jsx
-   - src/components/gallery/DuplicateDetector.jsx
-   - src/components/gallery/folderActionStyles.js
-   - src/components/ui/BrandGradientIcon.jsx
-   - src/Layout.jsx
-   - src/deploy-marker.js
+   - index.html (content="v${build}")
+   - src/lib/native-platform-guard.js  ← REQUIRED for Sign In (OAuth URL fix)
+   - src/App.jsx
+   - src/components/auth/SignedOutLanding.jsx
 3. Click Publish (top right)
 4. Verify live site HTML references a NEW asset hash (not index-BmFZls3B.js)
 5. Expected deploy stamp: v${build}

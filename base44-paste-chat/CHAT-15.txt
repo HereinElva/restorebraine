@@ -1,0 +1,354 @@
+# Base44 chat paste 15/34 (1 files)
+
+Apply every FILE block below to the Restorebraine code editor.
+Write each file at the exact path shown — replace entire file contents.
+Do NOT Publish until I confirm all chat groups are done.
+Do NOT fetch URLs — paste content only (JSX must stay intact).
+
+Files in this message:
+1. src/components/gallery/MobilePhotoModal.jsx
+
+========================================================================
+FILE: src/components/gallery/MobilePhotoModal.jsx
+========================================================================
+import React, { useState } from "react";
+import { createPortal } from "react-dom";
+import { X, Trash2, Share2, Download, Pencil, Check, Loader2, MessageCircle, FolderInput, Folder } from "lucide-react";
+import { base44 } from "@/api/base44Client";
+import { useQueryClient } from "@tanstack/react-query";
+
+
+export default function MobilePhotoModal({ photo, onClose, folders = [] }) {
+  const queryClient = useQueryClient();
+  const [showInfo, setShowInfo] = useState(false);
+
+  const [editing, setEditing] = useState(false);
+  const [editDescription, setEditDescription] = useState(photo.ai_description || "");
+  const [editTags, setEditTags] = useState((photo.ai_tags || []).join(", "));
+  const [saving, setSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+  const [showFolderPicker, setShowFolderPicker] = useState(false);
+  const [movingToFolder, setMovingToFolder] = useState(false);
+
+  // Add body class to hide layout header/nav so they don't intercept touches
+  React.useEffect(() => {
+    document.body.classList.add('modal-open');
+    return () => document.body.classList.remove('modal-open');
+  }, []);
+
+  const handleDelete = async () => {
+    if (!confirm(`Delete this ${photo.file_type}? This cannot be undone.`)) return;
+    setDeleting(true);
+    await base44.entities.Photo.delete(photo.id);
+    queryClient.invalidateQueries({ queryKey: ['photos'] });
+    queryClient.invalidateQueries({ queryKey: ['folders'] });
+    onClose();
+  };
+
+  const handleShare = async () => {
+    try {
+      if (navigator.share) {
+        const response = await fetch(photo.file_url);
+        const blob = await response.blob();
+        const file = new File(
+          [blob],
+          photo.original_filename || `media.${photo.file_type === 'video' ? 'mp4' : 'jpg'}`,
+          { type: blob.type }
+        );
+        await navigator.share({ files: [file] });
+      } else {
+        await navigator.clipboard.writeText(photo.file_url);
+        alert('Link copied!');
+      }
+    } catch (e) {
+      if (e.name !== 'AbortError') console.error(e);
+    }
+  };
+
+  const handleDownload = async () => {
+    const response = await fetch(photo.file_url);
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = photo.original_filename || `media-${Date.now()}.${photo.file_type === 'video' ? 'mp4' : 'jpg'}`;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    a.remove();
+  };
+
+  const handleMoveToFolder = async (folderId) => {
+    setShowFolderPicker(false);
+    setMovingToFolder(true);
+    const folder = folders.find(f => f.id === folderId);
+    if (!folder) return;
+    const updatedIds = [...new Set([...(folder.photo_ids || []), photo.id])];
+    const coverUrl = folder.cover_photo_url || photo.file_url;
+    await base44.entities.Folder.update(folderId, { photo_ids: updatedIds, cover_photo_url: coverUrl });
+    queryClient.invalidateQueries({ queryKey: ['folders'] });
+    setMovingToFolder(false);
+    onClose();
+  };
+
+  const handleSaveEdit = async () => {
+    setSaving(true);
+    setSaveStatus(null);
+    try {
+      const check = await base44.integrations.Core.InvokeLLM({
+        prompt: `You are verifying if a user-provided description and tags are accurate for a photo/video.
+Photo's original AI description: "${photo.ai_description}"
+User's new description: "${editDescription}"
+User's new tags: "${editTags}"
+Approve if the content is broadly related or adds relevant details. Reject only if completely unrelated or inappropriate.`,
+        response_json_schema: {
+          type: "object",
+          properties: {
+            decision: { type: "string", enum: ["approve", "reject"] },
+            reason: { type: "string" }
+          }
+        }
+      });
+
+      if (check.decision === "approve") {
+        const newTags = editTags.split(",").map(t => t.trim()).filter(Boolean);
+        await base44.entities.Photo.update(photo.id, {
+          ai_description: editDescription,
+          ai_tags: newTags
+        });
+        queryClient.invalidateQueries({ queryKey: ['photos'] });
+        setSaveStatus('approved');
+        setEditing(false);
+        setTimeout(() => setSaveStatus(null), 2000);
+      } else {
+        setSaveStatus({ type: 'rejected', reason: check.reason });
+      }
+    } catch (e) {
+      console.error(e);
+      setSaveStatus({ type: 'rejected', reason: 'Could not verify. Please try again.' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const modalContent = (
+    <div
+      style={{
+        position: 'fixed',
+        top: 0, left: 0,
+        width: '100vw', height: '100dvh',
+        zIndex: 99999,
+        backgroundColor: '#000',
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
+      }}
+      onClick={() => { if (showFolderPicker) setShowFolderPicker(false); }}
+    >
+      {/* Top bar */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '12px 16px',
+          paddingTop: 'max(env(safe-area-inset-top, 0px), 12px)',
+          backgroundColor: 'rgba(0,0,0,0.8)',
+          flexShrink: 0,
+          position: 'relative',
+        }}
+        onClick={e => e.stopPropagation()}
+      >
+        <button onClick={onClose} style={btnStyle}>
+          <X style={{ width: 20, height: 20, color: 'white' }} />
+        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button onClick={() => setShowInfo(v => !v)} style={{ ...btnStyle, backgroundColor: showInfo ? 'rgba(168,85,247,0.5)' : 'rgba(255,255,255,0.2)' }}>
+            <MessageCircle style={{ width: 18, height: 18, color: 'white' }} />
+          </button>
+          {folders.length > 0 && (
+            <button onClick={() => setShowFolderPicker(v => !v)} disabled={movingToFolder} style={{ ...btnStyle, backgroundColor: showFolderPicker ? 'rgba(168,85,247,0.5)' : 'rgba(255,255,255,0.2)' }}>
+              {movingToFolder ? <Loader2 style={{ width: 18, height: 18, color: 'white' }} className="animate-spin" /> : <FolderInput style={{ width: 18, height: 18, color: 'white' }} />}
+            </button>
+          )}
+          <button onClick={handleShare} style={btnStyle}>
+            <Share2 style={{ width: 18, height: 18, color: 'white' }} />
+          </button>
+          <button onClick={handleDownload} style={btnStyle}>
+            <Download style={{ width: 18, height: 18, color: 'white' }} />
+          </button>
+          <button onClick={handleDelete} disabled={deleting} style={btnStyle}>
+            <Trash2 style={{ width: 18, height: 18, color: '#f87171' }} />
+          </button>
+        </div>
+      </div>
+
+      {/* Image */}
+      <div style={{
+        flex: showInfo ? '0 0 auto' : 1,
+        height: showInfo ? '42vh' : undefined,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#111',
+        overflow: 'hidden',
+      }}>
+        {photo.file_type === 'video' ? (
+          <video
+            src={photo.file_url}
+            controls
+            autoPlay
+            playsInline
+            style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
+          />
+        ) : (
+          <img
+            src={photo.file_url}
+            alt=""
+            style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
+          />
+        )}
+      </div>
+
+      {/* Info panel — shown only when toggled */}
+      {showInfo && (
+      <div style={{
+        flex: 1,
+        backgroundColor: 'white',
+        borderRadius: '20px 20px 0 0',
+        overflowY: 'auto',
+        WebkitOverflowScrolling: 'touch',
+        paddingBottom: 80,
+      }}>
+        {/* Drag handle */}
+        <div style={{ display: 'flex', justifyContent: 'center', padding: '10px 0 4px' }}>
+          <div style={{ width: 36, height: 4, backgroundColor: '#d1d5db', borderRadius: 2 }} />
+        </div>
+
+        <div style={{ padding: '8px 20px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+          {saveStatus === 'approved' && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, backgroundColor: '#f0fdf4', color: '#15803d', borderRadius: 10, padding: '10px 14px', fontSize: 13, fontWeight: 500 }}>
+              <Check style={{ width: 14, height: 14 }} /> Saved!
+            </div>
+          )}
+          {saveStatus?.type === 'rejected' && (
+            <div style={{ backgroundColor: '#fef2f2', color: '#b91c1c', borderRadius: 10, padding: '10px 14px', fontSize: 13 }}>
+              <strong>Not approved:</strong> {saveStatus.reason}
+            </div>
+          )}
+
+          {/* Description */}
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+              <p style={{ margin: 0, fontSize: 11, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Description</p>
+              {!editing && (
+                <button
+                  onClick={() => { setEditing(true); setSaveStatus(null); }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 3, color: '#9333ea', fontSize: 12, fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                >
+                  <Pencil style={{ width: 11, height: 11 }} /> Edit
+                </button>
+              )}
+            </div>
+            {editing ? (
+              <textarea
+                value={editDescription}
+                onChange={e => setEditDescription(e.target.value)}
+                rows={3}
+                style={{ width: '100%', fontSize: 14, color: '#1f2937', border: '2px solid #d8b4fe', borderRadius: 10, padding: '8px 12px', outline: 'none', resize: 'none', boxSizing: 'border-box' }}
+              />
+            ) : (
+              <p style={{ margin: 0, fontSize: 14, color: '#374151', lineHeight: 1.55 }}>{editDescription || '—'}</p>
+            )}
+          </div>
+
+          {/* Tags */}
+          <div>
+            <p style={{ margin: '0 0 5px', fontSize: 11, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Tags</p>
+            {editing ? (
+              <input
+                value={editTags}
+                onChange={e => setEditTags(e.target.value)}
+                placeholder="tag1, tag2, tag3"
+                style={{ width: '100%', fontSize: 14, border: '2px solid #d8b4fe', borderRadius: 10, padding: '8px 12px', outline: 'none', boxSizing: 'border-box' }}
+              />
+            ) : (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                {(photo.ai_tags || []).length > 0
+                  ? (photo.ai_tags || []).map((tag, i) => (
+                      <span key={i} style={{ fontSize: 12, backgroundColor: '#f3e8ff', color: '#7e22ce', borderRadius: 20, padding: '3px 10px', fontWeight: 500 }}>
+                        {tag}
+                      </span>
+                    ))
+                  : <span style={{ color: '#9ca3af', fontSize: 13 }}>No tags</span>
+                }
+              </div>
+            )}
+          </div>
+
+          {/* Edit action buttons */}
+          {editing && (
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                onClick={() => { setEditing(false); setEditDescription(photo.ai_description || ""); setEditTags((photo.ai_tags || []).join(", ")); setSaveStatus(null); }}
+                style={{ flex: 1, padding: '10px', borderRadius: 10, border: '1px solid #e5e7eb', fontSize: 14, color: '#4b5563', fontWeight: 500, backgroundColor: 'white', cursor: 'pointer' }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveEdit}
+                disabled={saving}
+                style={{ flex: 1, padding: '10px', borderRadius: 10, border: 'none', fontSize: 14, color: 'white', fontWeight: 600, background: 'linear-gradient(to right, #60a5fa, #a855f7)', cursor: saving ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, opacity: saving ? 0.7 : 1 }}
+              >
+                {saving ? <><Loader2 style={{ width: 15, height: 15 }} /> Checking...</> : <><Check style={{ width: 15, height: 15 }} /> Save & Verify</>}
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+      )}
+
+      {/* Inline folder picker */}
+      {showFolderPicker && (
+        <div style={{
+          position: 'absolute',
+          top: 60,
+          right: 12,
+          backgroundColor: 'white',
+          borderRadius: 14,
+          overflow: 'hidden',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
+          minWidth: 200,
+          zIndex: 10,
+        }}>
+          <div style={{ padding: '10px 14px 6px', fontSize: 11, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+            Move to Folder
+          </div>
+          {folders.map(folder => (
+            <button
+              key={folder.id}
+              onClick={() => handleMoveToFolder(folder.id)}
+              style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '10px 14px', border: 'none', background: 'none', cursor: 'pointer', textAlign: 'left' }}
+            >
+              <Folder style={{ width: 16, height: 16, color: '#f97316', flexShrink: 0 }} />
+              <span style={{ fontSize: 14, color: '#1f2937', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{folder.name}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
+  return createPortal(modalContent, document.body);
+}
+
+const btnStyle = {
+  width: 40, height: 40,
+  borderRadius: '50%',
+  backgroundColor: 'rgba(255,255,255,0.2)',
+  display: 'flex', alignItems: 'center', justifyContent: 'center',
+  border: 'none', cursor: 'pointer',
+  WebkitTapHighlightColor: 'transparent',
+};

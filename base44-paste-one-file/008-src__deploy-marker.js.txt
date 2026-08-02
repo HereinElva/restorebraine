@@ -1,0 +1,9 @@
+# Paste this ENTIRE message into Base44 AI chat (file 8/71)
+
+Apply this single file to the Restorebraine code editor. Do NOT Publish yet.
+
+========================================================================
+FILE: src/deploy-marker.js
+========================================================================
+// Base44: update these files in the Code editor, then click Publish (GitHub alone is not enough).
+export const DEPLOY_BUILD = 87;

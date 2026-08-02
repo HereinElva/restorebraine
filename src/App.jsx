@@ -1,90 +1,83 @@
 import './App.css'
+import { useEffect } from 'react'
 import { Toaster } from "@/components/ui/toaster"
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClientInstance } from '@/lib/query-client'
 
+function ClientCacheClearListener() {
+  useEffect(() => {
+    const onClearCaches = () => {
+      queryClientInstance.clear();
+    };
+    window.addEventListener('restorebraine-clear-client-caches', onClearCaches);
+    return () => window.removeEventListener('restorebraine-clear-client-caches', onClearCaches);
+  }, []);
+  return null;
+}
+
 import NavigationTracker from '@/lib/NavigationTracker'
 import { pagesConfig } from './pages.config'
-import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, HashRouter, Route, Routes } from 'react-router-dom';
 import { setupIframeMessaging } from './lib/iframe-messaging';
 import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
-import { getPlatformLoginUrl } from '@/lib/auth-urls';
+import SignInScreen from '@/screens/SignInScreen';
+import AiConsentGate from '@/components/auth/AiConsentGate';
+import BootErrorBoundary from '@/components/BootErrorBoundary';
+import { hasStoredSessionToken } from '@/lib/session-bootstrap';
+import { isNativeShell, isBundledCapacitorShell } from '@/lib/native-hosted-redirect';
 
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
 const MainPage = mainPageKey ? Pages[mainPageKey] : <></>;
 
-setupIframeMessaging();
+if (!isNativeShell()) {
+  setupIframeMessaging();
+}
+
+function AppRouter({ children }) {
+  const Router = isBundledCapacitorShell() ? HashRouter : BrowserRouter;
+  return <Router>{children}</Router>;
+}
 
 const LayoutWrapper = ({ children, currentPageName }) => Layout ?
   <Layout currentPageName={currentPageName}>{children}</Layout>
   : <>{children}</>;
 
 const AuthenticatedApp = () => {
-  const { isLoadingAuth, isLoadingPublicSettings, authError, isAuthenticated, navigateToLogin, manuallyLoggedOut } = useAuth();
+  const { authError, isAuthenticated, manuallyLoggedOut } = useAuth();
+  const hasToken = hasStoredSessionToken();
 
-  // Check if user manually logged out FIRST before anything else
-  if (manuallyLoggedOut) {
-    return (
-      <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'linear-gradient(135deg,#eff6ff,#f5f3ff,#fdf2f8)',padding:'24px'}}>
-        <div style={{background:'white',borderRadius:'24px',padding:'40px',boxShadow:'0 10px 40px rgba(0,0,0,0.1)',maxWidth:'360px',width:'100%',textAlign:'center'}}>
-          <div style={{width:'64px',height:'64px',background:'linear-gradient(135deg,#93c5fd,#a78bfa)',borderRadius:'20px',display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 20px'}}>
-            <span style={{fontSize:'28px'}}>🔍</span>
-          </div>
-          <h1 style={{fontSize:'24px',fontWeight:'700',color:'#111',marginBottom:'8px'}}>Restorebraine</h1>
-          <p style={{color:'#666',marginBottom:'32px',fontSize:'14px'}}>Sign in to access your memories</p>
-          <button onClick={() => { window.location.href = getPlatformLoginUrl(); }} style={{width:'100%',padding:'14px',background:'linear-gradient(135deg,#60a5fa,#a78bfa)',color:'white',border:'none',borderRadius:'14px',fontSize:'16px',fontWeight:'600',cursor:'pointer'}}>
-            Sign In
-          </button>
-        </div>
-      </div>
-    );
+  if (manuallyLoggedOut && !hasToken) {
+    return <SignInScreen clearSignedOut />;
   }
 
-  // Show loading spinner while checking app public settings or auth
-  if (isLoadingPublicSettings || isLoadingAuth) {
-    return (
-      <div className="fixed inset-0 flex items-center justify-center">
-        <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin"></div>
-      </div>
-    );
+  if (!hasToken && !isAuthenticated) {
+    return <SignInScreen />;
   }
 
-  // Handle authentication errors
-  if (manuallyLoggedOut || authError) {
-    if (authError.type === 'user_not_registered') {
-      return <UserNotRegisteredError />;
-    } else if (authError.type === 'auth_required') {
-      return (
-        <div style={{minHeight:'100vh',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',background:'linear-gradient(135deg,#eff6ff,#f5f3ff,#fdf2f8)',padding:'24px'}}>
-          <div style={{background:'white',borderRadius:'24px',padding:'40px',boxShadow:'0 10px 40px rgba(0,0,0,0.1)',maxWidth:'360px',width:'100%',textAlign:'center'}}>
-            <div style={{width:'64px',height:'64px',background:'linear-gradient(135deg,#93c5fd,#a78bfa)',borderRadius:'20px',display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 20px'}}>
-              <span style={{fontSize:'28px'}}>🔍</span>
-            </div>
-            <h1 style={{fontSize:'24px',fontWeight:'700',color:'#111',marginBottom:'8px'}}>Restorebraine</h1>
-            <p style={{color:'#666',marginBottom:'32px',fontSize:'14px'}}>Sign in to access your memories</p>
-            <button onClick={() => { localStorage.removeItem('b44_signed_out'); window.location.href = getPlatformLoginUrl(); }} style={{width:'100%',padding:'14px',background:'linear-gradient(135deg,#60a5fa,#a78bfa)',color:'white',border:'none',borderRadius:'14px',fontSize:'16px',fontWeight:'600',cursor:'pointer'}}>
-              Sign In
-            </button>
-          </div>
-        </div>
-      );
-    }
+  if (authError?.type === 'user_not_registered') {
+    return <UserNotRegisteredError />;
   }
 
-  // Render the main app
+  if (!isAuthenticated && !hasToken) {
+    return <SignInScreen clearSignedOut={manuallyLoggedOut} />;
+  }
+
+  // Token present — render gallery immediately; auth/settings finish in background (Omega 3).
   return (
-    <LayoutWrapper currentPageName={mainPageKey}>
-      <Routes>
-        <Route path="/" element={<MainPage />} />
-        {Object.entries(Pages).map(([path, Page]) => (
-          <Route key={path} path={`/${path.toLowerCase()}`} element={<Page />} />
-        ))}
-        <Route path="*" element={<PageNotFound />} />
-      </Routes>
-    </LayoutWrapper>
+    <AiConsentGate>
+      <LayoutWrapper currentPageName={mainPageKey}>
+        <Routes>
+          <Route path="/" element={<MainPage />} />
+          {Object.entries(Pages).map(([path, Page]) => (
+            <Route key={path} path={`/${path.toLowerCase()}`} element={<Page />} />
+          ))}
+          <Route path="*" element={<PageNotFound />} />
+        </Routes>
+      </LayoutWrapper>
+    </AiConsentGate>
   );
 };
 
@@ -94,10 +87,13 @@ function App() {
   return (
     <AuthProvider>
       <QueryClientProvider client={queryClientInstance}>
-        <Router>
-          <NavigationTracker />
-          <AuthenticatedApp />
-        </Router>
+        <ClientCacheClearListener />
+        <BootErrorBoundary>
+          <AppRouter>
+            <NavigationTracker />
+            <AuthenticatedApp />
+          </AppRouter>
+        </BootErrorBoundary>
         <Toaster />
       </QueryClientProvider>
     </AuthProvider>

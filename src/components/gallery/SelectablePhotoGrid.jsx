@@ -8,7 +8,11 @@ export default function SelectablePhotoGrid({
   onPhotoClick, 
   selectionMode = false, 
   selectedIds = [], 
-  onToggleSelect
+  onToggleSelect,
+  fastRender = false,
+  folderLabelForPhoto,
+  onFolderLabelClick,
+  folderLabelFallback,
 }) {
   const handleClick = (photo, e) => {
     if (selectionMode) {
@@ -18,6 +22,16 @@ export default function SelectablePhotoGrid({
       onPhotoClick(photo);
     }
   };
+
+  const getMotionProps = (index) => (
+    fastRender
+      ? { initial: false, animate: { opacity: 1, y: 0 }, transition: { duration: 0 } }
+      : {
+          initial: { opacity: 0, y: 20 },
+          animate: { opacity: 1, y: 0 },
+          transition: { duration: 0.3, delay: Math.min(index * 0.03, 0.3) },
+        }
+  );
 
   // If selection mode is active, render with drag-and-drop
   if (selectionMode) {
@@ -43,9 +57,7 @@ export default function SelectablePhotoGrid({
                       ref={provided.innerRef}
                       {...provided.draggableProps}
                       {...provided.dragHandleProps}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.3, delay: index * 0.03 }}
+                      {...getMotionProps(index)}
                       onClick={(e) => handleClick(photo, e)}
                       className="group cursor-move relative"
                       style={{
@@ -75,6 +87,7 @@ export default function SelectablePhotoGrid({
                             alt={photo.ai_description}
                             className="w-full h-full object-cover"
                             loading="eager"
+                            decoding="async"
                           />
                         )}
                         
@@ -107,14 +120,14 @@ export default function SelectablePhotoGrid({
   }
 
   // Regular grid without drag-and-drop
+  const TileWrapper = fastRender ? 'div' : motion.div;
+
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
       {photos.map((photo, index) => (
-        <motion.div
+        <TileWrapper
           key={photo.id}
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3, delay: index * 0.03 }}
+          {...(fastRender ? {} : getMotionProps(index))}
           onClick={(e) => handleClick(photo, e)}
           className="group cursor-pointer relative"
         >
@@ -138,8 +151,29 @@ export default function SelectablePhotoGrid({
                 alt={photo.ai_description}
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                 loading="eager"
+                decoding="async"
+                fetchPriority={fastRender && index < 6 ? 'high' : 'auto'}
               />
             )}
+
+            {(folderLabelForPhoto?.(photo) || folderLabelFallback) ? (
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  if (folderLabelForPhoto?.(photo)) {
+                    onFolderLabelClick?.(photo);
+                  }
+                }}
+                className="absolute top-1 left-1 right-1 text-left"
+              >
+                <span className={`inline-block max-w-full truncate rounded-md px-1.5 py-0.5 text-[10px] font-semibold text-white shadow-sm ${
+                  folderLabelForPhoto?.(photo) ? 'bg-purple-700/90' : 'bg-amber-600/90'
+                }`}>
+                  {folderLabelForPhoto?.(photo) ? `In: ${folderLabelForPhoto(photo)}` : folderLabelFallback}
+                </span>
+              </button>
+            ) : null}
             
             <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">
               <div className="absolute bottom-0 left-0 right-0 p-3">
@@ -149,7 +183,7 @@ export default function SelectablePhotoGrid({
               </div>
             </div>
           </div>
-        </motion.div>
+        </TileWrapper>
       ))}
     </div>
   );

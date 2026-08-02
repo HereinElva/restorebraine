@@ -29,8 +29,11 @@ export const getCanonicalOAuthUrl = (provider = 'google') => {
   const params = new URLSearchParams({
     app_id: BASE44_APP_ID,
     from_url: getAuthReturnOrigin(),
+    prompt: 'select_account',
+    rb_oauth: String(Date.now()),
   });
-  return `${BASE44_PLATFORM_URL}${path}?${params.toString()}`;
+  // app.base44.com/api/apps/auth/* returns 404 — auth lives on the hosted app domain.
+  return `${DEFAULT_APP_ORIGIN}${path}?${params.toString()}`;
 };
 
 /** Force a valid OAuth URL — blocks capacitor://, restorebraine://, and app.base44.com from_url values. */
@@ -56,7 +59,12 @@ export const getAppScopedLoginUrl = () => {
 
 export const getGoogleOAuthUrl = () => getCanonicalOAuthUrl('google');
 
-export const getProviderOAuthUrl = (label = '') => getCanonicalOAuthUrl(providerFromLabel(label));
+export const getProviderOAuthUrl = (provider = 'google') => {
+  const normalized = ['google', 'apple', 'microsoft'].includes(String(provider).toLowerCase())
+    ? String(provider).toLowerCase()
+    : providerFromLabel(provider);
+  return getCanonicalOAuthUrl(normalized);
+};
 
 export const isAuthNavigationUrl = (url) => {
   if (!url) return false;
@@ -123,9 +131,16 @@ export const hideBase44EditorWidget = () => {
   }
   const hideMatchingNodes = (root = document.body) => {
     if (!root?.querySelectorAll) return;
-    root.querySelectorAll('button, a, div, span, p, iframe').forEach((node) => {
-      if (node.id === 'rb-native-stamp') return;
-      const text = (node.textContent || '').trim();
+    root.querySelectorAll('button, a, div, span, p, iframe, footer, small').forEach((node) => {
+      if (node.id === 'rb-native-stamp') {
+        node.remove();
+        return;
+      }
+      const text = (node.textContent || '').replace(/\s+/g, ' ').trim();
+      if (/^kbrown native v\d+/i.test(text) || /^restorebraine web v\d+/i.test(text)) {
+        node.remove();
+        return;
+      }
       if (/edit with base\s*44/i.test(text) && text.length < 60) {
         let el = node;
         for (let i = 0; i < 8 && el && el !== document.body; i += 1) {
@@ -151,20 +166,16 @@ export const interceptNativeSignInClicks = () => {
   if (typeof document === 'undefined' || window.__restorebraineSignInInterceptor) return;
   window.__restorebraineSignInInterceptor = true;
   document.addEventListener('click', (event) => {
-    const target = event.target.closest('button, a, [role="button"], div[role="button"], [data-provider]');
-    if (!target) return;
-    const label = (target.textContent || '').trim();
-    const href = target.href || target.getAttribute?.('href') || '';
-    const isProvider = /continue with google|continue with apple|continue with microsoft|sign in with email|sign in with google|sign in with apple|sign in with microsoft/i.test(label);
-    const isAuthLink = /auth\/login|auth\/apple|auth\/microsoft/i.test(href);
-    if (!isProvider && !isAuthLink) return;
+    const providerTarget = event.target.closest('[data-rb-provider], [data-provider]');
+    if (!providerTarget || providerTarget.disabled) return;
     event.preventDefault();
     event.stopPropagation();
     event.stopImmediatePropagation();
-    const provider = providerFromLabel(label);
-    const authUrl = href && isAuthNavigationUrl(href) ? href : getCanonicalOAuthUrl(provider);
+    const provider = providerTarget.getAttribute('data-rb-provider')
+      || providerTarget.getAttribute('data-provider');
+    if (!provider) return;
     import('@/lib/native-google-oauth').then(({ openLoginInSystemBrowser }) => {
-      openLoginInSystemBrowser(authUrl, provider);
+      openLoginInSystemBrowser(getCanonicalOAuthUrl(provider), provider);
     });
   }, true);
 };
@@ -185,8 +196,8 @@ export const installNativePlatformGuard = () => {
   guardPlatformNavigation();
   guardSignedOutLoginPage();
   hideBase44EditorWidget();
-  interceptNativeSignInClicks();
   guardGoogleOAuthInWebView();
+  /* OAuth provider taps use NativeLoginCard + __restorebraineOpenProviderLogin — no click intercept. */
   window.addEventListener('popstate', () => {
     guardPlatformNavigation();
     guardSignedOutLoginPage();
@@ -205,5 +216,5 @@ export const installNativePlatformGuard = () => {
     guardSignedOutLoginPage();
     guardGoogleOAuthInWebView();
     hideBase44EditorWidget();
-  }, 500);
+  }, 5000);
 };

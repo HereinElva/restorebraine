@@ -8,7 +8,6 @@ const marketingIcon = resolve(iconSetDir, 'AppIcon-1024.png');
 const sourceCandidates = [
   marketingIcon,
   resolve(iconSetDir, 'Icon-Any-1024.png'),
-  resolve(iconSetDir, 'AppIcon-512@2x.png'),
   resolve('public/AppIcon.png'),
 ];
 

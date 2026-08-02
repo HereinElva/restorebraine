@@ -1,5 +1,5 @@
-import React, { useState, useRef } from "react";
-import { Search, X, Sparkles, ImageIcon, Grid3x3, Layers, MousePointer2, Check, Pencil, Loader2, FolderInput, Folder } from "lucide-react";
+import React, { useState, useRef, useMemo } from "react";
+import { Search, X, Sparkles, ImageIcon, Grid3x3, Layers, MousePointer2, Check, Pencil, Loader2, FolderInput, Folder, FolderMinus } from "lucide-react";
 
 import SelectablePhotoGrid from "./SelectablePhotoGrid";
 import MobilePhotoModal from "./MobilePhotoModal";
@@ -12,6 +12,9 @@ import MobileFolderCard from "./MobileFolderCard";
 import MobileDrawerMenu from "./MobileDrawerMenu";
 import { base44 } from "@/api/base44Client";
 import { DEPLOY_BUILD } from "@/deploy-marker";
+import { normalizePhotoId, resolveFolderPhotos, countFolderPhotos, sanitizeFolderPhotoIds, buildPhotoToFolderMap } from "@/lib/gallery-organize-snapshot";
+import { loadFolderMembershipCacheSync, saveFolderMembershipCache } from "@/lib/folder-membership-cache";
+import { countFoldersWithPhotos } from "@/lib/folder-membership";
 
 export default function MobileGallery({
   photos,
@@ -49,8 +52,28 @@ export default function MobileGallery({
   const [folderMoveDrawerOpen, setFolderMoveDrawerOpen] = useState(false);
   const inputRef = useRef(null);
 
-  const photosInFolders = new Set(folders.flatMap(f => f.photo_ids || []));
-  const unorganizedPhotos = photos.filter(p => !photosInFolders.has(p.id));
+  const photosInFolders = new Set(
+    folders.flatMap((f) => sanitizeFolderPhotoIds(f.photo_ids, photos).map(normalizePhotoId)),
+  );
+  const unorganizedPhotos = photos.filter(p => !photosInFolders.has(normalizePhotoId(p.id)));
+  const photoToFolderMap = useMemo(
+    () => buildPhotoToFolderMap(folders, photos),
+    [folders, photos],
+  );
+  const foldersWithPhotosCount = useMemo(
+    () => countFoldersWithPhotos(folders, photos),
+    [folders, photos],
+  );
+
+  const openFolder = (folder) => {
+    const liveFolder = folders.find((f) => f.id === folder.id) || folder;
+    setSelectedFolder(liveFolder);
+    pushBack(liveFolder.name, () => {
+      setSelectedFolder(null);
+      setSelectionMode(false);
+      setSelectedIds([]);
+    });
+  };
 
   const exitSelection = () => {
     setSelectionMode(false);
@@ -100,17 +123,39 @@ export default function MobileGallery({
     exitSelection();
   };
 
-  const handleDeleteFolders = async () => {
+  const handleDissolveFolders = async () => {
     if (!selectedFolderIds.length) return;
-    if (!confirm(`Delete ${selectedFolderIds.length} folder(s)? Photos will not be deleted.`)) return;
-    for (const id of selectedFolderIds) await base44.entities.Folder.delete(id);
-    queryClient.invalidateQueries({ queryKey: ['folders'] });
+    if (!confirm(`Dissolve ${selectedFolderIds.length} folder(s)? Photos will return to your main library.`)) return;
+
+    const releasedPhotoIds = [];
+    for (const id of selectedFolderIds) {
+      const folder = folders.find((f) => f.id === id);
+      if (folder?.photo_ids?.length) releasedPhotoIds.push(...folder.photo_ids);
+      await base44.entities.Folder.delete(id);
+    }
+
+    const email = queryClient.getQueryData(["current-user"])?.email;
+    if (email && releasedPhotoIds.length) {
+      const map = loadFolderMembershipCacheSync(email);
+      let changed = false;
+      for (const photoId of releasedPhotoIds) {
+        const norm = normalizePhotoId(photoId);
+        if (norm && map[norm]) {
+          delete map[norm];
+          changed = true;
+        }
+      }
+      if (changed) void saveFolderMembershipCache(email, map);
+    }
+
+    queryClient.invalidateQueries({ queryKey: ["folders"] });
     exitSelection();
   };
 
   // Folder view
   if (selectedFolder) {
-    const folderPhotos = photos.filter(p => (selectedFolder.photo_ids || []).includes(p.id));
+    const liveFolder = folders.find((f) => f.id === selectedFolder.id) || selectedFolder;
+    const folderPhotos = resolveFolderPhotos(liveFolder, photos);
 
     const handleFolderPhotoMove = async (targetFolderId) => {
       setMergeDrawerOpen(false);
@@ -123,8 +168,9 @@ export default function MobileGallery({
         cover_photo_url: targetFolder.cover_photo_url || photos.find(p => p.id === updatedTargetIds[0])?.file_url,
       });
       // Remove selected photos from current folder
-      const updatedSourceIds = (selectedFolder.photo_ids || []).filter(id => !selectedIds.includes(id));
-      await base44.entities.Folder.update(selectedFolder.id, { photo_ids: updatedSourceIds });
+      const updatedSourceIds = (liveFolder.photo_ids || []).filter(id => !selectedIds.includes(id));
+      await base44.entities.Folder.update(liveFolder.id, { photo_ids: updatedSourceIds });
+      setSelectedFolder({ ...liveFolder, photo_ids: updatedSourceIds });
       queryClient.invalidateQueries({ queryKey: ['folders'] });
       exitSelection();
     };
@@ -189,7 +235,7 @@ export default function MobileGallery({
 
         {/* Selection toolbar for folder view */}
         {selectionMode && selectedIds.length > 0 && (
-          <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 w-[calc(100vw-2rem)]">
+          <div data-rb-selection-toolbar className="fixed left-1/2 -translate-x-1/2 z-50 w-[calc(100vw-2rem)]">
             <div className="bg-white rounded-2xl shadow-2xl border border-purple-200 px-4 py-3 flex flex-col gap-3">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-semibold text-purple-700">
@@ -244,8 +290,7 @@ export default function MobileGallery({
           if (selectionMode) {
             toggleFolderSelect(folder.id);
           } else {
-            setSelectedFolder(folder);
-            pushBack(folder.name, () => { setSelectedFolder(null); setSelectionMode(false); setSelectedIds([]); });
+            openFolder(folder);
           }
         }}
       >
@@ -274,7 +319,6 @@ export default function MobileGallery({
             Memories
           </span>
         </h1>
-        <p className="text-sm text-gray-500 mt-0.5">Search using natural language</p>
       </div>
 
       {/* Search bar */}
@@ -321,7 +365,7 @@ export default function MobileGallery({
             className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-sm font-medium transition-colors ${activeTab === "folders" ? "bg-purple-100 text-purple-700" : "text-gray-500"}`}
           >
             <Layers className="w-3.5 h-3.5" />
-            Folders ({folders.length})
+            Folders ({foldersWithPhotosCount})
           </button>
         </div>
       )}
@@ -346,14 +390,32 @@ export default function MobileGallery({
                 <p className="text-gray-400 text-sm">Try a different search</p>
               </div>
             ) : (
-              <SelectablePhotoGrid photos={filteredPhotos} onPhotoClick={setSelectedPhoto} selectionMode={false} selectedIds={[]} onToggleSelect={() => {}} />
+              <SelectablePhotoGrid
+                photos={filteredPhotos}
+                onPhotoClick={setSelectedPhoto}
+                selectionMode={false}
+                selectedIds={[]}
+                onToggleSelect={() => {}}
+                fastRender
+                folderLabelForPhoto={(photo) => {
+                  const folder = photoToFolderMap.get(normalizePhotoId(photo.id));
+                  return folder?.name ?? null;
+                }}
+                folderLabelFallback="Loose — tap Organize"
+                onFolderLabelClick={(photo) => {
+                  const folder = photoToFolderMap.get(normalizePhotoId(photo.id));
+                  if (!folder) return;
+                  setSearchQuery("");
+                  openFolder(folder);
+                }}
+              />
             )}
           </>
         ) : activeTab === "folders" ? (
           <div>
             {/* Action buttons — direct grid cells, no wrapper rim */}
             <div className="grid grid-cols-2 gap-1.5 mb-5">
-              <OrganizeButton photos={photos} squareStyle />
+              <OrganizeButton photos={photos} folders={folders} squareStyle />
               <CustomFolderButton photos={photos} squareStyle />
               <DuplicateDetector photos={photos} folders={folders} squareStyle />
               <button
@@ -398,7 +460,6 @@ export default function MobileGallery({
                   <div className="mb-4">
                     <div className="flex items-center justify-between mb-2 px-1">
                       <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Folders</p>
-                      <button onClick={() => setActiveTab("folders")} className="text-xs text-purple-500 font-medium">See all</button>
                     </div>
                     <div className="grid grid-cols-4 gap-2">
                       {folders.slice(0, 8).map(folder => (
@@ -406,10 +467,7 @@ export default function MobileGallery({
                           key={folder.id}
                           folder={folder}
                           photos={photos}
-                          onClick={() => {
-                            setSelectedFolder(folder);
-                            pushBack(folder.name, () => { setSelectedFolder(null); setSelectionMode(false); setSelectedIds([]); });
-                          }}
+                          onClick={() => openFolder(folder)}
                         />
                       ))}
                     </div>
@@ -428,6 +486,7 @@ export default function MobileGallery({
                       selectionMode={selectionMode}
                       selectedIds={selectedIds}
                       onToggleSelect={toggleSelect}
+                      fastRender
                     />
                   </div>
                 )}
@@ -443,7 +502,7 @@ export default function MobileGallery({
 
       {/* Folder selection toolbar */}
       {selectionMode && (selectedFolderIds.length > 0 || selectedIds.length > 0) && (
-        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 w-[calc(100vw-2rem)]">
+        <div data-rb-selection-toolbar className="fixed left-1/2 -translate-x-1/2 z-50 w-[calc(100vw-2rem)]">
           <div className="bg-white rounded-2xl shadow-2xl border border-purple-200 px-4 py-3 flex flex-col gap-3">
             {/* Status row */}
             <div className="flex items-center justify-between">
@@ -460,48 +519,50 @@ export default function MobileGallery({
 
             {/* Actions row */}
             <div className="flex gap-2 flex-wrap">
-              {/* Rename — only when exactly 1 folder selected */}
               {selectedFolderIds.length === 1 && selectedIds.length === 0 && (
                 <button
                   onClick={handleRenameOpen}
-                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-blue-50 text-blue-700 text-sm font-semibold"
+                  className="flex-1 min-w-[calc(50%-0.25rem)] flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-blue-50 text-blue-700 text-sm font-semibold"
                 >
-                  <Pencil className="w-4 h-4" /> Rename
+                  <Pencil className="w-4 h-4" /> Relabel
                 </button>
               )}
 
-              {/* Merge — when 1+ folders selected */}
               {selectedFolderIds.length >= 1 && selectedIds.length === 0 && (
                 <button
                   onClick={() => setMergeDrawerOpen(true)}
                   disabled={merging}
-                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-purple-600 text-white text-sm font-semibold disabled:opacity-50"
+                  className="flex-1 min-w-[calc(50%-0.25rem)] flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-purple-600 text-white text-sm font-semibold disabled:opacity-50"
                 >
                   {merging ? <Loader2 className="w-4 h-4 animate-spin" /> : <FolderInput className="w-4 h-4" />}
-                  Merge Folders
+                  Move Into…
                 </button>
               )}
 
-              {/* Move photos to folder */}
+              {selectedFolderIds.length >= 1 && selectedIds.length === 0 && (
+                <button
+                  onClick={handleDissolveFolders}
+                  className="flex-1 min-w-[calc(50%-0.25rem)] flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-amber-50 text-amber-800 text-sm font-semibold"
+                >
+                  <FolderMinus className="w-4 h-4" /> Dissolve
+                </button>
+              )}
+
               {selectedIds.length > 0 && (
                 <button
                   onClick={() => setFolderMoveDrawerOpen(true)}
-                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-purple-600 text-white text-sm font-semibold"
+                  className="flex-1 min-w-[calc(50%-0.25rem)] flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-purple-600 text-white text-sm font-semibold"
                 >
                   <FolderInput className="w-4 h-4" /> Move to Folder
                 </button>
               )}
 
-              {/* Delete */}
-              {(selectedFolderIds.length > 0 || selectedIds.length > 0) && (
+              {selectedIds.length > 0 && (
                 <button
-                  onClick={() => {
-                    if (selectedFolderIds.length > 0) handleDeleteFolders();
-                    if (selectedIds.length > 0) onDeletePhotos();
-                  }}
-                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-red-50 text-red-600 text-sm font-semibold"
+                  onClick={onDeletePhotos}
+                  className="flex-1 min-w-[calc(50%-0.25rem)] flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-red-50 text-red-600 text-sm font-semibold"
                 >
-                  Delete
+                  Delete Photos
                 </button>
               )}
             </div>
@@ -509,8 +570,8 @@ export default function MobileGallery({
         </div>
       )}
 
-      {/* Merge folders drawer */}
-      <MobileDrawerMenu open={mergeDrawerOpen} onOpenChange={setMergeDrawerOpen} title="Merge into folder">
+      {/* Move selected folder(s) into another folder */}
+      <MobileDrawerMenu open={mergeDrawerOpen} onOpenChange={setMergeDrawerOpen} title="Move folder into…">
         {folders
           .filter(f => !selectedFolderIds.includes(f.id))
           .map(folder => (
@@ -544,7 +605,7 @@ export default function MobileGallery({
       {renameFolder && (
         <div className="fixed inset-0 z-[100] bg-black/50 flex items-end justify-center" onClick={() => setRenameFolder(null)}>
           <div className="bg-white w-full rounded-t-3xl p-6 pb-10" onClick={e => e.stopPropagation()}>
-            <h3 className="text-lg font-bold text-gray-900 mb-4">Rename Folder</h3>
+            <h3 className="text-lg font-bold text-gray-900 mb-4">Relabel Folder</h3>
             <input
               autoFocus
               value={renameName}

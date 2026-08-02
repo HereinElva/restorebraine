@@ -1,0 +1,250 @@
+# Base44 chat paste 26/34 (3 files)
+
+Apply every FILE block below to the Restorebraine code editor.
+Write each file at the exact path shown — replace entire file contents.
+Do NOT Publish until I confirm all chat groups are done.
+Do NOT fetch URLs — paste content only (JSX must stay intact).
+
+Files in this message:
+1. src/lib/media-tags.js
+2. src/lib/media-search.js
+3. src/lib/media-constants.js
+
+========================================================================
+FILE: src/lib/media-tags.js
+========================================================================
+/** Synonym groups — any term in a group matches searches for siblings. */
+export const SYNONYM_GROUPS = [
+  ['grass', 'field', 'meadow', 'lawn', 'pasture', 'greenery', 'prairie', 'turf'],
+  ['beach', 'ocean', 'sea', 'sand', 'shore', 'coast', 'waves', 'waterfront'],
+  ['forest', 'woods', 'trees', 'woodland', 'grove'],
+  ['mountain', 'mountains', 'hills', 'peak', 'summit', 'alps'],
+  ['dog', 'puppy', 'canine', 'dogs'],
+  ['cat', 'kitten', 'feline', 'cats'],
+  ['car', 'vehicle', 'automobile', 'truck', 'suv'],
+  ['food', 'meal', 'dish', 'cuisine', 'dining', 'restaurant'],
+  ['baby', 'infant', 'toddler', 'child', 'kid'],
+  ['sunset', 'sunrise', 'dusk', 'dawn', 'golden hour'],
+  ['snow', 'winter', 'snowy', 'ice', 'frost'],
+  ['flower', 'flowers', 'bloom', 'blossom', 'garden'],
+  ['city', 'urban', 'downtown', 'street', 'skyline'],
+  ['pool', 'swimming', 'swim'],
+  ['wedding', 'bride', 'groom', 'marriage'],
+  ['birthday', 'cake', 'party', 'celebration'],
+  ['selfie', 'portrait', 'face', 'headshot'],
+  ['screenshot', 'screen', 'text', 'quote', 'meme'],
+];
+
+const synonymIndex = new Map();
+for (const group of SYNONYM_GROUPS) {
+  const normalized = group.map((w) => w.toLowerCase());
+  for (const word of normalized) {
+    synonymIndex.set(word, normalized);
+  }
+}
+
+export function expandTermVariants(term) {
+  const lower = term.toLowerCase().trim();
+  const variants = new Set([lower]);
+
+  const group = synonymIndex.get(lower);
+  if (group) group.forEach((w) => variants.add(w));
+
+  if (lower.length > 4 && lower.endsWith('ing')) variants.add(lower.slice(0, -3));
+  if (lower.length > 3 && lower.endsWith('es')) variants.add(lower.slice(0, -2));
+  if (lower.length > 3 && lower.endsWith('s')) variants.add(lower.slice(0, -1));
+  if (lower.length > 3 && lower.endsWith('ed')) variants.add(lower.slice(0, -2));
+  if (lower.length >= 3) variants.add(`${lower}s`);
+
+  return [...variants];
+}
+
+export function enrichTags(description, tags = []) {
+  const merged = new Set(
+    tags.map((t) => String(t).toLowerCase().trim()).filter(Boolean),
+  );
+
+  for (const word of tokenize(description)) {
+    if (word.length < 3) continue;
+    merged.add(word);
+    expandTermVariants(word).forEach((v) => merged.add(v));
+  }
+
+  for (const tag of [...merged]) {
+    expandTermVariants(tag).forEach((v) => merged.add(v));
+  }
+
+  return [...merged].slice(0, 35);
+}
+
+export function expandQueryTerms(rawQuery) {
+  const terms = tokenize(rawQuery);
+  const expanded = new Set();
+
+  for (const term of terms) {
+    expandTermVariants(term).forEach((v) => expanded.add(v));
+  }
+
+  return { terms, expanded: [...expanded] };
+}
+
+export function tokenize(str = '') {
+  return str
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, ' ')
+    .split(/\s+/)
+    .filter((w) => w.length >= 2);
+}
+
+export function isWeakMetadata(photo) {
+  const tagCount = (photo.ai_tags || []).length;
+  const descLen = (photo.ai_description || '').trim().length;
+  return tagCount < 10 || descLen < 40;
+}
+
+
+========================================================================
+FILE: src/lib/media-search.js
+========================================================================
+import { expandQueryTerms, tokenize } from '@/lib/media-tags';
+
+const VIDEO_KEYWORDS = new Set(['video', 'videos']);
+const IMAGE_KEYWORDS = new Set(['picture', 'pictures', 'image', 'images', 'photo', 'photos']);
+
+function termMatchesText(term, text) {
+  const lower = text.toLowerCase();
+  const variants = expandQueryTerms(term).expanded;
+
+  for (const variant of variants) {
+    if (variant.length < 2) continue;
+    if (lower.includes(variant)) return true;
+
+    for (const word of tokenize(lower)) {
+      if (word === variant) return true;
+      if (variant.length >= 3 && word.startsWith(variant)) return true;
+      if (word.length >= 3 && variant.startsWith(word)) return true;
+    }
+  }
+
+  return false;
+}
+
+function scoreTerm(term, photo, tags) {
+  let score = 0;
+  const desc = photo.ai_description || '';
+  const filename = photo.original_filename || '';
+  const variants = expandQueryTerms(term).expanded;
+
+  for (const variant of variants) {
+    for (const tag of tags) {
+      if (tag === variant) score += 8;
+      else if (tag.includes(variant) || variant.includes(tag)) score += 5;
+    }
+    if (termMatchesText(variant, desc)) score += 3;
+    if (termMatchesText(variant, filename)) score += 1;
+  }
+
+  return score;
+}
+
+export function scorePhoto(photo, rawQuery) {
+  const queryTokens = tokenize(rawQuery);
+  if (queryTokens.length === 0) return 1;
+
+  const typeTokens = queryTokens.filter((t) => VIDEO_KEYWORDS.has(t) || IMAGE_KEYWORDS.has(t));
+  const contentTokens = queryTokens.filter((t) => !VIDEO_KEYWORDS.has(t) && !IMAGE_KEYWORDS.has(t));
+
+  if (typeTokens.some((t) => VIDEO_KEYWORDS.has(t)) && photo.file_type !== 'video') return 0;
+  if (typeTokens.some((t) => IMAGE_KEYWORDS.has(t)) && photo.file_type !== 'image') return 0;
+  if (contentTokens.length === 0) return 1;
+
+  const tags = (photo.ai_tags || []).map((t) => String(t).toLowerCase());
+  let totalScore = 0;
+  let matchedTerms = 0;
+
+  for (const term of contentTokens) {
+    const termScore = scoreTerm(term, photo, tags);
+    if (termScore > 0) {
+      matchedTerms += 1;
+      totalScore += termScore;
+    }
+  }
+
+  if (matchedTerms === 0) return 0;
+
+  const phrase = contentTokens.join(' ');
+  if (termMatchesText(phrase, photo.ai_description || '')) totalScore += 15;
+
+  const allTagsText = tags.join(' ');
+  if (contentTokens.every((t) => termMatchesText(t, allTagsText))) totalScore += 10;
+
+  const minMatches = contentTokens.length <= 2
+    ? contentTokens.length
+    : Math.ceil(contentTokens.length * 0.5);
+
+  if (matchedTerms < minMatches) return 0;
+
+  return totalScore;
+}
+
+export function filterAndRankPhotos(photos, rawQuery) {
+  if (!rawQuery?.trim()) return photos;
+
+  return photos
+    .map((photo) => ({ photo, score: scorePhoto(photo, rawQuery) }))
+    .filter(({ score }) => score > 0)
+    .sort((a, b) => b.score - a.score)
+    .map(({ photo }) => photo);
+}
+
+
+========================================================================
+FILE: src/lib/media-constants.js
+========================================================================
+/** Overlapping upload workers — bandwidth-bound. */
+export const UPLOAD_PIPELINE_CONCURRENCY = 6;
+
+/** Overlapping DB saves while uploads continue. */
+export const SAVE_PIPELINE_CONCURRENCY = 8;
+
+/** Background AI analysis after save — does not block the upload UI. */
+export const BACKGROUND_ANALYSIS_CONCURRENCY = 2;
+
+/** Parallel uploads within each item (legacy phased batch). */
+export const UPLOAD_CONCURRENCY = UPLOAD_PIPELINE_CONCURRENCY;
+
+/** Parallel AI vision calls when analysis blocks save (retries only). */
+export const ANALYSIS_CONCURRENCY = 2;
+
+/** Parallel DB writes. */
+export const SAVE_CONCURRENCY = SAVE_PIPELINE_CONCURRENCY;
+
+/** Compress camera-roll images above this size before upload. */
+export const IMAGE_COMPRESS_MIN_BYTES = 1536 * 1024;
+
+/** Max long edge for uploaded photos — keeps quality, cuts upload time. */
+export const IMAGE_MAX_DIMENSION = 2048;
+
+/** JPEG quality for compressed uploads. */
+export const IMAGE_JPEG_QUALITY = 0.82;
+
+/** Parallel image prep before upload starts. */
+export const IMAGE_PREP_CONCURRENCY = 4;
+
+/** Max files accepted in one selection. */
+export const MAX_BATCH_SIZE = 100;
+
+/** Max video file size (~5 min). */
+export const MAX_VIDEO_BYTES = 500 * 1024 * 1024;
+
+/** Per-file upload timeout (large videos on LTE). */
+export const UPLOAD_TIMEOUT_MS = 90000;
+
+/** Retries for transient network failures. */
+export const UPLOAD_MAX_RETRIES = 2;
+
+/** Background vision analysis timeout — runs after save. */
+export const UPLOAD_ANALYSIS_TIMEOUT_MS = 35000;
+
+/** Overall batch watchdog — prevents infinite stall. */
+export const UPLOAD_BATCH_TIMEOUT_MS = 600000;

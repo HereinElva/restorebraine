@@ -1,0 +1,16 @@
+# Paste this ENTIRE message into Base44 AI chat (file 57/71)
+
+Apply this single file to the Restorebraine code editor. Do NOT Publish yet.
+
+========================================================================
+FILE: src/lib/utils.js
+========================================================================
+import { clsx } from "clsx"
+import { twMerge } from "tailwind-merge"
+
+export function cn(...inputs) {
+  return twMerge(clsx(inputs))
+} 
+
+
+export const isIframe = window.self !== window.top;

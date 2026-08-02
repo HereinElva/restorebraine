@@ -11,6 +11,7 @@ import {
   wouldExceedStorageLimit,
 } from "@/lib/storage-billing";
 import { installStripeReturnRefresh } from "@/lib/stripe-checkout";
+import { hasAiUploadConsent } from "@/lib/ai-upload-consent";
 import {
   MAX_BATCH_SIZE,
   processSingleUpload,
@@ -49,8 +50,11 @@ export default function Upload() {
     return installStripeReturnRefresh(() => {
       queryClient.invalidateQueries({ queryKey: ["current-user"] });
       queryClient.invalidateQueries({ queryKey: ["photos"] });
+      if (currentUser?.email) {
+        queryClient.invalidateQueries({ queryKey: ["folders", currentUser.email] });
+      }
     });
-  }, [queryClient]);
+  }, [queryClient, currentUser?.email]);
 
   const updateFileAt = useCallback((index, patch) => {
     setFiles((prev) =>
@@ -73,6 +77,14 @@ export default function Upload() {
     autoProcessRef.current = true;
   }, []);
 
+  const ensureAiConsentForUpload = useCallback(() => {
+    if (hasAiUploadConsent()) return true;
+    alert(
+      "Accept the AI photo analysis prompt when you first sign in, or open Account to review privacy settings before uploading.",
+    );
+    return false;
+  }, []);
+
   const handleFileSelection = useCallback(
     (incoming) => {
       const { valid, error } = validateFiles(incoming);
@@ -88,15 +100,17 @@ export default function Upload() {
         return;
       }
 
+      if (!ensureAiConsentForUpload()) return;
       addFilesToQueue(valid);
     },
-    [addFilesToQueue, currentPhotoCount, currentPaidTier],
+    [addFilesToQueue, currentPhotoCount, currentPaidTier, ensureAiConsentForUpload],
   );
 
   const handlePaymentComplete = async () => {
     setShowPayment(false);
     await queryClient.invalidateQueries({ queryKey: ["current-user"] });
     if (pendingFiles?.length) {
+      if (!ensureAiConsentForUpload()) return;
       addFilesToQueue(pendingFiles);
       setPendingFiles(null);
     }
@@ -134,8 +148,22 @@ export default function Upload() {
         },
       });
       queryClient.invalidateQueries({ queryKey: ["photos"] });
+      if (currentUser?.email) {
+        queryClient.invalidateQueries({ queryKey: ["folders", currentUser.email] });
+      }
     } catch (error) {
       console.error("Batch upload failed:", error);
+      const message = error?.message || "Upload failed";
+      setFiles((prev) =>
+        prev.map((item, i) =>
+          indexes.includes(i) && item.status === "processing"
+            ? { ...item, status: "error", error: message, progress: 0, phase: "error" }
+            : item,
+        ),
+      );
+      if (/timed out/i.test(message)) {
+        alert("Upload took too long. Tap retry on failed items, or upload fewer files at once.");
+      }
     } finally {
       setProcessing(false);
     }
@@ -168,6 +196,9 @@ export default function Upload() {
 
     setProcessing(false);
     queryClient.invalidateQueries({ queryKey: ["photos"] });
+    if (currentUser?.email) {
+      queryClient.invalidateQueries({ queryKey: ["folders", currentUser.email] });
+    }
   };
 
   const allProcessed =
@@ -190,7 +221,7 @@ export default function Upload() {
               {currentPaidTier > 0 ? ` (${currentPaidTier} paid tier${currentPaidTier > 1 ? "s" : ""})` : ""}
             </p>
             <p className="text-sm text-gray-500 mt-0.5">
-              Up to {MAX_BATCH_SIZE} files per batch · processed in parallel
+              Up to {MAX_BATCH_SIZE} files per batch · saves fast, AI tags in background
             </p>
           </div>
         </div>
@@ -217,7 +248,7 @@ export default function Upload() {
                     onClick={processPhotos}
                     className="w-full mb-4 bg-gradient-to-r from-purple-500 to-blue-500 text-white rounded-2xl py-4 font-semibold"
                   >
-                    Analyze & Save {files.filter((f) => f.status === "pending").length} Files
+                    Save {files.filter((f) => f.status === "pending").length} Memories
                   </button>
                 )}
                 <MobileUpload
