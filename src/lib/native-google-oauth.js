@@ -9,7 +9,6 @@ import {
 import { getAuthReturnOrigin } from '@/lib/app-domains';
 import { persistSessionToNativeStorage, finishPendingOAuthLogin } from '@/lib/session-bootstrap';
 import { isNativeShell } from '@/lib/native-hosted-redirect';
-import { resetToGalleryHome } from '@/lib/gallery-nav';
 
 const GOOGLE_OAUTH_PATTERN = /accounts\.google\.com|google\.com\/o\/oauth|oauth2\.googleapis\.com|\/api\/apps\/auth\/login/i;
 
@@ -56,8 +55,6 @@ export const tryRestoreSessionAfterOAuth = async () => {
     finishPendingOAuthLogin();
     try {
       window.dispatchEvent(new CustomEvent('restorebraine-session-updated', { detail: { token: urlToken } }));
-      window.dispatchEvent(new CustomEvent('restorebraine-native-oauth-complete', { detail: { token: urlToken } }));
-      resetToGalleryHome();
     } catch {}
     return true;
   }
@@ -69,8 +66,6 @@ export const tryRestoreSessionAfterOAuth = async () => {
     finishPendingOAuthLogin();
     try {
       window.dispatchEvent(new CustomEvent('restorebraine-session-updated', { detail: { token: freshToken } }));
-      window.dispatchEvent(new CustomEvent('restorebraine-native-oauth-complete', { detail: { token: freshToken } }));
-      resetToGalleryHome();
     } catch {}
     return true;
   }
@@ -80,8 +75,6 @@ export const tryRestoreSessionAfterOAuth = async () => {
     await persistSessionToNativeStorage(existing);
     try {
       window.dispatchEvent(new CustomEvent('restorebraine-session-updated', { detail: { token: existing } }));
-      window.dispatchEvent(new CustomEvent('restorebraine-native-oauth-complete', { detail: { token: existing } }));
-      resetToGalleryHome();
     } catch {}
     return true;
   }
@@ -93,8 +86,6 @@ export const tryRestoreSessionAfterOAuth = async () => {
   finishPendingOAuthLogin();
   try {
     window.dispatchEvent(new CustomEvent('restorebraine-session-updated', { detail: { token } }));
-    window.dispatchEvent(new CustomEvent('restorebraine-native-oauth-complete', { detail: { token } }));
-    resetToGalleryHome();
   } catch {}
   return true;
 };
@@ -109,7 +100,7 @@ export const captureOAuthTokenFromUrl = async (url) => {
     finishPendingOAuthLogin();
     await persistSessionToNativeStorage(token);
     try {
-      window.dispatchEvent(new CustomEvent('restorebraine-native-oauth-complete', { detail: { token } }));
+      window.dispatchEvent(new CustomEvent('restorebraine-session-updated', { detail: { token } }));
     } catch {}
     return token;
   } catch {
@@ -245,10 +236,6 @@ export const installNativeOAuthListeners = async () => {
       void openLoginInSystemBrowser(oauthUrl, p);
     };
   }
-
-  window.addEventListener('restorebraine-native-oauth-complete', () => {
-    void tryRestoreSessionAfterOAuth();
-  });
 
   try {
     const { installNativeOAuthDeepLinkHandler } = await import('@/lib/session-bootstrap');

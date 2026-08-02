@@ -4,7 +4,7 @@ import { appParams } from '@/lib/app-params';
 import { createAxiosClient } from '@base44/sdk/dist/utils/axios-client';
 import { openRestorebraineLogin } from '@/lib/auth-urls';
 import { getAppOrigin } from '@/lib/app-params';
-import { clearNativeSession, persistSessionToNativeStorage, applyAuthSessionTokenSync, restoreSessionFromNativeStorage, ensureClientSessionToken, finishPendingOAuthLogin, normalizeAuthEmail, prepareForNewRegistration, clearAxiosAuthHeaders } from '@/lib/session-bootstrap';
+import { clearNativeSession, persistSessionToNativeStorage, applyAuthSessionTokenSync, restoreSessionFromNativeStorage, ensureClientSessionToken, finishPendingOAuthLogin, isWithinOAuthGracePeriod, normalizeAuthEmail, prepareForNewRegistration, clearAxiosAuthHeaders } from '@/lib/session-bootstrap';
 import {
   postAuthEmail,
   verifyAuthOtp,
@@ -65,6 +65,8 @@ export const AuthProvider = ({ children }) => {
   const [appPublicSettings, setAppPublicSettings] = useState(null);
   const [manuallyLoggedOut, setManuallyLoggedOut] = useState(false);
   const authBootInFlightRef = useRef(false);
+  const lastSessionUpdateRef = useRef({ token: null, at: 0 });
+  const sessionAuthCheckTimerRef = useRef(null);
 
   useEffect(() => {
     checkAppState();
@@ -286,6 +288,17 @@ export const AuthProvider = ({ children }) => {
             }
           }
         }
+        if (isBundledNativeShell() && (hasStoredAuthToken() || isWithinOAuthGracePeriod())) {
+          finishPendingOAuthLogin();
+          const localToken = localStorage.getItem('base44_access_token') || localStorage.getItem('token');
+          if (localToken) {
+            applyAuthSessionTokenSync(localToken);
+          }
+          setIsAuthenticated(true);
+          setAuthError(null);
+          setIsLoadingAuth(false);
+          return;
+        }
         await clearNativeSession().catch(() => {});
       } else if (error.status === 408 && isBundledNativeShell() && hasStoredAuthToken()) {
         // Slow network on native — keep gallery open when a token is still stored.
@@ -348,6 +361,16 @@ export const AuthProvider = ({ children }) => {
   };
 
   useEffect(() => {
+    const scheduleSilentAuthCheck = () => {
+      if (sessionAuthCheckTimerRef.current) {
+        window.clearTimeout(sessionAuthCheckTimerRef.current);
+      }
+      sessionAuthCheckTimerRef.current = window.setTimeout(() => {
+        sessionAuthCheckTimerRef.current = null;
+        void checkUserAuth({ ignoreManualLogout: true, silent: true });
+      }, 250);
+    };
+
     const onSessionUpdated = (event) => {
       try {
         const token =
@@ -355,21 +378,33 @@ export const AuthProvider = ({ children }) => {
           (localStorage.getItem('b44_signed_out') === '1'
             ? null
             : (localStorage.getItem('base44_access_token') || localStorage.getItem('token')));
-        if (token) {
-          finishPendingOAuthLogin();
-          applyAuthSessionTokenSync(token);
-          setManuallyLoggedOut(false);
-          setIsAuthenticated(true);
-          setAuthError(null);
-          resetToGalleryHome();
-          void persistSessionToNativeStorage(token);
+        if (!token) {
+          scheduleSilentAuthCheck();
+          return;
         }
+
+        const now = Date.now();
+        if (
+          lastSessionUpdateRef.current.token === token
+          && now - lastSessionUpdateRef.current.at < 1500
+        ) {
+          return;
+        }
+        lastSessionUpdateRef.current = { token, at: now };
+
+        finishPendingOAuthLogin();
+        applyAuthSessionTokenSync(token);
+        setManuallyLoggedOut(false);
+        setIsAuthenticated(true);
+        setAuthError(null);
+        setIsLoadingAuth(false);
+        resetToGalleryHome();
+        void persistSessionToNativeStorage(token);
       } catch {}
-      void checkUserAuth({ ignoreManualLogout: true, silent: true });
+      scheduleSilentAuthCheck();
     };
 
     window.addEventListener('restorebraine-session-updated', onSessionUpdated);
-    window.addEventListener('restorebraine-native-oauth-complete', onSessionUpdated);
 
     const onSignedOut = () => {
       setManuallyLoggedOut(true);
@@ -381,8 +416,10 @@ export const AuthProvider = ({ children }) => {
     window.addEventListener('restorebraine-signed-out', onSignedOut);
 
     return () => {
+      if (sessionAuthCheckTimerRef.current) {
+        window.clearTimeout(sessionAuthCheckTimerRef.current);
+      }
       window.removeEventListener('restorebraine-session-updated', onSessionUpdated);
-      window.removeEventListener('restorebraine-native-oauth-complete', onSessionUpdated);
       window.removeEventListener('restorebraine-signed-out', onSignedOut);
     };
   }, []);

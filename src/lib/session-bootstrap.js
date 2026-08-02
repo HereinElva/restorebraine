@@ -49,7 +49,14 @@ export function finishPendingOAuthLogin() {
   if (typeof window === 'undefined') return;
   try {
     delete window.__restorebrainePendingOAuth;
+    window.__restorebraineOAuthCompletedAt = Date.now();
   } catch {}
+}
+
+export function isWithinOAuthGracePeriod(ms = 30000) {
+  if (typeof window === 'undefined') return false;
+  const at = window.__restorebraineOAuthCompletedAt;
+  return typeof at === 'number' && Date.now() - at < ms;
 }
 
 export const restoreSessionFromNativeStorage = async () => {

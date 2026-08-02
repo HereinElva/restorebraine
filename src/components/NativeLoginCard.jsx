@@ -142,6 +142,11 @@ export default function NativeLoginCard({ clearSignedOut = false }) {
       /* ignore */
     }
 
+    if (typeof window.__restorebraineOpenProviderLogin === 'function') {
+      window.__restorebraineOpenProviderLogin(provider);
+      return;
+    }
+
     try {
       const { prepareForOAuthLogin } = await import('@/lib/session-bootstrap');
       await prepareForOAuthLogin();
@@ -149,10 +154,6 @@ export default function NativeLoginCard({ clearSignedOut = false }) {
       console.warn('prepareForOAuthLogin failed:', error);
     }
 
-    if (typeof window.__restorebraineOpenProviderLogin === 'function') {
-      window.__restorebraineOpenProviderLogin(provider);
-      return;
-    }
     launchProviderOAuth(provider);
   };
 

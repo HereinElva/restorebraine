@@ -166,6 +166,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate, ASWebAuthenticationPresen
                 (function () {
                   try { localStorage.removeItem('b44_signed_out'); } catch (e) {}
                   try { delete window.__restorebrainePendingOAuth; } catch (e) {}
+                  try { window.__restorebraineOAuthCompletedAt = Date.now(); } catch (e) {}
                   var t = '\(escaped)';
                   if (t) {
                     localStorage.setItem('base44_access_token', t);
@@ -173,7 +174,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate, ASWebAuthenticationPresen
                   }
                   try {
                     window.dispatchEvent(new CustomEvent('restorebraine-session-updated', { detail: { token: t } }));
-                    window.dispatchEvent(new CustomEvent('restorebraine-native-oauth-complete', { detail: { token: t } }));
                   } catch (e) {}
                 })();
                 """,
@@ -360,11 +360,11 @@ class AppDelegate: UIResponder, UIApplicationDelegate, ASWebAuthenticationPresen
             try {
               clearSignedOutFlag();
               try { delete window.__restorebrainePendingOAuth; } catch (e) {}
+              try { window.__restorebraineOAuthCompletedAt = Date.now(); } catch (e) {}
               localStorage.setItem('base44_access_token', token);
               localStorage.setItem('token', token);
               try {
                 window.dispatchEvent(new CustomEvent('restorebraine-session-updated', { detail: { token: token } }));
-                window.dispatchEvent(new CustomEvent('restorebraine-native-oauth-complete', { detail: { token: token } }));
               } catch (e) {}
               return true;
             } catch (e) {}
@@ -398,12 +398,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate, ASWebAuthenticationPresen
 
           function finishOAuthLogin(ib) {
             try { if (ib) ib.close(); } catch (e) {}
-            try {
-              try { delete window.__restorebrainePendingOAuth; } catch (e) {}
-              var t = readToken();
-              window.dispatchEvent(new CustomEvent('restorebraine-native-oauth-complete', { detail: { token: t } }));
-              window.dispatchEvent(new CustomEvent('restorebraine-session-updated', { detail: { token: t } }));
-            } catch (e) {}
           }
 
           function handleOAuthBrowserUrl(url, ib) {
@@ -437,9 +431,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate, ASWebAuthenticationPresen
               if (readToken()) {
                 try {
                   try { delete window.__restorebrainePendingOAuth; } catch (e) {}
+                  try { window.__restorebraineOAuthCompletedAt = Date.now(); } catch (e) {}
                   var t = readToken();
                   window.dispatchEvent(new CustomEvent('restorebraine-session-updated', { detail: { token: t } }));
-                  window.dispatchEvent(new CustomEvent('restorebraine-native-oauth-complete', { detail: { token: t } }));
                 } catch (e) {}
                 return;
               }
@@ -447,9 +441,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate, ASWebAuthenticationPresen
               if (readToken()) {
                 try {
                   try { delete window.__restorebrainePendingOAuth; } catch (e) {}
+                  try { window.__restorebraineOAuthCompletedAt = Date.now(); } catch (e) {}
                   var t2 = readToken();
                   window.dispatchEvent(new CustomEvent('restorebraine-session-updated', { detail: { token: t2 } }));
-                  window.dispatchEvent(new CustomEvent('restorebraine-native-oauth-complete', { detail: { token: t2 } }));
                 } catch (e) {}
               }
             });
