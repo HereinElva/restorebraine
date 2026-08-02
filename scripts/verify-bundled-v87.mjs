@@ -130,6 +130,12 @@ if (!existsSync('src/lib/gallery-organize-snapshot.js')) {
 } else if (!read('src/lib/gallery-organize-snapshot.js').includes('export function resolveFolderPhotos')) {
   errors.push('gallery-organize-snapshot.js missing resolveFolderPhotos — run git reset --hard origin/cursor/apple-privacy-plist-bacf (do not let port-omega3 overwrite it)');
 }
+if (!read('src/lib/folder-membership-cache.js').includes('export function repairMembershipCache')) {
+  errors.push('folder-membership-cache.js missing repairMembershipCache — run git reset --hard origin/cursor/apple-privacy-plist-bacf (do not let port-omega3 overwrite it)');
+}
+if (!read('src/lib/folder-membership.js').includes('export function buildFoldersForGalleryView')) {
+  errors.push('folder-membership.js missing buildFoldersForGalleryView — run git reset --hard origin/cursor/apple-privacy-plist-bacf');
+}
 if (!existsSync('src/lib/run-media-organize.js')) {
   errors.push('Missing run-media-organize.js (Omega 3 multi-batch organize)');
 }

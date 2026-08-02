@@ -13,6 +13,7 @@ const V87_ORGANIZE_KEEP = new Set([
   'src/lib/gallery-organize-snapshot.js',
   'src/lib/run-media-organize.js',
   'src/lib/folder-membership.js',
+  'src/lib/folder-membership-cache.js',
   'src/lib/media-organize.js',
   'src/lib/organize-progress.js',
   'src/components/gallery/OrganizeButton.jsx',
