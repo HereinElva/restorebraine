@@ -13,11 +13,15 @@ private final class RestorebraineSessionMessageHandler: NSObject, WKScriptMessag
 
         switch action {
         case "clear":
+            appDelegate?.oauthAuthSession?.cancel()
+            appDelegate?.oauthAuthSession = nil
             let defaults = UserDefaults.standard
             defaults.removeObject(forKey: "CapacitorStorage.base44_access_token")
             defaults.removeObject(forKey: "CapacitorStorage.token")
             defaults.set("1", forKey: "CapacitorStorage.b44_signed_out")
         case "clearTokens":
+            appDelegate?.oauthAuthSession?.cancel()
+            appDelegate?.oauthAuthSession = nil
             let tokenDefaults = UserDefaults.standard
             tokenDefaults.removeObject(forKey: "CapacitorStorage.base44_access_token")
             tokenDefaults.removeObject(forKey: "CapacitorStorage.token")
@@ -75,6 +79,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate, ASWebAuthenticationPresen
             URLQueryItem(name: "app_id", value: "68fdc5f42768c4d045fe1bac"),
             URLQueryItem(name: "from_url", value: "https://restorebraine.base44.app"),
             URLQueryItem(name: "prompt", value: "select_account"),
+            URLQueryItem(name: "rb_oauth", value: String(Int(Date().timeIntervalSince1970 * 1000))),
         ]
         return components.url!
     }
@@ -90,7 +95,17 @@ class AppDelegate: UIResponder, UIApplicationDelegate, ASWebAuthenticationPresen
     func openNativeOAuthLogin(preferredURL: String?) {
         let url: URL
         if let preferredURL = preferredURL, let parsed = URL(string: preferredURL) {
-            url = parsed
+            if var components = URLComponents(url: parsed, resolvingAgainstBaseURL: false) {
+                var items = components.queryItems ?? []
+                if items.first(where: { $0.name == "prompt" }) == nil {
+                    items.append(URLQueryItem(name: "prompt", value: "select_account"))
+                }
+                items.append(URLQueryItem(name: "rb_oauth", value: String(Int(Date().timeIntervalSince1970 * 1000))))
+                components.queryItems = items
+                url = components.url ?? parsed
+            } else {
+                url = parsed
+            }
         } else {
             url = defaultGoogleOAuthURL()
         }
@@ -305,7 +320,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate, ASWebAuthenticationPresen
             var path = provider === 'google'
               ? '/api/apps/auth/login'
               : '/api/apps/auth/' + provider + '/login';
-            return RESTOREBRAINE + path + '?app_id=' + APP_ID + '&from_url=' + encodeURIComponent(FROM_URL) + '&prompt=select_account';
+            return RESTOREBRAINE + path + '?app_id=' + APP_ID + '&from_url=' + encodeURIComponent(FROM_URL) + '&prompt=select_account&rb_oauth=' + Date.now();
           }
 
           function normalizeAuthUrl(rawUrl, providerHint) {
@@ -340,6 +355,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate, ASWebAuthenticationPresen
             if (!token) return false;
             try {
               clearSignedOutFlag();
+              try { delete window.__restorebrainePendingOAuth; } catch (e) {}
               localStorage.setItem('base44_access_token', token);
               localStorage.setItem('token', token);
               try {
@@ -496,9 +512,38 @@ class AppDelegate: UIResponder, UIApplicationDelegate, ASWebAuthenticationPresen
             /* OAuth debug bar disabled — native OAuth unchanged */
           }
 
+          function notifyNativeClearTokensOnly() {
+            try {
+              if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.restorebraineNativeSession) {
+                window.webkit.messageHandlers.restorebraineNativeSession.postMessage({ action: 'clearTokens' });
+              }
+            } catch (e) {}
+          }
+
+          function clearStoredTokensForOAuth() {
+            window.__restorebrainePendingOAuth = Date.now();
+            window.__restorebraineSigningOut = false;
+            try { delete window.__RESTOREBRAINE_NATIVE_SYNC_TOKEN__; } catch (e) {}
+            try {
+              localStorage.removeItem('base44_access_token');
+              localStorage.removeItem('token');
+              localStorage.removeItem(SIGNED_OUT_KEY);
+            } catch (e) {}
+            notifyNativeClearTokensOnly();
+            try {
+              var prefs = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Preferences;
+              if (prefs) {
+                prefs.remove({ key: 'base44_access_token' });
+                prefs.remove({ key: 'token' });
+                prefs.remove({ key: SIGNED_OUT_KEY });
+              }
+            } catch (e) {}
+          }
+
           function openProviderOAuth(provider) {
             var p = provider || 'google';
             window.__restorebraineLastOAuthProvider = p;
+            clearStoredTokensForOAuth();
             var url = getCanonicalOAuthUrl(p);
             markOpeningOAuth();
             if (postNativeOpenLogin(p)) return true;
@@ -512,12 +557,10 @@ class AppDelegate: UIResponder, UIApplicationDelegate, ASWebAuthenticationPresen
           };
 
           window.__restorebraineOpenProviderLogin = function (provider) {
-            try { localStorage.removeItem(SIGNED_OUT_KEY); } catch (e) {}
             openProviderOAuth(provider || 'google');
           };
 
           window.__restorebraineOpenLogin = function () {
-            try { localStorage.removeItem(SIGNED_OUT_KEY); } catch (e) {}
             openProviderOAuth('google');
           };
 
@@ -532,7 +575,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate, ASWebAuthenticationPresen
               event.stopPropagation();
               event.stopImmediatePropagation();
             }
-            try { localStorage.removeItem(SIGNED_OUT_KEY); } catch (e) {}
             openProviderOAuth(provider || 'google');
           }
 
@@ -598,18 +640,18 @@ class AppDelegate: UIResponder, UIApplicationDelegate, ASWebAuthenticationPresen
 
           function restoreToken() {
             try {
-              if (window.__restorebraineSigningOut || isSignedOut()) return;
+              if (window.__restorebraineSigningOut || isSignedOut() || window.__restorebrainePendingOAuth) return;
               var prefs = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Preferences;
               if (prefs) {
                 prefs.get({ key: SIGNED_OUT_KEY }).then(function (flag) {
                   if (flag && flag.value === '1') return;
-                  var syncToken = '\#(escapedToken)';
-                  if (syncToken && !isSignedOut()) saveToken(syncToken);
+                  if (window.__restorebrainePendingOAuth) return;
+                  prefs.get({ key: 'base44_access_token' }).then(function (result) {
+                    if (!result || !result.value || isSignedOut() || window.__restorebrainePendingOAuth) return;
+                    saveToken(result.value);
+                  });
                 });
-                return;
               }
-              var syncToken = '\#(escapedToken)';
-              if (syncToken && !isSignedOut()) saveToken(syncToken);
             } catch (e) {}
           }
 
@@ -738,7 +780,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate, ASWebAuthenticationPresen
             var path = provider === 'google'
               ? '/api/apps/auth/login'
               : '/api/apps/auth/' + provider + '/login';
-            return RESTOREBRAINE + path + '?app_id=' + APP_ID + '&from_url=' + encodeURIComponent(FROM_URL) + '&prompt=select_account';
+            return RESTOREBRAINE + path + '?app_id=' + APP_ID + '&from_url=' + encodeURIComponent(FROM_URL) + '&prompt=select_account&rb_oauth=' + Date.now();
           }
 
           function normalizeAuthUrl(rawUrl, providerHint) {
@@ -926,25 +968,18 @@ class AppDelegate: UIResponder, UIApplicationDelegate, ASWebAuthenticationPresen
 
           function restoreToken() {
             try {
-              if (window.__restorebraineSigningOut || isSignedOut()) return;
+              if (window.__restorebraineSigningOut || isSignedOut() || window.__restorebrainePendingOAuth) return;
               var prefs = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Preferences;
               if (prefs) {
                 prefs.get({ key: SIGNED_OUT_KEY }).then(function (flag) {
                   if (flag && flag.value === '1') return;
-                  var syncToken = '\#(escapedToken)';
-                  if (syncToken) {
-                    if (!isSignedOut()) saveToken(syncToken);
-                    return;
-                  }
+                  if (window.__restorebrainePendingOAuth) return;
                   prefs.get({ key: 'base44_access_token' }).then(function (result) {
-                    if (!result || !result.value || isSignedOut()) return;
+                    if (!result || !result.value || isSignedOut() || window.__restorebrainePendingOAuth) return;
                     saveToken(result.value);
                   });
                 });
-                return;
               }
-              var syncToken = '\#(escapedToken)';
-              if (syncToken && !isSignedOut()) saveToken(syncToken);
             } catch (e) {}
           }
 

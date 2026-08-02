@@ -3,6 +3,7 @@ import { base44 } from '@/api/base44Client';
 import { appParams, getAppOrigin } from '@/lib/app-params';
 import { captureAccessTokenFromUrl } from '@/lib/native-oauth-fix';
 import { persistentStorage } from '@/lib/persistentStorage';
+import { setGalleryOrganizeSnapshot } from '@/lib/gallery-organize-snapshot';
 
 const TOKEN_KEYS = ['base44_access_token', 'token'];
 const SIGNED_OUT_KEY = 'b44_signed_out';
@@ -44,11 +45,23 @@ export function ensureClientSessionToken() {
 
 export const hasStoredSessionToken = () => Boolean(readSyncToken());
 
+export function finishPendingOAuthLogin() {
+  if (typeof window === 'undefined') return;
+  try {
+    delete window.__restorebrainePendingOAuth;
+  } catch {}
+}
+
 export const restoreSessionFromNativeStorage = async () => {
   const urlToken = captureAccessTokenFromUrl();
   if (urlToken) {
+    finishPendingOAuthLogin();
     await persistSessionToNativeStorage(urlToken);
     return urlToken;
+  }
+
+  if (typeof window !== 'undefined' && window.__restorebrainePendingOAuth) {
+    return null;
   }
 
   try {
@@ -242,6 +255,25 @@ export async function prepareForNewRegistration() {
   clearAxiosAuthHeaders();
 }
 
+/** Clear stale tokens before OAuth so a prior account is not restored. */
+export async function prepareForOAuthLogin() {
+  if (typeof window !== 'undefined') {
+    window.__restorebrainePendingOAuth = Date.now();
+    window.__restorebraineSigningOut = false;
+    try {
+      delete window.__RESTOREBRAINE_NATIVE_SYNC_TOKEN__;
+    } catch {}
+  }
+  clearNativePersistedTokensForRegistration();
+  await withStorageTimeout(clearStoredAuthTokensOnly(), 4000, 'clearStoredAuthTokensOnly');
+  clearAxiosAuthHeaders();
+  await clearServerAuthCookies();
+  try {
+    localStorage.removeItem(SIGNED_OUT_KEY);
+  } catch {}
+  await withStorageTimeout(persistentStorage.remove(SIGNED_OUT_KEY), 2000, 'persistentStorage.remove(signed_out)');
+}
+
 export const clearNativeSession = async () => {
   appParams.token = null;
   base44.auth.setToken(null, false);
@@ -254,6 +286,14 @@ export const clearNativeSession = async () => {
   } catch {}
   if (typeof window !== 'undefined') {
     window.__restorebraineSigningOut = true;
+    finishPendingOAuthLogin();
+    try {
+      delete window.__RESTOREBRAINE_NATIVE_SYNC_TOKEN__;
+    } catch {}
+    setGalleryOrganizeSnapshot({ folders: [], photos: [] });
+    try {
+      window.dispatchEvent(new CustomEvent('restorebraine-clear-client-caches'));
+    } catch {}
     if (window.__restorebraineClearSession) {
       window.__restorebraineClearSession();
     }

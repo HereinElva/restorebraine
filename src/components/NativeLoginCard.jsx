@@ -128,11 +128,10 @@ export default function NativeLoginCard({ clearSignedOut = false }) {
     }
   };
 
-  const handleProviderClick = (provider, event) => {
+  const handleProviderClick = async (provider, event) => {
     event?.preventDefault?.();
     event?.stopPropagation?.();
     if (isSubmitting || openingProvider) return;
-    clearSignedOutFlag();
     setErrorMessage('');
     setOpeningProvider(provider);
     window.setTimeout(() => setOpeningProvider(null), 12000);
@@ -141,6 +140,13 @@ export default function NativeLoginCard({ clearSignedOut = false }) {
       window.__restorebraineLastOAuthProvider = provider;
     } catch {
       /* ignore */
+    }
+
+    try {
+      const { prepareForOAuthLogin } = await import('@/lib/session-bootstrap');
+      await prepareForOAuthLogin();
+    } catch (error) {
+      console.warn('prepareForOAuthLogin failed:', error);
     }
 
     if (typeof window.__restorebraineOpenProviderLogin === 'function') {

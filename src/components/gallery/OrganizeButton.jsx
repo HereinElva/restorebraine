@@ -22,7 +22,7 @@ import {
   setGalleryOrganizeSnapshot,
 } from "@/lib/gallery-organize-snapshot";
 import { persistGalleryFoldersFast, persistGalleryFoldersSync } from "@/lib/folder-membership-cache";
-import { mergeApiFoldersWithLocal, dedupeFoldersByNormalizedName, dedupePhotoMembershipInFolderList } from "@/lib/folder-membership";
+import { mergeApiFoldersWithLocal, dedupeFoldersByNormalizedName, dedupePhotoMembershipInFolderList, countFoldersWithPhotos } from "@/lib/folder-membership";
 import { ORGANIZE_BATCH_FOLDERS } from "@/lib/media-organize";
 import { getGalleryUserEmail, galleryFoldersKey, galleryPhotosKey } from "@/lib/gallery-query-keys";
 import { runMediaOrganize } from "@/lib/run-media-organize";
@@ -168,7 +168,7 @@ export default function OrganizeButton({ photos, folders: foldersProp, squareSty
         persistGalleryFoldersFast(email, verifiedFolders);
       }
 
-      const folderCount = verifiedFolders.length;
+      const folderCount = result.foldersUsedInRun ?? countFoldersWithPhotos(verifiedFolders, syncedPhotos);
 
       setOrganizing(false);
       setProgressLabel("");

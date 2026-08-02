@@ -30,6 +30,7 @@ export const getCanonicalOAuthUrl = (provider = 'google') => {
     app_id: BASE44_APP_ID,
     from_url: getAuthReturnOrigin(),
     prompt: 'select_account',
+    rb_oauth: String(Date.now()),
   });
   // app.base44.com/api/apps/auth/* returns 404 — auth lives on the hosted app domain.
   return `${DEFAULT_APP_ORIGIN}${path}?${params.toString()}`;

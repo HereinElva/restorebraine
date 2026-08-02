@@ -1,7 +1,19 @@
 import './App.css'
+import { useEffect } from 'react'
 import { Toaster } from "@/components/ui/toaster"
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClientInstance } from '@/lib/query-client'
+
+function ClientCacheClearListener() {
+  useEffect(() => {
+    const onClearCaches = () => {
+      queryClientInstance.clear();
+    };
+    window.addEventListener('restorebraine-clear-client-caches', onClearCaches);
+    return () => window.removeEventListener('restorebraine-clear-client-caches', onClearCaches);
+  }, []);
+  return null;
+}
 
 import NavigationTracker from '@/lib/NavigationTracker'
 import { pagesConfig } from './pages.config'
@@ -83,6 +95,7 @@ function App() {
   return (
     <AuthProvider>
       <QueryClientProvider client={queryClientInstance}>
+        <ClientCacheClearListener />
         <NativeRouter>
           <NavigationTracker />
           <AuthenticatedApp />

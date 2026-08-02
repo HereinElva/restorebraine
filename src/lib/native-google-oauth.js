@@ -7,7 +7,7 @@ import {
   normalizeAuthUrl,
 } from '@/lib/native-platform-guard';
 import { getAuthReturnOrigin } from '@/lib/app-domains';
-import { persistSessionToNativeStorage } from '@/lib/session-bootstrap';
+import { persistSessionToNativeStorage, finishPendingOAuthLogin } from '@/lib/session-bootstrap';
 import { isNativeShell } from '@/lib/native-hosted-redirect';
 import { resetToGalleryHome } from '@/lib/gallery-nav';
 
@@ -51,6 +51,30 @@ const isBundledNativeShell = () => {
 
 /** After OAuth, native bridge may save token before React listeners attach. */
 export const tryRestoreSessionAfterOAuth = async () => {
+  const urlToken = await captureOAuthTokenFromUrl(window.location?.href);
+  if (urlToken) {
+    finishPendingOAuthLogin();
+    try {
+      window.dispatchEvent(new CustomEvent('restorebraine-session-updated', { detail: { token: urlToken } }));
+      window.dispatchEvent(new CustomEvent('restorebraine-native-oauth-complete', { detail: { token: urlToken } }));
+      resetToGalleryHome();
+    } catch {}
+    return true;
+  }
+
+  if (typeof window !== 'undefined' && window.__restorebrainePendingOAuth) {
+    const { restoreSessionFromNativeStorage } = await import('@/lib/session-bootstrap');
+    const freshToken = await restoreSessionFromNativeStorage();
+    if (!freshToken) return false;
+    finishPendingOAuthLogin();
+    try {
+      window.dispatchEvent(new CustomEvent('restorebraine-session-updated', { detail: { token: freshToken } }));
+      window.dispatchEvent(new CustomEvent('restorebraine-native-oauth-complete', { detail: { token: freshToken } }));
+      resetToGalleryHome();
+    } catch {}
+    return true;
+  }
+
   const existing = localStorage.getItem('base44_access_token') || localStorage.getItem('token');
   if (existing && localStorage.getItem('b44_signed_out') !== '1') {
     await persistSessionToNativeStorage(existing);
@@ -66,6 +90,7 @@ export const tryRestoreSessionAfterOAuth = async () => {
   const token = await restoreSessionFromNativeStorage();
   if (!token) return false;
 
+  finishPendingOAuthLogin();
   try {
     window.dispatchEvent(new CustomEvent('restorebraine-session-updated', { detail: { token } }));
     window.dispatchEvent(new CustomEvent('restorebraine-native-oauth-complete', { detail: { token } }));
@@ -81,6 +106,7 @@ export const captureOAuthTokenFromUrl = async (url) => {
     const token = parsed.searchParams.get('access_token');
     if (!token) return null;
     try { localStorage.removeItem('b44_signed_out'); } catch {}
+    finishPendingOAuthLogin();
     await persistSessionToNativeStorage(token);
     try {
       window.dispatchEvent(new CustomEvent('restorebraine-native-oauth-complete', { detail: { token } }));
@@ -128,6 +154,9 @@ const attachOAuthCompletionListener = async () => {
 
 /** Google blocks embedded WebViews — must use SFSafariViewController (openInSystemBrowser). */
 export const openLoginInSystemBrowser = async (url = getGoogleOAuthUrl(), providerHint) => {
+  const { prepareForOAuthLogin } = await import('@/lib/session-bootstrap');
+  await prepareForOAuthLogin();
+
   const normalizedUrl = normalizeAuthUrl(url, providerHint);
   if (!isNativeShell()) {
     window.location.replace(normalizedUrl);
@@ -181,16 +210,20 @@ export const launchProviderOAuth = (provider = 'google') => {
   if (typeof window !== 'undefined') {
     window.__restorebraineLastOAuthProvider = provider;
   }
-  if (typeof window !== 'undefined' && typeof window.__restorebraineOpenProviderLogin === 'function') {
-    try {
-      window.__restorebraineOpenProviderLogin(provider);
-      return;
-    } catch (error) {
-      console.warn('Native provider login bridge failed:', error);
+  void (async () => {
+    if (typeof window !== 'undefined' && typeof window.__restorebraineOpenProviderLogin === 'function') {
+      const { prepareForOAuthLogin } = await import('@/lib/session-bootstrap');
+      await prepareForOAuthLogin();
+      try {
+        window.__restorebraineOpenProviderLogin(provider);
+        return;
+      } catch (error) {
+        console.warn('Native provider login bridge failed:', error);
+      }
     }
-  }
-  const url = provider === 'google' ? getGoogleOAuthUrl() : getProviderOAuthUrl(provider);
-  void openLoginInSystemBrowser(url, provider);
+    const url = provider === 'google' ? getGoogleOAuthUrl() : getProviderOAuthUrl(provider);
+    void openLoginInSystemBrowser(url, provider);
+  })();
 };
 
 /** Install JS OAuth fallbacks when AppDelegate bridge is not ready yet. */

@@ -27,6 +27,8 @@ import {
   mergeDuplicateFoldersOnServer,
   enforceUniquePhotoMembershipOnServer,
   reconcileOrganizeBatch,
+  pruneEmptyGalleryFolders,
+  countFoldersWithPhotos,
 } from "@/lib/folder-membership";
 import {
   recordBatchFolderMembership,
@@ -319,6 +321,11 @@ export async function runMediaOrganize({
     folderNamesForLabel,
   );
 
+  afterFolders = await pruneEmptyGalleryFolders(afterFolders, photos, { deleteOnServer: true });
+  afterFolders = dedupeFoldersByNormalizedName(afterFolders, folderNamesForLabel);
+
+  const foldersUsedInRun = countFoldersWithPhotos(afterFolders, photos);
+
   const totalRemainingLoose = getUnorganizedPhotos(photos, afterFolders).length;
 
   onProgress?.("Done");
@@ -345,7 +352,7 @@ export async function runMediaOrganize({
   return {
     ok: true,
     foldersSaved: afterFolders.length,
-    foldersUsedInRun: afterFolders.length,
+    foldersUsedInRun,
     totalSaved: actuallySaved,
     totalToOrganize: batchPhotos.length,
     missed,

@@ -3,6 +3,7 @@ import { normalizeFolderName, ORGANIZE_BATCH_FOLDER_COUNT, ORGANIZE_BATCH_FOLDER
 import {
   getUnorganizedPhotos,
   normalizePhotoId,
+  sanitizeFolderPhotoIds,
   toStoredPhotoIds,
 } from '@/lib/gallery-organize-snapshot';
 import {
@@ -183,6 +184,37 @@ export async function deleteFoldersWithTimeout(folderIds, { timeoutMs = FOLDER_D
     }),
   );
   return { deleted, failed };
+}
+
+/** Remove folders with no valid gallery photos — optionally delete them on the server. */
+export async function pruneEmptyGalleryFolders(
+  folders,
+  photos,
+  { deleteOnServer = true } = {},
+) {
+  const emptyIds = [];
+  const nonEmpty = [];
+
+  for (const folder of folders || []) {
+    const photoIds = sanitizeFolderPhotoIds(folder.photo_ids, photos);
+    if (photoIds.length === 0) {
+      if (folder?.id) emptyIds.push(folder.id);
+      continue;
+    }
+    nonEmpty.push({ ...folder, photo_ids: photoIds });
+  }
+
+  if (deleteOnServer && emptyIds.length) {
+    await deleteFoldersWithTimeout(emptyIds);
+  }
+
+  return nonEmpty;
+}
+
+export function countFoldersWithPhotos(folders, photos) {
+  return (folders || []).filter(
+    (folder) => sanitizeFolderPhotoIds(folder.photo_ids, photos).length > 0,
+  ).length;
 }
 
 /** Merge server folders that share the same canonical name into one folder each. */
