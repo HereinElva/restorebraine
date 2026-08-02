@@ -143,13 +143,19 @@ export const installNativeSessionPersistence = async () => {
 
 export const persistSessionToNativeStorage = async (token) => {
   if (!token) return;
-  await persistentStorage.remove(SIGNED_OUT_KEY);
   try { localStorage.removeItem(SIGNED_OUT_KEY); } catch {}
   appParams.token = token;
   base44.auth.setToken(token, false);
   persistentStorage._mirror('base44_access_token', token);
   persistentStorage._mirror('token', token);
-  await Promise.all(TOKEN_KEYS.map((key) => persistentStorage.set(key, token)));
+
+  await Promise.race([
+    (async () => {
+      await persistentStorage.remove(SIGNED_OUT_KEY);
+      await Promise.all(TOKEN_KEYS.map((key) => persistentStorage.set(key, token)));
+    })(),
+    new Promise((resolve) => setTimeout(resolve, 2500)),
+  ]);
 };
 
 export function normalizeAuthEmail(email) {

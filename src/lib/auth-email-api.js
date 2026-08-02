@@ -61,6 +61,17 @@ export async function resendAuthOtp(email, options) {
   return postAuthEmail('resend-otp', { email }, options);
 }
 
+export function extractAuthAccessToken(data) {
+  if (!data) return null;
+  return data.access_token || data.token || data.accessToken || null;
+}
+
+export function isOtpVerifiedResponse(data) {
+  if (!data) return false;
+  if (extractAuthAccessToken(data)) return true;
+  return /verified|verification successful|email verified|successfully verified/i.test(data.message || '');
+}
+
 export function isVerificationRequiredResponse(data) {
   if (!data || data.access_token) return false;
   return Boolean(

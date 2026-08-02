@@ -66,6 +66,9 @@ function formatAuthError(error, mode) {
   if (error?.code === 'VERIFICATION_REQUIRED') {
     return error.message || 'Check your email for a verification code to finish signing up.';
   }
+  if (error?.code === 'PASSWORD_REQUIRED') {
+    return error.message || 'Enter the password you used when signing up.';
+  }
   const raw = error?.data?.message || error?.message || (mode === 'signup' ? 'Unable to create account' : 'Invalid email or password');
   if (mode === 'signup' && /already exists/i.test(raw)) {
     return 'That email is already registered. Enter the verification code from your email, or sign in with your password.';
@@ -166,10 +169,19 @@ export default function NativeLoginCard({ clearSignedOut = false }) {
         setErrorMessage('Enter the verification code from your email.');
         return;
       }
+      if (!password) {
+        setErrorMessage('Enter the password you used when signing up.');
+        return;
+      }
       setNoticeMessage('Verifying code…');
       setIsSubmitting(true);
+      const verifyGuard = window.setTimeout(() => {
+        setIsSubmitting(false);
+        setNoticeMessage('');
+        setErrorMessage('Verification is taking too long. Check your connection and try again.');
+      }, 25000);
       try {
-        await verifyEmailOtp({ email: verificationEmail, otpCode: otpCode.trim() });
+        await verifyEmailOtp({ email: verificationEmail, otpCode: otpCode.trim(), password });
         setNoticeMessage('Welcome! You are signed in.');
         setFullName('');
         setEmail('');
@@ -180,6 +192,7 @@ export default function NativeLoginCard({ clearSignedOut = false }) {
         setNoticeMessage('');
         setErrorMessage(formatAuthError(error, 'signup'));
       } finally {
+        window.clearTimeout(verifyGuard);
         setIsSubmitting(false);
       }
       return;
@@ -300,6 +313,19 @@ export default function NativeLoginCard({ clearSignedOut = false }) {
               required
               style={{ width: '100%', boxSizing: 'border-box', padding: '13px 14px', border: '1px solid #d1d5db', borderRadius: '12px', fontSize: '16px', marginBottom: '12px', letterSpacing: '0.08em' }}
             />
+            <label style={{ display: 'block', textAlign: 'left', fontSize: '13px', fontWeight: '600', color: '#374151', marginBottom: '6px' }}>Password</label>
+            <input
+              type="password"
+              autoComplete="new-password"
+              value={password}
+              onChange={(event) => {
+                setPassword(event.target.value);
+                if (errorMessage) setErrorMessage('');
+              }}
+              placeholder="Password from sign up"
+              required
+              style={{ width: '100%', boxSizing: 'border-box', padding: '13px 14px', border: '1px solid #d1d5db', borderRadius: '12px', fontSize: '16px', marginBottom: '12px' }}
+            />
           </>
         ) : (
           <>
@@ -370,7 +396,7 @@ export default function NativeLoginCard({ clearSignedOut = false }) {
             : (showVerificationStep ? 'Verify & Sign In' : (mode === 'signup' ? 'Create Account' : 'Sign In With Email'))}
         </button>
         {showVerificationStep ? (
-          <>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '12px' }}>
             <button
               type="button"
               disabled={isSubmitting}
@@ -388,7 +414,7 @@ export default function NativeLoginCard({ clearSignedOut = false }) {
                   setIsSubmitting(false);
                 }
               }}
-              style={{ marginTop: '12px', background: 'transparent', border: 'none', color: '#7c3aed', fontSize: '14px', fontWeight: '600', cursor: isSubmitting ? 'default' : 'pointer', opacity: isSubmitting ? 0.5 : 1 }}
+              style={{ background: 'transparent', border: 'none', color: '#7c3aed', fontSize: '14px', fontWeight: '600', cursor: isSubmitting ? 'default' : 'pointer', opacity: isSubmitting ? 0.5 : 1 }}
             >
               Resend code
             </button>
@@ -402,11 +428,11 @@ export default function NativeLoginCard({ clearSignedOut = false }) {
                 setErrorMessage('');
                 setNoticeMessage('');
               }}
-              style={{ marginTop: '8px', background: 'transparent', border: 'none', color: '#6b7280', fontSize: '14px', fontWeight: '600', cursor: isSubmitting ? 'default' : 'pointer', opacity: isSubmitting ? 0.5 : 1 }}
+              style={{ background: 'transparent', border: 'none', color: '#6b7280', fontSize: '14px', fontWeight: '600', cursor: isSubmitting ? 'default' : 'pointer', opacity: isSubmitting ? 0.5 : 1 }}
             >
               Back to sign in
             </button>
-          </>
+          </div>
         ) : (
         <>
         <button

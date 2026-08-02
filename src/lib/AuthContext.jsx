@@ -9,6 +9,8 @@ import {
   postAuthEmail,
   verifyAuthOtp,
   resendAuthOtp,
+  extractAuthAccessToken,
+  isOtpVerifiedResponse,
   isVerificationRequiredResponse,
   isVerificationPendingError,
   verificationRequiredError,
@@ -411,7 +413,7 @@ export const AuthProvider = ({ children }) => {
         window.dispatchEvent(new CustomEvent('restorebraine-session-updated', { detail: { token: response.access_token } }));
         window.dispatchEvent(new CustomEvent('restorebraine-gallery-ready', { detail: { token: response.access_token } }));
       } catch {}
-      await checkUserAuth({ ignoreManualLogout: true, silent: true });
+      void checkUserAuth({ ignoreManualLogout: true, silent: true });
     } catch (error) {
       setIsLoadingAuth(false);
       setIsAuthenticated(false);
@@ -429,7 +431,7 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const verifyEmailOtp = async ({ email, otpCode }) => {
+  const verifyEmailOtp = async ({ email, otpCode, password }) => {
     setAuthError(null);
     const normalizedEmail = normalizeAuthEmail(email);
     const code = String(otpCode || '').trim();
@@ -440,29 +442,52 @@ export const AuthProvider = ({ children }) => {
     clearAxiosAuthHeaders();
 
     try {
-      const response = await withAuthTimeout(
+      const verifyResponse = await withAuthTimeout(
         verifyAuthOtp(normalizedEmail, code),
         AUTH_API_TIMEOUT_MS,
         'auth.verify-otp',
       );
 
-      if (!response?.access_token) {
-        throw new Error('Verification succeeded but sign-in failed. Try signing in with your password.');
+      let accessToken = extractAuthAccessToken(verifyResponse);
+      let user = verifyResponse?.user ?? null;
+
+      if (!accessToken) {
+        if (!isOtpVerifiedResponse(verifyResponse)) {
+          throw new Error('Invalid verification code. Check the code from your email and try again.');
+        }
+        if (!password) {
+          throw Object.assign(
+            new Error('Enter the password you used when signing up, then tap Verify again.'),
+            { status: 400, code: 'PASSWORD_REQUIRED' },
+          );
+        }
+
+        const loginResponse = await withAuthTimeout(
+          postAuthEmail('login', { email: normalizedEmail, password }),
+          AUTH_API_TIMEOUT_MS,
+          'auth.login',
+        );
+        accessToken = extractAuthAccessToken(loginResponse);
+        user = loginResponse?.user ?? user;
       }
 
-      await persistSessionToNativeStorage(response.access_token);
+      if (!accessToken) {
+        throw new Error('Verification succeeded but sign-in failed. Check your password and try again.');
+      }
+
+      await persistSessionToNativeStorage(accessToken);
       setManuallyLoggedOut(false);
-      setUser(response.user ?? null);
+      setUser(user);
       setIsAuthenticated(true);
       finishAuthBoot();
       setAuthError(null);
       resetToGalleryHome();
       try {
-        window.dispatchEvent(new CustomEvent('restorebraine-session-updated', { detail: { token: response.access_token } }));
-        window.dispatchEvent(new CustomEvent('restorebraine-gallery-ready', { detail: { token: response.access_token } }));
+        window.dispatchEvent(new CustomEvent('restorebraine-session-updated', { detail: { token: accessToken } }));
+        window.dispatchEvent(new CustomEvent('restorebraine-gallery-ready', { detail: { token: accessToken } }));
       } catch {}
-      await checkUserAuth({ ignoreManualLogout: true, silent: true });
-      return response;
+      void checkUserAuth({ ignoreManualLogout: true, silent: true });
+      return { ...verifyResponse, access_token: accessToken, user };
     } catch (error) {
       setIsLoadingAuth(false);
       setIsAuthenticated(false);
