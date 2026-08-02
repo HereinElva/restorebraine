@@ -16,13 +16,10 @@ See [OMEGA-3.md](./OMEGA-3.md), [OMEGA-7.md](./OMEGA-7.md), and [V87-FROM-OMEGA3
 ## Revert to Omega 7 (current bundled archive)
 
 ```bash
-cd ~/restorebraine
-git fetch origin --tags
-git reset --hard omega-7
-npm install
-npm run apply:v87-from-omega3 -- --skip-sync
-npm run verify:login-organize
+npm run restore:omega-7
 ```
+
+See [OMEGA-7.md](./OMEGA-7.md) for full pin, ghost rules, and verify steps.
 
 ## Revert to current Omega (hosted v58)
 

@@ -27,6 +27,9 @@ for arg in "$@"; do
     --hosted) MODE="hosted" ;;
     --no-open) OPEN_XCODE=0 ;;
     --skip-sync) SKIP_SYNC=1 ;;
+    --omega-7)
+      exec bash "$ROOT/scripts/restore-omega-7.sh"
+      ;;
     -h|--help)
       cat << 'EOF'
 Apply v87 on top of Omega 3 — gallery + corrections
@@ -102,7 +105,11 @@ fi
 
 echo
 echo "==> [2] Port Omega 3 gallery stack (persistence + multi-batch organize)"
-node scripts/port-omega3-gallery-to-v87.mjs
+if grep -q "OMEGA_ARCHIVE = 'Omega 7'" src/lib/build-info.js 2>/dev/null; then
+  echo "    Skip — Omega 7 archive frozen (use npm run restore:omega-7)"
+else
+  node scripts/port-omega3-gallery-to-v87.mjs
+fi
 
 if [[ "$MODE" == "hosted" ]]; then
   echo

@@ -16,7 +16,7 @@ echo "Restorebraine iOS bundle check"
 if [ -f "$BUILD_STAMP" ]; then
   echo "BUILD_STAMP: $(cat "$BUILD_STAMP")"
 else
-  echo "warning: BUILD_STAMP.txt missing. Run npm run fix:no-change from repo root."
+  echo "warning: BUILD_STAMP.txt missing. Run npm run restore:omega-7 from repo root."
 fi
 
 if [ -f "$APPSTORE_ICON" ]; then
@@ -57,7 +57,7 @@ if [ -n "$ENTRY" ] && [ -f "$GHOST" ]; then
     echo "ghost-builds: ${ENTRY} allowed (not blocklisted)"
   else
     echo "error: Bundled entry ${ENTRY} is BLOCKlisted in ghost-builds.txt — ghost reload / white screen risk"
-    echo "       Run: npm run ghosts:sync && npm run fix:no-change"
+    echo "       Run: npm run restore:omega-7   (or: npm run ghosts:sync)"
     exit 1
   fi
 fi

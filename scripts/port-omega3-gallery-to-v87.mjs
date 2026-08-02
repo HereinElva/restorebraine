@@ -1,12 +1,32 @@
 #!/usr/bin/env node
 /**
  * Port Omega 3 gallery/organize stack into v87 baseline.
- * Keeps v87 auth (SignedOutLanding, OAuth f1b2505) — no SignInScreen or bundled experiments.
+ * SKIPPED on Omega 7 archive — would overwrite frozen bundled login + organize stack.
  */
 import { execSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { OMEGA3_TAG } from './base44-v87-publish-manifest.mjs';
+import { OMEGA_7 } from './omega-7-manifest.mjs';
+
+function isOmega7Archive() {
+  try {
+    const buildInfo = readFileSync(resolve('src/lib/build-info.js'), 'utf8');
+    if (buildInfo.includes(`OMEGA_ARCHIVE = '${OMEGA_7.archive}'`)) return true;
+  } catch {}
+  try {
+    const head = execSync('git rev-parse HEAD', { encoding: 'utf8' }).trim();
+    const tag = execSync(`git rev-parse ${OMEGA_7.tag}^{commit}`, { encoding: 'utf8' }).trim();
+    if (head === tag) return true;
+  } catch {}
+  return false;
+}
+
+if (isOmega7Archive()) {
+  console.log(`Skip port-omega3 — ${OMEGA_7.archive} archive is frozen (tag ${OMEGA_7.tag})`);
+  console.log('Use: npm run restore:omega-7');
+  process.exit(0);
+}
 
 /** v87 branch owns these — Omega 3 caps organize at 20 items/run. Do not overwrite. */
 const V87_ORGANIZE_KEEP = new Set([

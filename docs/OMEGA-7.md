@@ -1,43 +1,80 @@
 # Omega 7 — bundled iOS archive (v107)
 
-Known-good Restorebraine **bundled** build — login, gallery, and organize folder counts aligned.
+Known-good Restorebraine **bundled** build — login, gallery, organize folder counts, ghost-safe.
 
 | Item | Value |
 |------|--------|
 | **Git tag** | `omega-7` |
-| **Branch** | `cursor/apple-privacy-plist-bacf` |
-| **Build** | v107 |
 | **Archive label** | **Omega 7** |
-| **Build stamp** | `kbrown native v107 · Omega 7 · …` |
-| **PR** | https://github.com/HereinElva/restorebraine/pull/17 |
+| **Build** | v107 |
+| **Pinned bundle** | `index-tYDTTZJZ.js` → `App-CirTR_fE.js` |
+| **Pin file** | `ios/App/App/OMEGA-7-PIN.txt` |
 
-## What this Omega includes
-
-1. **Bundled Mac UI** — `capacitor://` ios/public (not hosted CDN)
-2. **Login** — SignInScreen + NativeLoginCard; OAuth + email; no white-screen regressions (HashRouter, BootErrorBoundary)
-3. **Organize** — 8-folder batch model; membership cache repair; empty-folder prune (UI count matches Done alert)
-4. **No ghost empty folders** — Outdoor Activities 0-count folders deleted on organize + gallery load
-5. **Regression gate** — `npm run verify:login-organize` in `build:native-local`
-
-## Restore to Omega 7
+## Restore Omega 7 (byte-exact — use this)
 
 ```bash
 cd ~/restorebraine
+npm run restore:omega-7
+```
+
+Or:
+
+```bash
 git fetch origin --tags
-git checkout cursor/apple-privacy-plist-bacf
 git reset --hard omega-7
 npm install
-npm run apply:v87-from-omega3 -- --skip-sync
+npm run ghosts:sync
+npm run verify:omega-7
 npm run verify:login-organize
 ```
 
-Then: **Delete app → Restart iPhone → Xcode Clean Build Folder → Run**
+Then: **Delete app → Restart iPhone → Xcode Clean Build Folder → Run or Archive**
 
-Confirm green bar:
+Label the Xcode archive: **Omega 7**
 
-`BUNDLED · kbrown native v107 · Omega 7 · index-*.js`
+Green bar:
 
-## Do not use for this archive
+`BUNDLED · kbrown native v107 · Omega 7 · index-tYDTTZJZ.js`
 
-- `npm run fix:no-change` — switches to **hosted** CDN mode
-- Plain `npm run build` — leaves `login-redirect.js` in bundled index (wrong login path)
+## Verify before Archive
+
+```bash
+npm run verify:omega-7
+npm run verify:login-organize
+```
+
+Both must pass. `verify:bundled-v87` is **legacy** — ignore its FAILED on v107.
+
+## NEVER run on Omega 7 (breaks archive / ghosts)
+
+| Command | Why |
+|---------|-----|
+| `npm run fix:no-change` | Switches to **hosted** CDN |
+| `npm run apply:v87-from-omega3` | Rebuilds + ports omega-3 over frozen files |
+| `npm run port:omega3-gallery` | Overwrites gallery/login stack |
+| `npm run ghosts:scan` / `discover` / `eliminate` without sync | Used to strip bundled ALLOW (now auto-syncs — still avoid) |
+| `npm run build` | Wrong bundled index (login-redirect.js) |
+
+## SAFE commands
+
+- `npm run restore:omega-7` — reset to tag, ghost sync, verify
+- `npm run verify:omega-7` — archive integrity gate
+- `npm run ghosts:sync` — refresh CDN blocklist **and** keep bundled ALLOW
+- `npm run verify:login-organize` — login + organize regression
+
+## Rebuild from source (NOT byte-exact archive)
+
+Only if you intentionally need new source changes:
+
+```bash
+npm run restore:omega-7 -- --rebuild
+```
+
+This produces a **new** `index-*.js` hash — not the pinned archive bundle.
+
+## What Omega 7 includes
+
+1. Bundled Mac UI (`capacitor://` ios/public)
+2. Login — SignInScreen, OAuth, email, white-screen hardening
+3. Organize — 8-folder model, empty-folder prune, UI count = Done alert
+4. Ghost protection — bundled entry in ALLOW list; stale WKWebView blocklisted
