@@ -105,7 +105,7 @@ async function buildLabelsFromDescriptions(
   onProgress
 ) {
   if (photosToOrganize.length >= LOCAL_LABEL_THRESHOLD) {
-    onProgress?.(`Grouping ${photosToOrganize.length} items…`);
+    onProgress?.('Batch 1/1');
     return labelAllLocally(photosToOrganize, folderNamesForLabel);
   }
 
@@ -121,7 +121,7 @@ async function buildLabelsFromDescriptions(
   for (let i = 0; i < chunks.length; i++) {
     const chunk = chunks[i];
     if (i > 0) await sleep(LLM_DELAY_MS);
-    onProgress?.(`Grouping Batch ${i + 1}/${chunks.length}…`);
+    onProgress?.(`Batch ${i + 1}/${chunks.length}`);
 
     try {
       const labels = await labelChunkWithAI(
@@ -211,9 +211,7 @@ export async function runMediaOrganize({
     await deleteFoldersWithTimeout(apiFolders.map((f) => f.id));
     apiFolders = [];
   } else if (apiFolders.length > 0) {
-    onProgress?.("Merging duplicate folders…");
     apiFolders = await mergeDuplicateFoldersOnServer(apiFolders, {
-      onProgress,
       canonicalNames: folderNamesForLabel,
     });
   }
@@ -246,7 +244,7 @@ export async function runMediaOrganize({
     maxFolderCount,
   );
 
-  onProgress?.("Saving folders…");
+  onProgress?.("Batch 1/1");
 
   const liveFolders = includeOrganized ? [] : mergedLiveFolders;
   const labelByPhotoNormId = new Map(allLabels.map((l) => [l.id, l.folder]));
@@ -262,21 +260,10 @@ export async function runMediaOrganize({
     maxFolderCount,
   });
 
-  const foldersUsedInRun = new Set(
-    batchPhotos.map((photo) => {
-      const norm = normalizePhotoId(photo.id);
-      const label = labelByPhotoNormId.get(norm);
-      return normalizeFolderName(label || MISC_FOLDER, folderNamesForLabel).toLowerCase();
-    }).filter(Boolean),
-  ).size;
-
-  onProgress?.("Verifying saves…");
-
   const reconcileResult = await reconcileOrganizeBatch({
     batchPhotos,
     afterFolders: saveResult.folders,
     labelByPhotoNormId,
-    onProgress,
     userEmail,
     canonicalFolderNames: folderNamesForLabel,
   });
@@ -290,12 +277,10 @@ export async function runMediaOrganize({
       (photo) => getUnorganizedPhotos([photo], afterFolders).length > 0,
     );
     if (missedPhotos.length > 0) {
-      onProgress?.(`Saving ${missedPhotos.length} remaining…`);
       afterFolders = await assignLoosePhotosOneByOne({
         photosToAssign: missedPhotos,
         labelByPhotoNormId,
         liveFolders: afterFolders,
-        onProgress,
         userEmail,
         canonicalFolderNames: folderNamesForLabel,
         maxFolderCount,
@@ -308,26 +293,21 @@ export async function runMediaOrganize({
     }
   }
 
-  onProgress?.("Cleaning up duplicate folders…");
   afterFolders = await mergeDuplicateFoldersOnServer(afterFolders, {
-    onProgress,
     canonicalNames: folderNamesForLabel,
   });
   afterFolders = dedupeFoldersByNormalizedName(afterFolders, folderNamesForLabel);
 
-  onProgress?.("Refreshing folder list…");
   let refreshedFolders = sanitizeFoldersLocally(
     await listAllFoldersSafe({ timeoutMs: 12000 }),
     photos,
     allPhotoIds,
   );
   refreshedFolders = await mergeDuplicateFoldersOnServer(refreshedFolders, {
-    onProgress,
     canonicalNames: folderNamesForLabel,
   });
   const membershipMap = userEmail ? loadFolderMembershipCacheSync(userEmail) : {};
   refreshedFolders = await enforceUniquePhotoMembershipOnServer(refreshedFolders, {
-    onProgress,
     canonicalNames: folderNamesForLabel,
     membershipMap,
   });
@@ -365,7 +345,7 @@ export async function runMediaOrganize({
   return {
     ok: true,
     foldersSaved: afterFolders.length,
-    foldersUsedInRun,
+    foldersUsedInRun: afterFolders.length,
     totalSaved: actuallySaved,
     totalToOrganize: batchPhotos.length,
     missed,

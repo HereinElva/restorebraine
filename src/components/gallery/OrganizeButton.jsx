@@ -27,10 +27,11 @@ import { ORGANIZE_BATCH_FOLDERS } from "@/lib/media-organize";
 import { getGalleryUserEmail, galleryFoldersKey, galleryPhotosKey } from "@/lib/gallery-query-keys";
 import { runMediaOrganize } from "@/lib/run-media-organize";
 import { loadFolderMembershipCacheSync } from "@/lib/folder-membership-cache";
+import { normalizeOrganizeProgress } from "@/lib/organize-progress";
 import { ORGANIZE_ICON_CLASS, ORGANIZE_LABEL_CLASS, SQUARE_FOLDER_ACTION_CLASS, SQUARE_FOLDER_ACTION_STYLE } from "./folderActionStyles";
 
 function truncateProgress(text, max = 16) {
-  if (!text || text.length <= max) return text || "Organizing...";
+  if (!text || text.length <= max) return text || "Organizing…";
   return `${text.slice(0, max - 1)}…`;
 }
 
@@ -65,6 +66,7 @@ export default function OrganizeButton({ photos, folders: foldersProp, squareSty
   const queryClient = useQueryClient();
   const { user: authUser } = useAuth();
   const organizeInFlight = useRef(false);
+  const lastBatchProgress = useRef('');
 
   const snapshot = getGalleryOrganizeSnapshot();
   const folders = foldersProp ?? snapshot.folders;
@@ -101,7 +103,8 @@ export default function OrganizeButton({ photos, folders: foldersProp, squareSty
     setShowDialog(false);
     organizeInFlight.current = true;
     setOrganizing(true);
-    setProgressLabel("Starting…");
+    lastBatchProgress.current = '';
+    setProgressLabel('Organizing…');
 
     try {
       const email = getGalleryUserEmail(queryClient, authUser?.email);
@@ -111,7 +114,11 @@ export default function OrganizeButton({ photos, folders: foldersProp, squareSty
         folders,
         includeOrganized,
         customInstructions,
-        onProgress: setProgressLabel,
+        onProgress: (label) => {
+          const next = normalizeOrganizeProgress(label, lastBatchProgress.current);
+          if (next.startsWith('Batch')) lastBatchProgress.current = next;
+          setProgressLabel(next);
+        },
         onPartialSave: (partialFolders) => {
           const existing = queryClient.getQueryData(galleryFoldersKey(email)) ?? [];
           const membershipMap = email ? loadFolderMembershipCacheSync(email) : {};
@@ -161,7 +168,7 @@ export default function OrganizeButton({ photos, folders: foldersProp, squareSty
         persistGalleryFoldersFast(email, verifiedFolders);
       }
 
-      const foldersUsedInRun = result.foldersUsedInRun ?? verifiedFolders.length;
+      const folderCount = verifiedFolders.length;
 
       setOrganizing(false);
       setProgressLabel("");
@@ -172,7 +179,7 @@ export default function OrganizeButton({ photos, folders: foldersProp, squareSty
           totalToOrganize: result.totalToOrganize,
           missed: result.missed,
           remainingLoose: result.remainingLoose ?? 0,
-          foldersUsedInRun,
+          foldersUsedInRun: folderCount,
         }),
       );
     } catch (error) {

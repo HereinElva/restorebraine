@@ -592,7 +592,7 @@ export async function assignLoosePhotosByFolder({
 
   for (const [folderName, groupPhotos] of groups) {
     groupIndex += 1;
-    onProgress?.(`Save ${groupIndex}/${groupCount}…`);
+    onProgress?.(`Batch ${groupIndex}/${groupCount}`);
 
     const photoIds = groupPhotos.map((p) => p.id);
     const targetKey = resolveOrganizeFolderName(folderName, nameContext).toLowerCase();

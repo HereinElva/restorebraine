@@ -2,7 +2,7 @@ import { writeFileSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 
-const BUILD_NUMBER = 87;
+const BUILD_NUMBER = 92;
 const stamp = new Date().toISOString().slice(0, 16).replace('T', ' ');
 const nativeLabel = `kbrown native v${BUILD_NUMBER} · ${stamp}`;
 const webLabel = `restorebraine web v${BUILD_NUMBER}`;
