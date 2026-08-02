@@ -184,14 +184,26 @@ async function clearStoredAuthTokensOnly() {
   }
 }
 
+function withStorageTimeout(promise, ms, label) {
+  return Promise.race([
+    promise,
+    new Promise((resolve) => {
+      setTimeout(() => {
+        console.warn(`${label} timed out after ${ms}ms — continuing`);
+        resolve(undefined);
+      }, ms);
+    }),
+  ]);
+}
+
 /** Wipe client + server auth state before creating a brand-new account. */
 export async function prepareForNewRegistration() {
-  await clearStoredAuthTokensOnly();
+  await withStorageTimeout(clearStoredAuthTokensOnly(), 4000, 'clearStoredAuthTokensOnly');
   await clearServerAuthCookies();
   try {
     localStorage.removeItem(SIGNED_OUT_KEY);
   } catch {}
-  await persistentStorage.remove(SIGNED_OUT_KEY);
+  await withStorageTimeout(persistentStorage.remove(SIGNED_OUT_KEY), 2000, 'persistentStorage.remove(signed_out)');
 }
 
 export const clearNativeSession = async () => {

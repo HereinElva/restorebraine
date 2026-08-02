@@ -77,8 +77,15 @@ export const persistentStorage = {
     if (isCapacitor()) {
       const Preferences = await getPreferences();
       if (Preferences) {
-        await Preferences.remove({ key });
-        return;
+        try {
+          await Promise.race([
+            Preferences.remove({ key }),
+            new Promise((resolve) => setTimeout(resolve, 2000)),
+          ]);
+          return;
+        } catch (error) {
+          console.warn(`persistentStorage.remove(${key}) fallback to localStorage`, error);
+        }
       }
     }
     try {

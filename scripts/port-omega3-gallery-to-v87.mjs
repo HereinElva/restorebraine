@@ -8,6 +8,14 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { OMEGA3_TAG } from './base44-v87-publish-manifest.mjs';
 
+/** v87 branch owns these — Omega 3 caps organize at 20 items/run. Do not overwrite. */
+const V87_ORGANIZE_KEEP = new Set([
+  'src/lib/run-media-organize.js',
+  'src/lib/folder-membership.js',
+  'src/lib/media-organize.js',
+  'src/components/gallery/OrganizeButton.jsx',
+]);
+
 const GALLERY_FILES = [
   'src/lib/gallery-organize-snapshot.js',
   'src/lib/run-media-organize.js',
@@ -57,6 +65,10 @@ function patchGalleryAuth() {
 console.log(`Porting Omega 3 gallery stack from tag ${OMEGA3_TAG}...\n`);
 
 for (const rel of GALLERY_FILES) {
+  if (V87_ORGANIZE_KEEP.has(rel)) {
+    console.log(`  ⊘ ${rel} (keep v87 — full-batch organize)`);
+    continue;
+  }
   checkoutFromOmega3(rel);
   console.log(`  ✓ ${rel}`);
 }

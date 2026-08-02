@@ -445,13 +445,18 @@ export const AuthProvider = ({ children }) => {
         setUser(response.user ?? null);
         setIsAuthenticated(true);
         setAuthError(null);
+        finishAuthBoot();
         resetToGalleryHome();
-        await checkUserAuth({ ignoreManualLogout: true, silent: true });
+        try {
+          window.dispatchEvent(new CustomEvent('restorebraine-session-updated', { detail: { token: response.access_token } }));
+          window.dispatchEvent(new CustomEvent('restorebraine-gallery-ready', { detail: { token: response.access_token } }));
+        } catch {}
+        void checkUserAuth({ ignoreManualLogout: true, silent: true });
       } else {
         setAuthError({ type: 'auth_required', message: 'Account created. Please sign in.' });
+        finishAuthBoot();
       }
 
-      finishAuthBoot();
       return response;
     } catch (error) {
       setIsLoadingAuth(false);

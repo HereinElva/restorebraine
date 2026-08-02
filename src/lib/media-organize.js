@@ -15,7 +15,7 @@ export const CANONICAL_FOLDERS = [
 ];
 
 /** Target folder count for each organize run — dense batches, not many tiny folders. */
-export const ORGANIZE_BATCH_FOLDER_COUNT = 8;
+export const ORGANIZE_BATCH_FOLDER_COUNT = 12;
 
 /** Primary folders used when sorting a large loose library for the first time. */
 export const ORGANIZE_BATCH_FOLDERS = [

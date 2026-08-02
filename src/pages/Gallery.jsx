@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect, useRef, useLayoutEffect, useMemo } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/lib/AuthContext";
@@ -113,31 +113,12 @@ export default function Gallery() {
   useEffect(() => {
     if (!canFetchData) return;
     ensureClientSessionToken();
-    const refreshGallery = (event) => {
+    const refreshGallery = () => {
       ensureClientSessionToken();
-      const email =
-        queryClient.getQueryData(['current-user'])?.email ||
-        authUser?.email;
-      const cachedPhotos = email ? queryClient.getQueryData(['photos', email]) : null;
-      const needsLoad =
-        !cachedPhotos?.length ||
-        event?.type === 'restorebraine-native-oauth-complete' ||
-        event?.type === 'restorebraine-session-updated';
-
-      if (needsLoad) {
-        void loadGalleryData(queryClient);
-      }
+      void loadGalleryData(queryClient);
       resetAppScrollPosition();
     };
-    void (async () => {
-      const email =
-        authUser?.email ||
-        queryClient.getQueryData(['current-user'])?.email;
-      const cached = email ? queryClient.getQueryData(['photos', email]) : null;
-      if (!cached?.length) {
-        await loadGalleryData(queryClient);
-      }
-    })();
+    void loadGalleryData(queryClient);
     window.addEventListener('restorebraine-session-updated', refreshGallery);
     window.addEventListener('restorebraine-native-oauth-complete', refreshGallery);
     window.addEventListener('restorebraine-gallery-ready', refreshGallery);
@@ -146,12 +127,13 @@ export default function Gallery() {
       window.removeEventListener('restorebraine-native-oauth-complete', refreshGallery);
       window.removeEventListener('restorebraine-gallery-ready', refreshGallery);
     };
-  }, [canFetchData, queryClient, authUser?.email]);
+  }, [canFetchData, queryClient]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!canFetchData) return;
     resetAppScrollPosition();
-  }, [canFetchData]);
+    void loadGalleryData(queryClient);
+  }, [canFetchData, queryClient]);
 
   useEffect(() => {
     if (selectedFolder) {
@@ -178,9 +160,8 @@ export default function Gallery() {
     staleTime: CACHE.user.staleTime,
     gcTime: CACHE.user.gcTime,
     placeholderData: (prev) => prev ?? authUser ?? undefined,
-    retry: 1,
-    refetchOnMount: false,
-    refetchOnWindowFocus: false,
+    retry: 2,
+    refetchOnMount: 'always',
   });
 
   const userEmail = currentUser?.email || authUser?.email;
@@ -193,17 +174,11 @@ export default function Gallery() {
       if (!me?.email) throw new Error('Gallery requires signed-in user');
       return base44.entities.Photo.filter({ created_by: me.email }, '-created_date');
     },
-    enabled: canFetchData && Boolean(userEmail),
+    enabled: canFetchData,
     staleTime: CACHE.photos.staleTime,
     gcTime: CACHE.photos.gcTime,
-    placeholderData: (previousData) => {
-      if (previousData?.length) return previousData;
-      if (!userEmail) return [];
-      return queryClient.getQueryData(['photos', userEmail]) ?? [];
-    },
-    retry: 1,
-    refetchOnMount: false,
-    refetchOnWindowFocus: false,
+    retry: 2,
+    refetchOnMount: 'always',
   });
 
   const { data: folders = [] } = useQuery({
@@ -228,9 +203,8 @@ export default function Gallery() {
       const snapshot = loadFolderSnapshotCacheSync(userEmail);
       return snapshot.length ? snapshot : [];
     },
-    retry: 1,
-    refetchOnMount: false,
-    refetchOnWindowFocus: false,
+    retry: 2,
+    refetchOnMount: 'always',
   });
 
   useEffect(() => {
@@ -241,6 +215,11 @@ export default function Gallery() {
         mergeApiFoldersWithLocal(prev ?? [], snapshot),
       );
     });
+  }, [userEmail, canFetchData, queryClient]);
+
+  useEffect(() => {
+    if (!userEmail || !canFetchData) return;
+    queryClient.invalidateQueries({ queryKey: ['photos', userEmail] });
   }, [userEmail, canFetchData, queryClient]);
 
   // Only show the loading spinner on the very first load (no cached data yet)
@@ -421,6 +400,7 @@ export default function Gallery() {
  
   // Pull-to-refresh — refetch gallery data; always completes so spinner clears
   const handleRefresh = async () => {
+    window.dispatchEvent(new Event("restorebraine-gallery-refresh"));
     if (!userEmail) return;
 
     await Promise.race([
@@ -430,7 +410,7 @@ export default function Gallery() {
       ]).catch((error) => {
         console.warn("Gallery refetch failed:", error);
       }),
-      new Promise((resolve) => setTimeout(resolve, 4000)),
+      new Promise((resolve) => setTimeout(resolve, 8000)),
     ]);
   };
  

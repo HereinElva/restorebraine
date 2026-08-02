@@ -149,6 +149,15 @@ export default function NativeLoginCard({ clearSignedOut = false }) {
 
     setNoticeMessage(mode === 'signup' ? 'Creating your account…' : 'Signing in…');
     setIsSubmitting(true);
+    const submitGuard = window.setTimeout(() => {
+      setIsSubmitting(false);
+      setNoticeMessage('');
+      setErrorMessage(
+        mode === 'signup'
+          ? 'Registration is taking too long. Check your connection and try again, or sign in if the account was already created.'
+          : 'Sign in is taking too long. Check your connection and try again.',
+      );
+    }, 25000);
     try {
       if (mode === 'signup') {
         await registerWithEmailPassword({
@@ -173,6 +182,7 @@ export default function NativeLoginCard({ clearSignedOut = false }) {
         setMode('signin');
       }
     } finally {
+      window.clearTimeout(submitGuard);
       setIsSubmitting(false);
     }
   };

@@ -71,7 +71,7 @@ function photoIdsPersisted(persistedIds, expectedIds) {
 const FOLDER_DELETE_TIMEOUT_MS = 8000;
 const FOLDER_API_TIMEOUT_MS = 25000;
 const ORGANIZE_SAVE_TIMEOUT_MS = 35000;
-const FOLDER_SAVE_CHUNK_SIZE = 30;
+const FOLDER_SAVE_CHUNK_SIZE = 50;
 
 function withFolderApiTimeout(promise, label, timeoutMs = FOLDER_API_TIMEOUT_MS) {
   return Promise.race([

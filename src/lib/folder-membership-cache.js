@@ -204,35 +204,6 @@ export async function recordBatchFolderMembership(email, entries) {
   await saveFolderMembershipCache(email, map);
 }
 
-/** Remove dissolved folder membership so photos return to the main library. */
-export async function removePhotosFromFolderMembership(email, photoIds = []) {
-  if (!email || !photoIds?.length) return;
-  const map = await loadFolderMembershipCache(email);
-  let changed = false;
-  for (const photoId of photoIds) {
-    const norm = normalizePhotoId(photoId);
-    if (norm && map[norm]) {
-      delete map[norm];
-      changed = true;
-    }
-  }
-  if (changed) await saveFolderMembershipCache(email, map);
-}
-
-export function removePhotosFromFolderMembershipSync(email, photoIds = []) {
-  if (!email || !photoIds?.length) return;
-  const map = loadFolderMembershipCacheSync(email);
-  let changed = false;
-  for (const photoId of photoIds) {
-    const norm = normalizePhotoId(photoId);
-    if (norm && map[norm]) {
-      delete map[norm];
-      changed = true;
-    }
-  }
-  if (changed) mirrorMembershipToLocalStorage(email, map);
-}
-
 /** Apply cached photo→folder map onto folder list (survives app reload). */
 export function applyFolderMembershipCache(folders, photos, membershipMap) {
   if (!membershipMap || !Object.keys(membershipMap).length) return folders || [];
