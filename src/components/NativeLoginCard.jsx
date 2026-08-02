@@ -63,9 +63,12 @@ const ProviderButton = ({ children, onClick, provider, dark = false, disabled = 
 );
 
 function formatAuthError(error, mode) {
+  if (error?.code === 'VERIFICATION_REQUIRED') {
+    return error.message || 'Check your email for a verification code to finish signing up.';
+  }
   const raw = error?.data?.message || error?.message || (mode === 'signup' ? 'Unable to create account' : 'Invalid email or password');
   if (mode === 'signup' && /already exists/i.test(raw)) {
-    return 'That email may already be registered. If you used Apple or Google before, tap that button instead. Otherwise try signing in with the same password.';
+    return 'That email is already registered. Enter the verification code from your email, or sign in with your password.';
   }
   if (mode === 'signin' && /invalid|password|credentials|401/i.test(raw)) {
     return 'Invalid email or password. If you signed up with Apple or Google, use that button instead of email.';
@@ -75,21 +78,27 @@ function formatAuthError(error, mode) {
 
 /** v4 bundled native login — all providers + email. No logo. */
 export default function NativeLoginCard({ clearSignedOut = false }) {
-  const { loginWithEmailPassword, registerWithEmailPassword } = useAuth();
+  const { loginWithEmailPassword, registerWithEmailPassword, verifyEmailOtp, resendEmailVerification } = useAuth();
   const [mode, setMode] = useState('signin');
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [otpCode, setOtpCode] = useState('');
+  const [verificationEmail, setVerificationEmail] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [noticeMessage, setNoticeMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [openingProvider, setOpeningProvider] = useState(null);
+
+  const showVerificationStep = Boolean(verificationEmail);
 
   useEffect(() => {
     if (clearSignedOut) {
       setFullName('');
       setEmail('');
       setPassword('');
+      setOtpCode('');
+      setVerificationEmail('');
       setErrorMessage('');
       setNoticeMessage('');
       setMode('signin');
@@ -138,10 +147,43 @@ export default function NativeLoginCard({ clearSignedOut = false }) {
     launchProviderOAuth(provider);
   };
 
+  const beginVerification = (address, message) => {
+    const normalized = normalizeAuthEmail(address || email);
+    setVerificationEmail(normalized);
+    setEmail(normalized);
+    setOtpCode('');
+    setErrorMessage('');
+    setNoticeMessage(message || `Enter the verification code sent to ${normalized}.`);
+  };
+
   const handleSubmit = async (event) => {
     event.preventDefault();
     setErrorMessage('');
     setNoticeMessage('');
+
+    if (showVerificationStep) {
+      if (!otpCode.trim()) {
+        setErrorMessage('Enter the verification code from your email.');
+        return;
+      }
+      setNoticeMessage('Verifying code…');
+      setIsSubmitting(true);
+      try {
+        await verifyEmailOtp({ email: verificationEmail, otpCode: otpCode.trim() });
+        setNoticeMessage('Welcome! You are signed in.');
+        setFullName('');
+        setEmail('');
+        setPassword('');
+        setOtpCode('');
+        setVerificationEmail('');
+      } catch (error) {
+        setNoticeMessage('');
+        setErrorMessage(formatAuthError(error, 'signup'));
+      } finally {
+        setIsSubmitting(false);
+      }
+      return;
+    }
 
     const normalizedEmail = normalizeAuthEmail(email);
     if (!normalizedEmail || !password) {
@@ -183,11 +225,12 @@ export default function NativeLoginCard({ clearSignedOut = false }) {
       }
     } catch (error) {
       setNoticeMessage('');
+      if (error?.code === 'VERIFICATION_REQUIRED') {
+        beginVerification(error.email || normalizedEmail, error.message);
+        return;
+      }
       const message = formatAuthError(error, mode);
       setErrorMessage(message);
-      if (mode === 'signup' && /already exists|already have an account/i.test(message)) {
-        setMode('signin');
-      }
     } finally {
       window.clearTimeout(submitGuard);
       setIsSubmitting(false);
@@ -231,6 +274,35 @@ export default function NativeLoginCard({ clearSignedOut = false }) {
         </div>
 
         <form onSubmit={handleSubmit} noValidate autoComplete="off">
+        {showVerificationStep ? (
+          <>
+            <p style={{ textAlign: 'left', fontSize: '13px', color: '#4b5563', margin: '0 0 12px', lineHeight: 1.5 }}>
+              {noticeMessage || `Enter the verification code sent to ${verificationEmail}.`}
+            </p>
+            <label style={{ display: 'block', textAlign: 'left', fontSize: '13px', fontWeight: '600', color: '#374151', marginBottom: '6px' }}>Email</label>
+            <input
+              type="email"
+              value={verificationEmail}
+              readOnly
+              style={{ width: '100%', boxSizing: 'border-box', padding: '13px 14px', border: '1px solid #d1d5db', borderRadius: '12px', fontSize: '16px', marginBottom: '12px', background: '#f9fafb' }}
+            />
+            <label style={{ display: 'block', textAlign: 'left', fontSize: '13px', fontWeight: '600', color: '#374151', marginBottom: '6px' }}>Verification code</label>
+            <input
+              type="text"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              value={otpCode}
+              onChange={(event) => {
+                setOtpCode(event.target.value);
+                if (errorMessage) setErrorMessage('');
+              }}
+              placeholder="Enter code from email"
+              required
+              style={{ width: '100%', boxSizing: 'border-box', padding: '13px 14px', border: '1px solid #d1d5db', borderRadius: '12px', fontSize: '16px', marginBottom: '12px', letterSpacing: '0.08em' }}
+            />
+          </>
+        ) : (
+          <>
         {mode === 'signup' ? (
           <>
             <label style={{ display: 'block', textAlign: 'left', fontSize: '13px', fontWeight: '600', color: '#374151', marginBottom: '6px' }}>Name</label>
@@ -273,8 +345,10 @@ export default function NativeLoginCard({ clearSignedOut = false }) {
           required
           style={{ width: '100%', boxSizing: 'border-box', padding: '13px 14px', border: '1px solid #d1d5db', borderRadius: '12px', fontSize: '16px', marginBottom: '16px' }}
         />
+          </>
+        )}
         {errorMessage ? <p style={{ color: '#dc2626', fontSize: '13px', margin: '0 0 12px' }}>{errorMessage}</p> : null}
-        {noticeMessage ? <p style={{ color: '#6b7280', fontSize: '13px', margin: '0 0 12px' }}>{noticeMessage}</p> : null}
+        {!showVerificationStep && noticeMessage ? <p style={{ color: '#6b7280', fontSize: '13px', margin: '0 0 12px' }}>{noticeMessage}</p> : null}
         <button
           disabled={isSubmitting}
           type="submit"
@@ -291,8 +365,50 @@ export default function NativeLoginCard({ clearSignedOut = false }) {
             opacity: isSubmitting ? 0.7 : 1,
           }}
         >
-          {isSubmitting ? (mode === 'signup' ? 'Creating Account…' : 'Signing In…') : (mode === 'signup' ? 'Create Account' : 'Sign In With Email')}
+          {isSubmitting
+            ? (showVerificationStep ? 'Verifying…' : (mode === 'signup' ? 'Creating Account…' : 'Signing In…'))
+            : (showVerificationStep ? 'Verify & Sign In' : (mode === 'signup' ? 'Create Account' : 'Sign In With Email'))}
         </button>
+        {showVerificationStep ? (
+          <>
+            <button
+              type="button"
+              disabled={isSubmitting}
+              onClick={async () => {
+                setErrorMessage('');
+                setNoticeMessage('Sending a new code…');
+                setIsSubmitting(true);
+                try {
+                  await resendEmailVerification({ email: verificationEmail });
+                  setNoticeMessage(`A new verification code was sent to ${verificationEmail}.`);
+                } catch (error) {
+                  setNoticeMessage('');
+                  setErrorMessage(formatAuthError(error, 'signup'));
+                } finally {
+                  setIsSubmitting(false);
+                }
+              }}
+              style={{ marginTop: '12px', background: 'transparent', border: 'none', color: '#7c3aed', fontSize: '14px', fontWeight: '600', cursor: isSubmitting ? 'default' : 'pointer', opacity: isSubmitting ? 0.5 : 1 }}
+            >
+              Resend code
+            </button>
+            <button
+              type="button"
+              disabled={isSubmitting}
+              onClick={() => {
+                setVerificationEmail('');
+                setOtpCode('');
+                setMode('signin');
+                setErrorMessage('');
+                setNoticeMessage('');
+              }}
+              style={{ marginTop: '8px', background: 'transparent', border: 'none', color: '#6b7280', fontSize: '14px', fontWeight: '600', cursor: isSubmitting ? 'default' : 'pointer', opacity: isSubmitting ? 0.5 : 1 }}
+            >
+              Back to sign in
+            </button>
+          </>
+        ) : (
+        <>
         <button
           type="button"
           disabled={isSubmitting}
@@ -306,6 +422,18 @@ export default function NativeLoginCard({ clearSignedOut = false }) {
         >
           {mode === 'signup' ? 'Already have an account? Sign in' : "Don't have an account? Sign up"}
         </button>
+        {email ? (
+          <button
+            type="button"
+            disabled={isSubmitting}
+            onClick={() => beginVerification(email, `Enter the verification code sent to ${normalizeAuthEmail(email)}.`)}
+            style={{ marginTop: '10px', background: 'transparent', border: 'none', color: '#6b7280', fontSize: '13px', fontWeight: '600', cursor: isSubmitting ? 'default' : 'pointer', opacity: isSubmitting ? 0.5 : 1 }}
+          >
+            Already have a verification code?
+          </button>
+        ) : null}
+        </>
+        )}
         </form>
       </div>
     </div>

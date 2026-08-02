@@ -5,7 +5,14 @@ import { createAxiosClient } from '@base44/sdk/dist/utils/axios-client';
 import { openRestorebraineLogin } from '@/lib/auth-urls';
 import { getAppOrigin } from '@/lib/app-params';
 import { clearNativeSession, persistSessionToNativeStorage, restoreSessionFromNativeStorage, ensureClientSessionToken, normalizeAuthEmail, prepareForNewRegistration, clearAxiosAuthHeaders } from '@/lib/session-bootstrap';
-import { postAuthEmail } from '@/lib/auth-email-api';
+import {
+  postAuthEmail,
+  verifyAuthOtp,
+  resendAuthOtp,
+  isVerificationRequiredResponse,
+  isVerificationPendingError,
+  verificationRequiredError,
+} from '@/lib/auth-email-api';
 import { isHostedAppOrigin, isNativeShell } from '@/lib/native-hosted-redirect';
 import { resetToGalleryHome } from '@/lib/gallery-nav';
 
@@ -408,12 +415,76 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       setIsLoadingAuth(false);
       setIsAuthenticated(false);
+      if (isVerificationPendingError(error)) {
+        throw verificationRequiredError(
+          normalizedEmail,
+          'Your email is not verified yet. Enter the verification code sent to your inbox.',
+        );
+      }
       setAuthError({
         type: 'auth_required',
         message: error?.data?.message || error?.message || 'Invalid email or password',
       });
       throw error;
     }
+  };
+
+  const verifyEmailOtp = async ({ email, otpCode }) => {
+    setAuthError(null);
+    const normalizedEmail = normalizeAuthEmail(email);
+    const code = String(otpCode || '').trim();
+    if (!normalizedEmail || !code) {
+      throw Object.assign(new Error('Enter the verification code from your email.'), { status: 400 });
+    }
+
+    clearAxiosAuthHeaders();
+
+    try {
+      const response = await withAuthTimeout(
+        verifyAuthOtp(normalizedEmail, code),
+        AUTH_API_TIMEOUT_MS,
+        'auth.verify-otp',
+      );
+
+      if (!response?.access_token) {
+        throw new Error('Verification succeeded but sign-in failed. Try signing in with your password.');
+      }
+
+      await persistSessionToNativeStorage(response.access_token);
+      setManuallyLoggedOut(false);
+      setUser(response.user ?? null);
+      setIsAuthenticated(true);
+      finishAuthBoot();
+      setAuthError(null);
+      resetToGalleryHome();
+      try {
+        window.dispatchEvent(new CustomEvent('restorebraine-session-updated', { detail: { token: response.access_token } }));
+        window.dispatchEvent(new CustomEvent('restorebraine-gallery-ready', { detail: { token: response.access_token } }));
+      } catch {}
+      await checkUserAuth({ ignoreManualLogout: true, silent: true });
+      return response;
+    } catch (error) {
+      setIsLoadingAuth(false);
+      setIsAuthenticated(false);
+      setAuthError({
+        type: 'auth_required',
+        message: error?.data?.message || error?.message || 'Invalid verification code',
+      });
+      throw error;
+    }
+  };
+
+  const resendEmailVerification = async ({ email }) => {
+    const normalizedEmail = normalizeAuthEmail(email);
+    if (!normalizedEmail) {
+      throw Object.assign(new Error('Enter your email address.'), { status: 400 });
+    }
+    await withAuthTimeout(
+      resendAuthOtp(normalizedEmail),
+      AUTH_API_TIMEOUT_MS,
+      'auth.resend-otp',
+    );
+    return { ok: true, email: normalizedEmail };
   };
 
   const registerWithEmailPassword = async ({ email, password, fullName }) => {
@@ -464,17 +535,39 @@ export const AuthProvider = ({ children }) => {
         'auth.register',
       );
 
-      if (!response?.access_token) {
+      if (response?.access_token) {
+        return finishRegistrationSuccess(response);
+      }
+
+      if (isVerificationRequiredResponse(response)) {
+        throw verificationRequiredError(normalizedEmail);
+      }
+
+      try {
         response = await withAuthTimeout(
           postAuthEmail('login', { email: normalizedEmail, password }),
           AUTH_API_TIMEOUT_MS,
           'auth.login',
         );
+        if (response?.access_token) {
+          return finishRegistrationSuccess(response);
+        }
+      } catch (loginError) {
+        if (isVerificationPendingError(loginError)) {
+          throw verificationRequiredError(normalizedEmail);
+        }
       }
 
-      return finishRegistrationSuccess(response);
+      throw verificationRequiredError(
+        normalizedEmail,
+        'Account created. Check your email for a verification code to finish signing up.',
+      );
     } catch (error) {
       const rawMessage = error?.data?.message || error?.message || 'Unable to create account';
+
+      if (error?.code === 'VERIFICATION_REQUIRED') {
+        throw error;
+      }
 
       if (/already exists/i.test(rawMessage)) {
         try {
@@ -492,7 +585,27 @@ export const AuthProvider = ({ children }) => {
             );
           }
         } catch (loginError) {
-          console.warn('Register already-exists fallback login failed:', loginError);
+          if (isVerificationPendingError(loginError)) {
+            try {
+              await resendAuthOtp(normalizedEmail);
+            } catch {
+              /* resend optional */
+            }
+            throw verificationRequiredError(
+              normalizedEmail,
+              'That email is already registered but not verified yet. Enter the code from your email, or sign in if you already verified.',
+            );
+          }
+        }
+
+        try {
+          await resendAuthOtp(normalizedEmail);
+          throw verificationRequiredError(
+            normalizedEmail,
+            'That email may already be registered. If you received a verification code, enter it below. Otherwise sign in with your password.',
+          );
+        } catch (resendError) {
+          if (resendError?.code === 'VERIFICATION_REQUIRED') throw resendError;
         }
       }
 
@@ -501,7 +614,7 @@ export const AuthProvider = ({ children }) => {
       const message = /timed out/i.test(rawMessage)
         ? 'Registration timed out. If this email was already created, try signing in instead.'
         : /already exists/i.test(rawMessage)
-          ? 'That email may already be registered. If you used Apple or Google before, tap that button instead. Otherwise try signing in with the same password.'
+          ? 'That email is already registered. Sign in with your password, or enter a verification code if you received one.'
           : rawMessage;
       setAuthError({
         type: 'auth_required',
@@ -526,6 +639,8 @@ export const AuthProvider = ({ children }) => {
       navigateToLogin,
       loginWithEmailPassword,
       registerWithEmailPassword,
+      verifyEmailOtp,
+      resendEmailVerification,
       checkAppState,
     }}>
       {children}

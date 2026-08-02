@@ -48,3 +48,39 @@ export async function postAuthEmail(path, body, { timeoutMs = 20000 } = {}) {
     window.clearTimeout(timer);
   }
 }
+
+export async function verifyAuthOtp(email, otpCode, options) {
+  return postAuthEmail(
+    'verify-otp',
+    { email, otp_code: String(otpCode || '').trim() },
+    options,
+  );
+}
+
+export async function resendAuthOtp(email, options) {
+  return postAuthEmail('resend-otp', { email }, options);
+}
+
+export function isVerificationRequiredResponse(data) {
+  if (!data || data.access_token) return false;
+  return Boolean(
+    data.requires_verification
+    || data.verification_required
+    || data.otp_sent
+    || data.requires_otp
+    || /verification code|verify your email|code sent|check your email/i.test(data.message || ''),
+  );
+}
+
+export function isVerificationPendingError(error) {
+  const message = error?.data?.message || error?.message || '';
+  return /verif|confirm|otp|not verified|pending|check your email/i.test(message);
+}
+
+export function verificationRequiredError(email, message = 'Check your email for a verification code to finish creating your account.') {
+  return Object.assign(new Error(message), {
+    code: 'VERIFICATION_REQUIRED',
+    email,
+    status: 202,
+  });
+}
