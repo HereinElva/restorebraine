@@ -113,12 +113,31 @@ export default function Gallery() {
   useEffect(() => {
     if (!canFetchData) return;
     ensureClientSessionToken();
-    const refreshGallery = () => {
+    const refreshGallery = (event) => {
       ensureClientSessionToken();
-      void loadGalleryData(queryClient);
+      const email =
+        queryClient.getQueryData(['current-user'])?.email ||
+        authUser?.email;
+      const cachedPhotos = email ? queryClient.getQueryData(['photos', email]) : null;
+      const needsLoad =
+        !cachedPhotos?.length ||
+        event?.type === 'restorebraine-native-oauth-complete' ||
+        event?.type === 'restorebraine-session-updated';
+
+      if (needsLoad) {
+        void loadGalleryData(queryClient);
+      }
       resetAppScrollPosition();
     };
-    void loadGalleryData(queryClient);
+    void (async () => {
+      const email =
+        authUser?.email ||
+        queryClient.getQueryData(['current-user'])?.email;
+      const cached = email ? queryClient.getQueryData(['photos', email]) : null;
+      if (!cached?.length) {
+        await loadGalleryData(queryClient);
+      }
+    })();
     window.addEventListener('restorebraine-session-updated', refreshGallery);
     window.addEventListener('restorebraine-native-oauth-complete', refreshGallery);
     window.addEventListener('restorebraine-gallery-ready', refreshGallery);
@@ -127,7 +146,7 @@ export default function Gallery() {
       window.removeEventListener('restorebraine-native-oauth-complete', refreshGallery);
       window.removeEventListener('restorebraine-gallery-ready', refreshGallery);
     };
-  }, [canFetchData, queryClient]);
+  }, [canFetchData, queryClient, authUser?.email]);
 
   useEffect(() => {
     if (!canFetchData) return;
@@ -159,8 +178,9 @@ export default function Gallery() {
     staleTime: CACHE.user.staleTime,
     gcTime: CACHE.user.gcTime,
     placeholderData: (prev) => prev ?? authUser ?? undefined,
-    retry: 2,
-    refetchOnMount: 'always',
+    retry: 1,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
   });
 
   const userEmail = currentUser?.email || authUser?.email;
@@ -173,9 +193,14 @@ export default function Gallery() {
       if (!me?.email) throw new Error('Gallery requires signed-in user');
       return base44.entities.Photo.filter({ created_by: me.email }, '-created_date');
     },
-    enabled: canFetchData,
+    enabled: canFetchData && Boolean(userEmail),
     staleTime: CACHE.photos.staleTime,
     gcTime: CACHE.photos.gcTime,
+    placeholderData: (previousData) => {
+      if (previousData?.length) return previousData;
+      if (!userEmail) return [];
+      return queryClient.getQueryData(['photos', userEmail]) ?? [];
+    },
     retry: 1,
     refetchOnMount: false,
     refetchOnWindowFocus: false,

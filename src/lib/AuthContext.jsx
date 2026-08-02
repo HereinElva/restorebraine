@@ -6,6 +6,7 @@ import { openRestorebraineLogin } from '@/lib/auth-urls';
 import { getAppOrigin } from '@/lib/app-params';
 import { clearNativeSession, persistSessionToNativeStorage, restoreSessionFromNativeStorage, ensureClientSessionToken } from '@/lib/session-bootstrap';
 import { isHostedAppOrigin, isNativeShell } from '@/lib/native-hosted-redirect';
+import { resetToGalleryHome } from '@/lib/gallery-nav';
 
 const AUTH_BOOT_TIMEOUT_MS = 12000;
 const AUTH_BOOT_TIMEOUT_BUNDLED_MS = 6000;
@@ -331,24 +332,18 @@ export const AuthProvider = ({ children }) => {
           setManuallyLoggedOut(false);
           setIsAuthenticated(true);
           setAuthError(null);
+          resetToGalleryHome();
         }
       } catch {}
-      void checkAppState();
+      void checkUserAuth({ ignoreManualLogout: true, silent: true });
     };
 
     window.addEventListener('restorebraine-session-updated', onSessionUpdated);
     window.addEventListener('restorebraine-native-oauth-complete', onSessionUpdated);
-    window.addEventListener('focus', onSessionUpdated);
-    const onVisible = () => {
-      if (document.visibilityState === 'visible') onSessionUpdated();
-    };
-    document.addEventListener('visibilitychange', onVisible);
 
     return () => {
       window.removeEventListener('restorebraine-session-updated', onSessionUpdated);
       window.removeEventListener('restorebraine-native-oauth-complete', onSessionUpdated);
-      window.removeEventListener('focus', onSessionUpdated);
-      document.removeEventListener('visibilitychange', onVisible);
     };
   }, []);
 
@@ -390,6 +385,7 @@ export const AuthProvider = ({ children }) => {
       setIsAuthenticated(true);
       finishAuthBoot();
       setAuthError(null);
+      resetToGalleryHome();
       try {
         window.dispatchEvent(new CustomEvent('restorebraine-session-updated', { detail: { token: response.access_token } }));
         window.dispatchEvent(new CustomEvent('restorebraine-gallery-ready', { detail: { token: response.access_token } }));
@@ -433,6 +429,7 @@ export const AuthProvider = ({ children }) => {
         setUser(response.user ?? null);
         setIsAuthenticated(true);
         setAuthError(null);
+        resetToGalleryHome();
         await checkUserAuth({ ignoreManualLogout: true, silent: true });
       } else {
         setAuthError({ type: 'auth_required', message: 'Account created. Please sign in.' });

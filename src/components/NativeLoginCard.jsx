@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/AuthContext';
 import { launchProviderOAuth } from '@/lib/native-google-oauth';
+import { AppleLogo, GoogleMark, MicrosoftMark } from '@/components/auth/ProviderLogos';
 
 const BRAND_GRADIENT = 'linear-gradient(135deg,#60a5fa,#a78bfa)';
 
@@ -50,6 +51,10 @@ const ProviderButton = ({ children, onClick, provider, dark = false, disabled = 
       opacity: disabled ? 0.7 : 1,
       WebkitTapHighlightColor: 'rgba(0,0,0,0.08)',
       touchAction: 'manipulation',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: '10px',
     }}
   >
     {children}
@@ -161,14 +166,15 @@ export default function NativeLoginCard({ clearSignedOut = false }) {
         </h1>
 
         <ProviderButton provider="google" onClick={() => handleProviderClick('google')} disabled={openingProvider === 'google'}>
-          <span style={{ color: '#4285F4', fontWeight: '800', marginRight: '10px' }}>G</span>
+          <GoogleMark />
           {openingProvider === 'google' ? 'Opening Google…' : 'Continue With Google'}
         </ProviderButton>
         <ProviderButton provider="apple" dark onClick={() => handleProviderClick('apple')} disabled={openingProvider === 'apple'}>
+          <AppleLogo />
           {openingProvider === 'apple' ? 'Opening Apple…' : 'Continue With Apple'}
         </ProviderButton>
         <ProviderButton provider="microsoft" onClick={() => handleProviderClick('microsoft')} disabled={openingProvider === 'microsoft'}>
-          <span style={{ color: '#0078d4', fontWeight: '800', marginRight: '10px' }}>M</span>
+          <MicrosoftMark />
           {openingProvider === 'microsoft' ? 'Opening Microsoft…' : 'Continue With Microsoft'}
         </ProviderButton>
 

@@ -27,6 +27,24 @@ export async function persistActiveSession() {
   return token;
 }
 
+/** After login, HashRouter may still be on #/account — force gallery home. */
+export function resetToGalleryHome() {
+  if (typeof window === 'undefined') return;
+
+  resetAppScrollPosition();
+  const hash = (window.location.hash || '').toLowerCase();
+  const onHome = !hash || hash === '#/' || hash === '#';
+  if (onHome) return;
+
+  window.location.hash = '#/';
+  try {
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  } catch {
+    /* ignore */
+  }
+  resetAppScrollPosition();
+}
+
 export async function navigateToGallery(navigate, { popBack, resumeActiveSession } = {}) {
   popBack?.();
   resetAppScrollPosition();

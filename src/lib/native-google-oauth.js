@@ -9,6 +9,7 @@ import {
 import { getAuthReturnOrigin } from '@/lib/app-domains';
 import { persistSessionToNativeStorage } from '@/lib/session-bootstrap';
 import { isNativeShell } from '@/lib/native-hosted-redirect';
+import { resetToGalleryHome } from '@/lib/gallery-nav';
 
 const GOOGLE_OAUTH_PATTERN = /accounts\.google\.com|google\.com\/o\/oauth|oauth2\.googleapis\.com|\/api\/apps\/auth\/login/i;
 
@@ -56,6 +57,7 @@ export const tryRestoreSessionAfterOAuth = async () => {
     try {
       window.dispatchEvent(new CustomEvent('restorebraine-session-updated', { detail: { token: existing } }));
       window.dispatchEvent(new CustomEvent('restorebraine-native-oauth-complete', { detail: { token: existing } }));
+      resetToGalleryHome();
     } catch {}
     return true;
   }
@@ -67,6 +69,7 @@ export const tryRestoreSessionAfterOAuth = async () => {
   try {
     window.dispatchEvent(new CustomEvent('restorebraine-session-updated', { detail: { token } }));
     window.dispatchEvent(new CustomEvent('restorebraine-native-oauth-complete', { detail: { token } }));
+    resetToGalleryHome();
   } catch {}
   return true;
 };
