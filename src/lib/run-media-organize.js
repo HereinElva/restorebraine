@@ -21,13 +21,16 @@ import {
   assignLoosePhotosOneByOne,
   deleteFoldersWithTimeout,
   dedupeFoldersByNormalizedName,
+  dedupePhotoMembershipInFolderList,
   listAllFoldersSafe,
   mergeApiFoldersWithLocal,
   mergeDuplicateFoldersOnServer,
+  enforceUniquePhotoMembershipOnServer,
   reconcileOrganizeBatch,
 } from "@/lib/folder-membership";
 import {
   recordBatchFolderMembership,
+  loadFolderMembershipCacheSync,
 } from "@/lib/folder-membership-cache";
 
 const CHUNK_SIZE = 40;
@@ -322,8 +325,17 @@ export async function runMediaOrganize({
     onProgress,
     canonicalNames: folderNamesForLabel,
   });
+  const membershipMap = userEmail ? loadFolderMembershipCacheSync(userEmail) : {};
+  refreshedFolders = await enforceUniquePhotoMembershipOnServer(refreshedFolders, {
+    onProgress,
+    canonicalNames: folderNamesForLabel,
+    membershipMap,
+  });
   afterFolders = dedupeFoldersByNormalizedName(
-    mergeApiFoldersWithLocal(refreshedFolders, afterFolders),
+    dedupePhotoMembershipInFolderList(
+      mergeApiFoldersWithLocal(refreshedFolders, afterFolders),
+      { membershipMap, canonicalNames: folderNamesForLabel },
+    ),
     folderNamesForLabel,
   );
 

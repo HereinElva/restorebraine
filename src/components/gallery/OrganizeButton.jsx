@@ -22,10 +22,11 @@ import {
   setGalleryOrganizeSnapshot,
 } from "@/lib/gallery-organize-snapshot";
 import { persistGalleryFoldersFast, persistGalleryFoldersSync } from "@/lib/folder-membership-cache";
-import { mergeApiFoldersWithLocal, dedupeFoldersByNormalizedName } from "@/lib/folder-membership";
+import { mergeApiFoldersWithLocal, dedupeFoldersByNormalizedName, dedupePhotoMembershipInFolderList } from "@/lib/folder-membership";
 import { ORGANIZE_BATCH_FOLDERS } from "@/lib/media-organize";
 import { getGalleryUserEmail, galleryFoldersKey, galleryPhotosKey } from "@/lib/gallery-query-keys";
 import { runMediaOrganize } from "@/lib/run-media-organize";
+import { loadFolderMembershipCacheSync } from "@/lib/folder-membership-cache";
 import { ORGANIZE_ICON_CLASS, ORGANIZE_LABEL_CLASS, SQUARE_FOLDER_ACTION_CLASS, SQUARE_FOLDER_ACTION_STYLE } from "./folderActionStyles";
 
 function truncateProgress(text, max = 16) {
@@ -113,9 +114,13 @@ export default function OrganizeButton({ photos, folders: foldersProp, squareSty
         onProgress: setProgressLabel,
         onPartialSave: (partialFolders) => {
           const existing = queryClient.getQueryData(galleryFoldersKey(email)) ?? [];
+          const membershipMap = email ? loadFolderMembershipCacheSync(email) : {};
           const verified = foldersForGalleryView(
             dedupeFoldersByNormalizedName(
-              mergeApiFoldersWithLocal(partialFolders, existing),
+              dedupePhotoMembershipInFolderList(
+                mergeApiFoldersWithLocal(partialFolders, existing),
+                { membershipMap, canonicalNames: ORGANIZE_BATCH_FOLDERS },
+              ),
               ORGANIZE_BATCH_FOLDERS,
             ),
             photos,
@@ -136,9 +141,16 @@ export default function OrganizeButton({ photos, folders: foldersProp, squareSty
       }
 
       const syncedPhotos = queryClient.getQueryData(galleryPhotosKey(email)) ?? photos;
+      const membershipMap = email ? loadFolderMembershipCacheSync(email) : {};
 
       const verifiedFolders = foldersForGalleryView(
-        dedupeFoldersByNormalizedName(result.afterFolders || [], ORGANIZE_BATCH_FOLDERS),
+        dedupeFoldersByNormalizedName(
+          dedupePhotoMembershipInFolderList(result.afterFolders || [], {
+            membershipMap,
+            canonicalNames: ORGANIZE_BATCH_FOLDERS,
+          }),
+          ORGANIZE_BATCH_FOLDERS,
+        ),
         syncedPhotos,
       );
       queryClient.setQueryData(galleryFoldersKey(email), verifiedFolders);

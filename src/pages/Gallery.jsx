@@ -23,9 +23,9 @@ import { useNavigation } from "../components/NavigationContext";
 import { useTabState } from "../components/TabStateContext";
 import MobileGallery from "../components/gallery/MobileGallery";
 import { setGalleryOrganizeSnapshot, toStoredPhotoIds, normalizePhotoId } from "@/lib/gallery-organize-snapshot";
-import { fetchGalleryFoldersWithMembership, mergeApiFoldersWithLocal, dedupeFoldersByNormalizedName, mergeDuplicateFoldersOnServer } from "@/lib/folder-membership";
+import { fetchGalleryFoldersWithMembership, mergeApiFoldersWithLocal, dedupeFoldersByNormalizedName, dedupePhotoMembershipInFolderList, findCrossFolderPhotoDuplicates, mergeDuplicateFoldersOnServer, enforceUniquePhotoMembershipOnServer } from "@/lib/folder-membership";
 import { ORGANIZE_BATCH_FOLDERS, ORGANIZE_BATCH_FOLDER_COUNT, normalizeFolderName } from "@/lib/media-organize";
-import { loadFullFolderSnapshotAsync, loadFolderSnapshotCacheSync, persistGalleryFoldersSync, persistGalleryFoldersFast } from "@/lib/folder-membership-cache";
+import { loadFullFolderSnapshotAsync, loadFolderSnapshotCacheSync, loadFolderMembershipCacheSync, persistGalleryFoldersSync, persistGalleryFoldersFast } from "@/lib/folder-membership-cache";
 import "../components/gallery/mobile-gallery-layout.css";
  
 // ---------------------------------------------------------------------------
@@ -216,7 +216,10 @@ export default function Gallery() {
     loadFullFolderSnapshotAsync(userEmail).then((snapshot) => {
       if (!snapshot.length) return;
       queryClient.setQueryData(['folders', userEmail], (prev) =>
-        mergeApiFoldersWithLocal(prev ?? [], snapshot),
+        dedupeFoldersByNormalizedName(
+          mergeApiFoldersWithLocal(prev ?? [], snapshot),
+          ORGANIZE_BATCH_FOLDERS,
+        ),
       );
     });
   }, [userEmail, canFetchData, queryClient]);
@@ -233,13 +236,19 @@ export default function Gallery() {
   const foldersForGallery = useMemo(
     () =>
       dedupeFoldersByNormalizedName(
-        folders.map((folder) => ({
-          ...folder,
-          photo_ids: toStoredPhotoIds(folder.photo_ids, photos),
-        })),
+        dedupePhotoMembershipInFolderList(
+          folders.map((folder) => ({
+            ...folder,
+            photo_ids: toStoredPhotoIds(folder.photo_ids, photos),
+          })),
+          {
+            membershipMap: userEmail ? loadFolderMembershipCacheSync(userEmail) : {},
+            canonicalNames: ORGANIZE_BATCH_FOLDERS,
+          },
+        ),
         ORGANIZE_BATCH_FOLDERS,
       ),
-    [folders, photos],
+    [folders, photos, userEmail],
   );
 
   useEffect(() => {
@@ -248,21 +257,34 @@ export default function Gallery() {
       normalizeFolderName(folder.name, ORGANIZE_BATCH_FOLDERS).toLowerCase(),
     );
     const hasDuplicateNames = new Set(keys).size !== keys.length;
-    if (!hasDuplicateNames && folders.length <= ORGANIZE_BATCH_FOLDER_COUNT) return;
+    const hasDuplicatePhotos = findCrossFolderPhotoDuplicates(folders).length > 0;
+    if (!hasDuplicateNames && !hasDuplicatePhotos && folders.length <= ORGANIZE_BATCH_FOLDER_COUNT) return;
 
     let cancelled = false;
     void (async () => {
       try {
-        const merged = await mergeDuplicateFoldersOnServer(folders, {
+        let merged = await mergeDuplicateFoldersOnServer(folders, {
           canonicalNames: ORGANIZE_BATCH_FOLDERS,
         });
-        const deduped = dedupeFoldersByNormalizedName(merged, ORGANIZE_BATCH_FOLDERS);
+        if (hasDuplicatePhotos) {
+          merged = await enforceUniquePhotoMembershipOnServer(merged, {
+            canonicalNames: ORGANIZE_BATCH_FOLDERS,
+            membershipMap: loadFolderMembershipCacheSync(userEmail),
+          });
+        }
+        const deduped = dedupeFoldersByNormalizedName(
+          dedupePhotoMembershipInFolderList(merged, {
+            membershipMap: loadFolderMembershipCacheSync(userEmail),
+            canonicalNames: ORGANIZE_BATCH_FOLDERS,
+          }),
+          ORGANIZE_BATCH_FOLDERS,
+        );
         if (cancelled) return;
         const prevKeys = keys.join('|');
         const nextKeys = deduped.map((folder) =>
           normalizeFolderName(folder.name, ORGANIZE_BATCH_FOLDERS).toLowerCase(),
         ).join('|');
-        if (deduped.length === folders.length && prevKeys === nextKeys) return;
+        if (deduped.length === folders.length && prevKeys === nextKeys && !hasDuplicatePhotos) return;
         queryClient.setQueryData(['folders', userEmail], deduped);
         persistGalleryFoldersSync(userEmail, deduped);
         void persistGalleryFoldersFast(userEmail, deduped);

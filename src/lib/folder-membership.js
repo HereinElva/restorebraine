@@ -254,12 +254,158 @@ export async function mergeDuplicateFoldersOnServer(
   return dedupeFoldersByNormalizedName(mergedFolders, canonicalNames);
 }
 
+/** Photos assigned to more than one folder (by normalized photo id). */
+export function findCrossFolderPhotoDuplicates(folders) {
+  const photoToFolderIds = new Map();
+  for (const folder of folders || []) {
+    if (!folder?.id) continue;
+    for (const photoId of folder.photo_ids || []) {
+      const norm = normalizePhotoId(photoId);
+      if (!norm) continue;
+      if (!photoToFolderIds.has(norm)) photoToFolderIds.set(norm, new Set());
+      photoToFolderIds.get(norm).add(folder.id);
+    }
+  }
+
+  const duplicates = [];
+  for (const [photoNorm, folderIds] of photoToFolderIds) {
+    if (folderIds.size <= 1) continue;
+    duplicates.push({ photoNorm, folderIds: [...folderIds] });
+  }
+  return duplicates;
+}
+
+function pickKeeperFolderForPhoto(locations, membershipMap = {}, canonicalNames = ORGANIZE_BATCH_FOLDERS) {
+  const photoNorm = locations[0]?.photoNorm;
+  const cachedId = photoNorm ? membershipMap[photoNorm] : null;
+  if (cachedId && locations.some((entry) => entry.folderId === cachedId)) {
+    return cachedId;
+  }
+
+  const ranked = [...locations].sort((a, b) => {
+    const aCanon = normalizeFolderName(a.folder.name, canonicalNames).toLowerCase();
+    const bCanon = normalizeFolderName(b.folder.name, canonicalNames).toLowerCase();
+    const batchLower = new Set(canonicalNames.map((name) => name.toLowerCase()));
+    const aBatch = batchLower.has(aCanon) ? 1 : 0;
+    const bBatch = batchLower.has(bCanon) ? 1 : 0;
+    if (aBatch !== bBatch) return bBatch - aBatch;
+    return (b.folder.photo_ids?.length || 0) - (a.folder.photo_ids?.length || 0);
+  });
+
+  return ranked[0]?.folderId || locations[0]?.folderId;
+}
+
+/** Ensure each photo appears in at most one folder — updates server copies outside the keeper folder. */
+export async function enforceUniquePhotoMembershipOnServer(
+  folders,
+  { onProgress, canonicalNames = ORGANIZE_BATCH_FOLDERS, membershipMap = {} } = {},
+) {
+  let allFolders = mergeApiFoldersWithLocal(
+    await listAllFoldersSafe({ timeoutMs: 12000 }),
+    folders || [],
+  );
+  allFolders = (allFolders || []).map(normalizeFolderRecord);
+
+  const photoLocations = new Map();
+  for (const folder of allFolders) {
+    for (const photoId of folder.photo_ids || []) {
+      const norm = normalizePhotoId(photoId);
+      if (!norm) continue;
+      if (!photoLocations.has(norm)) photoLocations.set(norm, []);
+      photoLocations.get(norm).push({ photoNorm: norm, folderId: folder.id, folder, photoId });
+    }
+  }
+
+  const removalsByFolder = new Map();
+  for (const [photoNorm, locations] of photoLocations) {
+    if (locations.length <= 1) continue;
+    const keeperId = pickKeeperFolderForPhoto(locations, membershipMap, canonicalNames);
+    for (const location of locations) {
+      if (location.folderId === keeperId) continue;
+      if (!removalsByFolder.has(location.folderId)) removalsByFolder.set(location.folderId, new Set());
+      removalsByFolder.get(location.folderId).add(photoNorm);
+    }
+  }
+
+  if (!removalsByFolder.size) return allFolders;
+
+  onProgress?.('Removing duplicate folder assignments…');
+
+  let updatedFolders = [...allFolders];
+  for (const [folderId, removeNorms] of removalsByFolder) {
+    const folder = updatedFolders.find((entry) => entry.id === folderId);
+    if (!folder) continue;
+    const filtered = (folder.photo_ids || []).filter((id) => !removeNorms.has(normalizePhotoId(id)));
+    if (filtered.length === (folder.photo_ids || []).length) continue;
+
+    try {
+      const saved = await updateFolderPhotoIdsWithTimeout(folderId, filtered, {}, ORGANIZE_SAVE_TIMEOUT_MS);
+      updatedFolders = updatedFolders.map((entry) =>
+        entry.id === folderId
+          ? { ...entry, ...saved, photo_ids: saved.photo_ids || filtered }
+          : entry,
+      );
+    } catch (error) {
+      console.warn('enforceUniquePhotoMembership failed:', folder.name, error);
+      updatedFolders = updatedFolders.map((entry) =>
+        entry.id === folderId ? { ...entry, photo_ids: filtered } : entry,
+      );
+    }
+  }
+
+  return updatedFolders;
+}
+
+/** Local view model — strip duplicate photo membership before rendering. */
+export function dedupePhotoMembershipInFolderList(
+  folders,
+  { membershipMap = {}, canonicalNames = ORGANIZE_BATCH_FOLDERS } = {},
+) {
+  const photoLocations = new Map();
+  for (const folder of folders || []) {
+    if (!folder?.id) continue;
+    for (const photoId of folder.photo_ids || []) {
+      const norm = normalizePhotoId(photoId);
+      if (!norm) continue;
+      if (!photoLocations.has(norm)) photoLocations.set(norm, []);
+      photoLocations.get(norm).push({ photoNorm: norm, folderId: folder.id, folder, photoId });
+    }
+  }
+
+  const removeFromFolder = new Map();
+  for (const [, locations] of photoLocations) {
+    if (locations.length <= 1) continue;
+    const keeperId = pickKeeperFolderForPhoto(locations, membershipMap, canonicalNames);
+    for (const location of locations) {
+      if (location.folderId === keeperId) continue;
+      if (!removeFromFolder.has(location.folderId)) removeFromFolder.set(location.folderId, new Set());
+      removeFromFolder.get(location.folderId).add(location.photoNorm);
+    }
+  }
+
+  if (!removeFromFolder.size) return folders || [];
+
+  return (folders || []).map((folder) => {
+    const removeNorms = removeFromFolder.get(folder.id);
+    if (!removeNorms?.size) return folder;
+    return {
+      ...folder,
+      photo_ids: (folder.photo_ids || []).filter((id) => !removeNorms.has(normalizePhotoId(id))),
+    };
+  });
+}
+
 async function removePhotosFromOtherFoldersOnServer(photoIds, keepFolderId, folders) {
   const removeNorm = new Set((photoIds || []).map(normalizePhotoId).filter(Boolean));
   if (!removeNorm.size || !keepFolderId) return folders;
 
-  let updatedFolders = [...(folders || [])];
-  for (const folder of folders || []) {
+  let allFolders = mergeApiFoldersWithLocal(
+    await listAllFoldersSafe({ timeoutMs: 8000 }),
+    folders || [],
+  );
+
+  let updatedFolders = [...allFolders];
+  for (const folder of allFolders) {
     if (!folder?.id || folder.id === keepFolderId) continue;
     const currentIds = folder.photo_ids || [];
     const filtered = currentIds.filter((id) => !removeNorm.has(normalizePhotoId(id)));
@@ -307,10 +453,17 @@ export async function fetchGalleryFoldersWithMembership(email, photos = []) {
 
   let result = applyFolderMembershipCache(folderSource, photos, cached);
   result = mergeApiFoldersWithLocal(result, snapshot);
+  result = dedupePhotoMembershipInFolderList(result, {
+    membershipMap: cached,
+    canonicalNames: ORGANIZE_BATCH_FOLDERS,
+  });
 
   // Never shrink local snapshot — merge with what we already had on disk
   const snapshotOnDisk = email ? loadFolderSnapshotCacheSync(email) : [];
-  const toPersist = mergeApiFoldersWithLocal(result, snapshotOnDisk);
+  const toPersist = dedupePhotoMembershipInFolderList(
+    mergeApiFoldersWithLocal(result, snapshotOnDisk),
+    { membershipMap: cached, canonicalNames: ORGANIZE_BATCH_FOLDERS },
+  );
 
   if (email && toPersist.length > 0) {
     persistGalleryFoldersSync(email, toPersist);
