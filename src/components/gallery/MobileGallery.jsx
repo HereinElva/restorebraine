@@ -13,7 +13,7 @@ import MobileDrawerMenu from "./MobileDrawerMenu";
 import { base44 } from "@/api/base44Client";
 import { DEPLOY_BUILD } from "@/deploy-marker";
 import { normalizePhotoId } from "@/lib/gallery-organize-snapshot";
-import { removePhotosFromFolderMembership, removePhotosFromFolderMembershipSync } from "@/lib/folder-membership-cache";
+import { loadFolderMembershipCacheSync, saveFolderMembershipCache } from "@/lib/folder-membership-cache";
 
 export default function MobileGallery({
   photos,
@@ -115,8 +115,16 @@ export default function MobileGallery({
 
     const email = queryClient.getQueryData(["current-user"])?.email;
     if (email && releasedPhotoIds.length) {
-      removePhotosFromFolderMembershipSync(email, releasedPhotoIds);
-      void removePhotosFromFolderMembership(email, releasedPhotoIds);
+      const map = loadFolderMembershipCacheSync(email);
+      let changed = false;
+      for (const photoId of releasedPhotoIds) {
+        const norm = normalizePhotoId(photoId);
+        if (norm && map[norm]) {
+          delete map[norm];
+          changed = true;
+        }
+      }
+      if (changed) void saveFolderMembershipCache(email, map);
     }
 
     queryClient.invalidateQueries({ queryKey: ["folders"] });
