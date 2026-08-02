@@ -38,7 +38,7 @@ function organizeResultMessage({
   totalToOrganize,
   missed,
   remainingLoose,
-  foldersUsedInRun,
+  totalFolders,
   newFolderCount,
 }) {
   if (totalSaved <= 0) {
@@ -46,9 +46,9 @@ function organizeResultMessage({
   }
 
   const folderDesc =
-    newFolderCount > 0
-      ? `${foldersUsedInRun} folders (${newFolderCount} new)`
-      : `${foldersUsedInRun} folders`;
+    newFolderCount > 0 && newFolderCount < totalFolders
+      ? `${totalFolders} folders (${newFolderCount} new)`
+      : `${totalFolders} folder${totalFolders !== 1 ? "s" : ""}`;
 
   if (remainingLoose > 0) {
     return `Sorted ${totalSaved} of ${totalToOrganize} loose items into ${folderDesc}. ${remainingLoose} still in your main library — tap Organize again to continue.`;
@@ -160,6 +160,7 @@ export default function OrganizeButton({ photos, folders: foldersProp, squareSty
       }
 
       const newFolderCount = verifiedFolders.filter((f) => !folderIdsBefore.has(f.id)).length;
+      const totalFolders = verifiedFolders.length;
 
       setOrganizing(false);
       setProgressLabel("");
@@ -170,7 +171,7 @@ export default function OrganizeButton({ photos, folders: foldersProp, squareSty
           totalToOrganize: result.totalToOrganize,
           missed: result.missed,
           remainingLoose: result.remainingLoose ?? 0,
-          foldersUsedInRun: result.foldersSaved ?? newFolderCount,
+          totalFolders,
           newFolderCount,
         }),
       );

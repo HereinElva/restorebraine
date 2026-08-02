@@ -328,7 +328,7 @@ export async function runMediaOrganize({
 
   return {
     ok: true,
-    foldersSaved: saveResult.foldersUsedInRun || new Set(allLabels.map((l) => l.folder)).size,
+    foldersSaved: afterFolders.length,
     totalSaved: actuallySaved,
     totalToOrganize: batchPhotos.length,
     missed,
