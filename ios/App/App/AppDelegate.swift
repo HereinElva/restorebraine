@@ -529,13 +529,22 @@ class AppDelegate: UIResponder, UIApplicationDelegate, ASWebAuthenticationPresen
           }
 
           function resolveOAuthTarget(event) {
+            var providerTarget = event.target.closest('[data-rb-provider], [data-provider]');
+            if (providerTarget) {
+              if (providerTarget.disabled) return null;
+              return providerTarget.getAttribute('data-rb-provider')
+                || providerTarget.getAttribute('data-provider')
+                || 'google';
+            }
+            if (event.target.closest && event.target.closest('[data-rb-auth="sign-in-v4"]')) return null;
+
             var target = event.target.closest('button, a, [role="button"], [data-rb-provider], [data-provider]');
             if (!target) return null;
             if (target.getAttribute && target.getAttribute('data-rb-gallery-nav')) return null;
             if (target.closest && target.closest('[data-rb-gallery-nav]')) return null;
             if (target.type === 'submit' && target.closest('form')) return null;
             var label = (target.textContent || '').replace(/\s+/g, ' ').trim();
-            if (/sign in with email|create account|sign up|already have an account/i.test(label)) return null;
+            if (/sign in with email|create account|creating account|sign up|already have an account|don't have an account/i.test(label)) return null;
             var provider = target.getAttribute('data-rb-provider') || target.getAttribute('data-provider') || '';
             if (!provider && /google/i.test(label)) provider = 'google';
             if (!provider && /apple/i.test(label)) provider = 'apple';
@@ -1393,22 +1402,14 @@ class AppDelegate: UIResponder, UIApplicationDelegate, ASWebAuthenticationPresen
           function interceptNativeSignInClicks() {
             if (window.__restorebraineSignInInterceptor) return;
             window.__restorebraineSignInInterceptor = true;
-            document.addEventListener('click', function (event) {
-              var target = event.target.closest('button, a, [role="button"], div[role="button"], [data-provider]');
-              if (!target) return;
-              var label = (target.textContent || '').replace(/\s+/g, ' ').trim();
-              var href = (target.href || (target.getAttribute && target.getAttribute('href')) || '');
-              var isSignInButton = /^sign in$/i.test(label);
-              var isProvider = /continue with google|continue with apple|continue with microsoft|sign in with email|sign in with google|sign in with apple|sign in with microsoft/i.test(label);
-              var isAuthLink = /auth\/login|auth\/apple|auth\/microsoft|app\.base44\.com\/login/i.test(href);
-              if (!isSignInButton && !isProvider && !isAuthLink) return;
-              event.preventDefault();
-              event.stopPropagation();
-              event.stopImmediatePropagation();
-              try { localStorage.removeItem(SIGNED_OUT_KEY); } catch (e) {}
-              var provider = providerFromLabel(label);
-              openLoginInSystemBrowser(getCanonicalOAuthUrl(provider), provider);
-            }, true);
+            var onOAuthEvent = function (event) {
+              var provider = resolveOAuthTarget(event);
+              if (!provider) return;
+              handleOAuthTapFromEvent(event, provider);
+            };
+            document.addEventListener('pointerdown', onOAuthEvent, true);
+            document.addEventListener('touchstart', onOAuthEvent, true);
+            document.addEventListener('click', onOAuthEvent, true);
           }
 
           if (!window.__rbBadgeObserver) {

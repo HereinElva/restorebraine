@@ -114,7 +114,7 @@ export default function NativeLoginCard({ clearSignedOut = false }) {
   };
 
   const handleProviderClick = (provider) => {
-    if (openingProvider) return;
+    if (isSubmitting || openingProvider) return;
     clearSignedOutFlag();
     setErrorMessage('');
     setOpeningProvider(provider);
@@ -194,15 +194,15 @@ export default function NativeLoginCard({ clearSignedOut = false }) {
           Restorebraine
         </h1>
 
-        <ProviderButton provider="google" onClick={() => handleProviderClick('google')} disabled={openingProvider === 'google'}>
+        <ProviderButton provider="google" onClick={() => handleProviderClick('google')} disabled={isSubmitting || openingProvider === 'google'}>
           <GoogleMark />
           {openingProvider === 'google' ? 'Opening Google…' : 'Continue With Google'}
         </ProviderButton>
-        <ProviderButton provider="apple" dark onClick={() => handleProviderClick('apple')} disabled={openingProvider === 'apple'}>
+        <ProviderButton provider="apple" dark onClick={() => handleProviderClick('apple')} disabled={isSubmitting || openingProvider === 'apple'}>
           <AppleLogo />
           {openingProvider === 'apple' ? 'Opening Apple…' : 'Continue With Apple'}
         </ProviderButton>
-        <ProviderButton provider="microsoft" onClick={() => handleProviderClick('microsoft')} disabled={openingProvider === 'microsoft'}>
+        <ProviderButton provider="microsoft" onClick={() => handleProviderClick('microsoft')} disabled={isSubmitting || openingProvider === 'microsoft'}>
           <MicrosoftMark />
           {openingProvider === 'microsoft' ? 'Opening Microsoft…' : 'Continue With Microsoft'}
         </ProviderButton>
@@ -213,7 +213,7 @@ export default function NativeLoginCard({ clearSignedOut = false }) {
           <div style={{ height: '1px', background: '#e5e7eb', flex: 1 }} />
         </div>
 
-        <form onSubmit={handleSubmit} noValidate>
+        <form onSubmit={handleSubmit} noValidate autoComplete="off">
         {mode === 'signup' ? (
           <>
             <label style={{ display: 'block', textAlign: 'left', fontSize: '13px', fontWeight: '600', color: '#374151', marginBottom: '6px' }}>Name</label>
@@ -278,12 +278,14 @@ export default function NativeLoginCard({ clearSignedOut = false }) {
         </button>
         <button
           type="button"
+          disabled={isSubmitting}
           onClick={() => {
+            if (isSubmitting) return;
             setMode(mode === 'signup' ? 'signin' : 'signup');
             setErrorMessage('');
             setNoticeMessage('');
           }}
-          style={{ marginTop: '16px', background: 'transparent', border: 'none', color: '#7c3aed', fontSize: '14px', fontWeight: '600', cursor: 'pointer' }}
+          style={{ marginTop: '16px', background: 'transparent', border: 'none', color: '#7c3aed', fontSize: '14px', fontWeight: '600', cursor: isSubmitting ? 'default' : 'pointer', opacity: isSubmitting ? 0.5 : 1 }}
         >
           {mode === 'signup' ? 'Already have an account? Sign in' : "Don't have an account? Sign up"}
         </button>

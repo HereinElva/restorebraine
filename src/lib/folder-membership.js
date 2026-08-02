@@ -559,7 +559,7 @@ export async function reconcileOrganizeBatch({
 }) {
   let desiredFolders = afterFolders || [];
 
-  for (let attempt = 0; attempt < 3; attempt++) {
+  for (let attempt = 0; attempt < 5; attempt++) {
     await sleep(attempt === 0 ? 300 : 500 * attempt);
     const apiFolders = await listAllFolders();
 
@@ -573,7 +573,7 @@ export async function reconcileOrganizeBatch({
       };
     }
 
-    onProgress?.(`Retrying ${missedPhotos.length}… (${attempt + 1}/3)`);
+    onProgress?.(`Retrying ${missedPhotos.length}… (${attempt + 1}/5)`);
     const retryResult = await assignLoosePhotosByFolder({
       photosToAssign: missedPhotos,
       labelByPhotoNormId,

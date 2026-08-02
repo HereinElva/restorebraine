@@ -159,10 +159,13 @@ export function normalizeAuthEmail(email) {
 export async function clearServerAuthCookies() {
   if (typeof window === 'undefined') return;
   try {
-    await fetch(`${appParams.serverUrl}/api/apps/auth/logout`, {
-      method: 'GET',
-      credentials: 'include',
-    });
+    await Promise.race([
+      fetch(`${appParams.serverUrl}/api/apps/auth/logout`, {
+        method: 'GET',
+        credentials: 'include',
+      }),
+      new Promise((resolve) => setTimeout(resolve, 3000)),
+    ]);
   } catch (error) {
     console.warn('Server auth cookie clear failed:', error);
   }

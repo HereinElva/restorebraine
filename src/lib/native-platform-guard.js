@@ -160,14 +160,30 @@ export const interceptNativeSignInClicks = () => {
   if (typeof document === 'undefined' || window.__restorebraineSignInInterceptor) return;
   window.__restorebraineSignInInterceptor = true;
   document.addEventListener('click', (event) => {
-    const target = event.target.closest('button, a, [role="button"], div[role="button"], [data-provider]');
-    if (!target) return;
+    const providerTarget = event.target.closest('[data-rb-provider], [data-provider]');
+    if (providerTarget) {
+      if (providerTarget.disabled) return;
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      const provider = providerTarget.getAttribute('data-rb-provider')
+        || providerTarget.getAttribute('data-provider')
+        || 'google';
+      import('@/lib/native-google-oauth').then(({ openLoginInSystemBrowser }) => {
+        openLoginInSystemBrowser(getCanonicalOAuthUrl(provider), provider);
+      });
+      return;
+    }
+
+    if (event.target.closest('[data-rb-auth="sign-in-v4"]')) return;
+
+    const target = event.target.closest('button, a, [role="button"]');
+    if (!target || target.type === 'submit') return;
     const label = (target.textContent || '').trim();
     const href = target.href || target.getAttribute?.('href') || '';
-    const isSignInButton = /^sign in$/i.test(label.replace(/\s+/g, ' '));
-    const isProvider = /continue with google|continue with apple|continue with microsoft|sign in with email|sign in with google|sign in with apple|sign in with microsoft/i.test(label);
+    const isProvider = /continue with google|continue with apple|continue with microsoft/i.test(label);
     const isAuthLink = /auth\/login|auth\/apple|auth\/microsoft/i.test(href);
-    if (!isSignInButton && !isProvider && !isAuthLink) return;
+    if (!isProvider && !isAuthLink) return;
     event.preventDefault();
     event.stopPropagation();
     event.stopImmediatePropagation();

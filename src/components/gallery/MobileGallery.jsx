@@ -420,7 +420,6 @@ export default function MobileGallery({
                   <div className="mb-4">
                     <div className="flex items-center justify-between mb-2 px-1">
                       <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Folders</p>
-                      <button onClick={() => setActiveTab("folders")} className="text-xs text-purple-500 font-medium">See all</button>
                     </div>
                     <div className="grid grid-cols-4 gap-2">
                       {folders.slice(0, 8).map(folder => (

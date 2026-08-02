@@ -17,6 +17,7 @@ import {
 } from "@/lib/gallery-organize-snapshot";
 import {
   assignLoosePhotosByFolder,
+  assignLoosePhotosOneByOne,
   deleteFoldersWithTimeout,
   listAllFoldersSafe,
   reconcileOrganizeBatch,
@@ -27,7 +28,7 @@ import {
 
 const CHUNK_SIZE = 40;
 const LLM_DELAY_MS = 800;
-const LOCAL_LABEL_THRESHOLD = 20;
+const LOCAL_LABEL_THRESHOLD = 1;
 const MISC_FOLDER = "Miscellaneous";
 
 function sleep(ms) {
@@ -255,9 +256,31 @@ export async function runMediaOrganize({
     userEmail,
   });
 
-  const afterFolders = reconcileResult.folders;
-  const actuallySaved = reconcileResult.totalSaved;
-  const missed = reconcileResult.missed;
+  let afterFolders = reconcileResult.folders;
+  let actuallySaved = reconcileResult.totalSaved;
+  let missed = reconcileResult.missed;
+
+  if (missed > 0) {
+    const missedPhotos = batchPhotos.filter(
+      (photo) => getUnorganizedPhotos([photo], afterFolders).length > 0,
+    );
+    if (missedPhotos.length > 0) {
+      onProgress?.(`Saving ${missedPhotos.length} remaining…`);
+      afterFolders = await assignLoosePhotosOneByOne({
+        photosToAssign: missedPhotos,
+        labelByPhotoNormId,
+        liveFolders: afterFolders,
+        onProgress,
+        userEmail,
+      });
+      const stillMissed = batchPhotos.filter(
+        (photo) => getUnorganizedPhotos([photo], afterFolders).length > 0,
+      );
+      actuallySaved = batchPhotos.length - stillMissed.length;
+      missed = stillMissed.length;
+    }
+  }
+
   const totalRemainingLoose = getUnorganizedPhotos(photos, afterFolders).length;
 
   onProgress?.("Done");
