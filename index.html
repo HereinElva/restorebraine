@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <meta name="restorebraine-deploy" content="v104" />
+    <meta name="restorebraine-deploy" content="v105" />
     <title>Restorebraine</title>
     <script src="./native-oauth-return.js"></script>
     <script src="./login-redirect.js"></script>
@@ -40,7 +40,7 @@
         if (window.__rbBooted) return;
         var root = document.getElementById('root');
         if (!root || root.textContent.trim().length > 40) return;
-        root.innerHTML = '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;font-family:system-ui,sans-serif;background:linear-gradient(135deg,#eff6ff,#f5f3ff)"><div style="max-width:420px;text-align:center"><h1 style="font-size:18px;color:#111;margin-bottom:8px">Restorebraine did not finish loading</h1><p style="font-size:13px;color:#666;margin-bottom:12px">Delete the app, restart your phone, Xcode Clean Build Folder, then Run again. Look for build v104 at the bottom.</p><button type="button" onclick="location.reload()" style="padding:10px 18px;border:none;border-radius:10px;background:#7c3aed;color:#fff;font-weight:600">Retry</button></div></div>';
+        root.innerHTML = '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;font-family:system-ui,sans-serif;background:linear-gradient(135deg,#eff6ff,#f5f3ff)"><div style="max-width:420px;text-align:center"><h1 style="font-size:18px;color:#111;margin-bottom:8px">Restorebraine did not finish loading</h1><p style="font-size:13px;color:#666;margin-bottom:12px">Delete the app, restart your phone, Xcode Clean Build Folder, then Run again. Look for build v105 at the bottom.</p><button type="button" onclick="location.reload()" style="padding:10px 18px;border:none;border-radius:10px;background:#7c3aed;color:#fff;font-weight:600">Retry</button></div></div>';
       }, 8000);
     </script>
     <script type="module" src="/src/main.jsx"></script>

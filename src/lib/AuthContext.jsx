@@ -473,6 +473,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   const finishAuthSession = ({ accessToken, user }) => {
+    finishPendingOAuthLogin();
     applyAuthSessionTokenSync(accessToken);
     setManuallyLoggedOut(false);
     setUser(user ?? null);

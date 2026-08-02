@@ -8,8 +8,7 @@ function ensureBundledHashRoute() {
   if (!isBundledCapacitorShell()) return;
   const hash = window.location.hash || '';
   if (!hash || hash === '#') {
-    const base = `${window.location.pathname || '/'}${window.location.search || ''}`;
-    window.location.replace(`${base}#/`);
+    window.location.hash = '#/';
   }
 }
 
