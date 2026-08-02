@@ -11,15 +11,17 @@ export function setGalleryOrganizeSnapshot({ folders = [], photos = [] } = {}) {
   snapshot = { folders, photos };
 }
 
-export function getOrganizedPhotoIds(folders = snapshot.folders) {
+export function getOrganizedPhotoIds(folders = snapshot.folders, photos = snapshot.photos) {
   return new Set(
-    (folders || []).flatMap((f) => (f.photo_ids || []).map(normalizePhotoId)).filter(Boolean)
+    (folders || [])
+      .flatMap((f) => sanitizeFolderPhotoIds(f.photo_ids, photos).map(normalizePhotoId))
+      .filter(Boolean),
   );
 }
 
 /** Loose / Recents photos — same logic as MobileGallery unorganizedPhotos. */
 export function getUnorganizedPhotos(photos = snapshot.photos, folders = snapshot.folders) {
-  const organized = getOrganizedPhotoIds(folders);
+  const organized = getOrganizedPhotoIds(folders, photos);
   return (photos || []).filter((p) => p?.id != null && !organized.has(normalizePhotoId(p.id)));
 }
 
@@ -50,6 +52,34 @@ export function toStoredPhotoIds(ids, photos = snapshot.photos) {
   return stored;
 }
 
+/** Keep only photo_ids that exist in the gallery — deduped, canonical Photo.id values. */
+export function sanitizeFolderPhotoIds(ids, photos = snapshot.photos) {
+  const photoByNorm = new Map(
+    (photos || []).map((p) => [normalizePhotoId(p.id), p.id]),
+  );
+  const stored = [];
+  for (const id of ids || []) {
+    const norm = normalizePhotoId(id);
+    if (!norm) continue;
+    const canonical = photoByNorm.get(norm);
+    if (canonical == null) continue;
+    if (!stored.some((s) => normalizePhotoId(s) === norm)) {
+      stored.push(canonical);
+    }
+  }
+  return stored;
+}
+
+export function resolveFolderPhotos(folder, photos = snapshot.photos) {
+  const ids = sanitizeFolderPhotoIds(folder?.photo_ids, photos);
+  const photoByNorm = new Map((photos || []).map((p) => [normalizePhotoId(p.id), p]));
+  return ids.map((id) => photoByNorm.get(normalizePhotoId(id))).filter(Boolean);
+}
+
+export function countFolderPhotos(folder, photos = snapshot.photos) {
+  return resolveFolderPhotos(folder, photos).length;
+}
+
 /** Merge folder photo_ids preserving canonical Photo.id values (deduped by normalized id). */
 export function mergeStoredPhotoIds(existingIds = [], newIds = [], photos = snapshot.photos) {
   const byNorm = new Map();
@@ -68,7 +98,7 @@ export function getOrganizedPhotoIdSet(folders = snapshot.folders) {
 }
 
 export function countOrganizedPhotos(photos, folders) {
-  const organized = getOrganizedPhotoIds(folders);
+  const organized = getOrganizedPhotoIds(folders, photos);
   return (photos || []).filter((p) => organized.has(normalizePhotoId(p.id))).length;
 }
 
@@ -97,6 +127,6 @@ export function photoIdsFromOrganizeBatch(normalizedIds, photos) {
 export function foldersForGalleryView(folders, photos) {
   return (folders || []).map((folder) => ({
     ...folder,
-    photo_ids: toStoredPhotoIds(folder.photo_ids, photos),
+    photo_ids: sanitizeFolderPhotoIds(folder.photo_ids, photos),
   }));
 }

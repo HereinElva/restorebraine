@@ -12,7 +12,7 @@ import MobileFolderCard from "./MobileFolderCard";
 import MobileDrawerMenu from "./MobileDrawerMenu";
 import { base44 } from "@/api/base44Client";
 import { DEPLOY_BUILD } from "@/deploy-marker";
-import { normalizePhotoId } from "@/lib/gallery-organize-snapshot";
+import { normalizePhotoId, resolveFolderPhotos, countFolderPhotos, sanitizeFolderPhotoIds } from "@/lib/gallery-organize-snapshot";
 import { loadFolderMembershipCacheSync, saveFolderMembershipCache } from "@/lib/folder-membership-cache";
 
 export default function MobileGallery({
@@ -51,8 +51,10 @@ export default function MobileGallery({
   const [folderMoveDrawerOpen, setFolderMoveDrawerOpen] = useState(false);
   const inputRef = useRef(null);
 
-  const photosInFolders = new Set(folders.flatMap(f => f.photo_ids || []));
-  const unorganizedPhotos = photos.filter(p => !photosInFolders.has(p.id));
+  const photosInFolders = new Set(
+    folders.flatMap((f) => sanitizeFolderPhotoIds(f.photo_ids, photos).map(normalizePhotoId)),
+  );
+  const unorganizedPhotos = photos.filter(p => !photosInFolders.has(normalizePhotoId(p.id)));
 
   const exitSelection = () => {
     setSelectionMode(false);
@@ -133,7 +135,7 @@ export default function MobileGallery({
 
   // Folder view
   if (selectedFolder) {
-    const folderPhotos = photos.filter(p => (selectedFolder.photo_ids || []).includes(p.id));
+    const folderPhotos = resolveFolderPhotos(selectedFolder, photos);
 
     const handleFolderPhotoMove = async (targetFolderId) => {
       setMergeDrawerOpen(false);

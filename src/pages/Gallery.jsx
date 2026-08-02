@@ -22,7 +22,7 @@ import { DragDropContext } from "@hello-pangea/dnd";
 import { useNavigation } from "../components/NavigationContext";
 import { useTabState } from "../components/TabStateContext";
 import MobileGallery from "../components/gallery/MobileGallery";
-import { setGalleryOrganizeSnapshot, toStoredPhotoIds, normalizePhotoId } from "@/lib/gallery-organize-snapshot";
+import { setGalleryOrganizeSnapshot, sanitizeFolderPhotoIds, normalizePhotoId } from "@/lib/gallery-organize-snapshot";
 import { fetchGalleryFoldersWithMembership, mergeApiFoldersWithLocal, dedupeFoldersByNormalizedName, dedupePhotoMembershipInFolderList, findCrossFolderPhotoDuplicates, mergeDuplicateFoldersOnServer, enforceUniquePhotoMembershipOnServer } from "@/lib/folder-membership";
 import { ORGANIZE_BATCH_FOLDERS, ORGANIZE_BATCH_FOLDER_COUNT, normalizeFolderName } from "@/lib/media-organize";
 import { loadFullFolderSnapshotAsync, loadFolderSnapshotCacheSync, loadFolderMembershipCacheSync, persistGalleryFoldersSync, persistGalleryFoldersFast } from "@/lib/folder-membership-cache";
@@ -239,7 +239,7 @@ export default function Gallery() {
         dedupePhotoMembershipInFolderList(
           folders.map((folder) => ({
             ...folder,
-            photo_ids: toStoredPhotoIds(folder.photo_ids, photos),
+            photo_ids: sanitizeFolderPhotoIds(folder.photo_ids, photos),
           })),
           {
             membershipMap: userEmail ? loadFolderMembershipCacheSync(userEmail) : {},

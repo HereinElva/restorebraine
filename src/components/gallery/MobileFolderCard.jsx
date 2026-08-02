@@ -2,8 +2,11 @@ import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { FolderOpen } from "lucide-react";
 
+import { resolveFolderPhotos, countFolderPhotos } from "@/lib/gallery-organize-snapshot";
+
 export default function MobileFolderCard({ folder, photos, onClick }) {
-  const folderPhotos = photos.filter(p => folder.photo_ids?.includes(p.id));
+  const folderPhotos = resolveFolderPhotos(folder, photos);
+  const itemCount = countFolderPhotos(folder, photos);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [tapping, setTapping] = useState(false);
 
@@ -69,7 +72,7 @@ export default function MobileFolderCard({ folder, photos, onClick }) {
       <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
       <div className="absolute bottom-0 left-0 right-0 p-1.5">
         <p className="text-white text-xs font-semibold truncate drop-shadow leading-tight">{folder.name}</p>
-        <p className="text-white/70 text-[10px]">{folder.photo_ids?.length || 0}</p>
+        <p className="text-white/70 text-[10px]">{itemCount}</p>
       </div>
 
       {/* Slideshow dots */}
