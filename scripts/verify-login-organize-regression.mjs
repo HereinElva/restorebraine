@@ -47,7 +47,9 @@ const srcChecks = [
   ['src/screens/SignInScreen.jsx', 'SignInScreen'],
   ['src/components/NativeLoginCard.jsx', 'Continue With Google'],
   ['src/lib/folder-membership.js', 'export function buildFoldersForGalleryView'],
+  ['src/lib/folder-membership.js', 'loadFolderMembershipCacheSync'],
   ['src/lib/folder-membership-cache.js', 'export function repairMembershipCache'],
+  ['src/lib/folder-membership-cache.js', 'export function loadFolderMembershipCacheSync'],
   ['src/lib/run-media-organize.js', 'export async function runMediaOrganize'],
   ['src/lib/media-organize.js', 'ORGANIZE_BATCH_FOLDERS'],
   ['src/lib/media-organize.js', 'ORGANIZE_BATCH_FOLDER_COUNT = 8'],
@@ -68,6 +70,11 @@ for (const [file, needle] of srcChecks) {
 
 if (read('src/Layout.jsx').includes('AnimatePresence')) {
   fail('Layout.jsx still uses AnimatePresence — iOS white-screen regression risk');
+}
+
+const folderMembership = read('src/lib/folder-membership.js');
+if (folderMembership.includes('loadFolderMembershipCacheSync(') && !folderMembership.includes('loadFolderMembershipCacheSync,')) {
+  fail('folder-membership.js uses loadFolderMembershipCacheSync without importing it — login gallery crash');
 }
 
 if (read('src/App.jsx').includes('NativeRouter =')) {

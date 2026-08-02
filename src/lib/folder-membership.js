@@ -10,6 +10,7 @@ import {
   applyFolderMembershipCache,
   clearFolderMembershipCache,
   loadFolderMembershipCache,
+  loadFolderMembershipCacheSync,
   loadFolderSnapshotCacheSync,
   loadFullFolderSnapshotAsync,
   persistGalleryFolders,
