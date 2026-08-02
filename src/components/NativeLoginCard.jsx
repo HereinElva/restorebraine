@@ -65,7 +65,10 @@ const ProviderButton = ({ children, onClick, provider, dark = false, disabled = 
 function formatAuthError(error, mode) {
   const raw = error?.data?.message || error?.message || (mode === 'signup' ? 'Unable to create account' : 'Invalid email or password');
   if (mode === 'signup' && /already exists/i.test(raw)) {
-    return 'That email may already have an account (for example from Apple sign-in or a previous attempt). Try signing in with the same email and password.';
+    return 'That email may already be registered. If you used Apple or Google before, tap that button instead. Otherwise try signing in with the same password.';
+  }
+  if (mode === 'signin' && /invalid|password|credentials|401/i.test(raw)) {
+    return 'Invalid email or password. If you signed up with Apple or Google, use that button instead of email.';
   }
   return raw;
 }

@@ -58,9 +58,26 @@ export function mergePhotoIdsLikeManualMove(existingIds = [], newIds = []) {
 
 export function findFolderByDisplayName(folders, folderName, existingFolderNames = []) {
   const targetKey = normalizeFolderName(folderName, existingFolderNames).toLowerCase();
-  return folders.find(
+  const matches = (folders || []).filter(
     (f) => normalizeFolderName(f.name, existingFolderNames).toLowerCase() === targetKey,
   );
+  if (matches.length === 0) return undefined;
+  return matches.sort(
+    (a, b) => (b.photo_ids?.length || 0) - (a.photo_ids?.length || 0),
+  )[0];
+}
+
+/** Keep one folder per normalized name — prefer the one with the most photos. */
+export function dedupeFoldersByNormalizedName(folders, existingFolderNames = []) {
+  const byKey = new Map();
+  for (const folder of folders || []) {
+    const key = normalizeFolderName(folder.name, existingFolderNames).toLowerCase();
+    const existing = byKey.get(key);
+    if (!existing || (folder.photo_ids?.length || 0) > (existing.photo_ids?.length || 0)) {
+      byKey.set(key, folder);
+    }
+  }
+  return [...byKey.values()];
 }
 
 function photoIdsPersisted(persistedIds, expectedIds) {
@@ -155,6 +172,51 @@ export async function deleteFoldersWithTimeout(folderIds, { timeoutMs = FOLDER_D
     }),
   );
   return { deleted, failed };
+}
+
+/** Merge server folders that share the same display name into one folder each. */
+export async function mergeDuplicateFoldersOnServer(folders, { onProgress } = {}) {
+  const groups = new Map();
+  for (const folder of folders || []) {
+    const key = normalizeFolderName(folder.name, []).toLowerCase();
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(folder);
+  }
+
+  let mergedFolders = [...(folders || [])];
+  for (const group of groups.values()) {
+    if (group.length <= 1) continue;
+
+    group.sort((a, b) => (b.photo_ids?.length || 0) - (a.photo_ids?.length || 0));
+    const keeper = { ...group[0] };
+    const duplicateIds = [];
+
+    for (const dupe of group.slice(1)) {
+      keeper.photo_ids = mergePhotoIdsLikeManualMove(keeper.photo_ids, dupe.photo_ids);
+      duplicateIds.push(dupe.id);
+    }
+
+    onProgress?.(`Merging ${group.length} "${keeper.name}" folders…`);
+
+    try {
+      const saved = await updateFolderPhotoIdsWithTimeout(
+        keeper.id,
+        keeper.photo_ids,
+        {
+          cover_photo_url: keeper.cover_photo_url || group.find((f) => f.cover_photo_url)?.cover_photo_url || '',
+        },
+        ORGANIZE_SAVE_TIMEOUT_MS,
+      );
+      await deleteFoldersWithTimeout(duplicateIds);
+      mergedFolders = mergedFolders
+        .filter((folder) => !duplicateIds.includes(folder.id))
+        .map((folder) => (folder.id === keeper.id ? { ...folder, ...saved } : folder));
+    } catch (error) {
+      console.warn('mergeDuplicateFoldersOnServer failed:', keeper.name, error);
+    }
+  }
+
+  return dedupeFoldersByNormalizedName(mergedFolders);
 }
 
 /** Gallery load: Folder.list (with timeout) + merged local snapshot fallback. */

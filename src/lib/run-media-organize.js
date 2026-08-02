@@ -19,7 +19,10 @@ import {
   assignLoosePhotosByFolder,
   assignLoosePhotosOneByOne,
   deleteFoldersWithTimeout,
+  dedupeFoldersByNormalizedName,
   listAllFoldersSafe,
+  mergeApiFoldersWithLocal,
+  mergeDuplicateFoldersOnServer,
   reconcileOrganizeBatch,
 } from "@/lib/folder-membership";
 import {
@@ -175,12 +178,8 @@ export async function runMediaOrganize({
   }
 
   const liveFolderSource = uiShowsNoFolders ? [] : uiFolders.length ? uiFolders : apiFolders;
-  const existingFolderNames = liveFolderSource.map((f) => f.name);
-  const folderNamesForLabel = getOrganizeFolderNames(existingFolderNames, includeOrganized);
-  const maxFolderCount = Math.max(
-    ORGANIZE_BATCH_FOLDER_COUNT,
-    includeOrganized ? ORGANIZE_BATCH_FOLDER_COUNT : folderNamesForLabel.length,
-  );
+  const folderNamesForLabel = getOrganizeFolderNames(liveFolderSource.map((f) => f.name), includeOrganized);
+  const maxFolderCount = ORGANIZE_BATCH_FOLDER_COUNT;
 
   const photosToOrganize = includeOrganized
     ? photos
@@ -207,7 +206,15 @@ export async function runMediaOrganize({
     onProgress?.("Clearing folders…");
     await deleteFoldersWithTimeout(apiFolders.map((f) => f.id));
     apiFolders = [];
+  } else if (apiFolders.length > ORGANIZE_BATCH_FOLDER_COUNT) {
+    onProgress?.("Merging duplicate folders…");
+    apiFolders = await mergeDuplicateFoldersOnServer(apiFolders, { onProgress });
   }
+
+  const mergedLiveFolders = dedupeFoldersByNormalizedName(
+    mergeApiFoldersWithLocal(apiFolders, liveFolderSource),
+    folderNamesForLabel,
+  );
 
   onProgress?.(
     batchPhotos.length > 1
@@ -234,7 +241,7 @@ export async function runMediaOrganize({
 
   onProgress?.("Saving folders…");
 
-  const liveFolders = includeOrganized ? [] : liveFolderSource;
+  const liveFolders = includeOrganized ? [] : mergedLiveFolders;
   const labelByPhotoNormId = new Map(allLabels.map((l) => [l.id, l.folder]));
 
   const saveResult = await assignLoosePhotosByFolder({

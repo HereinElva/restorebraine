@@ -161,36 +161,15 @@ export const interceptNativeSignInClicks = () => {
   window.__restorebraineSignInInterceptor = true;
   document.addEventListener('click', (event) => {
     const providerTarget = event.target.closest('[data-rb-provider], [data-provider]');
-    if (providerTarget) {
-      if (providerTarget.disabled) return;
-      event.preventDefault();
-      event.stopPropagation();
-      event.stopImmediatePropagation();
-      const provider = providerTarget.getAttribute('data-rb-provider')
-        || providerTarget.getAttribute('data-provider')
-        || 'google';
-      import('@/lib/native-google-oauth').then(({ openLoginInSystemBrowser }) => {
-        openLoginInSystemBrowser(getCanonicalOAuthUrl(provider), provider);
-      });
-      return;
-    }
-
-    if (event.target.closest('[data-rb-auth="sign-in-v4"]')) return;
-
-    const target = event.target.closest('button, a, [role="button"]');
-    if (!target || target.type === 'submit') return;
-    const label = (target.textContent || '').trim();
-    const href = target.href || target.getAttribute?.('href') || '';
-    const isProvider = /continue with google|continue with apple|continue with microsoft/i.test(label);
-    const isAuthLink = /auth\/login|auth\/apple|auth\/microsoft/i.test(href);
-    if (!isProvider && !isAuthLink) return;
+    if (!providerTarget || providerTarget.disabled) return;
     event.preventDefault();
     event.stopPropagation();
     event.stopImmediatePropagation();
-    const provider = providerFromLabel(label);
-    const authUrl = href && isAuthNavigationUrl(href) ? href : getCanonicalOAuthUrl(provider);
+    const provider = providerTarget.getAttribute('data-rb-provider')
+      || providerTarget.getAttribute('data-provider');
+    if (!provider) return;
     import('@/lib/native-google-oauth').then(({ openLoginInSystemBrowser }) => {
-      openLoginInSystemBrowser(authUrl, provider);
+      openLoginInSystemBrowser(getCanonicalOAuthUrl(provider), provider);
     });
   }, true);
 };

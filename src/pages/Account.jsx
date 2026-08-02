@@ -27,12 +27,17 @@ export default function Account() {
   }, [popBack]);
 
   const handleLogout = async () => {
+    setShowLogoutDialog(false);
+    try {
+      window.__restorebraineSigningOut = true;
+    } catch {
+      /* ignore */
+    }
     queryClient.clear();
+    await localLogout();
     if (typeof window !== 'undefined' && window.__restorebrainePerformSignOut) {
       window.__restorebrainePerformSignOut();
-      return;
     }
-    await localLogout();
   };
 
   const goToGallery = (event) => {

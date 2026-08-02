@@ -521,6 +521,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate, ASWebAuthenticationPresen
 
           var lastOAuthTapMs = 0;
           function handleOAuthTapFromEvent(event, provider) {
+            if (!provider) return;
             var now = Date.now();
             if (now - lastOAuthTapMs < 700) return;
             lastOAuthTapMs = now;
@@ -535,29 +536,11 @@ class AppDelegate: UIResponder, UIApplicationDelegate, ASWebAuthenticationPresen
 
           function resolveOAuthTarget(event) {
             var providerTarget = event.target.closest('[data-rb-provider], [data-provider]');
-            if (providerTarget) {
-              if (providerTarget.disabled) return null;
-              return providerTarget.getAttribute('data-rb-provider')
-                || providerTarget.getAttribute('data-provider')
-                || 'google';
-            }
-            if (event.target.closest && event.target.closest('[data-rb-auth="sign-in-v4"]')) return null;
-
-            var target = event.target.closest('button, a, [role="button"], [data-rb-provider], [data-provider]');
-            if (!target) return null;
-            if (target.getAttribute && target.getAttribute('data-rb-gallery-nav')) return null;
-            if (target.closest && target.closest('[data-rb-gallery-nav]')) return null;
-            if (target.type === 'submit' && target.closest('form')) return null;
-            var label = (target.textContent || '').replace(/\s+/g, ' ').trim();
-            if (/sign in with email|create account|creating account|sign up|already have an account|don't have an account/i.test(label)) return null;
-            var provider = target.getAttribute('data-rb-provider') || target.getAttribute('data-provider') || '';
-            if (!provider && /google/i.test(label)) provider = 'google';
-            if (!provider && /apple/i.test(label)) provider = 'apple';
-            if (!provider && /microsoft/i.test(label)) provider = 'microsoft';
-            var isProvider = provider || /continue with google|continue with apple|continue with microsoft/i.test(label);
-            var isSignInButton = /^sign in$/i.test(label);
-            if (!isSignInButton && !isProvider) return null;
-            return provider || 'google';
+            if (!providerTarget) return null;
+            if (providerTarget.disabled) return null;
+            return providerTarget.getAttribute('data-rb-provider')
+              || providerTarget.getAttribute('data-provider')
+              || null;
           }
 
           function interceptNativeSignInClicks() {
@@ -809,9 +792,14 @@ class AppDelegate: UIResponder, UIApplicationDelegate, ASWebAuthenticationPresen
           }
 
           function performNativeSignOut() {
+            window.__restorebraineSigningOut = true;
             clearNativeSession();
             removeNativeSignInOverlay();
-            window.location.replace(RESTOREBRAINE + '/');
+            try {
+              window.dispatchEvent(new CustomEvent('restorebraine-signed-out'));
+            } catch (e) {}
+            var origin = window.location.origin || 'capacitor://localhost';
+            window.location.replace(origin + '/');
           }
 
           function readToken() {

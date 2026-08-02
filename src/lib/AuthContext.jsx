@@ -342,9 +342,19 @@ export const AuthProvider = ({ children }) => {
     window.addEventListener('restorebraine-session-updated', onSessionUpdated);
     window.addEventListener('restorebraine-native-oauth-complete', onSessionUpdated);
 
+    const onSignedOut = () => {
+      setManuallyLoggedOut(true);
+      setUser(null);
+      setIsAuthenticated(false);
+      setIsLoadingAuth(false);
+      setAuthError({ type: 'auth_required', message: 'Authentication required' });
+    };
+    window.addEventListener('restorebraine-signed-out', onSignedOut);
+
     return () => {
       window.removeEventListener('restorebraine-session-updated', onSessionUpdated);
       window.removeEventListener('restorebraine-native-oauth-complete', onSessionUpdated);
+      window.removeEventListener('restorebraine-signed-out', onSignedOut);
     };
   }, []);
 
@@ -368,6 +378,8 @@ export const AuthProvider = ({ children }) => {
     if (!normalizedEmail || !password) {
       throw Object.assign(new Error('Enter your email and password.'), { status: 400 });
     }
+
+    clearAxiosAuthHeaders();
 
     try {
       const authClient = createAxiosClient({
@@ -499,7 +511,7 @@ export const AuthProvider = ({ children }) => {
       const message = /timed out/i.test(rawMessage)
         ? 'Registration timed out. If this email was already created, try signing in instead.'
         : /already exists/i.test(rawMessage)
-          ? 'That email may already have an account (for example from Apple sign-in or a previous attempt). Try signing in with the same email and password.'
+          ? 'That email may already be registered. If you used Apple or Google before, tap that button instead. Otherwise try signing in with the same password.'
           : rawMessage;
       setAuthError({
         type: 'auth_required',

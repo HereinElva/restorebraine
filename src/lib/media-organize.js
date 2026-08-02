@@ -15,7 +15,7 @@ export const CANONICAL_FOLDERS = [
 ];
 
 /** Target folder count for each organize run — dense batches, not many tiny folders. */
-export const ORGANIZE_BATCH_FOLDER_COUNT = 12;
+export const ORGANIZE_BATCH_FOLDER_COUNT = 8;
 
 /** Primary folders used when sorting a large loose library for the first time. */
 export const ORGANIZE_BATCH_FOLDERS = [
@@ -39,19 +39,8 @@ const BATCH_FOLDER_ALIASES = {
 
 export function getOrganizeFolderNames(existingFolderNames = [], includeOrganized = false) {
   if (includeOrganized) return [...ORGANIZE_BATCH_FOLDERS];
-
-  if (existingFolderNames.length >= ORGANIZE_BATCH_FOLDER_COUNT) {
-    return existingFolderNames;
-  }
-
-  const merged = [...existingFolderNames];
-  for (const name of ORGANIZE_BATCH_FOLDERS) {
-    if (merged.length >= ORGANIZE_BATCH_FOLDER_COUNT) break;
-    if (!merged.some((folder) => folder.toLowerCase() === name.toLowerCase())) {
-      merged.push(name);
-    }
-  }
-  return merged.slice(0, ORGANIZE_BATCH_FOLDER_COUNT);
+  // Always sort into the fixed dense canonical set — never expand to every duplicate folder name on the server.
+  return [...ORGANIZE_BATCH_FOLDERS];
 }
 
 export function photoDataForOrganize(photo) {
@@ -288,7 +277,10 @@ export function consolidateOrganizeLabels(
   const photoById = new Map(
     (photos || []).map((photo) => [String(photo.id), photo]),
   );
-  const folderCap = Math.max(maxFolderCount || ORGANIZE_BATCH_FOLDER_COUNT, ORGANIZE_BATCH_FOLDER_COUNT);
+  const folderCap = Math.min(
+    maxFolderCount || ORGANIZE_BATCH_FOLDER_COUNT,
+    ORGANIZE_BATCH_FOLDER_COUNT,
+  );
 
   let remapped = (labels || []).map((label) => {
     const photo = photoById.get(String(label.id));
