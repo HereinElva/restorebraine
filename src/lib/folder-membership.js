@@ -70,7 +70,8 @@ function photoIdsPersisted(persistedIds, expectedIds) {
 
 const FOLDER_DELETE_TIMEOUT_MS = 8000;
 const FOLDER_API_TIMEOUT_MS = 25000;
-const ORGANIZE_SAVE_TIMEOUT_MS = 12000;
+const ORGANIZE_SAVE_TIMEOUT_MS = 35000;
+const FOLDER_SAVE_CHUNK_SIZE = 30;
 
 function withFolderApiTimeout(promise, label, timeoutMs = FOLDER_API_TIMEOUT_MS) {
   return Promise.race([
@@ -238,6 +239,41 @@ async function appendPhotoToFolderOnServer(folderId, photo, userEmail) {
   return appendPhotosToFolderOnServer(folderId, [photo], userEmail);
 }
 
+async function appendPhotoIdsToFolderInChunks({
+  folderId,
+  photos,
+  existingFolder,
+  timeoutMs = ORGANIZE_SAVE_TIMEOUT_MS,
+}) {
+  let savedFolder = { ...existingFolder };
+  let currentIds = [...(existingFolder.photo_ids || [])];
+  const coverUrl = existingFolder.cover_photo_url || photos[0]?.file_url || '';
+
+  for (let i = 0; i < photos.length; i += FOLDER_SAVE_CHUNK_SIZE) {
+    const chunk = photos.slice(i, i + FOLDER_SAVE_CHUNK_SIZE);
+    const chunkIds = chunk.map((photo) => photo.id);
+    const updatedIds = mergePhotoIdsLikeManualMove(currentIds, chunkIds);
+    try {
+      const api = await updateFolderPhotoIdsWithTimeout(
+        folderId,
+        updatedIds,
+        {
+          ...(!savedFolder.cover_photo_url && coverUrl ? { cover_photo_url: coverUrl } : {}),
+        },
+        timeoutMs,
+      );
+      savedFolder = { ...savedFolder, ...api, photo_ids: api.photo_ids || updatedIds };
+      currentIds = savedFolder.photo_ids || updatedIds;
+    } catch (error) {
+      console.warn('Folder chunk update failed:', error);
+      savedFolder = { ...savedFolder, photo_ids: updatedIds };
+      currentIds = updatedIds;
+    }
+  }
+
+  return savedFolder;
+}
+
 /**
  * Assign loose photos grouped by folder name — one API write per folder, not per photo.
  */
@@ -281,40 +317,58 @@ export async function assignLoosePhotosByFolder({
       const target = findFolderByDisplayName(folders, folderName, names());
 
       if (target) {
-        const updatedIds = mergePhotoIdsLikeManualMove(target.photo_ids, photoIds);
         const coverUrl = target.cover_photo_url || groupPhotos[0]?.file_url || '';
-        let saved = {
-          ...target,
-          photo_ids: updatedIds,
-          cover_photo_url: coverUrl || target.cover_photo_url,
-        };
+        let saved = target;
         try {
-          const api = await updateFolderPhotoIdsWithTimeout(
-            target.id,
-            updatedIds,
-            {
-              ...(!target.cover_photo_url && coverUrl ? { cover_photo_url: coverUrl } : {}),
-            },
-            ORGANIZE_SAVE_TIMEOUT_MS,
-          );
-          saved = { ...target, ...api, photo_ids: api.photo_ids || updatedIds };
+          if (groupPhotos.length <= FOLDER_SAVE_CHUNK_SIZE) {
+            const updatedIds = mergePhotoIdsLikeManualMove(target.photo_ids, photoIds);
+            const api = await updateFolderPhotoIdsWithTimeout(
+              target.id,
+              updatedIds,
+              {
+                ...(!target.cover_photo_url && coverUrl ? { cover_photo_url: coverUrl } : {}),
+              },
+              ORGANIZE_SAVE_TIMEOUT_MS,
+            );
+            saved = { ...target, ...api, photo_ids: api.photo_ids || updatedIds };
+          } else {
+            saved = await appendPhotoIdsToFolderInChunks({
+              folderId: target.id,
+              photos: groupPhotos,
+              existingFolder: target,
+            });
+          }
         } catch (error) {
           console.warn('Folder.update failed, using local state:', error);
+          saved = {
+            ...target,
+            photo_ids: mergePhotoIdsLikeManualMove(target.photo_ids, photoIds),
+            cover_photo_url: coverUrl || target.cover_photo_url,
+          };
         }
         folderId = target.id;
         folders = folders.map((f) => (f.id === target.id ? saved : f));
       } else {
         let created;
         try {
+          const firstChunk = groupPhotos.slice(0, FOLDER_SAVE_CHUNK_SIZE);
+          const rest = groupPhotos.slice(FOLDER_SAVE_CHUNK_SIZE);
           created = await createFolderOnServer(
             {
               name: folderName,
               description: '',
-              photo_ids: photoIds,
+              photo_ids: firstChunk.map((photo) => photo.id),
               cover_photo_url: groupPhotos[0]?.file_url || '',
             },
             ORGANIZE_SAVE_TIMEOUT_MS,
           );
+          if (rest.length) {
+            created = await appendPhotoIdsToFolderInChunks({
+              folderId: created.id,
+              photos: rest,
+              existingFolder: created,
+            });
+          }
         } catch (error) {
           console.warn('Folder.create failed:', error);
           failedPhotoIds.push(...photoIds);

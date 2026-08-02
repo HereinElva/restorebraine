@@ -50,7 +50,7 @@ function organizeResultMessage({
       : `${totalFolders} folders`;
 
   if (remainingLoose > 0) {
-    return `Saved ${totalSaved} photo${totalSaved !== 1 ? "s" : ""} — now ${folderDesc}. ${remainingLoose} still loose — tap Organize again to continue.`;
+    return `Sorted ${totalSaved} of ${totalToOrganize} loose items — now ${folderDesc}. ${remainingLoose} still in your main library — tap Organize again to continue.`;
   }
   if (missed > 0) {
     return `Done! ${totalSaved} of ${totalToOrganize} loose photos sorted — ${folderDesc}. Tap Organize again for the ${missed} remaining.`;

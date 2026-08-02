@@ -1,11 +1,11 @@
 import { invokeLLMWithRetry } from "@/lib/invoke-llm-retry";
 import {
-  assignFolderLocally,
   assignFolderToOrganizeBatch,
   buildFolderOptions,
   buildLabelPrompt,
   consolidateOrganizeLabels,
   getOrganizeFolderNames,
+  ORGANIZE_BATCH_FOLDER_COUNT,
   parseCustomFolderHints,
   photoDataForOrganize,
 } from "@/lib/media-organize";
@@ -19,6 +19,7 @@ import {
   assignLoosePhotosByFolder,
   deleteFoldersWithTimeout,
   listAllFoldersSafe,
+  reconcileOrganizeBatch,
 } from "@/lib/folder-membership";
 import {
   recordBatchFolderMembership,
@@ -26,7 +27,7 @@ import {
 
 const CHUNK_SIZE = 40;
 const LLM_DELAY_MS = 800;
-const LOCAL_LABEL_THRESHOLD = 50;
+const LOCAL_LABEL_THRESHOLD = 20;
 const MISC_FOLDER = "Miscellaneous";
 
 function sleep(ms) {
@@ -162,7 +163,6 @@ export async function runMediaOrganize({
   const uiFolders = foldersSnapshot ?? [];
   const uiShowsNoFolders = uiFolders.length === 0;
 
-  // When UI shows no folders, skip Folder.list — it often hangs and blocks organize.
   let apiFolders = [];
   if (includeOrganized || !uiShowsNoFolders) {
     onProgress?.("Checking folders…");
@@ -176,6 +176,10 @@ export async function runMediaOrganize({
   const liveFolderSource = uiShowsNoFolders ? [] : uiFolders.length ? uiFolders : apiFolders;
   const existingFolderNames = liveFolderSource.map((f) => f.name);
   const folderNamesForLabel = getOrganizeFolderNames(existingFolderNames, includeOrganized);
+  const maxFolderCount = Math.max(
+    ORGANIZE_BATCH_FOLDER_COUNT,
+    includeOrganized ? ORGANIZE_BATCH_FOLDER_COUNT : folderNamesForLabel.length,
+  );
 
   const photosToOrganize = includeOrganized
     ? photos
@@ -206,7 +210,7 @@ export async function runMediaOrganize({
 
   onProgress?.(
     batchPhotos.length > 1
-      ? `Sorting ${batchPhotos.length} loose items into up to 8 folders…`
+      ? `Sorting ${batchPhotos.length} loose items into up to ${maxFolderCount} folders…`
       : `Sorting ${batchPhotos.length} loose item…`,
   );
 
@@ -224,6 +228,7 @@ export async function runMediaOrganize({
     rawLabels,
     batchPhotos,
     folderNamesForLabel,
+    maxFolderCount,
   );
 
   onProgress?.("Saving folders…");
@@ -240,20 +245,22 @@ export async function runMediaOrganize({
     userEmail,
   });
 
-  let afterFolders = saveResult.folders;
-  const failedNormIds = new Set((saveResult.failedPhotoIds || []).map(normalizePhotoId));
+  onProgress?.("Verifying saves…");
+
+  const reconcileResult = await reconcileOrganizeBatch({
+    batchPhotos,
+    afterFolders: saveResult.folders,
+    labelByPhotoNormId,
+    onProgress,
+    userEmail,
+  });
+
+  const afterFolders = reconcileResult.folders;
+  const actuallySaved = reconcileResult.totalSaved;
+  const missed = reconcileResult.missed;
+  const totalRemainingLoose = getUnorganizedPhotos(photos, afterFolders).length;
 
   onProgress?.("Done");
-
-  const savedApiFolders = afterFolders;
-
-  const missedPhotos = batchPhotos.filter(
-    (p) =>
-      failedNormIds.has(normalizePhotoId(p.id)) ||
-      getUnorganizedPhotos([p], afterFolders).length > 0,
-  );
-  const actuallySaved = batchPhotos.length - missedPhotos.length;
-  const totalRemainingLoose = missedPhotos.length;
 
   if (actuallySaved === 0 && batchPhotos.length > 0) {
     return {
@@ -265,7 +272,7 @@ export async function runMediaOrganize({
   if (userEmail && actuallySaved > 0) {
     const entries = [];
     for (const photo of batchPhotos) {
-      if (missedPhotos.some((p) => normalizePhotoId(p.id) === normalizePhotoId(photo.id))) continue;
+      if (getUnorganizedPhotos([photo], afterFolders).length > 0) continue;
       const folder = afterFolders.find((f) =>
         (f.photo_ids || []).some((id) => normalizePhotoId(id) === normalizePhotoId(photo.id)),
       );
@@ -279,11 +286,11 @@ export async function runMediaOrganize({
     foldersSaved: new Set(allLabels.map((l) => l.folder)).size,
     totalSaved: actuallySaved,
     totalToOrganize: batchPhotos.length,
-    missed: missedPhotos.length,
+    missed,
     remainingLoose: totalRemainingLoose,
     partial: totalRemainingLoose > 0,
     afterFolders,
-    apiFolders: savedApiFolders,
+    apiFolders: reconcileResult.apiFolders || afterFolders,
     photosToOrganize: batchPhotos,
     labelByPhotoNormId,
   };

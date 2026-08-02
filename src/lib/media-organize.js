@@ -276,13 +276,19 @@ export function assignFolderToOrganizeBatch(photo, allowedFolderNames = ORGANIZE
   return bestFolder;
 }
 
-/** Remap labels into at most eight dense folders for one organize run. */
-export function consolidateOrganizeLabels(labels, photos, allowedFolderNames = ORGANIZE_BATCH_FOLDERS) {
+/** Remap labels into dense folders for one organize run. */
+export function consolidateOrganizeLabels(
+  labels,
+  photos,
+  allowedFolderNames = ORGANIZE_BATCH_FOLDERS,
+  maxFolderCount = ORGANIZE_BATCH_FOLDER_COUNT,
+) {
   const allowed = allowedFolderNames?.length ? allowedFolderNames : ORGANIZE_BATCH_FOLDERS;
   const allowedLower = new Set(allowed.map((name) => name.toLowerCase()));
   const photoById = new Map(
     (photos || []).map((photo) => [String(photo.id), photo]),
   );
+  const folderCap = Math.max(maxFolderCount || ORGANIZE_BATCH_FOLDER_COUNT, ORGANIZE_BATCH_FOLDER_COUNT);
 
   let remapped = (labels || []).map((label) => {
     const photo = photoById.get(String(label.id));
@@ -298,11 +304,11 @@ export function consolidateOrganizeLabels(labels, photos, allowedFolderNames = O
     counts.set(label.folder, (counts.get(label.folder) || 0) + 1);
   }
 
-  if (counts.size <= ORGANIZE_BATCH_FOLDER_COUNT) return remapped;
+  if (counts.size <= folderCap) return remapped;
 
   const ranked = [...counts.entries()].sort((a, b) => b[1] - a[1]);
   const keep = new Set(
-    ranked.slice(0, ORGANIZE_BATCH_FOLDER_COUNT).map(([name]) => name),
+    ranked.slice(0, folderCap).map(([name]) => name),
   );
   const overflowTarget = ranked[0][0];
 
