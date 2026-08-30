@@ -68,6 +68,7 @@ export default function PaymentModal({
       });
       if (response.data?.url) {
         await openStripeCheckout(response.data.url);
+        setProcessing(false);
         return;
       }
       throw new Error("Failed to create checkout session");
@@ -213,7 +214,7 @@ export default function PaymentModal({
             {processing ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                {useIap ? "Processing…" : "Redirecting…"}
+                {useIap ? "Processing…" : "Opening checkout…"}
               </>
             ) : (
               <>
