@@ -6,7 +6,7 @@
 
 1. Open **Base44** → **Restorebraine** → **Code editor**
 2. Keep Base44 open next to Terminal
-3. **Do not click Publish** until all 35 files are saved
+3. **Do not click Publish** until all **39 files** are saved
 
 ## Run the wizard (recommended)
 
@@ -22,7 +22,17 @@ The wizard:
 3. You **Select All → Paste → Save** in Base44
 4. Press **Enter** in Terminal for the next file
 
-Repeat until all **35 files** are done, then click **Publish once**.
+Repeat until all **39 files** are done, then click **Publish once**.
+
+### Quick fix — Stripe in-app payment only
+
+If checkout still opens an external browser tab, paste these **5 files** in Base44 (from git `main`), then Publish:
+
+1. `src/deploy-marker.js` (must show `DEPLOY_BUILD = 283`)
+2. `src/lib/native-platform.js`
+3. `src/lib/stripe-checkout.js`
+4. `src/components/upload/PaymentModal.jsx`
+5. `src/pages/PaymentSuccess.jsx`
 
 ### Resume if you stop partway
 
