@@ -1,28 +1,42 @@
-# Stripe payment — Base44 one-file fix (v290)
+# Stripe payment — v291 (Capacitor bridge hook)
 
-Your v289 scrub patch **is live** but payment still failed because the app imports
-InAppBrowser as an ES module — v289 only patched `Capacitor.Plugins`, not the module.
+v290 is live but payment still opens Chrome because the bundled Capacitor core
+calls `toNative('InAppBrowser', 'openInSystemBrowser', ...)` directly — bypassing
+registerPlugin patches.
 
-**v290** hooks `Capacitor.registerPlugin` and re-wraps navigation after the old guard.
+**v291** hooks `Capacitor.toNative` and `Capacitor.nativePromise` at the bridge.
 
-## One file — paste in Base44
+## Base44 — one file
 
 ```bash
-cd ~/restorebraine
 git pull origin cursor/fix-stripe-inapp-payment-bacf
 pbcopy < public/native-ui-scrub.js
 ```
 
-Base44 → **native-ui-scrub.js** → Select All → Paste → **Save** → **Publish**
+Paste into **native-ui-scrub.js** → Save → **Publish**
 
-## Verify (must show 290)
+## Verify
 
 ```bash
 curl -sL "https://restorebraine.base44.app/native-ui-scrub.js" | grep __restorebraineStripePatchVersion
 ```
 
-Expected: `window.__restorebraineStripePatchVersion = 290`
+Must show **291**.
+
+```bash
+curl -sL "https://restorebraine.base44.app/native-ui-scrub.js" | grep toNative
+```
+
+Must print a line with `cap.toNative`.
 
 ## Phone
 
-Force-quit → reopen → Pay again.
+Force-quit → reopen → Pay.
+
+## Also paste when you can (full fix)
+
+These rebuild the App bundle so you don't rely on the scrub hook:
+
+- `src/lib/stripe-checkout.js`
+- `src/components/upload/PaymentModal.jsx`
+- `src/main.jsx`
