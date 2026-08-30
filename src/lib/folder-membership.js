@@ -517,7 +517,7 @@ export async function reconcileOrganizeBatch({
 
   for (let attempt = 0; attempt < 3; attempt++) {
     await sleep(attempt === 0 ? 300 : 500 * attempt);
-    const apiFolders = await listAllFolders();
+    const apiFolders = await listAllFolders(userEmail);
 
     const missedPhotos = getUnorganizedPhotos(batchPhotos, apiFolders);
     if (missedPhotos.length === 0) {
