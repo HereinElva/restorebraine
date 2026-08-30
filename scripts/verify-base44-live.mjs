@@ -26,7 +26,7 @@ const liveDeploy = html.match(/restorebraine-deploy[^>]*content="v(\d+)"/)?.[1]
 const liveBundle = html.match(/assets\/(index-[^"]+\.js)/)?.[1] ?? 'unknown';
 const hasMultiProvider = /Sign in with Apple|Continue With Apple|Continue With Microsoft|Sign In With Email/i.test(html);
 const hasAppleLogo = /data-rb-apple-logo|SignInWithAppleButton/i.test(html);
-const hasOldSingleGoogle = /Continue with Google/i.test(html) && !hasMultiProvider;
+const hasStripeGuard = /restorebraine-stripe-checkout/i.test(html);
 
 console.log('=== Base44 live vs git ===\n');
 console.log(`Live site:     ${LIVE_URL}`);
@@ -42,6 +42,14 @@ if (liveDeploy === '?' || liveDeploy !== localDeploy) {
   fail += 1;
 } else {
   console.log('OK: Base44 deploy stamp matches git');
+}
+
+if (!hasStripeGuard) {
+  console.error('FAIL: Live index.html missing inline Stripe native guard');
+  console.error('       Paste index.html from git (v' + localDeploy + ') → Base44 → Publish');
+  fail += 1;
+} else {
+  console.log('OK: Live index.html has Stripe in-app guard');
 }
 
 if (hasOldSingleGoogle) {
