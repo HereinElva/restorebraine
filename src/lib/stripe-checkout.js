@@ -34,7 +34,8 @@ async function getInAppBrowserPlugin() {
 
 async function openStripeInNativeSheet(checkoutUrl) {
   const InAppBrowser = await getInAppBrowserPlugin();
-  const openSheet = InAppBrowser.openInSystemBrowser || InAppBrowser.openInWebView;
+  // WebView first — stays inside the app. System browser (Custom Tab / Safari sheet) feels like leaving the app.
+  const openSheet = InAppBrowser.openInWebView || InAppBrowser.openInSystemBrowser;
   if (!openSheet) {
     throw new Error('InAppBrowser sheet unavailable');
   }
