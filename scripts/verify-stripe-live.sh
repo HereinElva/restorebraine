@@ -10,12 +10,10 @@ deploy=$(echo "$html" | grep -oE 'restorebraine-deploy[^>]*content="v[0-9]+"' | 
 echo "Live deploy:     ${deploy:-unknown}"
 echo ""
 
-if echo "$scrub" | grep -q '__restorebraineStripePatchVersion = 291'; then
-  echo "OK: native-ui-scrub.js has Stripe v291 patch (Capacitor bridge hook)"
-elif echo "$scrub" | grep -q 'cap.toNative'; then
-  echo "OK: native-ui-scrub.js has Capacitor toNative Stripe hook"
-elif echo "$scrub" | grep -q '__restorebraineStripePatchVersion = 290'; then
-  echo "WARN: v290 only — update to v291 (bridge hook)"
+if echo "$scrub" | grep -q '__restorebraineStripePatchVersion = 292'; then
+  echo "OK: native-ui-scrub.js has Stripe v292 patch (permanent bridge hook)"
+elif echo "$scrub" | grep -q '__restorebraineStripePatchVersion = 291'; then
+  echo "WARN: v291 only — update scrub to v292 (permanent hook)"
 elif echo "$html" | grep -q 'openInSystemBrowser'; then
   echo "OK: index.html has inline Stripe guard"
 elif echo "$guard" | grep -q 'openInSystemBrowser'; then

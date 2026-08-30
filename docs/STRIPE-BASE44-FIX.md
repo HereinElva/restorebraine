@@ -1,42 +1,57 @@
-# Stripe payment — v291 (Capacitor bridge hook)
+# Stripe payment — v292
 
-v290 is live but payment still opens Chrome because the bundled Capacitor core
-calls `toNative('InAppBrowser', 'openInSystemBrowser', ...)` directly — bypassing
-registerPlugin patches.
+## Status
 
-**v291** hooks `Capacitor.toNative` and `Capacitor.nativePromise` at the bridge.
+- **v291 scrub is live** but payment may still open Chrome if the bridge hook missed Capacitor init.
+- **v292** keeps the bridge hook running permanently and also hooks `Browser.open`.
 
-## Base44 — one file
+## Step A — one file (scrub)
 
 ```bash
 git pull origin cursor/fix-stripe-inapp-payment-bacf
 pbcopy < public/native-ui-scrub.js
 ```
 
-Paste into **native-ui-scrub.js** → Save → **Publish**
+Base44 → **native-ui-scrub.js** → Save → **Publish**
 
-## Verify
-
-```bash
-curl -sL "https://restorebraine.base44.app/native-ui-scrub.js" | grep __restorebraineStripePatchVersion
-```
-
-Must show **291**.
+Verify:
 
 ```bash
-curl -sL "https://restorebraine.base44.app/native-ui-scrub.js" | grep toNative
+curl -sL "https://restorebraine.base44.app/native-ui-scrub.js?v=$(date +%s)" | grep __restorebraineStripePatchVersion
 ```
 
-Must print a line with `cap.toNative`.
+Must show **292**.
 
-## Phone
+## Step B — rebuild App bundle (recommended)
 
-Force-quit → reopen → Pay.
+The live App bundle still calls `openInSystemBrowser` first. Paste these 3 files in Base44, Save each, **Publish once**:
 
-## Also paste when you can (full fix)
+```bash
+bash scripts/base44-stripe-bundle-publish.sh
+```
 
-These rebuild the App bundle so you don't rely on the scrub hook:
+Files:
 
-- `src/lib/stripe-checkout.js`
-- `src/components/upload/PaymentModal.jsx`
-- `src/main.jsx`
+1. `src/lib/stripe-checkout.js`
+2. `src/components/upload/PaymentModal.jsx`
+3. `src/main.jsx`
+
+After Publish, App bundle filename should change (not `App-exbviQF4.js`).
+
+## Phone test
+
+- Use the **Play Store / App Store app**, not Safari/Chrome
+- Force-quit → reopen → Pay
+
+## If still broken
+
+The Play Store APK/AAB may need rebuild with `@capacitor/inappbrowser`:
+
+```bash
+git checkout cursor/android-play-store-bacf
+npm install
+npx cap sync android
+bash scripts/android:bundle   # or your AAB build script
+```
+
+Upload new AAB to Play Console internal testing.

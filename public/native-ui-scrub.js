@@ -29,11 +29,11 @@
   window.__restorebraineScrubLegacyUi = scrub;
 })();
 
-/** Stripe in-app payment — v291. Hooks Capacitor native bridge + registerPlugin. */
+/** Stripe in-app payment — v292. Permanent Capacitor bridge hook + navigation. */
 (function rbStripeInAppPatch() {
   if (typeof window === 'undefined') return;
 
-  window.__restorebraineStripePatchVersion = 291;
+  window.__restorebraineStripePatchVersion = 292;
 
   var OPTS = {
     showURL: false,
@@ -98,21 +98,25 @@
     return false;
   }
 
-  function redirectInAppBrowserCall(pluginName, methodName, options) {
-    if (pluginName !== 'InAppBrowser' || methodName !== 'openInSystemBrowser') {
-      return { pluginName: pluginName, methodName: methodName, options: options };
-    }
+  function redirectStripeNativeCall(pluginName, methodName, options) {
     var url = stripeCheckoutUrl(options);
     if (!isStripe(url)) {
       return { pluginName: pluginName, methodName: methodName, options: options };
     }
     var next = options && typeof options === 'object' ? Object.assign({}, options) : { url: String(url) };
     if (!next.options) next.options = OPTS;
-    return { pluginName: pluginName, methodName: 'openInWebView', options: next };
+
+    if (
+      (pluginName === 'InAppBrowser' && methodName === 'openInSystemBrowser') ||
+      (pluginName === 'Browser' && methodName === 'open')
+    ) {
+      return { pluginName: 'InAppBrowser', methodName: 'openInWebView', options: next };
+    }
+
+    return { pluginName: pluginName, methodName: methodName, options: options };
   }
 
   function hookCapacitorBridge() {
-    if (!isNative()) return;
     var cap = window.Capacitor;
     if (!cap) return;
 
@@ -129,7 +133,7 @@
     if (cap.toNative && !cap.toNative.__rbStripeWrapped) {
       var origToNative = cap.toNative.bind(cap);
       cap.toNative = function (pluginName, methodName, options, storedCallback) {
-        var redirected = redirectInAppBrowserCall(pluginName, methodName, options);
+        var redirected = redirectStripeNativeCall(pluginName, methodName, options);
         return origToNative(
           redirected.pluginName,
           redirected.methodName,
@@ -143,7 +147,7 @@
     if (cap.nativePromise && !cap.nativePromise.__rbStripeWrapped) {
       var origPromise = cap.nativePromise.bind(cap);
       cap.nativePromise = function (pluginName, methodName, options) {
-        var redirected = redirectInAppBrowserCall(pluginName, methodName, options);
+        var redirected = redirectStripeNativeCall(pluginName, methodName, options);
         return origPromise(redirected.pluginName, redirected.methodName, redirected.options);
       };
       cap.nativePromise.__rbStripeWrapped = true;
@@ -153,14 +157,6 @@
       patchIB(cap.Plugins.InAppBrowser);
     }
   }
-
-  hookCapacitorBridge();
-  var bridgeTimer = setInterval(function () {
-    hookCapacitorBridge();
-  }, 100);
-  setTimeout(function () {
-    clearInterval(bridgeTimer);
-  }, 30000);
 
   function wrapNavigation() {
     if (!isNative()) return;
@@ -176,10 +172,27 @@
       };
       Location.prototype[method].__rbStripeOpenWrapped = true;
     });
+
+    try {
+      var proto = window.Location && window.Location.prototype;
+      var hrefDesc = proto && Object.getOwnPropertyDescriptor(proto, 'href');
+      if (hrefDesc && hrefDesc.set && !hrefDesc.set.__rbStripeHrefWrapped) {
+        var origHrefSet = hrefDesc.set;
+        hrefDesc.set = function (url) {
+          if (isStripe(url)) {
+            openStripeInApp(url);
+            return;
+          }
+          return origHrefSet.call(this, url);
+        };
+        hrefDesc.set.__rbStripeHrefWrapped = true;
+        Object.defineProperty(proto, 'href', hrefDesc);
+      }
+    } catch (e) {}
   }
 
+  hookCapacitorBridge();
   wrapNavigation();
-  setTimeout(wrapNavigation, 0);
-  setTimeout(wrapNavigation, 100);
-  setTimeout(wrapNavigation, 500);
+  setInterval(hookCapacitorBridge, 250);
+  setInterval(wrapNavigation, 1000);
 })();
