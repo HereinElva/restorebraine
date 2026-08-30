@@ -214,7 +214,7 @@ export default function PaymentModal({
             {processing ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                {useIap ? "Processing…" : "Opening checkout…"}
+                {useIap ? "Processing…" : "Opening payment…"}
               </>
             ) : (
               <>

@@ -1,15 +1,31 @@
 import { Capacitor } from '@capacitor/core';
+import { InAppBrowser } from '@capacitor/inappbrowser';
 import { isAppHost } from '@/lib/app-domains';
-import { getStripeReturnBaseUrl, isNativeShell } from '@/lib/native-platform';
+import { getStripeReturnBaseUrl } from '@/lib/native-platform';
 
 const STRIPE_COMPLETE_EVENT = 'restorebraine-stripe-complete';
+const STRIPE_REQUEST_EVENT = 'restorebraine-stripe-checkout';
 const STRIPE_SHEET_TIMEOUT_MS = 10 * 60 * 1000;
 
-const NATIVE_BROWSER_OPTIONS = {
-  dismissButtonStyle: 'close',
-  showTitle: true,
+const WEBVIEW_OPTIONS = {
   showURL: false,
+  showToolbar: true,
+  clearCache: false,
+  clearSessionCache: false,
+  closeButtonText: 'Cancel',
+  toolbarPosition: 0,
+  showNavigationButtons: false,
+  iOS: { viewStyle: 2, animationEffect: 2, allowsBackForwardNavigationGestures: false },
+  android: { allowZoom: false, hardwareBack: true },
 };
+
+function isCapacitorNative() {
+  try {
+    return Capacitor.isNativePlatform();
+  } catch {
+    return false;
+  }
+}
 
 function parseStripeReturn(url) {
   if (!url) return null;
@@ -27,18 +43,11 @@ function parseStripeReturn(url) {
   return null;
 }
 
-async function getInAppBrowserPlugin() {
-  const mod = await import('@capacitor/inappbrowser');
-  return mod.InAppBrowser;
-}
-
 async function openStripeInNativeSheet(checkoutUrl) {
-  const InAppBrowser = await getInAppBrowserPlugin();
-  // WebView first — stays inside the app. System browser (Custom Tab / Safari sheet) feels like leaving the app.
+  if (!checkoutUrl) throw new Error('Missing Stripe checkout URL');
+
   const openSheet = InAppBrowser.openInWebView || InAppBrowser.openInSystemBrowser;
-  if (!openSheet) {
-    throw new Error('InAppBrowser sheet unavailable');
-  }
+  if (!openSheet) throw new Error('InAppBrowser plugin unavailable');
 
   let finished = false;
   const listeners = [];
@@ -59,9 +68,8 @@ async function openStripeInNativeSheet(checkoutUrl) {
     await cleanup();
     if (outcome?.type === 'success' && outcome.sessionId) {
       const base = getStripeReturnBaseUrl();
-      window.location.assign(
-        `${base}/PaymentSuccess?session_id=${encodeURIComponent(outcome.sessionId)}`,
-      );
+      const successUrl = `${base}/PaymentSuccess?session_id=${encodeURIComponent(outcome.sessionId)}`;
+      window.location.replace(successUrl);
     }
     window.dispatchEvent(new CustomEvent(STRIPE_COMPLETE_EVENT, { detail: outcome }));
   };
@@ -75,7 +83,7 @@ async function openStripeInNativeSheet(checkoutUrl) {
   listeners.push(await InAppBrowser.addListener('browserPageLoaded', onNavigation));
   listeners.push(await InAppBrowser.addListener('browserClosed', () => complete({ type: 'closed' })));
 
-  await openSheet.call(InAppBrowser, { url: checkoutUrl, options: NATIVE_BROWSER_OPTIONS });
+  await openSheet.call(InAppBrowser, { url: checkoutUrl, options: WEBVIEW_OPTIONS });
 
   await new Promise((resolve) => {
     const onDone = () => {
@@ -90,20 +98,32 @@ async function openStripeInNativeSheet(checkoutUrl) {
   });
 }
 
-/** Open Stripe Checkout — in-app sheet on native, same tab on web. */
+/** Open Stripe Checkout — in-app WebView on native, same tab on web. */
 export async function openStripeCheckout(checkoutUrl) {
   if (!checkoutUrl) throw new Error('Missing Stripe checkout URL');
 
-  if (isNativeShell()) {
-    try {
-      await openStripeInNativeSheet(checkoutUrl);
-      return;
-    } catch (error) {
-      console.warn('Native Stripe sheet failed, using full navigation', error);
-    }
+  if (isCapacitorNative()) {
+    await openStripeInNativeSheet(checkoutUrl);
+    return;
   }
 
   window.location.assign(checkoutUrl);
+}
+
+let stripeListenerInstalled = false;
+
+/** Listen for early native guard events from public/stripe-native-guard.js */
+export function installStripeCheckoutNativeListener() {
+  if (typeof window === 'undefined' || stripeListenerInstalled || !isCapacitorNative()) return;
+  stripeListenerInstalled = true;
+
+  window.addEventListener(STRIPE_REQUEST_EVENT, (event) => {
+    const url = event?.detail?.url;
+    if (!url) return;
+    void openStripeInNativeSheet(url).catch((error) => {
+      console.error('Stripe in-app checkout failed:', error);
+    });
+  });
 }
 
 /** Refresh billing state when returning to the app after Stripe checkout. */

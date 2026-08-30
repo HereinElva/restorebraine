@@ -15,6 +15,7 @@ FILES=(
   "public/native-oauth-return.js"
   "public/login-redirect.js"
   "src/main.jsx"
+  "public/stripe-native-guard.js"
   "src/deploy-marker.js"
   "src/lib/app-params.js"
   "src/lib/app-domains.js"

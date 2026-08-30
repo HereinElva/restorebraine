@@ -8,6 +8,7 @@ import { redirectNativeToHostedApp } from '@/lib/native-hosted-redirect';
 import { installNativeOAuthFix } from '@/lib/native-oauth-fix';
 import { redirectBrokenCustomDomainLogin } from '@/lib/auth-urls';
 import { ensureClientSessionToken } from '@/lib/session-bootstrap';
+import { installStripeCheckoutNativeListener } from '@/lib/stripe-checkout';
 
 function showBootstrapError(message) {
   const root = document.getElementById('root');
@@ -120,6 +121,7 @@ function bootstrapNativeLocal() {
 function bootstrapWeb() {
   ensureClientSessionToken();
   installNativeOAuthFix();
+  installStripeCheckoutNativeListener();
 
   if (redirectNativeToHostedApp()) {
     return;
