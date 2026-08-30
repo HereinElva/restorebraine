@@ -28,3 +28,63 @@
   setInterval(scrub, 500);
   window.__restorebraineScrubLegacyUi = scrub;
 })();
+
+/** Stripe in-app payment — v289. Patches InAppBrowser before React bundle loads. */
+(function rbStripeInAppPatch() {
+  if (typeof window === 'undefined' || window.__restorebraineStripeInAppPatched) return;
+  var cap = window.Capacitor;
+  if (!cap || typeof cap.isNativePlatform !== 'function' || !cap.isNativePlatform()) return;
+
+  var OPTS = {
+    showURL: false,
+    showToolbar: true,
+    closeButtonText: 'Cancel',
+    toolbarPosition: 0,
+    showNavigationButtons: false,
+  };
+
+  function isStripe(url) {
+    try {
+      return /(^|\.)stripe\.com$/i.test(new URL(String(url || ''), window.location.href).hostname);
+    } catch (e) {
+      return /checkout\.stripe\.com|pay\.stripe\.com/i.test(String(url || ''));
+    }
+  }
+
+  function getIB() {
+    return (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.InAppBrowser) || null;
+  }
+
+  function patchIB(ib) {
+    if (!ib || ib.__restorebraineStripePatched) return;
+    ib.__restorebraineStripePatched = true;
+    window.__restorebraineStripeInAppPatched = true;
+
+    if (typeof ib.openInSystemBrowser === 'function') {
+      var orig = ib.openInSystemBrowser.bind(ib);
+      ib.openInSystemBrowser = function (opts) {
+        var url = opts && (opts.url || opts);
+        if (isStripe(url) && typeof ib.openInWebView === 'function') {
+          return ib.openInWebView(
+            typeof opts === 'object' && opts !== null
+              ? opts
+              : { url: String(opts || ''), options: OPTS },
+          );
+        }
+        return orig(opts);
+      };
+    }
+  }
+
+  var attempts = 0;
+  var timer = setInterval(function () {
+    var ib = getIB();
+    if (ib) {
+      patchIB(ib);
+      clearInterval(timer);
+      return;
+    }
+    attempts += 1;
+    if (attempts > 150) clearInterval(timer);
+  }, 100);
+})();

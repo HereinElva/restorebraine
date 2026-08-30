@@ -1,22 +1,18 @@
 #!/usr/bin/env bash
-# Stripe payment fix — paste 2 files in Base44, Publish once.
+# Stripe fix — ONE file for Base44 (native-ui-scrub.js)
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
-DEPLOY=$(grep -E '^export const DEPLOY_BUILD = ' src/deploy-marker.js | sed 's/.*= //;s/;//')
 
-echo "=== Base44 Stripe publish (v${DEPLOY}) ==="
+echo "=== Stripe fix: ONE file publish ==="
 echo ""
-echo "Step 1: index.html (guard is INLINE — no separate public file needed)"
-pbcopy < index.html
-echo "  Copied. Base44 → index.html → Select All → Paste → SAVE"
-read -r -p "  Press Enter when saved..."
+echo "Copying public/native-ui-scrub.js to clipboard..."
+pbcopy < public/native-ui-scrub.js
 echo ""
-echo "Step 2: src/deploy-marker.js"
-pbcopy < src/deploy-marker.js
-echo "  Copied. Base44 → src/deploy-marker.js → Select All → Paste → SAVE"
-read -r -p "  Press Enter when saved..."
+echo "In Base44 Code editor:"
+echo "  1. Open: public/native-ui-scrub.js  (or native-ui-scrub.js)"
+echo "  2. Select All → Paste → SAVE"
+echo "  3. Click PUBLISH once"
 echo ""
-echo "Step 3: Click PUBLISH once in Base44. Wait until it finishes."
-read -r -p "  Press Enter after Publish..."
+read -r -p "Press Enter after Publish..."
 echo ""
 bash scripts/verify-stripe-live.sh
