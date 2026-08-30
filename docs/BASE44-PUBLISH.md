@@ -37,7 +37,7 @@ bash scripts/base44-publish-wizard.sh --list   # show checklist
 |------|-------|------|
 | **1** | 1–12 | Boot, auth, login screen |
 | **2** | 13–24 | OAuth, session, native helpers |
-| **3** | 25–35 | Gallery, Layout, Account, CSS |
+| **3** | 25–39 | Gallery, payments, Layout, CSS |
 
 You do **not** need to open `base44-publish-v178.txt`. The wizard uses the same files from your git repo.
 
