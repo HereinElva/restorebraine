@@ -6,6 +6,7 @@ import { getStripeReturnBaseUrl } from '@/lib/native-platform';
 const STRIPE_COMPLETE_EVENT = 'restorebraine-stripe-complete';
 const STRIPE_REQUEST_EVENT = 'restorebraine-stripe-checkout';
 const STRIPE_SHEET_TIMEOUT_MS = 10 * 60 * 1000;
+const PLUGIN_WAIT_MS = 6000;
 
 const WEBVIEW_OPTIONS = {
   showURL: false,
@@ -43,11 +44,25 @@ function parseStripeReturn(url) {
   return null;
 }
 
+/** Wait for Capacitor bridge — ES import alone is often too early on Android. */
+async function getInAppBrowserPlugin() {
+  const deadline = Date.now() + PLUGIN_WAIT_MS;
+  while (Date.now() < deadline) {
+    const plugin = window.Capacitor?.Plugins?.InAppBrowser;
+    if (plugin?.openInWebView) return plugin;
+    if (InAppBrowser?.openInWebView) return InAppBrowser;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  throw new Error('In-app payment unavailable — close and reopen the app, then try again.');
+}
+
 async function openStripeInNativeSheet(checkoutUrl) {
   if (!checkoutUrl) throw new Error('Missing Stripe checkout URL');
 
-  const openSheet = InAppBrowser.openInWebView || InAppBrowser.openInSystemBrowser;
-  if (!openSheet) throw new Error('InAppBrowser plugin unavailable');
+  const ib = await getInAppBrowserPlugin();
+  if (!ib?.openInWebView) {
+    throw new Error('In-app payment panel unavailable on this device.');
+  }
 
   let finished = false;
   const listeners = [];
@@ -79,11 +94,11 @@ async function openStripeInNativeSheet(checkoutUrl) {
     if (outcome) await complete(outcome);
   };
 
-  listeners.push(await InAppBrowser.addListener('browserPageNavigationCompleted', onNavigation));
-  listeners.push(await InAppBrowser.addListener('browserPageLoaded', onNavigation));
-  listeners.push(await InAppBrowser.addListener('browserClosed', () => complete({ type: 'closed' })));
+  listeners.push(await ib.addListener('browserPageNavigationCompleted', onNavigation));
+  listeners.push(await ib.addListener('browserPageLoaded', onNavigation));
+  listeners.push(await ib.addListener('browserClosed', () => complete({ type: 'closed' })));
 
-  await openSheet.call(InAppBrowser, { url: checkoutUrl, options: WEBVIEW_OPTIONS });
+  await ib.openInWebView({ url: checkoutUrl, options: WEBVIEW_OPTIONS });
 
   await new Promise((resolve) => {
     const onDone = () => {
@@ -112,7 +127,7 @@ export async function openStripeCheckout(checkoutUrl) {
 
 let stripeListenerInstalled = false;
 
-/** Listen for early native guard events from public/stripe-native-guard.js */
+/** Listen for early native guard events from index.html / stripe-native-guard.js */
 export function installStripeCheckoutNativeListener() {
   if (typeof window === 'undefined' || stripeListenerInstalled || !isCapacitorNative()) return;
   stripeListenerInstalled = true;
@@ -122,6 +137,9 @@ export function installStripeCheckoutNativeListener() {
     if (!url) return;
     void openStripeInNativeSheet(url).catch((error) => {
       console.error('Stripe in-app checkout failed:', error);
+      if (typeof window !== 'undefined') {
+        window.__restorebraineLastStripeError = error?.message || String(error);
+      }
     });
   });
 }

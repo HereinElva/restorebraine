@@ -1,6 +1,7 @@
 /**
  * Hosted Capacitor: block full-page jumps to Stripe Checkout on native.
  * Opens via InAppBrowser from stripe-checkout.js instead.
+ * Also inlined in index.html — keep both in sync.
  */
 (function stripeNativeGuard() {
   if (typeof window === 'undefined' || window.__restorebraineStripeNativeGuardInstalled) return;
@@ -9,6 +10,8 @@
   if (!cap || typeof cap.isNativePlatform !== 'function' || !cap.isNativePlatform()) return;
 
   window.__restorebraineStripeNativeGuardInstalled = true;
+
+  var STRIPE_REQUEST_EVENT = 'restorebraine-stripe-checkout';
 
   function isStripeCheckoutUrl(url) {
     try {
@@ -22,7 +25,7 @@
   function intercept(url) {
     if (!isStripeCheckoutUrl(url)) return false;
     window.dispatchEvent(
-      new CustomEvent('restorebraine-stripe-checkout', { detail: { url: String(url) } }),
+      new CustomEvent(STRIPE_REQUEST_EVENT, { detail: { url: String(url) } }),
     );
     return true;
   }
@@ -37,5 +40,11 @@
   Location.prototype.replace = function guardedReplace(url) {
     if (intercept(url)) return;
     return originalReplace.call(this, url);
+  };
+
+  var originalOpen = window.open;
+  window.open = function guardedOpen(url, target, features) {
+    if (intercept(url)) return null;
+    return originalOpen.call(window, url, target, features);
   };
 })();
