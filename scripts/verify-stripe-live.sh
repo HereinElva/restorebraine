@@ -10,10 +10,14 @@ deploy=$(echo "$html" | grep -oE 'restorebraine-deploy[^>]*content="v[0-9]+"' | 
 echo "Live deploy:     ${deploy:-unknown}"
 echo ""
 
-if echo "$scrub" | grep -q 'rbStripeInAppPatch'; then
-  echo "OK: native-ui-scrub.js has Stripe in-app patch (v289+)"
+if echo "$scrub" | grep -q '__restorebraineStripePatchVersion = 290'; then
+  echo "OK: native-ui-scrub.js has Stripe v290 patch (registerPlugin hook)"
+elif echo "$scrub" | grep -q 'registerPlugin'; then
+  echo "OK: native-ui-scrub.js has registerPlugin Stripe hook"
+elif echo "$scrub" | grep -q 'rbStripeInAppPatch'; then
+  echo "WARN: native-ui-scrub.js has v289 patch only — update to v290"
 elif echo "$scrub" | grep -q 'openInSystemBrowser'; then
-  echo "OK: native-ui-scrub.js has openInSystemBrowser patch"
+  echo "WARN: native-ui-scrub.js has basic patch — update to v290"
 elif echo "$html" | grep -q 'openInSystemBrowser'; then
   echo "OK: index.html has inline Stripe guard"
 elif echo "$guard" | grep -q 'openInSystemBrowser'; then

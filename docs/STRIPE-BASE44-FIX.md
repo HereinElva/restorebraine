@@ -1,19 +1,11 @@
-# Stripe payment — Base44 one-file fix (v289)
+# Stripe payment — Base44 one-file fix (v290)
 
-Live site is still **v286**. Payment opens Chrome because the old JS bundle calls
-`openInSystemBrowser`. You only need to update **one file** that Base44 already serves.
+Your v289 scrub patch **is live** but payment still failed because the app imports
+InAppBrowser as an ES module — v289 only patched `Capacitor.Plugins`, not the module.
 
-## Tell Base44 AI (copy this entire block)
+**v290** hooks `Capacitor.registerPlugin` and re-wraps navigation after the old guard.
 
-```
-Update native-ui-scrub.js with the full file from my git repo at commit v289.
-The file must include rbStripeInAppPatch at the bottom with openInSystemBrowser
-redirecting to openInWebView for stripe.com URLs. Save the file and Publish.
-Do not change index.html. After publish, native-ui-scrub.js must contain
-the string openInSystemBrowser.
-```
-
-## Or paste manually (Mac)
+## One file — paste in Base44
 
 ```bash
 cd ~/restorebraine
@@ -21,19 +13,16 @@ git pull origin cursor/fix-stripe-inapp-payment-bacf
 pbcopy < public/native-ui-scrub.js
 ```
 
-Base44 Code editor → **public/native-ui-scrub.js** (or **native-ui-scrub.js** at project root)
-→ Select All → Paste → **Save** → **Publish once**
+Base44 → **native-ui-scrub.js** → Select All → Paste → **Save** → **Publish**
 
-## Verify (must pass)
+## Verify (must show 290)
 
 ```bash
-curl -sL "https://restorebraine.base44.app/native-ui-scrub.js" | grep openInSystemBrowser
+curl -sL "https://restorebraine.base44.app/native-ui-scrub.js" | grep __restorebraineStripePatchVersion
 ```
 
-Must print a line. Until this passes, payment will keep opening an external tab.
+Expected: `window.__restorebraineStripePatchVersion = 290`
 
-Deploy stamp may stay v286 — that is OK for this fix. The scrub file is what matters.
+## Phone
 
-## Phone test
-
-Force-quit Restorebraine → reopen → try Pay.
+Force-quit → reopen → Pay again.

@@ -29,11 +29,13 @@
   window.__restorebraineScrubLegacyUi = scrub;
 })();
 
-/** Stripe in-app payment — v289. Patches InAppBrowser before React bundle loads. */
+/** Stripe in-app payment — v290. Hooks Capacitor registerPlugin + navigation. */
 (function rbStripeInAppPatch() {
-  if (typeof window === 'undefined' || window.__restorebraineStripeInAppPatched) return;
+  if (typeof window === 'undefined') return;
   var cap = window.Capacitor;
   if (!cap || typeof cap.isNativePlatform !== 'function' || !cap.isNativePlatform()) return;
+
+  window.__restorebraineStripePatchVersion = 290;
 
   var OPTS = {
     showURL: false,
@@ -51,17 +53,12 @@
     }
   }
 
-  function getIB() {
-    return (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.InAppBrowser) || null;
-  }
-
   function patchIB(ib) {
-    if (!ib || ib.__restorebraineStripePatched) return;
+    if (!ib || ib.__restorebraineStripePatched) return ib;
     ib.__restorebraineStripePatched = true;
-    window.__restorebraineStripeInAppPatched = true;
 
     if (typeof ib.openInSystemBrowser === 'function') {
-      var orig = ib.openInSystemBrowser.bind(ib);
+      var origSystem = ib.openInSystemBrowser.bind(ib);
       ib.openInSystemBrowser = function (opts) {
         var url = opts && (opts.url || opts);
         if (isStripe(url) && typeof ib.openInWebView === 'function') {
@@ -71,20 +68,63 @@
               : { url: String(opts || ''), options: OPTS },
           );
         }
-        return orig(opts);
+        return origSystem(opts);
       };
     }
+
+    return ib;
   }
 
+  function openStripeInApp(url) {
+    var ib =
+      patchIB(cap.Plugins && cap.Plugins.InAppBrowser) ||
+      (cap.Plugins && cap.Plugins.InAppBrowser);
+    if (!ib || typeof ib.openInWebView !== 'function') return false;
+    ib.openInWebView({ url: String(url), options: OPTS }).catch(function () {});
+    return true;
+  }
+
+  // Patch ES-module plugin instance when Capacitor registers it.
+  if (typeof cap.registerPlugin === 'function' && !cap.__rbStripeRegisterHooked) {
+    cap.__rbStripeRegisterHooked = true;
+    var origRegister = cap.registerPlugin.bind(cap);
+    cap.registerPlugin = function (name, impl) {
+      var plugin = origRegister(name, impl);
+      if (name === 'InAppBrowser') patchIB(plugin);
+      return plugin;
+    };
+  }
+
+  // Poll for Plugins.InAppBrowser (native bridge timing).
   var attempts = 0;
   var timer = setInterval(function () {
-    var ib = getIB();
-    if (ib) {
-      patchIB(ib);
+    if (cap.Plugins && cap.Plugins.InAppBrowser) {
+      patchIB(cap.Plugins.InAppBrowser);
       clearInterval(timer);
       return;
     }
     attempts += 1;
-    if (attempts > 150) clearInterval(timer);
+    if (attempts > 200) clearInterval(timer);
   }, 100);
+
+  // Re-wrap navigation after stripe-native-guard.js so Stripe opens in-app, not blocked silently.
+  function wrapNavigation() {
+    ['assign', 'replace'].forEach(function (method) {
+      var current = Location.prototype[method];
+      if (!current || current.__rbStripeOpenWrapped) return;
+      Location.prototype[method] = function (url) {
+        if (isStripe(url)) {
+          openStripeInApp(url);
+          return;
+        }
+        return current.call(this, url);
+      };
+      Location.prototype[method].__rbStripeOpenWrapped = true;
+    });
+  }
+
+  wrapNavigation();
+  setTimeout(wrapNavigation, 0);
+  setTimeout(wrapNavigation, 100);
+  setTimeout(wrapNavigation, 500);
 })();

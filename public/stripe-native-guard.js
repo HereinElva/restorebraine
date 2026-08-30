@@ -1,8 +1,6 @@
 /**
  * Hosted Capacitor: keep Stripe Checkout inside the app on native.
- * - Blocks location.assign / replace / window.open to stripe.com
- * - Redirects InAppBrowser.openInSystemBrowser → openInWebView for Stripe
- * - Opens in-app sheet directly (works even if an old JS bundle is cached)
+ * v290 — hooks registerPlugin + opens in-app on navigation intercept.
  */
 (function stripeNativeGuard() {
   if (typeof window === 'undefined' || window.__restorebraineStripeNativeGuardInstalled) return;
@@ -13,7 +11,7 @@
   window.__restorebraineStripeNativeGuardInstalled = true;
 
   var STRIPE_REQUEST_EVENT = 'restorebraine-stripe-checkout';
-  var WEBVIEW_OPTIONS = {
+  var OPTS = {
     showURL: false,
     showToolbar: true,
     closeButtonText: 'Cancel',
@@ -30,35 +28,39 @@
     }
   }
 
-  function getInAppBrowser() {
-    return (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.InAppBrowser) || null;
-  }
-
-  function openStripeInApp(url) {
-    var ib = getInAppBrowser();
-    if (!ib || typeof ib.openInWebView !== 'function') return false;
-    ib.openInWebView({ url: String(url), options: WEBVIEW_OPTIONS }).catch(function () {});
-    return true;
-  }
-
-  function patchInAppBrowser(ib) {
-    if (!ib || ib.__restorebraineStripePatched) return;
+  function patchIB(ib) {
+    if (!ib || ib.__restorebraineStripePatched) return ib;
     ib.__restorebraineStripePatched = true;
-
     if (typeof ib.openInSystemBrowser === 'function') {
-      var originalSystem = ib.openInSystemBrowser.bind(ib);
-      ib.openInSystemBrowser = function stripeSystemBrowser(opts) {
+      var orig = ib.openInSystemBrowser.bind(ib);
+      ib.openInSystemBrowser = function (opts) {
         var url = opts && (opts.url || opts);
         if (isStripeCheckoutUrl(url) && typeof ib.openInWebView === 'function') {
           return ib.openInWebView(
-            typeof opts === 'object' && opts !== null
-              ? opts
-              : { url: String(opts || ''), options: WEBVIEW_OPTIONS },
+            typeof opts === 'object' && opts !== null ? opts : { url: String(opts || ''), options: OPTS },
           );
         }
-        return originalSystem(opts);
+        return orig(opts);
       };
     }
+    return ib;
+  }
+
+  function openStripeInApp(url) {
+    var ib = patchIB(cap.Plugins && cap.Plugins.InAppBrowser);
+    if (!ib || typeof ib.openInWebView !== 'function') return false;
+    ib.openInWebView({ url: String(url), options: OPTS }).catch(function () {});
+    return true;
+  }
+
+  if (typeof cap.registerPlugin === 'function' && !cap.__rbStripeRegisterHooked) {
+    cap.__rbStripeRegisterHooked = true;
+    var origRegister = cap.registerPlugin.bind(cap);
+    cap.registerPlugin = function (name, impl) {
+      var plugin = origRegister(name, impl);
+      if (name === 'InAppBrowser') patchIB(plugin);
+      return plugin;
+    };
   }
 
   function intercept(url) {
@@ -87,16 +89,4 @@
     if (intercept(url)) return null;
     return originalOpen.call(window, url, target, features);
   };
-
-  var patchAttempts = 0;
-  var patchTimer = setInterval(function () {
-    var ib = getInAppBrowser();
-    if (ib) {
-      patchInAppBrowser(ib);
-      clearInterval(patchTimer);
-      return;
-    }
-    patchAttempts += 1;
-    if (patchAttempts > 120) clearInterval(patchTimer);
-  }, 100);
 })();
