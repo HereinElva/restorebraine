@@ -6,6 +6,7 @@ html=$(curl -sL --max-time 15 "$URL")
 deploy=$(echo "$html" | grep -oE 'restorebraine-deploy[^>]*content="v[0-9]+"' | grep -oE 'v[0-9]+' | head -1 || true)
 app=$(echo "$html" | grep -oE 'assets/App-[A-Za-z0-9_-]+\.js' | head -1 || true)
 guard=$(curl -sL --max-time 15 "$URL/stripe-native-guard.js" 2>/dev/null || true)
+inline_guard=$(echo "$html" | grep -c 'openInSystemBrowser' || true)
 
 echo "Live deploy:     ${deploy:-unknown}"
 echo "App bundle:      ${app:-unknown}"
@@ -16,21 +17,20 @@ if [[ -z "$deploy" ]]; then
   exit 1
 fi
 
-if [[ "$deploy" != "v287" ]]; then
-  echo "WARN: expected v287 — paste index.html + stripe-native-guard.js and Publish"
-fi
-
-if ! echo "$html" | grep -q 'stripe-native-guard.js'; then
-  echo "FAIL: index.html missing stripe-native-guard.js script tag"
+if [[ "$deploy" != "v288" ]]; then
+  echo "FAIL: expected v288 — paste index.html + deploy-marker.js in Base44, then Publish"
   exit 1
 fi
-echo "OK: index.html loads stripe-native-guard.js"
+echo "OK: deploy stamp is v288"
 
-if ! echo "$guard" | grep -q 'openInSystemBrowser'; then
-  echo "FAIL: stripe-native-guard.js missing system-browser patch (still old guard)"
+if [[ "$inline_guard" -gt 0 ]]; then
+  echo "OK: index.html has inline Stripe guard (openInSystemBrowser patch)"
+elif echo "$guard" | grep -q 'openInSystemBrowser'; then
+  echo "OK: stripe-native-guard.js has InAppBrowser patch"
+else
+  echo "FAIL: no Stripe guard patch found on live site"
   exit 1
 fi
-echo "OK: stripe-native-guard.js has InAppBrowser patch"
 
 if [[ -n "$app" ]]; then
   bundle=$(curl -sL --max-time 15 "$URL/$app")
