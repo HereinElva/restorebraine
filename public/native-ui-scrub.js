@@ -29,11 +29,11 @@
   window.__restorebraineScrubLegacyUi = scrub;
 })();
 
-/** Stripe in-app payment — v292. Permanent Capacitor bridge hook + navigation. */
+/** Stripe in-app payment — v293. Permanent Capacitor bridge hook + navigation. */
 (function rbStripeInAppPatch() {
   if (typeof window === 'undefined') return;
 
-  window.__restorebraineStripePatchVersion = 292;
+  window.__restorebraineStripePatchVersion = 293;
 
   var OPTS = {
     showURL: false,
@@ -45,7 +45,13 @@
 
   function isNative() {
     var cap = window.Capacitor;
-    return cap && typeof cap.isNativePlatform === 'function' && cap.isNativePlatform();
+    if (!cap) return false;
+    if (typeof cap.isNativePlatform === 'function' && cap.isNativePlatform()) return true;
+    if (typeof cap.getPlatform === 'function') {
+      var platform = cap.getPlatform();
+      if (platform === 'android' || platform === 'ios') return true;
+    }
+    return !!(cap.nativePromise || cap.Plugins);
   }
 
   function isStripe(url) {

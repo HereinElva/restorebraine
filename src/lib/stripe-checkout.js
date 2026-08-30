@@ -1,6 +1,7 @@
 import { Capacitor } from '@capacitor/core';
 import { InAppBrowser } from '@capacitor/inappbrowser';
 import { isAppHost } from '@/lib/app-domains';
+import { isNativeShell } from '@/lib/native-hosted-redirect';
 import { getStripeReturnBaseUrl } from '@/lib/native-platform';
 
 const STRIPE_COMPLETE_EVENT = 'restorebraine-stripe-complete';
@@ -20,8 +21,10 @@ const WEBVIEW_OPTIONS = {
   android: { allowZoom: false, hardwareBack: true },
 };
 
-function isCapacitorNative() {
+function shouldUseInAppStripeSheet() {
   try {
+    if (isNativeShell()) return true;
+    if (typeof window !== 'undefined' && window.Capacitor?.nativePromise) return true;
     return Capacitor.isNativePlatform();
   } catch {
     return false;
@@ -60,8 +63,8 @@ async function openStripeInNativeSheet(checkoutUrl) {
   if (!checkoutUrl) throw new Error('Missing Stripe checkout URL');
 
   const ib = await getInAppBrowserPlugin();
-  if (!ib?.openInWebView) {
-    throw new Error('In-app payment panel unavailable on this device.');
+  if (!ib?.openInWebView && !Capacitor.nativePromise) {
+    throw new Error('In-app payment panel unavailable — update the app from Play Store.');
   }
 
   let finished = false;
@@ -98,7 +101,12 @@ async function openStripeInNativeSheet(checkoutUrl) {
   listeners.push(await ib.addListener('browserPageLoaded', onNavigation));
   listeners.push(await ib.addListener('browserClosed', () => complete({ type: 'closed' })));
 
-  await ib.openInWebView({ url: checkoutUrl, options: WEBVIEW_OPTIONS });
+  await (ib?.openInWebView
+    ? ib.openInWebView({ url: checkoutUrl, options: WEBVIEW_OPTIONS })
+    : Capacitor.nativePromise('InAppBrowser', 'openInWebView', {
+        url: checkoutUrl,
+        options: WEBVIEW_OPTIONS,
+      }));
 
   await new Promise((resolve) => {
     const onDone = () => {
@@ -117,7 +125,7 @@ async function openStripeInNativeSheet(checkoutUrl) {
 export async function openStripeCheckout(checkoutUrl) {
   if (!checkoutUrl) throw new Error('Missing Stripe checkout URL');
 
-  if (isCapacitorNative()) {
+  if (shouldUseInAppStripeSheet()) {
     await openStripeInNativeSheet(checkoutUrl);
     return;
   }
@@ -129,7 +137,7 @@ let stripeListenerInstalled = false;
 
 /** Listen for early native guard events from index.html / stripe-native-guard.js */
 export function installStripeCheckoutNativeListener() {
-  if (typeof window === 'undefined' || stripeListenerInstalled || !isCapacitorNative()) return;
+  if (typeof window === 'undefined' || stripeListenerInstalled || !shouldUseInAppStripeSheet()) return;
   stripeListenerInstalled = true;
 
   window.addEventListener(STRIPE_REQUEST_EVENT, (event) => {
