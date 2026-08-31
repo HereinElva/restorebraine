@@ -7,7 +7,7 @@
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 
-BRANCH="${RESTOREBRAINE_BRANCH:-cursor/fix-apple-sign-in-bacf}"
+BRANCH="${RESTOREBRAINE_BRANCH:-cursor/fix-folder-persistence-bacf}"
 REMOTE="${RESTOREBRAINE_REMOTE:-origin}"
 SKIP_GIT=0
 

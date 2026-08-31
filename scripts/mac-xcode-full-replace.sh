@@ -53,8 +53,11 @@ echo "=== Step 3: full rebuild ==="
 if [ "$MODE" = "bundled" ]; then
   npm run build:native-local
 else
+  node scripts/sync-build-numbers.mjs
   node scripts/use-local-native-bundle.mjs --hosted
-  npm run build
+  npm run build:web
+  bash scripts/mac-fix-build-stamp.sh
+  node scripts/cap-merge-web-into-ios.mjs
 fi
 
 if [ ! -f ios/App/App/public/index.html ]; then

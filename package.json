@@ -21,6 +21,7 @@
     "verify:sync": "node scripts/verify-restorebraine-sync.mjs",
     "verify:base44": "node scripts/verify-base44-live.mjs",
     "audit:base44": "node scripts/audit-base44-bundle.mjs",
+    "verify:release": "node scripts/verify-release-pipeline.mjs",
     "verify:build-sync": "node scripts/verify-build-sync.mjs",
     "sync:build-numbers": "node scripts/sync-build-numbers.mjs",
     "mac:build": "bash scripts/mac-build.sh",
@@ -35,7 +36,7 @@
     "cap:hosted": "node scripts/use-local-native-bundle.mjs --hosted",
     "lint": "eslint .",
     "preview": "vite preview",
-    "ios:prepare": "npm run build",
+    "ios:prepare": "node scripts/sync-build-numbers.mjs && node scripts/use-local-native-bundle.mjs --hosted && npm run build:web && bash scripts/mac-fix-build-stamp.sh && node scripts/cap-merge-web-into-ios.mjs && node scripts/verify-ios-sync.mjs",
     "audit:capacitor": "node scripts/capacitor-audit.mjs",
     "postinstall": "node scripts/patch-native-purchases-podspec.mjs"
   },
