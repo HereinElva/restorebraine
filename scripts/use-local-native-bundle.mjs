@@ -49,12 +49,6 @@ for (const configPath of paths) {
         'app.base44.com',
         'accounts.google.com',
         'appleid.apple.com',
-        'checkout.stripe.com',
-        'pay.stripe.com',
-        'stripe.com',
-        'js.stripe.com',
-        'm.stripe.com',
-        'hooks.stripe.com',
       ],
     };
     config.ios = { ...hostedIos };

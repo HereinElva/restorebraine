@@ -7,7 +7,7 @@
 set -euo pipefail
 
 REPO="${RESTOREBRAINE_REPO:-$HOME/restorebraine}"
-BRANCH="${RESTOREBRAINE_BRANCH:-cursor/fix-apple-sign-in-bacf}"
+BRANCH="${RESTOREBRAINE_BRANCH:-cursor/fix-folder-persistence-bacf}"
 REMOTE="${RESTOREBRAINE_REMOTE:-https://github.com/HereinElva/restorebraine.git}"
 
 if [ ! -d "$REPO/.git" ]; then

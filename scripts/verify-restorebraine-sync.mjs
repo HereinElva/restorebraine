@@ -67,9 +67,23 @@ try {
   liveDeploy = liveHtml.match(/restorebraine-deploy[^>]*content="v(\d+)"/)?.[1]
     ?? liveHtml.match(/content="v(\d+)"[^>]*restorebraine-deploy/)?.[1]
     ?? '?';
-  console.log(`  live:    v${liveDeploy}`);
-  if (liveDeploy === deploy) {
-    console.log('  status:  OK (matches git)');
+  const liveBundle = liveHtml.match(/assets\/(index-[^"]+\.js)/)?.[1] ?? 'unknown';
+  let liveBundleBody = '';
+  try {
+    liveBundleBody = execSync(`curl -sL --max-time 20 'https://restorebraine.base44.app/assets/${liveBundle}'`, { encoding: 'utf8' });
+  } catch { /* ignore */ }
+  const hasClaim = liveBundleBody.includes('claimOrphanedData');
+  const hasPaymentModal = liveBundleBody.includes('data-rb-payment-modal');
+  console.log(`  live:    v${liveDeploy}  bundle: ${liveBundle}`);
+  if (liveDeploy === deploy && hasClaim && hasPaymentModal) {
+    console.log('  status:  OK (deploy + bundle markers match git)');
+  } else if (liveDeploy === deploy && !hasClaim) {
+    console.log('  status:  PARTIAL — deploy meta v' + liveDeploy + ' but bundle STALE (missing claimOrphanedData)');
+    console.log('          Hosted iOS/Android will NOT get folder/payment fixes until Base44 Publish.');
+    fail += 1;
+  } else if (liveDeploy === deploy) {
+    console.log('  status:  PARTIAL — bundle missing payment modal marker');
+    fail += 1;
   } else {
     console.log(`  status:  OUT OF SYNC (git v${deploy}) — OK if using bundled mac-build.sh`);
   }

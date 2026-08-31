@@ -45,9 +45,14 @@ export default function Account() {
   const handleDeleteAccount = async () => {
     setIsDeleting(true);
     try {
-      const photos = await base44.entities.Photo.list();
+      const email = user?.email;
+      const photos = email
+        ? await base44.entities.Photo.filter({ created_by: email })
+        : await base44.entities.Photo.list();
       await Promise.all(photos.map(photo => base44.entities.Photo.delete(photo.id)));
-      const folders = await base44.entities.Folder.list();
+      const folders = email
+        ? await base44.entities.Folder.filter({ created_by: email })
+        : await base44.entities.Folder.list();
       await Promise.all(folders.map(folder => base44.entities.Folder.delete(folder.id)));
       handleLogout();
     } catch (error) {
