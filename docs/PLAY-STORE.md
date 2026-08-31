@@ -21,18 +21,38 @@ If `android:bundle` fails with **SDK location not found**:
 echo 'sdk.dir=/Users/ari/Library/Android/sdk' > android/local.properties
 ```
 
-Replace `/Users/ari` with your Mac username if different. Or set:
-
-```bash
-export ANDROID_HOME="$HOME/Library/Android/sdk"
-export PATH="$ANDROID_HOME/platform-tools:$PATH"
-```
+Replace `/Users/ari` with your Mac username if different.
 
 4. Re-run:
 
 ```bash
 npm run android:bundle
 ```
+
+### Java 21 required
+
+Capacitor Android plugins compile with **Java 21**. Android Studio may ship Java 25, which Gradle will not use for this project.
+
+**Option A — Homebrew JDK 21 (recommended for Terminal builds):**
+
+```bash
+brew install openjdk@21
+export JAVA_HOME="$(/usr/libexec/java_home -v 21)"
+export PATH="$JAVA_HOME/bin:$PATH"
+java -version
+npm run android:bundle
+```
+
+**Option B — Let Gradle download JDK 21 automatically** (after `git pull` — `settings.gradle` includes the Foojay toolchain resolver):
+
+```bash
+cd ~/restorebraine/android
+./gradlew --stop
+cd ..
+npm run android:bundle
+```
+
+The first build may take a few minutes while JDK 21 downloads.
 
 ## One-time keystore setup
 
@@ -122,6 +142,7 @@ The app loads the hosted Restorebraine site. Google sign-in redirects to `https:
 | Issue | Fix |
 |-------|-----|
 | `SDK location not found` | Install Android Studio; create `android/local.properties` with `sdk.dir=/Users/YOU/Library/Android/sdk` |
+| `languageVersion=21` / Java not found | Install JDK 21: `brew install openjdk@21` then `export JAVA_HOME="$(/usr/libexec/java_home -v 21)"` — do not use Android Studio's Java 25 |
 | `keystore.properties not found` | Copy example file and set paths/passwords |
 | Wrong launcher icon | `npm run android:icons` then rebuild |
 | Version rejected | Increase `versionCode` in `write-build-info.mjs` |
