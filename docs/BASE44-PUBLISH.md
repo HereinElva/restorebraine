@@ -1,104 +1,69 @@
-# Base44 Publish — simple steps
+# Base44 Publish — avoid "no change"
 
-**Do not open the giant `base44-publish-v*.txt` file.** Use the wizard instead.
+**GitHub pushes do NOT update the live app.** Base44 serves a **pre-built Vite bundle**. Updating only `index.html` or `deploy-marker.js` changes the **v295 meta tag** but leaves the **same JS file** — that is the #1 "no change" trap.
 
-## Before you start
+## Audit before and after Publish
 
-1. Open **Base44** → **Restorebraine** → **Code editor**
-2. Keep Base44 open next to Terminal
-3. **Do not click Publish** until all **39 files** are saved
+```bash
+cd ~/restorebraine
+git pull origin cursor/fix-folder-persistence-bacf
+node scripts/audit-base44-bundle.mjs
+```
+
+**Pass criteria after Publish:**
+
+- Deploy meta: `v295`
+- Bundle hash: **NOT** `index-mlcqt5ef.js` (must be a new hash)
+- Bundle contains: `claimOrphanedData`, `data-rb-payment-modal`, `openInWebView`
+
+## Critical files (v295 folder + payment fixes)
+
+These were **missing from old publish wizards** — create in Base44 if they do not exist:
+
+| File | Why |
+|------|-----|
+| `src/lib/folder-server-sync.js` | **NEW** — folder persistence after reinstall |
+| `src/lib/folder-membership.js` | Uses `withFolderOwner` |
+| `src/lib/run-media-organize.js` | Base44 asked for this — organize flow |
+| `src/components/gallery/CustomFolderButton.jsx` | Creates folders with owner |
+| `src/components/upload/PaymentModal.jsx` | iPhone-safe payment sheet |
+| `src/lib/stripe-checkout.js` | In-app Stripe (no external browser) |
+| `src/pages/Account.jsx` | Delete scoped by `created_by` |
+| `public/native-ui-scrub.js` | Stripe v293 scrub |
+| `index.html` | Inline Stripe guard + deploy meta |
+| `src/deploy-marker.js` | `DEPLOY_BUILD = 295` |
 
 ## Run the wizard (recommended)
 
 ```bash
-cd ~/restorebraine
-bash scripts/base44-publish-wizard.sh
+bash scripts/base44-publish-wizard.sh --list   # full checklist
+bash scripts/base44-publish-wizard.sh          # one file at a time
 ```
 
-The wizard:
+Paste each file → **Save** in Base44 Code editor. Click **Publish once** at the end.
 
-1. Copies **one file** to your clipboard
-2. Tells you which path to open in Base44 (e.g. `src/Layout.jsx`)
-3. You **Select All → Paste → Save** in Base44
-4. Press **Enter** in Terminal for the next file
+## Ghost builds elsewhere
 
-Repeat until all **39 files** are done, then click **Publish once**.
-
-### Quick fix — Stripe in-app payment only
-
-If checkout still opens an external browser tab or shows old “Redirecting” text, paste these **4 files** in Base44 (from git `main`), then **Publish once**:
-
-1. **`index.html`** — must include inline Stripe guard script and `restorebraine-deploy` **v286**
-2. `src/deploy-marker.js` (`DEPLOY_BUILD = 286`)
-3. `src/lib/stripe-checkout.js`
-4. `src/components/upload/PaymentModal.jsx`
-
-Verify live after Publish:
-
-```bash
-curl -sL "https://restorebraine.base44.app" | grep restorebraine-deploy
-# must show v286
-
-curl -sL "https://restorebraine.base44.app" | grep restorebraine-stripe-checkout
-# must find the inline guard (restorebraine-stripe-checkout event)
-```
-
-On your phone: force-quit the app, reopen, trigger storage payment. Button should say **“Opening payment…”** and Stripe opens **inside the app** (Cancel toolbar), not a new Chrome tab.
-
-### Resume if you stop partway
-
-```bash
-bash scripts/base44-publish-wizard.sh 12   # start at file 12
-bash scripts/base44-publish-wizard.sh --list   # show checklist
-```
-
-## The 39 files (3 groups)
-
-| Part | Files | What |
-|------|-------|------|
-| **1** | 1–12 | Boot, auth, login screen |
-| **2** | 13–24 | OAuth, session, native helpers |
-| **3** | 25–39 | Gallery, payments, Layout, CSS |
-
-You do **not** need to open `base44-publish-v178.txt`. The wizard uses the same files from your git repo.
+| Location | Symptom | Fix |
+|----------|---------|-----|
+| Base44 CDN | `App-CTDy7dds.js` still HTTP 200 (orphan) | Harmless if not in index.html; new publish replaces bundle |
+| Base44 partial publish | Meta v295 but bundle `index-mlcqt5ef.js` | Paste all files above → Publish |
+| Mac `npm run build` | Auto-bumps version | Use `npm run build:web` or `sync-build-numbers.mjs` first |
+| `use-local-native-bundle.mjs` | Re-injected stripe.com | Fixed — verify with `npm run verify:build-sync` |
+| iOS hosted WebView | Loads Base44 URL | Web publish must succeed first |
 
 ## After Publish
 
 ```bash
-node scripts/verify-base44-live.mjs
+node scripts/audit-base44-bundle.mjs
+npm run verify:base44
 ```
 
-Must show **OK** and deploy **v178** (not v162).
-
-Safari check: https://restorebraine.base44.app — multi-provider login (Google, Apple, Microsoft, email).
-
-## Then native app
+## Then native app (optional)
 
 ```bash
-bash scripts/mac-resync-omega.sh --native-only
+bash scripts/mac-start-fresh.sh
 open ios/App/App.xcworkspace
 ```
 
-Clean → Run → Archive.
-
-## One file manually (if you prefer)
-
-```bash
-pbcopy < src/Layout.jsx
-```
-
-Open `src/Layout.jsx` in Base44 → Select All → Paste → Save.
-
-Special case — `src/lib/native-bundle-mode.js`:
-
-```bash
-printf '%s\n' "// Base44 hosted web — must be false" "export const LOCAL_NATIVE_BUNDLE = false;" | pbcopy
-```
-
-## Do not
-
-- Paste random snippets from the middle of a long txt file
-- Publish after only some files
-- Edit Base44 by hand without pasting from git
-
-GitHub is the source of truth. The wizard copies from git, one file at a time.
+Hosted iOS/Android load `https://restorebraine.base44.app` — web publish is what users see until you archive a new native build.
