@@ -10,6 +10,8 @@ const BUILD_NUMBER = prev + 1;
 const stamp = new Date().toISOString().slice(0, 16).replace('T', ' ');
 const nativeLabel = `kbrown v4-core v${BUILD_NUMBER} · ${stamp}`;
 const webLabel = `restorebraine web v${BUILD_NUMBER}`;
+const versionCode = BUILD_NUMBER;
+const versionName = `1.0.${versionCode}`;
 
 writeFileSync(
   buildInfoPath,
@@ -27,25 +29,36 @@ export const DEPLOY_BUILD = ${BUILD_NUMBER};
 `
 );
 
+writeFileSync(
+  resolve('android/version.properties'),
+  `# Play Store version — bumped by scripts/write-build-info.mjs
+VERSION_CODE=${versionCode}
+VERSION_NAME=${versionName}
+`
+);
+
 writeFileSync(resolve('ios/App/App/BUILD_STAMP.txt'), `${nativeLabel}\n`);
 
 const pbxPath = resolve('ios/App/App.xcodeproj/project.pbxproj');
-const pbx = readFileSync(pbxPath, 'utf8');
-const updatedPbx = pbx.replace(/CURRENT_PROJECT_VERSION = \d+;/g, `CURRENT_PROJECT_VERSION = ${BUILD_NUMBER};`);
-if (updatedPbx !== pbx) {
-  writeFileSync(pbxPath, updatedPbx);
-  console.log(`Synced Xcode CURRENT_PROJECT_VERSION → ${BUILD_NUMBER}`);
+if (existsSync(pbxPath)) {
+  const pbx = readFileSync(pbxPath, 'utf8');
+  const updatedPbx = pbx.replace(/CURRENT_PROJECT_VERSION = \d+;/g, `CURRENT_PROJECT_VERSION = ${BUILD_NUMBER};`);
+  if (updatedPbx !== pbx) {
+    writeFileSync(pbxPath, updatedPbx);
+    console.log(`Synced Xcode CURRENT_PROJECT_VERSION → ${BUILD_NUMBER}`);
+  }
 }
 
-// native-bundle-mode.js is owned by use-local-native-bundle.mjs — do not overwrite here.
-
 const indexHtmlPath = resolve('index.html');
-const indexHtml = readFileSync(indexHtmlPath, 'utf8');
-writeFileSync(
-  indexHtmlPath,
-  indexHtml.replace(/content="v\d+"/, `content="v${BUILD_NUMBER}"`)
-);
+if (existsSync(indexHtmlPath)) {
+  const indexHtml = readFileSync(indexHtmlPath, 'utf8');
+  writeFileSync(
+    indexHtmlPath,
+    indexHtml.replace(/content="v\d+"/, `content="v${BUILD_NUMBER}"`)
+  );
+}
 
 console.log(`Wrote build stamp: ${nativeLabel}`);
 console.log(`Web build label: ${webLabel}`);
+console.log(`Wrote Android version: ${versionName} (${versionCode})`);
 console.log('Run: node scripts/print-base44-publish-hint.mjs');

@@ -11,6 +11,10 @@
     "mac:pre-upload": "bash scripts/mac-pre-upload-checklist.sh",
     "mac:verify-icon": "bash scripts/mac-verify-archive-icon.sh",
     "build:web": "node scripts/write-build-info.mjs && node scripts/ensure-app-icon.mjs && node scripts/sync-app-icon.mjs && node scripts/embed-login-logo.mjs && vite build",
+    "build:android": "node scripts/write-build-info.mjs && node scripts/sync-app-icon.mjs && node scripts/sync-android-icons.mjs && vite build && npx cap sync android && node scripts/verify-android-sync.mjs",
+    "android:icons": "node scripts/sync-app-icon.mjs && node scripts/sync-android-icons.mjs",
+    "android:bundle": "bash scripts/android-bundle.sh",
+    "android:verify": "node scripts/verify-android-sync.mjs",
     "build:native-local": "node scripts/write-build-info.mjs && node scripts/use-local-native-bundle.mjs --local && node scripts/stamp-ios-display-name.mjs --local && npm run ios:icons && node scripts/sync-app-icon.mjs && node scripts/embed-login-logo.mjs && vite build && node scripts/stamp-dist-index.mjs && node scripts/patch-native-purchases-podspec.mjs && node scripts/cap-merge-web-into-ios.mjs && CAPACITOR_LOCAL=1 node scripts/verify-ios-sync.mjs && node scripts/verify-capacitor-ios-bundle.mjs && node scripts/verify-ios-icons.mjs && node scripts/verify-native-bundle-flag.mjs && CAPACITOR_LOCAL=1 node scripts/capacitor-audit.mjs",
     "build:v4-native": "npm run build:native-local",
     "cap:merge-web-into-ios": "node scripts/cap-merge-web-into-ios.mjs",
@@ -39,6 +43,7 @@
   "dependencies": {
     "@base44/sdk": "^0.8.24",
     "@base44/vite-plugin": "^1.0.6",
+    "@capacitor/android": "^8.5.0",
     "@capacitor/app": "^8.1.0",
     "@capacitor/browser": "^8.0.3",
     "@capacitor/cli": "^8.3.0",
@@ -105,6 +110,7 @@
     "zod": "^3.24.2"
   },
   "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
     "@eslint/js": "^9.19.0",
     "@flydotio/dockerfile": "^0.7.8",
     "@types/node": "^22.13.5",
