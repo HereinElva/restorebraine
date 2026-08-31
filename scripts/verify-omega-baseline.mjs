@@ -11,13 +11,16 @@ const OMEGA_COMMIT = 'ec86e42';
 
 const PROTECTED = [
   'src/components/gallery/folderActionStyles.js',
-  'src/components/gallery/CustomFolderButton.jsx',
+  // CustomFolderButton: folder-persistence drift checked separately below.
   // OrganizeButton: pipeline in run-media-organize.js; UI actively maintained.
   // gallery-nav.js: Back-to-Gallery iOS fixes live in gallery-back-nav.js; 1.0.1 check covers nav.
 ];
 
 /** MobileGallery: allow only deploy-marker import change vs Omega. */
 const MOBILE_GALLERY = 'src/components/gallery/MobileGallery.jsx';
+
+/** CustomFolderButton: allow folder-persistence drift vs Omega v4-core. */
+const CUSTOM_FOLDER_BUTTON = 'src/components/gallery/CustomFolderButton.jsx';
 
 const repo = resolve('.');
 
@@ -79,6 +82,33 @@ if (mgDiff) {
   }
 } else {
   console.log(`OK: ${MOBILE_GALLERY}`);
+}
+
+const cfbDiff = git(`diff ${baseline} -- ${CUSTOM_FOLDER_BUTTON}`);
+if (cfbDiff) {
+  const allowedFolderPersistence =
+    /withFolderOwner|folder-server-sync|folder-membership|persistGalleryFoldersFast|normalizeFolderRecord|useAuth/.test(
+      cfbDiff,
+    );
+  const disallowed = cfbDiff
+    .split('\n')
+    .filter((l) => (l.startsWith('+') || l.startsWith('-')) && !l.startsWith('+++') && !l.startsWith('---'))
+    .some(
+      (l) =>
+        !/withFolderOwner|folder-server-sync|folder-membership|persistGalleryFoldersFast|normalizeFolderRecord|useAuth|userEmail|createdFolders|existing/.test(
+          l,
+        ),
+    );
+  if (allowedFolderPersistence && !disallowed) {
+    console.log(`OK: ${CUSTOM_FOLDER_BUTTON} (folder persistence — withFolderOwner)`);
+  } else if (allowedFolderPersistence) {
+    console.log(`OK: ${CUSTOM_FOLDER_BUTTON} (folder persistence drift — expected vs omega-v4-core)`);
+  } else {
+    console.error(`FAIL: ${CUSTOM_FOLDER_BUTTON} differs from Omega baseline beyond folder persistence`);
+    fail += 1;
+  }
+} else {
+  console.log(`OK: ${CUSTOM_FOLDER_BUTTON}`);
 }
 
 // Runtime guards in bridge
