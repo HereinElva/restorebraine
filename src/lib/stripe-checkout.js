@@ -64,7 +64,7 @@ async function openStripeInNativeSheet(checkoutUrl) {
 
   const ib = await getInAppBrowserPlugin();
   if (!ib?.openInWebView && !Capacitor.nativePromise) {
-    throw new Error('In-app payment panel unavailable — update the app from Play Store.');
+    throw new Error('In-app payment panel unavailable — close and reopen the app, then try again.');
   }
 
   let finished = false;

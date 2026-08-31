@@ -540,7 +540,7 @@ export async function reconcileOrganizeBatch({
     desiredFolders = retryResult.folders;
   }
 
-  const apiFolders = await listAllFolders();
+  const apiFolders = await listAllFolders(userEmail);
   const missedPhotos = getUnorganizedPhotos(batchPhotos, apiFolders);
 
   return {

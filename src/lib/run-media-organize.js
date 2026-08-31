@@ -149,7 +149,7 @@ export async function runMediaOrganize({
   if (includeOrganized || !uiShowsNoFolders) {
     onProgress?.("Checking folders…");
     apiFolders = sanitizeFoldersLocally(
-      await listAllFoldersSafe({ timeoutMs: 8000 }),
+      await listAllFoldersSafe({ email: userEmail, timeoutMs: 8000 }),
       photos,
       allPhotoIds,
     );
