@@ -19,7 +19,7 @@ const checks = [
   },
   {
     path: 'src/lib/build-info.js',
-    test: (content) => content.includes('kbrown native v'),
+    test: (content) => /kbrown (native|v4-core) v\d+/.test(content),
     message: 'build-info.js is missing or outdated',
   },
 ];

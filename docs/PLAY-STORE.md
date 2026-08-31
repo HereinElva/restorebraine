@@ -9,6 +9,31 @@ This branch ships a **hosted Capacitor Android app** that loads `https://restore
 3. **Google Play Console** developer account
 4. **Upload keystore** (create once, keep forever)
 
+### One-time Android SDK setup (Mac)
+
+If `android:bundle` fails with **SDK location not found**:
+
+1. Install [Android Studio](https://developer.android.com/studio) and open it once.
+2. **Android Studio → Settings → Languages & Frameworks → Android SDK** — note the **Android SDK Location** (usually `~/Library/Android/sdk`).
+3. Create `android/local.properties` in the repo (this file is gitignored):
+
+```bash
+echo 'sdk.dir=/Users/ari/Library/Android/sdk' > android/local.properties
+```
+
+Replace `/Users/ari` with your Mac username if different. Or set:
+
+```bash
+export ANDROID_HOME="$HOME/Library/Android/sdk"
+export PATH="$ANDROID_HOME/platform-tools:$PATH"
+```
+
+4. Re-run:
+
+```bash
+npm run android:bundle
+```
+
 ## One-time keystore setup
 
 From the repo root:
@@ -96,6 +121,7 @@ The app loads the hosted Restorebraine site. Google sign-in redirects to `https:
 
 | Issue | Fix |
 |-------|-----|
+| `SDK location not found` | Install Android Studio; create `android/local.properties` with `sdk.dir=/Users/YOU/Library/Android/sdk` |
 | `keystore.properties not found` | Copy example file and set paths/passwords |
 | Wrong launcher icon | `npm run android:icons` then rebuild |
 | Version rejected | Increase `versionCode` in `write-build-info.mjs` |
