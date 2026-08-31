@@ -175,13 +175,13 @@ const risks = [
     when: 'Base44 partial publish (meta only)',
     symptom: 'App shows v295 badge but old folders/payment UI',
     fix: 'Paste all 10 files in docs/BASE44-PUBLISH.md → Publish once',
-    active: !bundledOnly && blockers.some((b) => b.includes('Base44') || b.includes('bundle') || b.includes('audit')),
+    active: !bundledOnly && blockers.some((b) => b.includes('claimOrphanedData') || b.includes('stale')),
   },
   {
     when: 'folder-server-sync.js missing in Base44',
     symptom: 'Build fails or keeps stale index-mlcqt5ef.js bundle',
     fix: 'CREATE file in Base44 Code editor from GitHub',
-    active: !bundledOnly,
+    active: false, // cleared when live bundle has claimOrphanedData — see audit-base44-bundle
   },
   {
     when: 'npm run build / ios:prepare without sync',
