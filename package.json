@@ -20,6 +20,8 @@
     "verify:1.0.1": "node scripts/verify-restorebraine-1.0.1.mjs",
     "verify:sync": "node scripts/verify-restorebraine-sync.mjs",
     "verify:base44": "node scripts/verify-base44-live.mjs",
+    "verify:build-sync": "node scripts/verify-build-sync.mjs",
+    "sync:build-numbers": "node scripts/sync-build-numbers.mjs",
     "mac:build": "bash scripts/mac-build.sh",
     "mac:sync": "bash scripts/mac-sync-github.sh",
     "mac:doctor": "bash scripts/mac-doctor.sh",
