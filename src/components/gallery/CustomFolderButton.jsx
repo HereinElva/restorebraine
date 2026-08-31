@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { SQUARE_FOLDER_ACTION_CLASS, SQUARE_FOLDER_ACTION_STYLE } from "./folderActionStyles";
 
 export default function CustomFolderButton({ photos, squareStyle = false }) {
   const [showDialog, setShowDialog] = useState(false);
@@ -192,9 +193,12 @@ export default function CustomFolderButton({ photos, squareStyle = false }) {
 
       {squareStyle ? (
         <button
+          type="button"
+          data-rb-folder-action="new-folder"
           onClick={() => setShowDialog(true)}
           disabled={photos.length === 0}
-          className="w-full flex flex-col items-center justify-center gap-1.5 py-4 rounded-2xl bg-white text-gray-700 border border-gray-100 shadow-sm text-sm font-semibold disabled:opacity-50"
+          className={SQUARE_FOLDER_ACTION_CLASS}
+          style={SQUARE_FOLDER_ACTION_STYLE}
         >
           <FolderPlus className="w-5 h-5 text-orange-500" />
           <span>New Folder</span>

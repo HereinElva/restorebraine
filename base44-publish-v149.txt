@@ -1,0 +1,4292 @@
+Restorebraine Base44 Publish Pack — deploy v149
+
+HOW TO USE:
+1. Open Base44 Code editor for app Restorebraine
+2. For each block below, open the BASE44 PATH file in the editor
+3. Select all existing code in that file → delete → paste the code below the divider
+4. Save each file before moving to the next
+5. After ALL files in Part 1, 2, and 3 are saved → click Publish once
+
+Mac shortcut (copies one file at a time — paste into Base44, NOT Terminal):
+  pbcopy < src/Layout.jsx
+
+
+╔════════════════════════════════════════════════════════════╗
+║  PART 1 — Boot + auth (paste first)                        ║
+╚════════════════════════════════════════════════════════════╝
+
+════════════════════════════════════════════════════════════
+BASE44 PATH: index.html
+ACTION: Open this exact path in the Base44 Code editor → Select All → Paste → Save
+════════════════════════════════════════════════════════════
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" href="https://media.base44.com/images/public/68fdc5f42768c4d045fe1bac/e76571efc_appstore.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="restorebraine-deploy" content="v149" />
+    <title>Restorebraine</title>
+    <script src="/native-oauth-return.js"></script>
+    <script>
+(function(){var host=location.hostname,proto=location.protocol;if(proto==='capacitor:'||host==='localhost'||host==='127.0.0.1')return;var APP_ID='68fdc5f42768c4d045fe1bac',PLATFORM='https://app.base44.com',APP_ORIGIN=location.protocol+'//'+location.host,path=location.pathname.replace(/\/$/,'')||'/';function platformLogin(fromUrl){var params=new URLSearchParams({from_url:fromUrl||'https://restorebraine.com',app_id:APP_ID,prompt:'select_account'});location.replace(PLATFORM+'/login?'+params.toString());}if(host==='base44.app'&&path==='/login'){platformLogin('https://restorebraine.com');return;}if((host==='restorebraine.com'||host==='www.restorebraine.com')&&path==='/login'){platformLogin(APP_ORIGIN);return;}var originalAssign=Location.prototype.assign,originalReplace=Location.prototype.replace;function guard(url){var value=String(url||'');if(/^https:\/\/base44\.app\/login/i.test(value)){platformLogin('https://restorebraine.com');return true;}if(/^https:\/\/restorebraine\.com\/login/i.test(value)||/^https:\/\/www\.restorebraine\.com\/login/i.test(value)){platformLogin('https://restorebraine.com');return true;}return false;}Location.prototype.assign=function(url){if(guard(url))return;return originalAssign.call(this,url);};Location.prototype.replace=function(url){if(guard(url))return;return originalReplace.call(this,url);};})();
+    </script>
+    <script src="/login-redirect.js"></script>
+  </head>
+  <body>
+    <svg aria-hidden="true" focusable="false" style="position:absolute;width:0;height:0;overflow:hidden">
+      <defs>
+        <linearGradient id="rb-brand-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stopColor="#60a5fa" />
+          <stop offset="100%" stopColor="#a855f7" />
+        </linearGradient>
+      </defs>
+    </svg>
+    <div id="root">
+      <div style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;font-family:system-ui,sans-serif;background:linear-gradient(135deg,#eff6ff,#f5f3ff,#fdf2f8);">
+        <div style="width:48px;height:48px;border:4px solid #e9d5ff;border-top-color:#9333ea;border-radius:50%;animation:rb-spin 0.8s linear infinite;"></div>
+        <p style="font-size:15px;color:#666;margin:0;">Loading Restorebraine…</p>
+      </div>
+      <style>@keyframes rb-spin{to{transform:rotate(360deg)}}</style>
+    </div>
+    <script>
+(function(){
+  setTimeout(function(){
+    if(window.__restorebraineAppMounted)return;
+    var root=document.getElementById('root');
+    if(!root)return;
+    root.innerHTML='<div style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;font-family:system-ui,sans-serif;background:linear-gradient(135deg,#eff6ff,#f5f3ff,#fdf2f8);text-align:center;"><p style="font-size:16px;color:#111;font-weight:600;margin:0 0 8px;">Restorebraine did not start</p><p style="font-size:14px;color:#666;margin:0 0 16px;">In Terminal run:<br><code style="font-size:12px;">bash scripts/mac-ios-native-rebuild.sh</code><br>Then Xcode: Clean Build Folder → Run</p><button type="button" onclick="location.reload()" style="padding:12px 20px;border:none;border-radius:12px;background:#7c3aed;color:#fff;font-weight:600;cursor:pointer;">Retry</button></div>';
+  },10000);
+})();
+    </script>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
+
+
+
+════════════════════════════════════════════════════════════
+BASE44 PATH: public/login-redirect.js
+ACTION: Open this exact path in the Base44 Code editor → Select All → Paste → Save
+════════════════════════════════════════════════════════════
+/** Runs before the React app — fixes broken Base44 login redirects on custom domains. */
+(function () {
+  var proto = location.protocol;
+  var host = location.hostname;
+  // v4-core bundled shell: never patch Location — breaks React Router (white screen).
+  if (proto === 'capacitor:' || proto === 'ionic:' || host === 'localhost' || host === '127.0.0.1') return;
+
+  var APP_ID = '68fdc5f42768c4d045fe1bac';
+  var PLATFORM = 'https://app.base44.com';
+  var APP_ORIGIN = location.protocol + '//' + location.host;
+  var path = location.pathname.replace(/\/$/, '') || '/';
+
+  function platformLogin(fromUrl) {
+    var params = new URLSearchParams({
+      from_url: fromUrl || 'https://restorebraine.com',
+      app_id: APP_ID,
+      prompt: 'select_account',
+    });
+    location.replace(PLATFORM + '/login?' + params.toString());
+  }
+
+  if (host === 'base44.app' && path === '/login') {
+    platformLogin('https://restorebraine.com');
+    return;
+  }
+
+  if ((host === 'restorebraine.com' || host === 'www.restorebraine.com') && path === '/login') {
+    platformLogin(APP_ORIGIN);
+    return;
+  }
+
+  var originalAssign = Location.prototype.assign;
+  var originalReplace = Location.prototype.replace;
+
+  function guard(url) {
+    var value = String(url || '');
+    if (/^https:\/\/base44\.app\/login/i.test(value)) {
+      platformLogin('https://restorebraine.com');
+      return true;
+    }
+    if (/^https:\/\/restorebraine\.com\/login/i.test(value) || /^https:\/\/www\.restorebraine\.com\/login/i.test(value)) {
+      platformLogin('https://restorebraine.com');
+      return true;
+    }
+    return false;
+  }
+
+  Location.prototype.assign = function (url) {
+    if (guard(url)) return;
+    return originalAssign.call(this, url);
+  };
+
+  Location.prototype.replace = function (url) {
+    if (guard(url)) return;
+    return originalReplace.call(this, url);
+  };
+})();
+
+
+
+════════════════════════════════════════════════════════════
+BASE44 PATH: src/main.jsx
+ACTION: Open this exact path in the Base44 Code editor → Select All → Paste → Save
+════════════════════════════════════════════════════════════
+import { LOCAL_NATIVE_BUNDLE } from '@/lib/native-bundle-mode';
+import { NATIVE_BUILD_LABEL } from '@/lib/build-info';
+import { redirectNativeToHostedApp } from '@/lib/native-hosted-redirect';
+import { installNativeOAuthFix } from '@/lib/native-oauth-fix';
+import { redirectBrokenCustomDomainLogin } from '@/lib/auth-urls';
+
+function showBootstrapError(message) {
+  const root = document.getElementById('root');
+  if (!root) return;
+  root.innerHTML = `
+    <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;font-family:system-ui,sans-serif;background:#fff;">
+      <div style="max-width:420px;text-align:center;">
+        <h1 style="font-size:20px;font-weight:700;color:#111;margin-bottom:8px;">Restorebraine failed to start</h1>
+        <p style="font-size:14px;color:#666;margin-bottom:16px;">${message}</p>
+        <button onclick="location.reload()" style="padding:12px 20px;border:none;border-radius:12px;background:#7c3aed;color:#fff;font-weight:600;cursor:pointer;">
+          Retry
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+function markAppMounted() {
+  window.__restorebraineAppMounted = true;
+}
+
+/** Load v4 bridge after React paints — never block first paint with 42KB sync script (v127). */
+function loadV4BridgeScript() {
+  if (typeof window === 'undefined') return;
+  if (window.__restorebraineSessionBridgeInstalled || window.__restorebraineV4BridgeLoading) return;
+  window.__restorebraineV4BridgeLoading = true;
+  const script = document.createElement('script');
+  script.src = './restorebraine-v4-bridge.js';
+  script.async = true;
+  script.onload = () => {
+    window.__restorebraineV4BridgeLoading = false;
+    import('@/lib/native-google-oauth')
+      .then(({ installNativeOAuthListeners }) => installNativeOAuthListeners())
+      .catch((error) => console.warn('OAuth listeners after bridge:', error));
+  };
+  script.onerror = () => {
+    window.__restorebraineV4BridgeLoading = false;
+    console.warn('restorebraine-v4-bridge.js failed to load — OAuth uses native plugin fallback');
+    import('@/lib/native-google-oauth')
+      .then(({ installNativeOAuthListeners }) => installNativeOAuthListeners())
+      .catch((error) => console.warn('OAuth listeners unavailable:', error));
+  };
+  document.head.appendChild(script);
+}
+
+/** Build v4: mount React immediately — never block on Capacitor Preferences before first paint. */
+async function bootstrapNativeLocal() {
+  window.__RESTOREBRAINE_NATIVE_BUILD__ = NATIVE_BUILD_LABEL;
+
+  const { protocol, hostname } = window.location;
+  const bundledOrigin =
+    protocol === 'capacitor:' ||
+    protocol === 'ionic:' ||
+    hostname === 'localhost' ||
+    hostname === '127.0.0.1';
+  if (!bundledOrigin) {
+    showBootstrapError(
+      `Wrong WebView origin: ${window.location.origin}. Run bash scripts/mac-ios-v4-deploy.sh — server.url must be unset.`,
+    );
+    return;
+  }
+
+  const [{ installNativeBundleShellGuard }] = await Promise.all([
+    import('@/lib/native-bundle-shell-guard'),
+  ]);
+  installNativeBundleShellGuard();
+
+  // OAuth listeners before React — do not wait for async v4-bridge.
+  import('@/lib/native-google-oauth')
+    .then(({ installNativeOAuthListeners }) => installNativeOAuthListeners())
+    .catch((error) => console.warn('Early OAuth listeners:', error));
+
+  const mountTimer = setTimeout(() => {
+    if (!window.__restorebraineAppMounted) {
+      showBootstrapError('Startup timed out. Run bash scripts/mac-ios-native-rebuild.sh then Clean Build Folder in Xcode.');
+    }
+  }, 10000);
+
+  try {
+    const [{ default: React }, { default: ReactDOM }, { default: App }] = await Promise.all([
+      import('react'),
+      import('react-dom/client'),
+      import('@/App.jsx'),
+    ]);
+    await import('@/index.css');
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+    markAppMounted();
+    clearTimeout(mountTimer);
+
+    // Bridge after UI is visible — sync bridge in index.html causes white screen (v127).
+    requestAnimationFrame(() => {
+      loadV4BridgeScript();
+      installNativeOAuthFix();
+    });
+
+    import('@/lib/session-bootstrap')
+      .then(async ({ restoreSessionFromNativeStorage, installNativeSessionPersistence }) => {
+        try {
+          const token = await restoreSessionFromNativeStorage();
+          if (token) {
+            window.dispatchEvent(new CustomEvent('restorebraine-session-updated', { detail: { token } }));
+          }
+          await installNativeSessionPersistence();
+        } catch (error) {
+          console.warn('Background session bootstrap failed:', error);
+        }
+      })
+      .catch((error) => {
+        console.warn('Session bootstrap module unavailable:', error);
+      });
+  } catch (error) {
+    clearTimeout(mountTimer);
+    throw error;
+  }
+}
+
+async function bootstrapApp() {
+  if (redirectBrokenCustomDomainLogin()) {
+    return;
+  }
+
+  if (LOCAL_NATIVE_BUNDLE) {
+    await bootstrapNativeLocal();
+    return;
+  }
+
+  installNativeOAuthFix();
+
+  if (redirectNativeToHostedApp()) {
+    return;
+  }
+
+  const bootstrapTimeout = setTimeout(() => {
+    showBootstrapError('Startup timed out. Check your connection and tap Retry.');
+  }, 15000);
+
+  try {
+    const [{ default: React }, { default: ReactDOM }, { default: App }] = await Promise.all([
+      import('react'),
+      import('react-dom/client'),
+      import('@/App.jsx'),
+    ]);
+    await import('@/index.css');
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+    markAppMounted();
+    clearTimeout(bootstrapTimeout);
+
+    import('@/lib/session-bootstrap')
+      .then(async ({ restoreSessionFromNativeStorage, installNativeSessionPersistence }) => {
+        try {
+          await restoreSessionFromNativeStorage();
+          await installNativeSessionPersistence();
+        } catch (error) {
+          console.warn('Background session bootstrap failed:', error);
+        }
+      })
+      .catch((error) => {
+        console.warn('Session bootstrap module unavailable:', error);
+      });
+  } catch (error) {
+    clearTimeout(bootstrapTimeout);
+    throw error;
+  }
+}
+
+bootstrapApp().catch((error) => {
+  console.error('Restorebraine bootstrap failed:', error);
+  showBootstrapError(error?.message || 'Unknown startup error');
+});
+
+if (import.meta.hot) {
+  import.meta.hot.on('vite:beforeUpdate', () => {
+    window.parent?.postMessage({ type: 'sandbox:beforeUpdate' }, '*');
+  });
+  import.meta.hot.on('vite:afterUpdate', () => {
+    window.parent?.postMessage({ type: 'sandbox:afterUpdate' }, '*');
+  });
+}
+
+
+
+════════════════════════════════════════════════════════════
+BASE44 PATH: src/deploy-marker.js
+ACTION: Open this exact path in the Base44 Code editor → Select All → Paste → Save
+════════════════════════════════════════════════════════════
+// Base44: update these files in the Code editor, then click Publish (GitHub alone is not enough).
+export const DEPLOY_BUILD = 149;
+
+
+
+════════════════════════════════════════════════════════════
+BASE44 PATH: src/lib/app-params.js
+ACTION: Open this exact path in the Base44 Code editor → Select All → Paste → Save
+════════════════════════════════════════════════════════════
+/**
+ * app-params.js
+ *
+ * Reads app configuration from URL params or persistent storage.
+ * Uses Capacitor Preferences (native) when available so the auth token
+ * survives app closes and relaunches. Falls back to localStorage in browser.
+ */
+
+import { persistentStorage } from './persistentStorage';
+import { DEFAULT_APP_ORIGIN, getAppOrigin } from './app-domains';
+
+const isNode = typeof window === 'undefined';
+
+const toSnakeCase = (str) => str.replace(/([A-Z])/g, '_$1').toLowerCase();
+
+const STORAGE_PREFIX = 'base44_';
+
+export const BASE44_APP_ID = '68fdc5f42768c4d045fe1bac';
+export const BASE44_API_URL = 'https://base44.app';
+export { getAppOrigin, getAppOrigin as getRestorebraineAppUrl, getAuthReturnOrigin, DEFAULT_APP_ORIGIN, isAppHost } from './app-domains';
+/** Resolved once at module load in the browser — prefer getAppOrigin() for dynamic reads. */
+export const RESTOREBRAINE_APP_URL = isNode ? DEFAULT_APP_ORIGIN : getAppOrigin();
+
+const getAppParamValueSync = (paramName, { defaultValue = undefined, removeFromUrl = false } = {}) => {
+  if (isNode) return defaultValue;
+
+  if (paramName === 'app_id') return BASE44_APP_ID;
+  if (paramName === 'server_url') return BASE44_API_URL;
+
+  const storageKey = `${STORAGE_PREFIX}${toSnakeCase(paramName)}`;
+  const urlParams = new URLSearchParams(window.location.search);
+  const searchParam = urlParams.get(paramName);
+
+  if (removeFromUrl && searchParam) {
+    urlParams.delete(paramName);
+    const newUrl = `${window.location.pathname}${urlParams.toString() ? `?${urlParams.toString()}` : ''}${window.location.hash}`;
+    window.history.replaceState({}, document.title, newUrl);
+  }
+
+  if (searchParam) {
+    persistentStorage.set(storageKey, searchParam);
+    return searchParam;
+  }
+
+  if (defaultValue) {
+    return defaultValue;
+  }
+
+  if (paramName === "access_token" && localStorage.getItem("base44_logged_out") === "true") return null;
+  return persistentStorage.getSync(storageKey);
+};
+
+const getAppParams = () => {
+  return {
+    appId: getAppParamValueSync('app_id', { defaultValue: BASE44_APP_ID }),
+    serverUrl: getAppParamValueSync('server_url', { defaultValue: BASE44_API_URL }),
+    token: getAppParamValueSync('access_token', { removeFromUrl: true }),
+    fromUrl: getAppParamValueSync('from_url', { defaultValue: isNode ? '' : window.location.href }),
+    functionsVersion: getAppParamValueSync('functions_version'),
+  };
+};
+
+export const appParams = {
+  ...getAppParams(),
+};
+
+export const clearPersistedToken = async () => {
+  appParams.token = null;
+  await persistentStorage.remove(`${STORAGE_PREFIX}access_token`);
+  await persistentStorage.remove('token');
+};
+
+
+
+════════════════════════════════════════════════════════════
+BASE44 PATH: src/lib/app-domains.js
+ACTION: Open this exact path in the Base44 Code editor → Select All → Paste → Save
+════════════════════════════════════════════════════════════
+import { LOCAL_NATIVE_BUNDLE } from '@/lib/native-bundle-mode';
+
+/** Default hosted URL — also used by native Capacitor shell. */
+export const DEFAULT_APP_ORIGIN = 'https://restorebraine.base44.app';
+
+/** Registered in Info.plist — OAuth redirect opens the app with access_token. */
+export const NATIVE_OAUTH_RETURN_URL = 'restorebraine://oauth/callback';
+
+export const APP_HOSTS = new Set([
+  'restorebraine.base44.app',
+  'restorebraine.com',
+  'www.restorebraine.com',
+  'localhost',
+]);
+
+export function isAppHost(hostname = '') {
+  return APP_HOSTS.has(String(hostname).toLowerCase());
+}
+
+/** Current app origin in the browser, or the default hosted URL on native/server. */
+export function getAppOrigin() {
+  if (typeof window !== 'undefined') {
+    const { protocol, hostname, host } = window.location;
+    if (isAppHost(hostname)) {
+      return `${protocol}//${host}`;
+    }
+  }
+  return DEFAULT_APP_ORIGIN;
+}
+
+/** OAuth from_url sent to Base44 — must be HTTPS whitelisted domain (never restorebraine://). */
+export function getOAuthReturnUrl() {
+  return DEFAULT_APP_ORIGIN;
+}
+
+/** OAuth redirect target — native shell uses hosted URL for API callbacks. */
+export function getAuthReturnOrigin() {
+  if (typeof window === 'undefined') return DEFAULT_APP_ORIGIN;
+  try {
+    const isNative =
+      window.Capacitor?.isNativePlatform?.() ||
+      window.location?.protocol === 'capacitor:' ||
+      window.location?.protocol === 'ionic:';
+    if (isNative) return DEFAULT_APP_ORIGIN;
+  } catch {}
+  return getAppOrigin();
+}
+
+
+
+════════════════════════════════════════════════════════════
+BASE44 PATH: src/lib/auth-urls.js
+ACTION: Open this exact path in the Base44 Code editor → Select All → Paste → Save
+════════════════════════════════════════════════════════════
+import { isNativeShell } from '@/lib/native-hosted-redirect';
+import { getAuthReturnOrigin } from '@/lib/app-domains';
+import { BASE44_APP_ID, BASE44_PLATFORM_URL, getGoogleOAuthUrl } from '@/lib/native-platform-guard';
+import { openLoginInSystemBrowser } from '@/lib/native-google-oauth';
+
+export { RESTOREBRAINE_FROM_URL, getGoogleOAuthUrl, getCanonicalOAuthUrl } from '@/lib/native-platform-guard';
+export { getAuthReturnOrigin } from '@/lib/app-domains';
+
+/**
+ * Base44 platform login — always app.base44.com, never {origin}/login.
+ * Custom domains serve a broken platform /login page that redirects to
+ * base44.app/login and returns "App not found".
+ */
+export const getPlatformLoginUrl = (fromUrl) => {
+  const params = new URLSearchParams({
+    from_url: fromUrl || getAuthReturnOrigin(),
+    app_id: BASE44_APP_ID,
+    prompt: 'select_account',
+  });
+  return `${BASE44_PLATFORM_URL}/login?${params.toString()}`;
+};
+
+export const getRestorebraineLoginUrl = getPlatformLoginUrl;
+
+/**
+ * Open sign-in — web and native both use direct Google OAuth (not Base44 multi-provider login page).
+ */
+export const openRestorebraineLogin = () => {
+  if (typeof window === 'undefined') return;
+
+  if (isNativeShell()) {
+    return openLoginInSystemBrowser(getGoogleOAuthUrl(), 'google');
+  }
+
+  window.location.href = getGoogleOAuthUrl();
+};
+
+/** If the user lands on /login on a custom domain, escape the broken platform page. */
+export const redirectBrokenCustomDomainLogin = () => {
+  if (typeof window === 'undefined') return false;
+  const { hostname, pathname, search } = window.location;
+  if (pathname.replace(/\/$/, '') !== '/login') return false;
+  if (hostname === 'restorebraine.base44.app' || hostname === 'localhost') return false;
+
+  const params = new URLSearchParams(search);
+  if (!params.get('app_id')) params.set('app_id', BASE44_APP_ID);
+  if (!params.get('from_url')) params.set('from_url', getAuthReturnOrigin());
+  if (!params.get('prompt')) params.set('prompt', 'select_account');
+
+  window.location.replace(`${BASE44_PLATFORM_URL}/login?${params.toString()}`);
+  return true;
+};
+
+
+
+════════════════════════════════════════════════════════════
+BASE44 PATH: src/lib/AuthContext.jsx
+ACTION: Open this exact path in the Base44 Code editor → Select All → Paste → Save
+════════════════════════════════════════════════════════════
+import React, { createContext, useState, useContext, useEffect } from 'react';
+import { base44 } from '@/api/base44Client';
+import { appParams, getAppOrigin } from '@/lib/app-params';
+import { createAxiosClient } from '@base44/sdk/dist/utils/axios-client';
+import { openRestorebraineLogin } from '@/lib/auth-urls';
+import { clearNativeSession, persistSessionToNativeStorage, restoreSessionFromNativeStorage } from '@/lib/session-bootstrap';
+import { isHostedAppOrigin, isNativeShell } from '@/lib/native-hosted-redirect';
+import { LOCAL_NATIVE_BUNDLE } from '@/lib/native-bundle-mode';
+
+const AUTH_TIMEOUT_MS = 8000;
+const NATIVE_AUTH_TIMEOUT_MS = 4000;
+
+const withTimeout = (promise, ms, label) =>
+  Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      setTimeout(() => reject(Object.assign(new Error(`${label} timed out`), { status: 408 })), ms);
+    }),
+  ]);
+
+const readSyncToken = () => {
+  try {
+    if (localStorage.getItem('b44_signed_out') === '1') return null;
+    return localStorage.getItem('base44_access_token') || localStorage.getItem('token');
+  } catch {
+    return null;
+  }
+};
+
+const isNativeLocalShell = () => LOCAL_NATIVE_BUNDLE || (isNativeShell() && !isHostedAppOrigin());
+
+const shouldSkipInitialAuthLoading = () => {
+  if (!LOCAL_NATIVE_BUNDLE) return false;
+  try {
+    if (localStorage.getItem('b44_signed_out') === '1') return true;
+    return !(localStorage.getItem('base44_access_token') || localStorage.getItem('token'));
+  } catch {
+    return true;
+  }
+};
+
+const AuthContext = createContext();
+
+export const AuthProvider = ({ children }) => {
+  const skipInitialLoad = shouldSkipInitialAuthLoading();
+  const [user, setUser] = useState(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isLoadingAuth, setIsLoadingAuth] = useState(!skipInitialLoad);
+  const [isLoadingPublicSettings, setIsLoadingPublicSettings] = useState(!skipInitialLoad);
+  const [authError, setAuthError] = useState(null);
+  const [appPublicSettings, setAppPublicSettings] = useState(null);
+  const [manuallyLoggedOut, setManuallyLoggedOut] = useState(false);
+
+  useEffect(() => {
+    checkAppState();
+  }, []);
+
+  useEffect(() => {
+    const onSessionUpdated = () => {
+      checkAppState();
+    };
+    window.addEventListener('restorebraine-session-updated', onSessionUpdated);
+    window.addEventListener('restorebraine-native-oauth-complete', onSessionUpdated);
+    return () => {
+      window.removeEventListener('restorebraine-session-updated', onSessionUpdated);
+      window.removeEventListener('restorebraine-native-oauth-complete', onSessionUpdated);
+    };
+  }, []);
+
+  // Avoid an infinite spinner if the Base44 API never responds (common on flaky mobile).
+  useEffect(() => {
+    let cancelled = false;
+    const timeoutMs = isNativeLocalShell() ? NATIVE_AUTH_TIMEOUT_MS : AUTH_TIMEOUT_MS;
+    const timer = setTimeout(() => {
+      if (cancelled) return;
+      setIsLoadingPublicSettings((loading) => {
+        if (loading) {
+          setIsLoadingAuth(false);
+          setAuthError((err) => err ?? { type: 'auth_required', message: 'Session check timed out' });
+        }
+        return false;
+      });
+      setIsLoadingAuth((loading) => {
+        if (loading) {
+          setIsLoadingPublicSettings(false);
+          setAuthError((err) => err ?? { type: 'auth_required', message: 'Session check timed out' });
+        }
+        return false;
+      });
+    }, timeoutMs);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, []);
+
+  const checkAppState = async () => {
+    try {
+      const syncToken = readSyncToken();
+
+      if (LOCAL_NATIVE_BUNDLE && !syncToken) {
+        setIsLoadingAuth(false);
+        setIsLoadingPublicSettings(false);
+        setIsAuthenticated(false);
+        setAuthError({ type: 'auth_required', message: 'Authentication required' });
+        restoreSessionFromNativeStorage()
+          .then(async (token) => {
+            if (!token) return;
+            appParams.token = token;
+            await persistSessionToNativeStorage(token);
+            window.dispatchEvent(new CustomEvent('restorebraine-session-updated', { detail: { token } }));
+            await checkAppState();
+          })
+          .catch(() => {});
+        return;
+      }
+
+      setIsLoadingPublicSettings(true);
+      setAuthError(null);
+
+      const restoredToken = await restoreSessionFromNativeStorage();
+      if (restoredToken) {
+        appParams.token = restoredToken;
+      }
+
+      const tokenAfterRestore = readSyncToken() || appParams.token;
+      if (LOCAL_NATIVE_BUNDLE && !tokenAfterRestore) {
+        setIsLoadingAuth(false);
+        setIsLoadingPublicSettings(false);
+        setIsAuthenticated(false);
+        setAuthError({ type: 'auth_required', message: 'Authentication required' });
+        return;
+      }
+
+      const appClient = createAxiosClient({
+        baseURL: `${appParams.serverUrl}/api/apps/public`,
+        headers: { 'X-App-Id': appParams.appId },
+        token: appParams.token,
+        interceptResponses: true,
+      });
+
+      try {
+        const publicSettings = await withTimeout(
+          appClient.get(`/prod/public-settings/by-id/${appParams.appId}`),
+          isNativeLocalShell() ? NATIVE_AUTH_TIMEOUT_MS : AUTH_TIMEOUT_MS,
+          'Public settings',
+        );
+        setAppPublicSettings(publicSettings);
+
+        if (appParams.token) {
+          await checkUserAuth();
+        } else {
+          setIsLoadingAuth(false);
+          setIsAuthenticated(false);
+        }
+        setIsLoadingPublicSettings(false);
+      } catch (appError) {
+        console.error('App state check failed:', appError);
+
+        if (appError.status === 403 && appError.data?.extra_data?.reason) {
+          const reason = appError.data.extra_data.reason;
+          if (reason === 'auth_required') {
+            setAuthError({ type: 'auth_required', message: 'Authentication required' });
+          } else if (reason === 'user_not_registered') {
+            setAuthError({ type: 'user_not_registered', message: 'User not registered for this app' });
+          } else {
+            setAuthError({ type: reason, message: appError.message });
+          }
+        } else if (appError.status === 403) {
+          setAuthError({ type: 'auth_required', message: 'Authentication required' });
+        } else if (appParams.token) {
+          await checkUserAuth();
+        } else {
+          setAuthError({ type: 'auth_required', message: 'Authentication required' });
+        }
+
+        setIsLoadingPublicSettings(false);
+        setIsLoadingAuth(false);
+      }
+    } catch (error) {
+      console.error('Unexpected error:', error);
+      setAuthError({ type: 'auth_required', message: error.message || 'Authentication required' });
+      setIsLoadingPublicSettings(false);
+      setIsLoadingAuth(false);
+    }
+  };
+
+  const checkUserAuth = async ({ ignoreManualLogout = false } = {}) => {
+    if (manuallyLoggedOut && !ignoreManualLogout) return;
+
+    try {
+      setIsLoadingAuth(true);
+      const currentUser = await withTimeout(
+        base44.auth.me(),
+        isNativeLocalShell() ? NATIVE_AUTH_TIMEOUT_MS : AUTH_TIMEOUT_MS,
+        'Auth check',
+      );
+      setUser(currentUser);
+      setIsAuthenticated(true);
+      setIsLoadingAuth(false);
+
+      const token = appParams.token || localStorage.getItem('base44_access_token') || localStorage.getItem('token');
+      if (token) {
+        await persistSessionToNativeStorage(token);
+      }
+    } catch (error) {
+      console.error('User auth check failed:', error);
+
+      if (error.status === 401) {
+        const restoredToken = await restoreSessionFromNativeStorage();
+        if (restoredToken) {
+          try {
+            const currentUser = await base44.auth.me();
+            setUser(currentUser);
+            setIsAuthenticated(true);
+            setIsLoadingAuth(false);
+            await persistSessionToNativeStorage(restoredToken);
+            return;
+          } catch (retryError) {
+            console.warn('Auth retry after session restore failed:', retryError);
+          }
+        }
+      }
+
+      setIsLoadingAuth(false);
+      setIsAuthenticated(false);
+
+      if (error.status === 401) {
+        setAuthError({ type: 'auth_required', message: 'Authentication required' });
+      } else if (error.status === 403) {
+        setAuthError({ type: 'user_not_registered', message: 'User not registered for this app' });
+      }
+    }
+  };
+
+  const localLogout = async () => {
+    setManuallyLoggedOut(true);
+    await clearNativeSession();
+    setUser(null);
+    setIsAuthenticated(false);
+    setIsLoadingAuth(false);
+    setIsLoadingPublicSettings(false);
+    setAuthError({ type: 'auth_required', message: 'Authentication required' });
+  };
+
+  const resumeActiveSession = async () => {
+    setManuallyLoggedOut(false);
+    setAuthError(null);
+
+    const restoredToken = await restoreSessionFromNativeStorage();
+    if (restoredToken) {
+      appParams.token = restoredToken;
+    }
+
+    const token =
+      appParams.token ||
+      localStorage.getItem('base44_access_token') ||
+      localStorage.getItem('token');
+
+    if (!token) return false;
+
+    try {
+      localStorage.removeItem('b44_signed_out');
+    } catch {}
+
+    await persistSessionToNativeStorage(token);
+    await checkUserAuth({ ignoreManualLogout: true });
+    return true;
+  };
+
+  const logout = async () => {
+    await localLogout();
+    if (isHostedAppOrigin()) {
+      window.location.href = `${getAppOrigin()}/api/apps/auth/logout?from_url=${encodeURIComponent(window.location.href)}`;
+    }
+  };
+
+  const loginWithEmailPassword = async ({ email, password }) => {
+    setAuthError(null);
+    try { localStorage.removeItem('b44_signed_out'); } catch {}
+    try { localStorage.removeItem('base44_logged_out'); } catch {}
+
+    try {
+      const authClient = createAxiosClient({
+        baseURL: `${appParams.serverUrl}/api`,
+        headers: { 'X-App-Id': appParams.appId },
+        interceptResponses: true,
+      });
+      const response = await authClient.post(`/apps/${appParams.appId}/auth/login`, { email, password });
+
+      if (!response?.access_token) {
+        throw new Error('Sign in failed. Please try again.');
+      }
+
+      await persistSessionToNativeStorage(response.access_token);
+      setManuallyLoggedOut(false);
+      setUser(response.user ?? null);
+      setIsAuthenticated(true);
+      setIsLoadingAuth(false);
+      setIsLoadingPublicSettings(false);
+      setAuthError(null);
+      await checkUserAuth({ ignoreManualLogout: true });
+    } catch (error) {
+      setIsLoadingAuth(false);
+      setIsAuthenticated(false);
+      setAuthError({
+        type: 'auth_required',
+        message: error?.data?.message || error?.message || 'Invalid email or password',
+      });
+      throw error;
+    }
+  };
+
+  const registerWithEmailPassword = async ({ email, password, fullName }) => {
+    setAuthError(null);
+    try { localStorage.removeItem('b44_signed_out'); } catch {}
+    try { localStorage.removeItem('base44_logged_out'); } catch {}
+
+    try {
+      const authClient = createAxiosClient({
+        baseURL: `${appParams.serverUrl}/api`,
+        headers: { 'X-App-Id': appParams.appId },
+        interceptResponses: true,
+      });
+      const response = await authClient.post(`/apps/${appParams.appId}/auth/register`, {
+        email,
+        password,
+        full_name: fullName,
+        name: fullName,
+      });
+
+      if (response?.access_token) {
+        await persistSessionToNativeStorage(response.access_token);
+        setManuallyLoggedOut(false);
+        setUser(response.user ?? null);
+        setIsAuthenticated(true);
+        setAuthError(null);
+        await checkUserAuth({ ignoreManualLogout: true });
+      } else {
+        setAuthError({ type: 'auth_required', message: 'Account created. Please sign in.' });
+      }
+
+      setIsLoadingAuth(false);
+      setIsLoadingPublicSettings(false);
+      return response;
+    } catch (error) {
+      setIsLoadingAuth(false);
+      setIsAuthenticated(false);
+      setAuthError({
+        type: 'auth_required',
+        message: error?.data?.message || error?.message || 'Unable to create account',
+      });
+      throw error;
+    }
+  };
+
+  const navigateToLogin = () => {
+    setManuallyLoggedOut(false);
+    openRestorebraineLogin();
+  };
+
+  return (
+    <AuthContext.Provider value={{
+      user,
+      isAuthenticated,
+      isLoadingAuth,
+      isLoadingPublicSettings,
+      authError,
+      appPublicSettings,
+      logout,
+      localLogout,
+      resumeActiveSession,
+      manuallyLoggedOut,
+      navigateToLogin,
+      loginWithEmailPassword,
+      registerWithEmailPassword,
+      checkAppState,
+    }}>
+      {children}
+    </AuthContext.Provider>
+  );
+};
+
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
+};
+
+
+
+════════════════════════════════════════════════════════════
+BASE44 PATH: src/api/base44Client.js
+ACTION: Open this exact path in the Base44 Code editor → Select All → Paste → Save
+════════════════════════════════════════════════════════════
+import { createClient } from '@base44/sdk';
+import { appParams, getAppOrigin } from '@/lib/app-params';
+import { getGoogleOAuthUrl, openRestorebraineLogin } from '@/lib/auth-urls';
+import { isNativeShell, isHostedAppOrigin } from '@/lib/native-hosted-redirect';
+
+const { appId, serverUrl, token, functionsVersion } = appParams;
+
+//Create a client with authentication required
+export const base44 = createClient({
+  appId,
+  serverUrl,
+  appBaseUrl: getAppOrigin(),
+  token,
+  functionsVersion,
+  requiresAuth: false
+});
+
+// Never send users to app.base44.com/login multi-provider page — direct Google OAuth.
+const originalRedirectToLogin = base44.auth.redirectToLogin.bind(base44.auth);
+base44.auth.redirectToLogin = (nextUrl) => {
+  if (typeof window === 'undefined') {
+    return originalRedirectToLogin(nextUrl);
+  }
+  if (isNativeShell() && !isHostedAppOrigin()) {
+    openRestorebraineLogin();
+    return;
+  }
+  window.location.href = getGoogleOAuthUrl();
+};
+
+
+
+════════════════════════════════════════════════════════════
+BASE44 PATH: src/App.jsx
+ACTION: Open this exact path in the Base44 Code editor → Select All → Paste → Save
+════════════════════════════════════════════════════════════
+import './App.css'
+import { useState } from 'react'
+import { Toaster } from "@/components/ui/toaster"
+import { QueryClientProvider } from '@tanstack/react-query'
+import { queryClientInstance } from '@/lib/query-client'
+
+import NavigationTracker from '@/lib/NavigationTracker'
+import { pagesConfig } from './pages.config'
+import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
+import { setupIframeMessaging } from './lib/iframe-messaging';
+import PageNotFound from './lib/PageNotFound';
+import { AuthProvider, useAuth } from '@/lib/AuthContext';
+import UserNotRegisteredError from '@/components/UserNotRegisteredError';
+import NativeDebugBadge from '@/components/NativeDebugBadge';
+import LoginLogo from '@/components/LoginLogo';
+import V4CoreWrongOrigin from '@/components/V4CoreWrongOrigin';
+import { isNativeShell } from '@/lib/native-hosted-redirect';
+import { LOCAL_NATIVE_BUNDLE } from '@/lib/native-bundle-mode';
+import { isV4CoreWrongOrigin } from '@/lib/v4-core-guard';
+import { openLoginInSystemBrowser } from '@/lib/native-google-oauth';
+import { getGoogleOAuthUrl } from '@/lib/auth-urls';
+
+const { Pages, Layout, mainPage } = pagesConfig;
+const mainPageKey = mainPage ?? Object.keys(Pages)[0];
+const MainPage = mainPageKey ? Pages[mainPageKey] : <></>;
+
+if (!isNativeShell()) {
+  setupIframeMessaging();
+}
+
+const LayoutWrapper = ({ children, currentPageName }) => Layout ?
+  <Layout currentPageName={currentPageName}>{children}</Layout>
+  : <>{children}</>;
+
+const signInButtonStyle = {
+  width: '100%',
+  padding: '14px',
+  background: 'linear-gradient(135deg,#60a5fa,#a78bfa)',
+  color: 'white',
+  border: 'none',
+  borderRadius: '14px',
+  fontSize: '16px',
+  fontWeight: '600',
+  cursor: 'pointer',
+  touchAction: 'manipulation',
+};
+
+const SignInButton = ({ clearSignedOut = false }) => {
+  const [isOpening, setIsOpening] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+
+  const handleClick = async () => {
+    if (isOpening) return;
+    setErrorMessage('');
+    setIsOpening(true);
+    if (clearSignedOut) {
+      try { localStorage.removeItem('b44_signed_out'); } catch {}
+    }
+    try {
+      if (isNativeShell()) {
+        await openLoginInSystemBrowser(getGoogleOAuthUrl(), 'google');
+      } else {
+        window.location.href = getGoogleOAuthUrl();
+      }
+      setIsOpening(false);
+    } catch (error) {
+      console.error('Sign-in failed to open', error);
+      setErrorMessage(error?.message || 'Could not open sign in. Try again.');
+      setIsOpening(false);
+    }
+  };
+
+  return (
+    <>
+      {errorMessage ? (
+        <p style={{ color: '#dc2626', fontSize: '13px', margin: '0 0 12px', lineHeight: 1.4 }}>{errorMessage}</p>
+      ) : null}
+      <button
+        type="button"
+        onClick={handleClick}
+        disabled={isOpening}
+        style={{
+          ...signInButtonStyle,
+          opacity: isOpening ? 0.75 : 1,
+          cursor: isOpening ? 'wait' : 'pointer',
+        }}
+      >
+        {isOpening ? 'Opening sign in…' : 'Continue with Google'}
+      </button>
+    </>
+  );
+};
+
+const loginCardStyle = {
+  background: 'white',
+  borderRadius: '24px',
+  padding: '36px 28px',
+  boxShadow: '0 10px 40px rgba(0,0,0,0.1)',
+  maxWidth: '360px',
+  width: '100%',
+  textAlign: 'center',
+};
+
+/** Same login card on web + native — logo, title, Continue with Google (no auto-redirect). */
+const LoginGate = ({ clearSignedOut = false }) => (
+  <div
+    style={{
+      position: 'fixed',
+      inset: 0,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      background: 'linear-gradient(135deg,#eff6ff,#f5f3ff,#fdf2f8)',
+      paddingTop: 'max(16px, env(safe-area-inset-top))',
+      paddingBottom: 'max(16px, env(safe-area-inset-bottom))',
+      paddingLeft: 'max(20px, env(safe-area-inset-left))',
+      paddingRight: 'max(20px, env(safe-area-inset-right))',
+      boxSizing: 'border-box',
+    }}
+  >
+    <div style={loginCardStyle}>
+      <LoginLogo />
+      <h1 style={{ fontSize: '24px', fontWeight: '700', color: '#111', margin: '0 0 28px' }}>Restorebraine</h1>
+      <SignInButton clearSignedOut={clearSignedOut} />
+    </div>
+    {isNativeShell() ? <NativeDebugBadge /> : null}
+  </div>
+);
+
+const hasStoredSessionToken = () => {
+  try {
+    if (localStorage.getItem('b44_signed_out') === '1') return false;
+    return Boolean(localStorage.getItem('base44_access_token') || localStorage.getItem('token'));
+  } catch {
+    return false;
+  }
+};
+
+const AuthenticatedApp = () => {
+  const { isLoadingAuth, isLoadingPublicSettings, authError, isAuthenticated, navigateToLogin, manuallyLoggedOut } = useAuth();
+
+  if (manuallyLoggedOut) {
+    return <LoginGate />;
+  }
+
+  const skipV4LoadingSpinner =
+    LOCAL_NATIVE_BUNDLE && isNativeShell() && !hasStoredSessionToken();
+
+  if ((isLoadingPublicSettings || isLoadingAuth) && !skipV4LoadingSpinner) {
+    return (
+      <>
+        <div className="fixed inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 gap-4">
+          <div className="w-8 h-8 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin" />
+          <p className="text-sm text-gray-500">Loading Restorebraine…</p>
+          {isNativeShell() ? (
+            <button
+              type="button"
+              onClick={navigateToLogin}
+              className="mt-2 text-sm font-semibold text-purple-600 underline"
+            >
+              Sign in instead
+            </button>
+          ) : null}
+        </div>
+        <NativeDebugBadge />
+      </>
+    );
+  }
+
+  if (authError?.type === 'user_not_registered') {
+    return <UserNotRegisteredError />;
+  }
+
+  if (authError || !isAuthenticated) {
+    return <LoginGate clearSignedOut />;
+  }
+
+  return (
+    <>
+      <LayoutWrapper currentPageName={mainPageKey}>
+        <Routes>
+          <Route path="/" element={<MainPage />} />
+          {Object.entries(Pages).map(([path, Page]) => (
+            <Route key={path} path={`/${path.toLowerCase()}`} element={<Page />} />
+          ))}
+          <Route path="*" element={<PageNotFound />} />
+        </Routes>
+      </LayoutWrapper>
+      <NativeDebugBadge />
+    </>
+  );
+};
+
+
+function App() {
+  if (isV4CoreWrongOrigin()) {
+    return <V4CoreWrongOrigin />;
+  }
+
+  return (
+    <AuthProvider>
+      <QueryClientProvider client={queryClientInstance}>
+        <Router>
+          <NavigationTracker />
+          <AuthenticatedApp />
+        </Router>
+        <Toaster />
+      </QueryClientProvider>
+    </AuthProvider>
+  )
+}
+
+export default App
+
+
+
+╔════════════════════════════════════════════════════════════╗
+║  PART 2 — Native OAuth + session                           ║
+╚════════════════════════════════════════════════════════════╝
+
+════════════════════════════════════════════════════════════
+BASE44 PATH: src/components/LoginLogo.jsx
+ACTION: Open this exact path in the Base44 Code editor → Select All → Paste → Save
+════════════════════════════════════════════════════════════
+import { useState } from 'react';
+import { getRestorebraineAppLogo, getRestorebraineAppLogoFallbacks } from '@/lib/app-branding';
+
+/** Build v4: embedded logo data URL first — brain emoji only if all sources fail. */
+export default function LoginLogo({ compact = false }) {
+  const [sources] = useState(() => getRestorebraineAppLogoFallbacks());
+  const [sourceIndex, setSourceIndex] = useState(0);
+  const src = sources[sourceIndex] ?? getRestorebraineAppLogo();
+  const size = compact ? 44 : 56;
+  const radius = compact ? 12 : 16;
+  const failed = sourceIndex >= sources.length;
+
+  if (failed) {
+    return (
+      <div
+        style={{
+          width: `${size}px`,
+          height: `${size}px`,
+          borderRadius: `${radius}px`,
+          margin: compact ? 0 : '0 auto 12px',
+          background: 'linear-gradient(135deg,#60a5fa,#a78bfa)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: compact ? '22px' : '28px',
+          boxShadow: '0 6px 20px rgba(96,165,250,0.22)',
+        }}
+        aria-hidden
+      >
+        🧠
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={src}
+      alt="Restorebraine"
+      data-rb-logo="1"
+      onError={() => setSourceIndex((index) => index + 1)}
+      style={{
+        width: `${size}px`,
+        height: `${size}px`,
+        borderRadius: `${radius}px`,
+        objectFit: 'cover',
+        display: 'block',
+        margin: compact ? 0 : '0 auto 12px',
+        boxShadow: '0 6px 20px rgba(96,165,250,0.22)',
+      }}
+    />
+  );
+}
+
+
+
+════════════════════════════════════════════════════════════
+BASE44 PATH: src/lib/login-logo-data.js
+ACTION: Open this exact path in the Base44 Code editor → Select All → Paste → Save
+════════════════════════════════════════════════════════════
+/** Generated by scripts/embed-login-logo.mjs — do not edit */
+export const LOGIN_LOGO_DATA_URL = 'data:image/png;base64,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';
+
+
+
+════════════════════════════════════════════════════════════
+BASE44 PATH: src/lib/native-hosted-redirect.js
+ACTION: Open this exact path in the Base44 Code editor → Select All → Paste → Save
+════════════════════════════════════════════════════════════
+import { DEFAULT_APP_ORIGIN, getAppOrigin, isAppHost } from './app-domains';
+import { LOCAL_NATIVE_BUNDLE } from './native-bundle-mode';
+import { Capacitor } from '@capacitor/core';
+
+export const HOSTED_APP_URL = DEFAULT_APP_ORIGIN;
+
+export const isNativeShell = () => {
+  try {
+    if (typeof window === 'undefined') return false;
+    if (Capacitor.isNativePlatform()) return true;
+    const { protocol, hostname } = window.location;
+    if (protocol === 'capacitor:' || protocol === 'ionic:') return true;
+    if ((hostname === 'localhost' || hostname === '127.0.0.1') && window.Capacitor) return true;
+    return false;
+  } catch {
+    return false;
+  }
+};
+
+/** Where the Capacitor WebView should land after OAuth — NOT always the hosted URL. */
+export const getNativeWebViewHome = () => {
+  if (typeof window === 'undefined') return DEFAULT_APP_ORIGIN;
+  const { hostname } = window.location;
+  if (hostname === 'localhost' || hostname === '127.0.0.1') return `${window.location.origin}/`;
+  if (LOCAL_NATIVE_BUNDLE) return `${window.location.origin}/`;
+  if (isNativeShell()) return DEFAULT_APP_ORIGIN;
+  return getAppOrigin();
+};
+
+export const isHostedAppOrigin = () => {
+  try {
+    if (typeof window === 'undefined') return false;
+    const { protocol, hostname } = window.location;
+    // Bundled native app (capacitor://localhost or https://localhost) is NOT the live hosted site.
+    if (protocol === 'capacitor:' || protocol === 'ionic:') return false;
+    if (LOCAL_NATIVE_BUNDLE) return false;
+    if (hostname === 'localhost' || hostname === '127.0.0.1') return false;
+    return isAppHost(hostname);
+  } catch {
+    return false;
+  }
+};
+
+/** Native installs should always use the live hosted app — same UI/login as kbrown9000@aol.com */
+export const redirectNativeToHostedApp = () => {
+  if (LOCAL_NATIVE_BUNDLE) return false;
+  if (!isNativeShell() || isHostedAppOrigin()) return false;
+  // Bundled native-local loads https://localhost — never redirect to hosted URL.
+  const hostname = window.location?.hostname;
+  if (hostname === 'localhost' || hostname === '127.0.0.1') return false;
+
+  const suffix = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+  const target = suffix && suffix !== '/' ? `${HOSTED_APP_URL}${suffix}` : HOSTED_APP_URL;
+  window.location.replace(target);
+  return true;
+};
+
+
+
+════════════════════════════════════════════════════════════
+BASE44 PATH: src/lib/native-bundle-mode.js
+ACTION: Open this exact path in the Base44 Code editor → Select All → Paste → Save
+════════════════════════════════════════════════════════════
+// Base44 hosted web — must be false (iOS v4 native uses true via build:native-local)
+export const LOCAL_NATIVE_BUNDLE = false;
+
+
+
+════════════════════════════════════════════════════════════
+BASE44 PATH: src/lib/native-oauth-fix.js
+ACTION: Open this exact path in the Base44 Code editor → Select All → Paste → Save
+════════════════════════════════════════════════════════════
+/** Keep OAuth in the main WebView — Capacitor iOS opens popups in Safari by default. */
+import { isHostedAppOrigin, isNativeShell } from '@/lib/native-hosted-redirect';
+import { LOCAL_NATIVE_BUNDLE } from '@/lib/native-bundle-mode';
+import { installNativePlatformGuard } from '@/lib/native-platform-guard';
+import { installNativeGoogleOAuthBrowser } from '@/lib/native-google-oauth';
+
+export const captureAccessTokenFromUrl = () => {
+  if (typeof window === 'undefined') return null;
+
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('access_token');
+    if (!token) return null;
+
+    localStorage.setItem('base44_access_token', token);
+    localStorage.setItem('token', token);
+    params.delete('access_token');
+    const cleanUrl = `${window.location.pathname}${params.toString() ? `?${params.toString()}` : ''}${window.location.hash}`;
+    window.history.replaceState({}, document.title, cleanUrl);
+    return token;
+  } catch (error) {
+    console.warn('Failed to capture OAuth token from URL', error);
+    return null;
+  }
+};
+
+export const installNativeOAuthFix = () => {
+  if (typeof window === 'undefined' || window.__restorebraineOAuthFixInstalled) return;
+  window.__restorebraineOAuthFixInstalled = true;
+
+  captureAccessTokenFromUrl();
+
+  // v4-core: bridge loads from index.html at parse time — never install Location guards here
+  // (double-wrapping Location.prototype causes a blank white screen on iOS).
+  if (LOCAL_NATIVE_BUNDLE || window.__restorebraineSessionBridgeInstalled) return;
+
+  // Capacitor + hosted Base44 URL: AppDelegate.swift already patches navigation at
+  // document start. Installing web guards here double-wraps Location and causes a
+  // blank white screen on iOS.
+  if (isNativeShell() && !isHostedAppOrigin()) {
+    installNativeGoogleOAuthBrowser();
+    installNativePlatformGuard();
+  }
+};
+
+
+
+════════════════════════════════════════════════════════════
+BASE44 PATH: src/lib/native-platform-guard.js
+ACTION: Open this exact path in the Base44 Code editor → Select All → Paste → Save
+════════════════════════════════════════════════════════════
+import { DEFAULT_APP_ORIGIN, getAppOrigin, getAuthReturnOrigin, isAppHost } from './app-domains';
+import { LOCAL_NATIVE_BUNDLE } from './native-bundle-mode';
+
+export const RESTOREBRAINE_FROM_URL = DEFAULT_APP_ORIGIN;
+export const BASE44_APP_ID = '68fdc5f42768c4d045fe1bac';
+export const BASE44_PLATFORM_URL = 'https://app.base44.com';
+/** Native OAuth callback — custom scheme on v4-core, hosted URL otherwise. */
+export const NATIVE_OAUTH_CALLBACK = DEFAULT_APP_ORIGIN;
+
+const PLATFORM_HOSTS = new Set(['app.base44.com', 'base44.com']);
+
+export const isBase44PlatformHost = (hostname) => PLATFORM_HOSTS.has(hostname);
+
+const providerFromPath = (pathname = '') => {
+  if (/\/apple\//i.test(pathname)) return 'apple';
+  if (/\/microsoft\//i.test(pathname)) return 'microsoft';
+  return 'google';
+};
+
+const providerFromLabel = (label = '') => {
+  if (/apple/i.test(label)) return 'apple';
+  if (/microsoft/i.test(label)) return 'microsoft';
+  return 'google';
+};
+
+/** OAuth URL — always use hosted from_url so Base44 accepts the redirect domain. */
+export const getCanonicalOAuthUrl = (provider = 'google', { forWebView = false } = {}) => {
+  const path = provider === 'google'
+    ? '/api/apps/auth/login'
+    : `/api/apps/auth/${provider}/login`;
+  const params = new URLSearchParams({
+    app_id: BASE44_APP_ID,
+    from_url: getAuthReturnOrigin(),
+    prompt: 'select_account',
+  });
+  return `${BASE44_PLATFORM_URL}${path}?${params.toString()}`;
+};
+
+export const getWebViewOAuthUrl = (provider = 'google') => getCanonicalOAuthUrl(provider, { forWebView: true });
+
+/** Force a valid OAuth URL — blocks capacitor:// and app.base44.com from_url values. */
+export const normalizeAuthUrl = (rawUrl, providerHint, { forWebView = false, preservePlatformLogin = false } = {}) => {
+  try {
+    if (preservePlatformLogin && isPlatformLoginUrl(rawUrl)) {
+      return String(rawUrl);
+    }
+    const parsed = new URL(String(rawUrl || ''), typeof window !== 'undefined' ? window.location.href : DEFAULT_APP_ORIGIN);
+    if (!isAuthNavigationUrl(rawUrl) && !providerHint && !isPlatformLoginUrl(rawUrl)) return String(rawUrl);
+    if (isPlatformLoginUrl(rawUrl)) return String(rawUrl);
+    const provider = providerHint || providerFromPath(parsed.pathname);
+    return getCanonicalOAuthUrl(provider, { forWebView });
+  } catch {
+    return getCanonicalOAuthUrl(providerHint || 'google', { forWebView });
+  }
+};
+
+export const getAppScopedLoginUrl = () => {
+  const params = new URLSearchParams({
+    from_url: getAuthReturnOrigin(),
+    app_id: BASE44_APP_ID,
+    prompt: 'select_account',
+  });
+  return `${BASE44_PLATFORM_URL}/login?${params.toString()}`;
+};
+
+export const getGoogleOAuthUrl = () => getCanonicalOAuthUrl('google');
+
+export const getProviderOAuthUrl = (label = '') => getCanonicalOAuthUrl(providerFromLabel(label));
+
+export const isAuthNavigationUrl = (url) => {
+  if (!url) return false;
+  try {
+    const parsed = new URL(String(url), typeof window !== 'undefined' ? window.location.href : DEFAULT_APP_ORIGIN);
+    if (/accounts\.google\.com|google\.com\/o\/oauth|oauth2\.googleapis\.com/i.test(parsed.href)) return true;
+    if (isBase44PlatformHost(parsed.hostname) && parsed.pathname.startsWith('/api/apps/auth')) return true;
+    if (isAppHost(parsed.hostname) && parsed.pathname.startsWith('/api/apps/auth')) return true;
+  } catch {}
+  return false;
+};
+
+export const isPlatformLoginUrl = (url) => {
+  if (!url) return false;
+  try {
+    const parsed = new URL(String(url), typeof window !== 'undefined' ? window.location.href : DEFAULT_APP_ORIGIN);
+    return isBase44PlatformHost(parsed.hostname) && /\/login/i.test(parsed.pathname);
+  } catch {}
+  return false;
+};
+
+
+export const isAuthLogoutUrl = (url) => {
+  if (!url) return false;
+  try {
+    const parsed = new URL(String(url), typeof window !== 'undefined' ? window.location.href : DEFAULT_APP_ORIGIN);
+    return /\/api\/apps\/auth\/logout/i.test(parsed.pathname);
+  } catch {}
+  return false;
+};
+
+export const guardSignedOutLoginPage = () => {
+  if (typeof window === 'undefined') return;
+  try {
+    const path = window.location.pathname.replace(/\/$/, '') || '/';
+    if (path !== '/login') return;
+    const params = new URLSearchParams({
+      from_url: getAuthReturnOrigin(),
+      app_id: BASE44_APP_ID,
+      prompt: 'select_account',
+    });
+    window.location.replace(`${BASE44_PLATFORM_URL}/login?${params.toString()}`);
+  } catch {}
+};
+
+export const guardPlatformNavigation = () => {
+  if (typeof window === 'undefined') return;
+  const { hostname, search, pathname } = window.location;
+  if (!isBase44PlatformHost(hostname)) return;
+  const token = new URLSearchParams(search).get('access_token');
+  if (token) {
+    import('@/lib/session-bootstrap').then(({ persistSessionToNativeStorage }) => {
+      persistSessionToNativeStorage(token);
+    });
+  }
+  if (pathname.startsWith('/api/apps/auth')) return;
+  window.location.replace(getAppOrigin());
+};
+
+const blockBase44BadgeScript = () => {
+  if (typeof document === 'undefined') return;
+  document.querySelectorAll('script[src*="badge.js"]').forEach((node) => node.remove());
+};
+
+export const hideBase44EditorWidget = () => {
+  if (typeof document === 'undefined') return;
+  blockBase44BadgeScript();
+  if (!document.getElementById('rb-hide-base44')) {
+    const style = document.createElement('style');
+    style.id = 'rb-hide-base44';
+    style.textContent = '[href*="app.base44.com"], iframe[src*="base44"], script[src*="badge.js"] { display:none !important; visibility:hidden !important; pointer-events:none !important; }';
+    (document.head || document.documentElement).appendChild(style);
+  }
+  const hideMatchingNodes = (root = document.body) => {
+    if (!root?.querySelectorAll) return;
+    root.querySelectorAll('button, a, div, span, p, iframe').forEach((node) => {
+      if (node.id === 'rb-native-stamp') return;
+      const text = (node.textContent || '').trim();
+      if (/edit with base\s*44/i.test(text) && text.length < 60) {
+        let el = node;
+        for (let i = 0; i < 8 && el && el !== document.body; i += 1) {
+          el.style.setProperty('display', 'none', 'important');
+          el.style.setProperty('visibility', 'hidden', 'important');
+          el.style.setProperty('opacity', '0', 'important');
+          el.style.setProperty('pointer-events', 'none', 'important');
+          el = el.parentElement;
+        }
+      }
+    });
+  };
+  hideMatchingNodes();
+  if (window.__restorebraineEditorObserver) return;
+  window.__restorebraineEditorObserver = new MutationObserver(() => {
+    blockBase44BadgeScript();
+    hideMatchingNodes();
+  });
+  window.__restorebraineEditorObserver.observe(document.documentElement, { childList: true, subtree: true });
+};
+
+export const interceptNativeSignInClicks = () => {
+  if (typeof document === 'undefined' || window.__restorebraineSignInInterceptor) return;
+  if (LOCAL_NATIVE_BUNDLE) return;
+  window.__restorebraineSignInInterceptor = true;
+  document.addEventListener('click', (event) => {
+    const target = event.target.closest('button, a, [role="button"], div[role="button"], [data-provider]');
+    if (!target) return;
+    const label = (target.textContent || '').trim();
+    const href = target.href || target.getAttribute?.('href') || '';
+    const isProvider = /continue with google|continue with apple|continue with microsoft|sign in with email|sign in with google|sign in with apple|sign in with microsoft/i.test(label);
+    const isAuthLink = /auth\/login|auth\/apple|auth\/microsoft/i.test(href);
+    if (!isProvider && !isAuthLink) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation();
+    const provider = providerFromLabel(label);
+    const authUrl = href && isAuthNavigationUrl(href) ? href : getCanonicalOAuthUrl(provider);
+    import('@/lib/native-google-oauth').then(({ openLoginInSystemBrowser }) => {
+      openLoginInSystemBrowser(authUrl, provider);
+    });
+  }, true);
+};
+
+export const guardGoogleOAuthInWebView = () => {
+  if (typeof window === 'undefined') return;
+  if (/accounts\.google\.com/i.test(window.location.hostname)) {
+    import('@/lib/native-google-oauth').then(({ openLoginInSystemBrowser }) => {
+      window.history.length > 1 ? window.history.back() : window.location.replace(getAppOrigin());
+      openLoginInSystemBrowser(getGoogleOAuthUrl(), 'google');
+    });
+  }
+};
+
+export const installNativePlatformGuard = () => {
+  if (typeof window === 'undefined' || window.__restorebrainePlatformGuardInstalled) return;
+  if (LOCAL_NATIVE_BUNDLE) return;
+  window.__restorebrainePlatformGuardInstalled = true;
+  guardPlatformNavigation();
+  guardSignedOutLoginPage();
+  hideBase44EditorWidget();
+  interceptNativeSignInClicks();
+  guardGoogleOAuthInWebView();
+  window.addEventListener('popstate', () => {
+    guardPlatformNavigation();
+    guardSignedOutLoginPage();
+    guardGoogleOAuthInWebView();
+  });
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      guardPlatformNavigation();
+      guardSignedOutLoginPage();
+      guardGoogleOAuthInWebView();
+      hideBase44EditorWidget();
+    }
+  });
+  setInterval(() => {
+    guardPlatformNavigation();
+    guardSignedOutLoginPage();
+    guardGoogleOAuthInWebView();
+    hideBase44EditorWidget();
+  }, 500);
+};
+
+
+
+════════════════════════════════════════════════════════════
+BASE44 PATH: src/lib/native-google-oauth.js
+ACTION: Open this exact path in the Base44 Code editor → Select All → Paste → Save
+════════════════════════════════════════════════════════════
+import { InAppBrowser, DefaultWebViewOptions } from '@capacitor/inappbrowser';
+import { Capacitor } from '@capacitor/core';
+import { isAppHost, NATIVE_OAUTH_RETURN_URL, getAuthReturnOrigin } from '@/lib/app-domains';
+import {
+  getGoogleOAuthUrl,
+  getProviderOAuthUrl,
+  getWebViewOAuthUrl,
+  getCanonicalOAuthUrl,
+  BASE44_APP_ID,
+  BASE44_PLATFORM_URL,
+  NATIVE_OAUTH_CALLBACK,
+  isBase44PlatformHost,
+  isAuthNavigationUrl,
+  isPlatformLoginUrl,
+  normalizeAuthUrl,
+} from '@/lib/native-platform-guard';
+import { LOCAL_NATIVE_BUNDLE } from '@/lib/native-bundle-mode';
+import { persistSessionToNativeStorage } from '@/lib/session-bootstrap';
+import { isNativeShell, getNativeWebViewHome } from '@/lib/native-hosted-redirect';
+import { shouldBlockExternalNavigation, redirectToNativeBundleHome } from '@/lib/native-bundle-shell-guard';
+const GOOGLE_OAUTH_PATTERN = /accounts\.google\.com|google\.com\/o\/oauth|oauth2\.googleapis\.com|\/api\/apps\/auth\/login/i;
+
+const SYSTEM_BROWSER_OPTIONS = {
+  iOS: { closeButtonText: 2, viewStyle: 2, animationEffect: 2, enableBarsCollapsing: true, enableReadersMode: false },
+  android: { showTitle: false, hideToolbarOnScroll: false, viewStyle: 0, startAnimation: 0, exitAnimation: 1 },
+};
+
+export const isGoogleOAuthUrl = (url) => {
+  if (!url || typeof url !== 'string') return false;
+  try {
+    const { hostname, href, pathname } = new URL(url, window.location.href);
+    return GOOGLE_OAUTH_PATTERN.test(hostname) || GOOGLE_OAUTH_PATTERN.test(href) || GOOGLE_OAUTH_PATTERN.test(pathname);
+  } catch {
+    return GOOGLE_OAUTH_PATTERN.test(url);
+  }
+};
+
+export const isOAuthCallbackUrl = (url) => {
+  if (!url || typeof url !== 'string') return false;
+  if (url.includes('access_token=')) return true;
+  if (LOCAL_NATIVE_BUNDLE && url.startsWith(NATIVE_OAUTH_RETURN_URL.split('?')[0])) return true;
+  return false;
+};
+
+export const captureOAuthTokenFromUrl = async (url) => {
+  if (!url) return null;
+  try {
+    const parsed = new URL(String(url));
+    const token = parsed.searchParams.get('access_token');
+    if (!token) return null;
+    await persistSessionToNativeStorage(token);
+    return token;
+  } catch {
+    try {
+      const match = String(url).match(/[?&]access_token=([^&]+)/);
+      if (!match?.[1]) return null;
+      const token = decodeURIComponent(match[1]);
+      await persistSessionToNativeStorage(token);
+      return token;
+    } catch {
+      return null;
+    }
+  }
+};
+
+let oauthListenerAttached = false;
+
+const withTimeout = (promise, ms, label = 'Operation') =>
+  Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
+    }),
+  ]);
+
+const isNativeCapacitorShell = () => {
+  if (Capacitor.isNativePlatform?.()) return true;
+  try {
+    const { protocol } = window.location;
+    return protocol === 'capacitor:' || protocol === 'ionic:';
+  } catch {
+    return false;
+  }
+};
+
+/** Capacitor 8 exposes InAppBrowser via ES import — not always on window.Capacitor.Plugins. */
+const waitForCapacitor = async () => isNativeCapacitorShell();
+
+const hasRegisteredNativeOAuthPlugin = () => {
+  const plugin = window.Capacitor?.Plugins?.RestorebraineOAuth;
+  return typeof plugin?.startGoogleOAuth === 'function';
+};
+
+const waitForNativeOAuthPlugin = async (maxAttempts = 30) => {
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    if (hasRegisteredNativeOAuthPlugin()) return true;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  return hasRegisteredNativeOAuthPlugin();
+};
+
+const openInAppBrowserOAuth = async (oauthUrl, provider) => {
+  oauthListenerAttached = false;
+  await attachOAuthCompletionListener();
+  window.__restorebraineLastOAuthUrl = oauthUrl;
+  window.__restorebraineOAuthInProgress = true;
+  window.__restorebraineOAuthMode = LOCAL_NATIVE_BUNDLE ? 'v4-system-browser' : 'system-browser';
+
+  try {
+    await InAppBrowser.openInSystemBrowser({ url: oauthUrl, options: SYSTEM_BROWSER_OPTIONS });
+    return;
+  } catch (systemError) {
+    console.warn('InAppBrowser system browser failed, trying WebView:', systemError);
+  }
+
+  if (LOCAL_NATIVE_BUNDLE) {
+    throw new Error('Could not open sign in. Try again.');
+  }
+
+  window.__restorebraineOAuthMode = provider === 'google' ? 'webview-google' : 'webview';
+  try {
+    await InAppBrowser.openInWebView({ url: oauthUrl, options: DefaultWebViewOptions });
+    return;
+  } catch (webviewError) {
+    console.warn('InAppBrowser WebView failed:', webviewError);
+  }
+
+  throw new Error('Could not open sign in. Rebuild in Xcode and try again.');
+};
+
+const finishOAuthLogin = async () => {
+  window.__restorebraineOAuthInProgress = false;
+  await InAppBrowser.close().catch(() => {});
+  const token = localStorage.getItem('base44_access_token') || localStorage.getItem('token');
+  if (token) {
+    window.dispatchEvent(new CustomEvent('restorebraine-session-updated', { detail: { token } }));
+    window.dispatchEvent(new CustomEvent('restorebraine-native-oauth-complete'));
+  }
+  // v4-core: React AuthContext updates in-place — no reload (reload caused white screen).
+  if (LOCAL_NATIVE_BUNDLE && token) return;
+  if (window.location.pathname === '/' && token) return;
+  window.location.replace(getNativeWebViewHome());
+};
+
+/** After OAuth, AppDelegate / native plugin may have saved the token before JS listeners attach. */
+export const tryRestoreSessionAfterOAuth = async () => {
+  const existing = localStorage.getItem('base44_access_token') || localStorage.getItem('token');
+  if (existing && localStorage.getItem('b44_signed_out') !== '1') {
+    window.dispatchEvent(new CustomEvent('restorebraine-session-updated', { detail: { token: existing } }));
+    window.dispatchEvent(new CustomEvent('restorebraine-native-oauth-complete'));
+    if (LOCAL_NATIVE_BUNDLE) return true;
+    window.location.replace(getNativeWebViewHome());
+    return true;
+  }
+
+  const { restoreSessionFromNativeStorage } = await import('@/lib/session-bootstrap');
+  const token = await restoreSessionFromNativeStorage();
+  if (!token) return false;
+
+  window.dispatchEvent(new CustomEvent('restorebraine-session-updated', { detail: { token } }));
+  window.dispatchEvent(new CustomEvent('restorebraine-native-oauth-complete'));
+  if (LOCAL_NATIVE_BUNDLE) return true;
+  window.location.replace(getNativeWebViewHome());
+  return true;
+};
+
+export const handleNativeOAuthCallback = async (url) => {
+  const token = await captureOAuthTokenFromUrl(url);
+  if (!token) return false;
+  await finishOAuthLogin();
+  return true;
+};
+
+const isHostedOAuthReturn = (url) => {
+  try {
+    const parsed = new URL(String(url), window.location.href);
+    return isAppHost(parsed.hostname) && parsed.searchParams.has('access_token');
+  } catch {
+    return false;
+  }
+};
+
+const openOAuthInSystemBrowser = async (url, providerHint) => {
+  // Build v4 fallback: hosted from_url so OAuth sheet can return via restorebraine:// deep link.
+  const normalizedUrl = normalizeAuthUrl(
+    url || getWebViewOAuthUrl(providerHint || 'google'),
+    providerHint,
+    { forWebView: true },
+  );
+  if (typeof window !== 'undefined') {
+    window.__restorebraineLastOAuthUrl = normalizedUrl;
+    window.__restorebraineOAuthMode = 'v4-system-browser';
+    window.__restorebraineOAuthInProgress = true;
+  }
+  oauthListenerAttached = false;
+  await attachOAuthCompletionListener();
+
+  for (let attempt = 0; attempt < 60; attempt += 1) {
+    try {
+      const plugin = window.Capacitor?.Plugins?.InAppBrowser;
+      if (plugin?.openInSystemBrowser) {
+        await plugin.openInSystemBrowser({ url: normalizedUrl, options: SYSTEM_BROWSER_OPTIONS });
+      } else {
+        await InAppBrowser.openInSystemBrowser({ url: normalizedUrl, options: SYSTEM_BROWSER_OPTIONS });
+      }
+      return;
+    } catch (error) {
+      if (attempt === 59) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+  }
+};
+
+const handleOAuthBrowserNavigation = async (url) => {
+  if (!url) return false;
+  if (await handleNativeOAuthCallback(url)) return true;
+
+  try {
+    const parsed = new URL(url, window.location.href);
+    const token = parsed.searchParams.get('access_token');
+    if (token) {
+      await persistSessionToNativeStorage(token);
+      await finishOAuthLogin();
+      return true;
+    }
+    if (LOCAL_NATIVE_BUNDLE && isHostedOAuthReturn(url)) {
+      await redirectToNativeBundleHome(url);
+      return true;
+    }
+    if (isAuthNavigationUrl(url)) {
+      return false;
+    }
+  } catch {}
+
+  return false;
+};
+
+const attachOAuthCompletionListener = async () => {
+  if (oauthListenerAttached) return;
+  oauthListenerAttached = true;
+
+  await InAppBrowser.addListener('browserPageNavigationCompleted', async (data) => {
+    await handleOAuthBrowserNavigation(data?.url);
+  });
+
+  await InAppBrowser.addListener('browserClosed', async () => {
+    oauthListenerAttached = false;
+    window.__restorebraineOAuthInProgress = false;
+    if (await tryRestoreSessionAfterOAuth()) return;
+
+    try {
+      const { App } = await import('@capacitor/app');
+      const launch = await App.getLaunchUrl();
+      if (launch?.url && (await handleNativeOAuthCallback(launch.url))) return;
+    } catch {}
+
+    if (localStorage.getItem('b44_signed_out') !== '1') {
+      await tryRestoreSessionAfterOAuth();
+    }
+  });
+};
+
+/** Google OAuth via native ASWebAuthenticationSession (works without v4 bridge). */
+const startGoogleOAuthNative = async () => {
+  const pluginUrl = normalizeAuthUrl(getGoogleOAuthUrl(), 'google');
+  window.__restorebraineLastOAuthUrl = pluginUrl;
+  window.__restorebraineOAuthMode = 'asweb-auth';
+  window.__restorebraineOAuthInProgress = true;
+
+  const plugin = window.Capacitor?.Plugins?.RestorebraineOAuth;
+  if (!plugin?.startGoogleOAuth) throw new Error('RestorebraineOAuth plugin not registered');
+
+  const result = await plugin.startGoogleOAuth({ url: pluginUrl });
+  const token = result?.token;
+  if (!token) throw new Error('Native OAuth returned no token');
+  await persistSessionToNativeStorage(token);
+  await finishOAuthLogin();
+  return true;
+};
+
+/**
+ * v4-core OAuth: native plugin for Google when available, always fall back to InAppBrowser (visible UI).
+ */
+export const openLoginInSystemBrowser = async (url = getGoogleOAuthUrl(), providerHint) => {
+  const provider = providerHint || 'google';
+  if (typeof window !== 'undefined') {
+    window.__restorebraineOAuthInProgress = true;
+  }
+  if (!isNativeShell()) {
+    window.location.replace(normalizeAuthUrl(url, providerHint));
+    return;
+  }
+
+  if (!(await waitForCapacitor())) {
+    window.__restorebraineOAuthInProgress = false;
+    throw new Error('Not running in the native app shell.');
+  }
+
+  const oauthUrl = isPlatformLoginUrl(url)
+    ? String(url)
+    : normalizeAuthUrl(url || getCanonicalOAuthUrl(provider), provider);
+  window.__restorebraineLastOAuthUrl = oauthUrl;
+
+  // Build v4: WebView OAuth plugin first (reliable on device), then system browser.
+  if (LOCAL_NATIVE_BUNDLE) {
+    await waitForNativeOAuthPlugin(60);
+    if (hasRegisteredNativeOAuthPlugin()) {
+      try {
+        await startGoogleOAuthNative();
+        return;
+      } catch (error) {
+        window.__restorebraineOAuthInProgress = false;
+        if (error?.code === 'CANCELED' || /cancel/i.test(error?.message || '')) return;
+        console.warn('Native Google OAuth failed — opening system browser:', error);
+      }
+    }
+    oauthListenerAttached = false;
+    await attachOAuthCompletionListener();
+    window.__restorebraineOAuthMode = 'v4-system-browser';
+    await InAppBrowser.openInSystemBrowser({ url: oauthUrl, options: SYSTEM_BROWSER_OPTIONS });
+    return;
+  }
+
+  if (provider === 'google' && hasRegisteredNativeOAuthPlugin()) {
+    try {
+      await withTimeout(startGoogleOAuthNative(), 5000, 'Google OAuth');
+      return;
+    } catch (error) {
+      window.__restorebraineOAuthInProgress = false;
+      if (error?.code === 'CANCELED' || /cancel/i.test(error?.message || '')) return;
+      console.warn('Native Google OAuth failed — opening InAppBrowser:', error);
+    }
+  }
+
+  await openInAppBrowserOAuth(oauthUrl, provider);
+};
+
+/** Install OAuth listeners once at app startup (deep links + InAppBrowser navigation). */
+export const installNativeOAuthListeners = async () => {
+  if (typeof window === 'undefined' || window.__restorebraineOAuthListenersInstalled) return;
+  window.__restorebraineOAuthListenersInstalled = true;
+  installNativeOAuthBridgeListener();
+
+  // Do not overwrite v4-bridge handlers — bridge ASWebAuthenticationSession path works on device.
+  if (!window.__restorebraineSessionBridgeInstalled) {
+    window.__restorebraineOpenLogin = () => openLoginInSystemBrowser(getGoogleOAuthUrl(), 'google');
+    window.__restorebraineOpenProviderLogin = (provider) => {
+      const p = provider || 'google';
+      const url = p === 'google' ? getGoogleOAuthUrl() : getProviderOAuthUrl(p);
+      return openLoginInSystemBrowser(url, p);
+    };
+  }
+
+  try {
+    const { installNativeOAuthDeepLinkHandler } = await import('@/lib/session-bootstrap');
+    await installNativeOAuthDeepLinkHandler();
+    oauthListenerAttached = false;
+    await attachOAuthCompletionListener();
+  } catch (error) {
+    console.warn('Native OAuth listener setup failed:', error);
+  }
+};
+
+const handleAuthNavigation = (url, providerHint) => {
+  openLoginInSystemBrowser(url, providerHint);
+};
+
+const installNativeOAuthBridgeListener = () => {
+  if (typeof window === 'undefined' || window.__restorebraineNativeOAuthBridgeInstalled) return;
+  window.__restorebraineNativeOAuthBridgeInstalled = true;
+  window.addEventListener('restorebraine-native-oauth-complete', () => {
+    tryRestoreSessionAfterOAuth();
+  });
+};
+
+export const installLocationNavigationGuard = () => {
+  if (typeof window === 'undefined' || window.__restorebraineLocationGuardInstalled) return;
+  window.__restorebraineLocationGuardInstalled = true;
+
+  ['assign', 'replace'].forEach((method) => {
+    const original = Location.prototype[method];
+    Location.prototype[method] = function guardedNavigation(url) {
+      try {
+        const parsed = new URL(String(url), window.location.href);
+        if (parsed.searchParams.get('access_token')) {
+          redirectToNativeBundleHome(parsed.href);
+          return;
+        }
+        if (isPlatformLoginUrl(url)) {
+          handleAuthNavigation(getGoogleOAuthUrl(), 'google');
+          return;
+        }
+        if (isAuthNavigationUrl(url)) {
+          handleAuthNavigation(url);
+          return;
+        }
+        if (shouldBlockExternalNavigation(url)) {
+          redirectToNativeBundleHome(String(url));
+          return;
+        }
+        if (isBase44PlatformHost(parsed.hostname)) {
+          window.location.replace(getNativeWebViewHome());
+          return;
+        }
+      } catch {}
+
+      if (isPlatformLoginUrl(url)) {
+        handleAuthNavigation(getGoogleOAuthUrl(), 'google');
+        return;
+      }
+      if (isAuthNavigationUrl(url)) {
+        handleAuthNavigation(url);
+        return;
+      }
+      if (shouldBlockExternalNavigation(url)) {
+        redirectToNativeBundleHome(String(url));
+        return;
+      }
+      return original.call(this, url);
+    };
+  });
+
+  try {
+    const hrefDescriptor = Object.getOwnPropertyDescriptor(Location.prototype, 'href')
+      || Object.getOwnPropertyDescriptor(Object.getPrototypeOf(window.location), 'href');
+    if (hrefDescriptor?.set) {
+      Object.defineProperty(window.location, 'href', {
+        configurable: true,
+        enumerable: hrefDescriptor.enumerable,
+        get: hrefDescriptor.get?.bind(window.location),
+        set(value) {
+          try {
+            const parsed = new URL(String(value), window.location.href);
+            if (parsed.searchParams.get('access_token')) {
+              redirectToNativeBundleHome(parsed.href);
+              return;
+            }
+            if (isPlatformLoginUrl(value)) {
+              handleAuthNavigation(getGoogleOAuthUrl(), 'google');
+              return;
+            }
+            if (isAuthNavigationUrl(value)) {
+              handleAuthNavigation(value);
+              return;
+            }
+            if (shouldBlockExternalNavigation(value)) {
+              redirectToNativeBundleHome(String(value));
+              return;
+            }
+            if (isBase44PlatformHost(parsed.hostname)) {
+              window.location.replace(getNativeWebViewHome());
+              return;
+            }
+          } catch {}
+          if (isPlatformLoginUrl(value)) {
+            handleAuthNavigation(getGoogleOAuthUrl(), 'google');
+            return;
+          }
+          if (isAuthNavigationUrl(value)) {
+            handleAuthNavigation(value);
+            return;
+          }
+          if (shouldBlockExternalNavigation(value)) {
+            redirectToNativeBundleHome(String(value));
+            return;
+          }
+          hrefDescriptor.set.call(window.location, value);
+        },
+      });
+    }
+  } catch (error) {
+    console.warn('Could not patch window.location.href for OAuth guard.', error);
+  }
+};
+
+export const installNativeGoogleOAuthBrowser = () => {
+  if (typeof window === 'undefined' || window.__restorebraineGoogleOAuthBrowserInstalled) return;
+  window.__restorebraineGoogleOAuthBrowserInstalled = true;
+
+  installNativeOAuthBridgeListener();
+  installLocationNavigationGuard();
+
+  const originalOpen = window.open;
+  window.open = function openWithInAppBrowser(url, target, features) {
+    if (typeof url === 'string' && url.length > 0) {
+      if (isPlatformLoginUrl(url) || isAuthNavigationUrl(url)) {
+        handleAuthNavigation(isPlatformLoginUrl(url) ? getGoogleOAuthUrl() : url);
+        return window;
+      }
+      if (shouldBlockExternalNavigation(url)) {
+        redirectToNativeBundleHome(String(url));
+        return window;
+      }
+      window.location.assign(url);
+      return window;
+    }
+    return originalOpen ? originalOpen.call(window, url, target, features) : null;
+  };
+};
+
+export { NATIVE_OAUTH_CALLBACK, getProviderOAuthUrl };
+
+
+
+╔════════════════════════════════════════════════════════════╗
+║  PART 3 — Gallery UI + Layout + CSS (paste last, then Publish)║
+╚════════════════════════════════════════════════════════════╝
+
+════════════════════════════════════════════════════════════
+BASE44 PATH: src/lib/session-bootstrap.js
+ACTION: Open this exact path in the Base44 Code editor → Select All → Paste → Save
+════════════════════════════════════════════════════════════
+import { base44 } from '@/api/base44Client';
+import { appParams } from '@/lib/app-params';
+import { captureAccessTokenFromUrl } from '@/lib/native-oauth-fix';
+import { persistentStorage } from '@/lib/persistentStorage';
+
+const TOKEN_KEYS = ['base44_access_token', 'token'];
+const SIGNED_OUT_KEY = 'b44_signed_out';
+const PREFERENCES_TIMEOUT_MS = 2000;
+
+const readSyncToken = () => {
+  try {
+    if (localStorage.getItem(SIGNED_OUT_KEY) === '1') return null;
+    return localStorage.getItem('base44_access_token') || localStorage.getItem('token');
+  } catch {
+    return null;
+  }
+};
+
+const withTimeout = (promise, ms) =>
+  Promise.race([
+    promise,
+    new Promise((resolve) => {
+      setTimeout(() => resolve(null), ms);
+    }),
+  ]);
+
+export const restoreSessionFromNativeStorage = async () => {
+  const urlToken = captureAccessTokenFromUrl();
+  if (urlToken) {
+    await persistSessionToNativeStorage(urlToken);
+    return urlToken;
+  }
+
+  const syncToken = readSyncToken();
+  if (syncToken) {
+    appParams.token = syncToken;
+    base44.auth.setToken(syncToken, false);
+    return syncToken;
+  }
+
+  try {
+    if (typeof window !== 'undefined' && localStorage.getItem(SIGNED_OUT_KEY) === '1') return null;
+  } catch {}
+
+  const signedOut = await withTimeout(persistentStorage.get(SIGNED_OUT_KEY), PREFERENCES_TIMEOUT_MS);
+  if (signedOut === '1') return null;
+
+  for (const key of TOKEN_KEYS) {
+    const storedToken = await withTimeout(persistentStorage.get(key), PREFERENCES_TIMEOUT_MS);
+    if (!storedToken) continue;
+
+    appParams.token = storedToken;
+    persistentStorage._mirror('base44_access_token', storedToken);
+    persistentStorage._mirror('token', storedToken);
+    base44.auth.setToken(storedToken, false);
+    return storedToken;
+  }
+
+  return null;
+};
+
+
+export const installNativeOAuthDeepLinkHandler = async () => {
+  try {
+    const { isNativeShell } = await import('@/lib/native-hosted-redirect');
+    if (!isNativeShell()) return;
+
+    const { App } = await import('@capacitor/app');
+    const { handleNativeOAuthCallback, isOAuthCallbackUrl, tryRestoreSessionAfterOAuth } = await import('@/lib/native-google-oauth');
+
+    await App.addListener('appUrlOpen', async ({ url }) => {
+      if (!url || !isOAuthCallbackUrl(url)) return;
+      if (await handleNativeOAuthCallback(url)) return;
+      await tryRestoreSessionAfterOAuth();
+    });
+  } catch (error) {
+    console.warn('Native OAuth deep link handler unavailable.', error);
+  }
+};
+
+export const installNativeSessionPersistence = async () => {
+  try {
+    const { isNativeShell, isHostedAppOrigin } = await import('@/lib/native-hosted-redirect');
+    if (!isNativeShell() || isHostedAppOrigin()) return;
+
+    await installNativeOAuthDeepLinkHandler();
+
+    const { App } = await import('@capacitor/app');
+
+    await App.addListener('appStateChange', async ({ isActive }) => {
+      if (isActive) {
+        if (localStorage.getItem(SIGNED_OUT_KEY) !== '1') {
+          const token = await restoreSessionFromNativeStorage();
+          if (token) {
+            window.dispatchEvent(new CustomEvent('restorebraine-session-updated', { detail: { token } }));
+          } else if (window.__restorebraineOAuthInProgress) {
+            const { tryRestoreSessionAfterOAuth } = await import('@/lib/native-google-oauth');
+            await tryRestoreSessionAfterOAuth();
+          }
+        }
+        try {
+          const { enforceNativeBundleOrigin } = await import('@/lib/native-bundle-shell-guard');
+          enforceNativeBundleOrigin();
+        } catch {}
+        return;
+      }
+
+      if (localStorage.getItem(SIGNED_OUT_KEY) === '1') return;
+
+      const token = localStorage.getItem('base44_access_token') || localStorage.getItem('token');
+      if (token) {
+        await persistSessionToNativeStorage(token);
+      }
+    });
+  } catch (error) {
+    console.warn('Native session persistence listener unavailable.', error);
+  }
+};
+
+export const persistSessionToNativeStorage = async (token) => {
+  if (!token) return;
+  await persistentStorage.remove(SIGNED_OUT_KEY);
+  try { localStorage.removeItem(SIGNED_OUT_KEY); } catch {}
+  appParams.token = token;
+  base44.auth.setToken(token, false);
+  persistentStorage._mirror('base44_access_token', token);
+  persistentStorage._mirror('token', token);
+  await Promise.all(TOKEN_KEYS.map((key) => persistentStorage.set(key, token)));
+};
+
+export const clearNativeSession = async () => {
+  appParams.token = null;
+  await persistentStorage.set(SIGNED_OUT_KEY, '1');
+  try {
+    localStorage.setItem(SIGNED_OUT_KEY, '1');
+    localStorage.removeItem('base44_access_token');
+    localStorage.removeItem('token');
+    localStorage.removeItem('base44_logged_out');
+    base44.auth.setToken(null, false);
+  } catch {}
+  if (typeof window !== 'undefined' && window.__restorebraineClearSession) {
+    window.__restorebraineClearSession();
+  }
+  for (const key of TOKEN_KEYS) {
+    await persistentStorage.remove(key);
+  }
+};
+
+
+
+════════════════════════════════════════════════════════════
+BASE44 PATH: src/lib/app-branding.js
+ACTION: Open this exact path in the Base44 Code editor → Select All → Paste → Save
+════════════════════════════════════════════════════════════
+/** Branded app logo — embedded data URL on native (never fails WKWebView load). */
+import { LOGIN_LOGO_DATA_URL } from '@/lib/login-logo-data';
+
+export const RESTOREBRAINE_APP_LOGO_URL =
+  'https://media.base44.com/images/public/68fdc5f42768c4d045fe1bac/e76571efc_appstore.png';
+
+const bundledLogoNames = ['login-logo.png', 'AppIcon.png'];
+
+const resolveBundledLogoUrl = (filename) => {
+  try {
+    return new URL(filename, window.location.href).href;
+  } catch {
+    return `./${filename}`;
+  }
+};
+
+const isNativeRuntime = () => {
+  try {
+    return (
+      window.Capacitor?.isNativePlatform?.() ||
+      window.location?.protocol === 'capacitor:' ||
+      window.location?.protocol === 'ionic:'
+    );
+  } catch {
+    return false;
+  }
+};
+
+/** Native login card: embedded PNG first (never wait for Capacitor), then bundled files, then remote. */
+export const getRestorebraineAppLogo = () => {
+  if (LOGIN_LOGO_DATA_URL) return LOGIN_LOGO_DATA_URL;
+  if (typeof window === 'undefined') return RESTOREBRAINE_APP_LOGO_URL;
+  if (isNativeRuntime()) return resolveBundledLogoUrl(bundledLogoNames[0]);
+  return RESTOREBRAINE_APP_LOGO_URL;
+};
+
+export const getRestorebraineAppLogoFallbacks = () => {
+  const sources = [];
+  if (LOGIN_LOGO_DATA_URL) sources.push(LOGIN_LOGO_DATA_URL);
+  if (typeof window !== 'undefined' && isNativeRuntime()) {
+    sources.push(...bundledLogoNames.map(resolveBundledLogoUrl));
+  }
+  if (typeof window !== 'undefined') {
+    sources.push(RESTOREBRAINE_APP_LOGO_URL);
+  } else if (!sources.length) {
+    sources.push(RESTOREBRAINE_APP_LOGO_URL);
+  }
+  return sources;
+};
+
+/** @deprecated prefer getRestorebraineAppLogo() */
+export const RESTOREBRAINE_APP_LOGO = RESTOREBRAINE_APP_LOGO_URL;
+
+
+
+════════════════════════════════════════════════════════════
+BASE44 PATH: src/components/gallery/MobileGallery.jsx
+ACTION: Open this exact path in the Base44 Code editor → Select All → Paste → Save
+════════════════════════════════════════════════════════════
+import React, { useState, useRef } from "react";
+import { Search, X, Sparkles, ImageIcon, Grid3x3, Layers, MousePointer2, Check, Pencil, Loader2, FolderInput, Folder } from "lucide-react";
+
+import SelectablePhotoGrid from "./SelectablePhotoGrid";
+import MobilePhotoModal from "./MobilePhotoModal";
+import EmptyState from "./EmptyState";
+import OrganizeButton from "./OrganizeButton";
+import { SQUARE_FOLDER_ACTION_ACTIVE_CLASS, SQUARE_FOLDER_ACTION_ACTIVE_STYLE, SQUARE_FOLDER_ACTION_CLASS, SQUARE_FOLDER_ACTION_STYLE } from "./folderActionStyles";
+import CustomFolderButton from "./CustomFolderButton";
+import DuplicateDetector from "./DuplicateDetector";
+import MobileFolderCard from "./MobileFolderCard";
+import MobileDrawerMenu from "./MobileDrawerMenu";
+import { base44 } from "@/api/base44Client";
+import { DEPLOY_BUILD } from "@/deploy-marker";
+
+export default function MobileGallery({
+  photos,
+  folders,
+  isLoading,
+  filteredPhotos,
+  filteredFolders,
+  searchQuery,
+  setSearchQuery,
+  debouncedQuery,
+  selectedFolder,
+  setSelectedFolder,
+  selectionMode,
+  setSelectionMode,
+  selectedIds,
+  setSelectedIds,
+  selectedFolderIds,
+  setSelectedFolderIds,
+  toggleSelect,
+  toggleFolderSelect,
+  queryClient,
+  pushBack,
+  popBack,
+  onDeletePhotos,
+  onMoveToFolder,
+}) {
+  const [selectedPhoto, setSelectedPhoto] = useState(null);
+  const [searchFocused, setSearchFocused] = useState(false);
+  const [activeTab, setActiveTab] = useState("all");
+  const [renameFolder, setRenameFolder] = useState(null); // folder being renamed
+  const [renameName, setRenameName] = useState("");
+  const [renaming, setRenaming] = useState(false);
+  const [mergeDrawerOpen, setMergeDrawerOpen] = useState(false);
+  const [merging, setMerging] = useState(false);
+  const [folderMoveDrawerOpen, setFolderMoveDrawerOpen] = useState(false);
+  const inputRef = useRef(null);
+
+  const photosInFolders = new Set(folders.flatMap(f => f.photo_ids || []));
+  const unorganizedPhotos = photos.filter(p => !photosInFolders.has(p.id));
+
+  const exitSelection = () => {
+    setSelectionMode(false);
+    setSelectedIds([]);
+    setSelectedFolderIds([]);
+  };
+
+  // Rename selected folder (only works when exactly 1 folder selected)
+  const handleRenameOpen = () => {
+    if (selectedFolderIds.length !== 1) return;
+    const folder = folders.find(f => f.id === selectedFolderIds[0]);
+    if (folder) { setRenameFolder(folder); setRenameName(folder.name); }
+  };
+
+  const handleRenameSave = async () => {
+    if (!renameFolder || !renameName.trim()) return;
+    setRenaming(true);
+    await base44.entities.Folder.update(renameFolder.id, { name: renameName.trim() });
+    queryClient.invalidateQueries({ queryKey: ['folders'] });
+    setRenaming(false);
+    setRenameFolder(null);
+    exitSelection();
+  };
+
+  // Merge selected folders into a target folder
+  const handleMerge = async (targetFolderId) => {
+    setMergeDrawerOpen(false);
+    setMerging(true);
+    const targetFolder = folders.find(f => f.id === targetFolderId);
+    const sourceIds = selectedFolderIds; // all selected folders merge INTO target
+    let allPhotoIds = [...(targetFolder.photo_ids || [])];
+    for (const srcId of sourceIds) {
+      const src = folders.find(f => f.id === srcId);
+      if (src) allPhotoIds = [...allPhotoIds, ...(src.photo_ids || [])];
+    }
+    const uniqueIds = [...new Set(allPhotoIds)];
+    const coverPhoto = photos.find(p => p.id === uniqueIds[0]);
+    await base44.entities.Folder.update(targetFolderId, {
+      photo_ids: uniqueIds,
+      ...(coverPhoto && { cover_photo_url: coverPhoto.file_url }),
+    });
+    for (const srcId of sourceIds) {
+      await base44.entities.Folder.delete(srcId);
+    }
+    queryClient.invalidateQueries({ queryKey: ['folders'] });
+    setMerging(false);
+    exitSelection();
+  };
+
+  const handleDeleteFolders = async () => {
+    if (!selectedFolderIds.length) return;
+    if (!confirm(`Delete ${selectedFolderIds.length} folder(s)? Photos will not be deleted.`)) return;
+    for (const id of selectedFolderIds) await base44.entities.Folder.delete(id);
+    queryClient.invalidateQueries({ queryKey: ['folders'] });
+    exitSelection();
+  };
+
+  // Folder view
+  if (selectedFolder) {
+    const folderPhotos = photos.filter(p => (selectedFolder.photo_ids || []).includes(p.id));
+
+    const handleFolderPhotoMove = async (targetFolderId) => {
+      setMergeDrawerOpen(false);
+      const targetFolder = folders.find(f => f.id === targetFolderId);
+      if (!targetFolder) return;
+      // Add selected photos to target folder
+      const updatedTargetIds = [...new Set([...(targetFolder.photo_ids || []), ...selectedIds])];
+      await base44.entities.Folder.update(targetFolderId, {
+        photo_ids: updatedTargetIds,
+        cover_photo_url: targetFolder.cover_photo_url || photos.find(p => p.id === updatedTargetIds[0])?.file_url,
+      });
+      // Remove selected photos from current folder
+      const updatedSourceIds = (selectedFolder.photo_ids || []).filter(id => !selectedIds.includes(id));
+      await base44.entities.Folder.update(selectedFolder.id, { photo_ids: updatedSourceIds });
+      queryClient.invalidateQueries({ queryKey: ['folders'] });
+      exitSelection();
+    };
+
+    const handleFolderPhotoDelete = async () => {
+      if (!confirm(`Delete ${selectedIds.length} item(s)? This cannot be undone.`)) return;
+      await Promise.all(selectedIds.map(id => base44.entities.Photo.delete(id)));
+      queryClient.invalidateQueries({ queryKey: ['photos'] });
+      queryClient.invalidateQueries({ queryKey: ['folders'] });
+      exitSelection();
+    };
+
+    return (
+      <div className="min-h-screen pb-24 px-3 pt-20">
+        <div className="flex items-center justify-between mb-3 px-1">
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+            {folderPhotos.length} item{folderPhotos.length !== 1 ? 's' : ''}
+          </p>
+          {folderPhotos.length > 0 && (
+            <button
+              onClick={() => { setSelectionMode(!selectionMode); setSelectedIds([]); }}
+              className={`text-xs font-semibold px-3 py-1 rounded-full transition-colors ${selectionMode ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-600'}`}
+            >
+              {selectionMode ? 'Cancel' : 'Select'}
+            </button>
+          )}
+        </div>
+        {folderPhotos.length === 0 ? (
+          <div className="text-center py-16 text-gray-400">No photos in this folder</div>
+        ) : (
+          <div className="grid grid-cols-3 gap-1">
+            {folderPhotos.map(photo => {
+              const isSelected = selectedIds.includes(photo.id);
+              return (
+                <div
+                  key={photo.id}
+                  className="relative aspect-square bg-gray-100 overflow-hidden rounded-lg"
+                  onClick={() => selectionMode ? toggleSelect(photo.id) : setSelectedPhoto(photo)}
+                >
+                  {photo.file_type === 'video' ? (
+                    <video src={photo.file_url} className="w-full h-full object-cover" preload="metadata" />
+                  ) : (
+                    <img src={photo.file_url} alt="" className="w-full h-full object-cover" />
+                  )}
+                  {selectionMode && (
+                    <div className={`absolute top-1 right-1 w-5 h-5 rounded-full border-2 flex items-center justify-center z-10 ${isSelected ? 'bg-purple-600 border-purple-600' : 'bg-white/80 border-gray-400'}`}>
+                      {isSelected && <Check className="w-3 h-3 text-white" />}
+                    </div>
+                  )}
+                  {selectionMode && isSelected && (
+                    <div className="absolute inset-0 bg-purple-500/20 pointer-events-none" />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {selectedPhoto && (
+          <MobilePhotoModal photo={selectedPhoto} onClose={() => setSelectedPhoto(null)} folders={folders} />
+        )}
+
+        {/* Selection toolbar for folder view */}
+        {selectionMode && selectedIds.length > 0 && (
+          <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 w-[calc(100vw-2rem)]">
+            <div className="bg-white rounded-2xl shadow-2xl border border-purple-200 px-4 py-3 flex flex-col gap-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-semibold text-purple-700">
+                  {selectedIds.length} photo{selectedIds.length !== 1 ? 's' : ''} selected
+                </span>
+                <button onClick={exitSelection} className="text-gray-400 text-sm font-medium flex items-center gap-1">
+                  <X className="w-4 h-4" /> Cancel
+                </button>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setFolderMoveDrawerOpen(true)}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-purple-600 text-white text-sm font-semibold"
+                >
+                  <FolderInput className="w-4 h-4" /> Move to Folder
+                </button>
+                <button
+                  onClick={handleFolderPhotoDelete}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-red-50 text-red-600 text-sm font-semibold"
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Move to folder drawer (folder view) */}
+        <MobileDrawerMenu open={folderMoveDrawerOpen} onOpenChange={setFolderMoveDrawerOpen} title="Move to Folder">
+          {folders.filter(f => f.id !== selectedFolder.id).map(folder => (
+            <button
+              key={folder.id}
+              onClick={() => handleFolderPhotoMove(folder.id)}
+              className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 rounded-lg"
+            >
+              <Folder className="w-4 h-4 text-orange-500 flex-shrink-0" />
+              <span className="text-sm text-gray-800 truncate">{folder.name}</span>
+            </button>
+          ))}
+        </MobileDrawerMenu>
+      </div>
+    );
+  }
+
+  // Selectable folder card
+  const SelectableFolderCard = ({ folder }) => {
+    const isSelected = selectedFolderIds.includes(folder.id);
+    return (
+      <div
+        className="relative"
+        onClick={() => {
+          if (selectionMode) {
+            toggleFolderSelect(folder.id);
+          } else {
+            setSelectedFolder(folder);
+            pushBack(folder.name, () => { setSelectedFolder(null); setSelectionMode(false); setSelectedIds([]); });
+          }
+        }}
+      >
+        <MobileFolderCard folder={folder} photos={photos} onClick={() => {}} />
+        {selectionMode && (
+          <div className={`absolute top-1 right-1 w-5 h-5 rounded-full border-2 flex items-center justify-center z-10 ${
+            isSelected ? 'bg-purple-600 border-purple-600' : 'bg-white/80 border-gray-400'
+          }`}>
+            {isSelected && <Check className="w-3 h-3 text-white" />}
+          </div>
+        )}
+        {selectionMode && isSelected && (
+          <div className="absolute inset-0 rounded-xl bg-purple-500/20 pointer-events-none" />
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <div className="min-h-screen pb-24" data-rb-deploy={`v${DEPLOY_BUILD}`}>
+      {/* Hero Title */}
+      <div className="px-4 pt-5 pb-2">
+        <h1 className="text-2xl font-bold text-gray-900">
+          Find Your{" "}
+          <span className="bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
+            Memories
+          </span>
+        </h1>
+        <p className="text-sm text-gray-500 mt-0.5">Search using natural language</p>
+      </div>
+
+      {/* Search bar */}
+      <div className="px-4 pb-2">
+        <div className={`flex items-center gap-2 bg-blue-50 rounded-2xl px-4 py-3 transition-all duration-200 border border-blue-100 ${searchFocused ? 'bg-blue-100 ring-2 ring-blue-300' : ''}`}>
+          <Search className={`w-4 h-4 flex-shrink-0 transition-colors ${searchFocused ? 'text-blue-500' : 'text-blue-300'}`} />
+          <input
+            ref={inputRef}
+            type="text"
+            placeholder="Search memories..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onFocus={() => setSearchFocused(true)}
+            onBlur={() => setSearchFocused(false)}
+            className="flex-1 bg-transparent text-base outline-none placeholder:text-gray-400 text-gray-900"
+          />
+          {searchQuery ? (
+            <button onClick={() => setSearchQuery("")}>
+              <X className="w-4 h-4 text-gray-400" />
+            </button>
+          ) : searchFocused ? (
+            <Sparkles className="w-4 h-4 text-purple-400 animate-pulse" />
+          ) : null}
+        </div>
+        {debouncedQuery && (
+          <p className="text-xs text-gray-500 mt-1.5 text-center">
+            {filteredPhotos.length} result{filteredPhotos.length !== 1 ? 's' : ''} for "{debouncedQuery}"
+          </p>
+        )}
+      </div>
+
+      {/* Tabs */}
+      {!debouncedQuery && (
+        <div className="flex px-4 gap-1 mb-1 sticky top-14 z-20 bg-white/95 backdrop-blur-md pb-2">
+          <button
+            onClick={() => { setActiveTab("all"); exitSelection(); }}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-sm font-medium transition-colors ${activeTab === "all" ? "bg-purple-100 text-purple-700" : "text-gray-500"}`}
+          >
+            <Grid3x3 className="w-3.5 h-3.5" />
+            All ({photos.length})
+          </button>
+          <button
+            onClick={() => setActiveTab("folders")}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-sm font-medium transition-colors ${activeTab === "folders" ? "bg-purple-100 text-purple-700" : "text-gray-500"}`}
+          >
+            <Layers className="w-3.5 h-3.5" />
+            Folders ({folders.length})
+          </button>
+        </div>
+      )}
+
+      <div className="px-3 pt-1">
+        {debouncedQuery ? (
+          <>
+            {filteredFolders.length > 0 && (
+              <div className="mb-4">
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 px-1">Folders</p>
+                <div className="grid grid-cols-4 gap-2">
+                  {filteredFolders.map(folder => (
+                    <SelectableFolderCard key={folder.id} folder={folder} />
+                  ))}
+                </div>
+              </div>
+            )}
+            {filteredPhotos.length === 0 ? (
+              <div className="text-center py-16">
+                <ImageIcon className="w-12 h-12 text-gray-200 mx-auto mb-3" />
+                <p className="text-gray-500 font-medium">No results</p>
+                <p className="text-gray-400 text-sm">Try a different search</p>
+              </div>
+            ) : (
+              <SelectablePhotoGrid photos={filteredPhotos} onPhotoClick={setSelectedPhoto} selectionMode={false} selectedIds={[]} onToggleSelect={() => {}} />
+            )}
+          </>
+        ) : activeTab === "folders" ? (
+          <div>
+            {/* Action buttons — direct grid cells, no wrapper rim */}
+            <div className="grid grid-cols-2 gap-1.5 mb-5">
+              <OrganizeButton photos={photos} squareStyle />
+              <CustomFolderButton photos={photos} squareStyle />
+              <DuplicateDetector photos={photos} folders={folders} squareStyle />
+              <button
+                type="button"
+                data-rb-folder-action="select"
+                onClick={() => { setSelectionMode(!selectionMode); setSelectedIds([]); setSelectedFolderIds([]); }}
+                className={selectionMode ? SQUARE_FOLDER_ACTION_ACTIVE_CLASS : SQUARE_FOLDER_ACTION_CLASS}
+                style={selectionMode ? SQUARE_FOLDER_ACTION_ACTIVE_STYLE : SQUARE_FOLDER_ACTION_STYLE}
+              >
+                <MousePointer2 className="w-5 h-5" />
+                <span>{selectionMode ? 'Exit Select' : 'Select'}</span>
+              </button>
+            </div>
+
+            {folders.length === 0 ? (
+              <div className="text-center py-16">
+                <Layers className="w-12 h-12 text-gray-200 mx-auto mb-3" />
+                <p className="text-gray-500 font-medium">No folders yet</p>
+                <p className="text-gray-400 text-sm">Tap Organize Media to create smart folders</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-4 gap-2">
+                {folders.map(folder => (
+                  <SelectableFolderCard key={folder.id} folder={folder} />
+                ))}
+              </div>
+            )}
+          </div>
+        ) : (
+          // All tab
+          <>
+            {isLoading ? (
+              <div className="flex flex-col items-center justify-center py-20 gap-3">
+                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-purple-400" />
+                <p className="text-gray-500 text-sm">Loading memories...</p>
+              </div>
+            ) : photos.length === 0 ? (
+              <EmptyState />
+            ) : (
+              <>
+                {folders.length > 0 && (
+                  <div className="mb-4">
+                    <div className="flex items-center justify-between mb-2 px-1">
+                      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Folders</p>
+                      <button onClick={() => setActiveTab("folders")} className="text-xs text-purple-500 font-medium">See all</button>
+                    </div>
+                    <div className="grid grid-cols-4 gap-2">
+                      {folders.slice(0, 8).map(folder => (
+                        <MobileFolderCard
+                          key={folder.id}
+                          folder={folder}
+                          photos={photos}
+                          onClick={() => {
+                            setSelectedFolder(folder);
+                            pushBack(folder.name, () => { setSelectedFolder(null); setSelectionMode(false); setSelectedIds([]); });
+                          }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {unorganizedPhotos.length > 0 && (
+                  <div>
+                    {folders.length > 0 && (
+                      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 px-1">
+                        Recents ({unorganizedPhotos.length})
+                      </p>
+                    )}
+                    <SelectablePhotoGrid
+                      photos={unorganizedPhotos}
+                      onPhotoClick={setSelectedPhoto}
+                      selectionMode={selectionMode}
+                      selectedIds={selectedIds}
+                      onToggleSelect={toggleSelect}
+                    />
+                  </div>
+                )}
+              </>
+            )}
+          </>
+        )}
+      </div>
+
+      {selectedPhoto && (
+        <MobilePhotoModal photo={selectedPhoto} onClose={() => setSelectedPhoto(null)} folders={folders} />
+      )}
+
+      {/* Folder selection toolbar */}
+      {selectionMode && (selectedFolderIds.length > 0 || selectedIds.length > 0) && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 w-[calc(100vw-2rem)]">
+          <div className="bg-white rounded-2xl shadow-2xl border border-purple-200 px-4 py-3 flex flex-col gap-3">
+            {/* Status row */}
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-semibold text-purple-700">
+                {selectedFolderIds.length > 0 && `${selectedFolderIds.length} folder${selectedFolderIds.length !== 1 ? 's' : ''}`}
+                {selectedFolderIds.length > 0 && selectedIds.length > 0 && ', '}
+                {selectedIds.length > 0 && `${selectedIds.length} photo${selectedIds.length !== 1 ? 's' : ''}`}
+                {' '}selected
+              </span>
+              <button onClick={exitSelection} className="text-gray-400 text-sm font-medium flex items-center gap-1">
+                <X className="w-4 h-4" /> Cancel
+              </button>
+            </div>
+
+            {/* Actions row */}
+            <div className="flex gap-2 flex-wrap">
+              {/* Rename — only when exactly 1 folder selected */}
+              {selectedFolderIds.length === 1 && selectedIds.length === 0 && (
+                <button
+                  onClick={handleRenameOpen}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-blue-50 text-blue-700 text-sm font-semibold"
+                >
+                  <Pencil className="w-4 h-4" /> Rename
+                </button>
+              )}
+
+              {/* Merge — when 1+ folders selected */}
+              {selectedFolderIds.length >= 1 && selectedIds.length === 0 && (
+                <button
+                  onClick={() => setMergeDrawerOpen(true)}
+                  disabled={merging}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-purple-600 text-white text-sm font-semibold disabled:opacity-50"
+                >
+                  {merging ? <Loader2 className="w-4 h-4 animate-spin" /> : <FolderInput className="w-4 h-4" />}
+                  Merge Folders
+                </button>
+              )}
+
+              {/* Move photos to folder */}
+              {selectedIds.length > 0 && (
+                <button
+                  onClick={() => setFolderMoveDrawerOpen(true)}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-purple-600 text-white text-sm font-semibold"
+                >
+                  <FolderInput className="w-4 h-4" /> Move to Folder
+                </button>
+              )}
+
+              {/* Delete */}
+              {(selectedFolderIds.length > 0 || selectedIds.length > 0) && (
+                <button
+                  onClick={() => {
+                    if (selectedFolderIds.length > 0) handleDeleteFolders();
+                    if (selectedIds.length > 0) onDeletePhotos();
+                  }}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-red-50 text-red-600 text-sm font-semibold"
+                >
+                  Delete
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Merge folders drawer */}
+      <MobileDrawerMenu open={mergeDrawerOpen} onOpenChange={setMergeDrawerOpen} title="Merge into folder">
+        {folders
+          .filter(f => !selectedFolderIds.includes(f.id))
+          .map(folder => (
+            <button
+              key={folder.id}
+              onClick={() => handleMerge(folder.id)}
+              className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 rounded-lg"
+            >
+              <Folder className="w-4 h-4 text-orange-500 flex-shrink-0" />
+              <span className="text-sm text-gray-800 truncate">{folder.name}</span>
+            </button>
+          ))
+        }
+      </MobileDrawerMenu>
+
+      {/* Move photos to folder drawer */}
+      <MobileDrawerMenu open={folderMoveDrawerOpen} onOpenChange={setFolderMoveDrawerOpen} title="Move to Folder">
+        {folders.map(folder => (
+          <button
+            key={folder.id}
+            onClick={() => { setFolderMoveDrawerOpen(false); onMoveToFolder(folder.id); }}
+            className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 rounded-lg"
+          >
+            <Folder className="w-4 h-4 text-orange-500 flex-shrink-0" />
+            <span className="text-sm text-gray-800 truncate">{folder.name}</span>
+          </button>
+        ))}
+      </MobileDrawerMenu>
+
+      {/* Rename modal */}
+      {renameFolder && (
+        <div className="fixed inset-0 z-[100] bg-black/50 flex items-end justify-center" onClick={() => setRenameFolder(null)}>
+          <div className="bg-white w-full rounded-t-3xl p-6 pb-10" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-gray-900 mb-4">Rename Folder</h3>
+            <input
+              autoFocus
+              value={renameName}
+              onChange={e => setRenameName(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleRenameSave()}
+              className="w-full border-2 border-purple-300 rounded-xl px-4 py-3 text-base outline-none focus:border-purple-500 mb-4"
+            />
+            <div className="flex gap-3">
+              <button onClick={() => setRenameFolder(null)} className="flex-1 py-3 rounded-xl border border-gray-200 text-gray-600 font-semibold">
+                Cancel
+              </button>
+              <button
+                onClick={handleRenameSave}
+                disabled={renaming || !renameName.trim()}
+                className="flex-1 py-3 rounded-xl bg-purple-600 text-white font-semibold disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {renaming ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+════════════════════════════════════════════════════════════
+BASE44 PATH: src/components/gallery/folderActionStyles.js
+ACTION: Open this exact path in the Base44 Code editor → Select All → Paste → Save
+════════════════════════════════════════════════════════════
+/** Compact tile — mostly white with a subtle purple hint at the corner */
+export const SQUARE_FOLDER_ACTION_CLASS =
+  'w-full min-h-[4.25rem] flex flex-col items-center justify-center gap-1 py-3 rounded-2xl bg-gradient-to-br from-white via-white to-purple-50/60 text-gray-700 border border-gray-200/80 shadow-sm text-sm font-semibold disabled:opacity-50';
+
+export const ORGANIZE_ICON_CLASS = 'w-5 h-5 text-purple-500';
+export const ORGANIZE_LABEL_CLASS = 'text-purple-600 font-semibold';
+
+export const SQUARE_FOLDER_ACTION_STYLE = {
+  width: '100%',
+  minHeight: '4.25rem',
+  boxSizing: 'border-box',
+};
+
+export const SQUARE_FOLDER_ACTION_ACTIVE_CLASS =
+  'w-full min-h-[4.25rem] flex flex-col items-center justify-center gap-1 py-3 rounded-2xl text-sm font-semibold shadow-sm border-0 transition-colors bg-purple-600 text-white';
+
+export const SQUARE_FOLDER_ACTION_ACTIVE_STYLE = SQUARE_FOLDER_ACTION_STYLE;
+
+
+
+════════════════════════════════════════════════════════════
+BASE44 PATH: src/components/gallery/OrganizeButton.jsx
+ACTION: Open this exact path in the Base44 Code editor → Select All → Paste → Save
+════════════════════════════════════════════════════════════
+import React, { useState } from "react";
+import { base44 } from "@/api/base44Client";
+import { Button } from "@/components/ui/button";
+import { FolderPlus, Loader2, Sparkles } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import { reanalyzeWeakPhotos } from "@/lib/media-analysis";
+import { isWeakMetadata } from "@/lib/media-tags";
+import {
+  buildFolderOptions,
+  buildLabelPrompt,
+  buildMergePrompt,
+  photoDataForOrganize,
+} from "@/lib/media-organize";
+import { ORGANIZE_ICON_CLASS, ORGANIZE_LABEL_CLASS, SQUARE_FOLDER_ACTION_CLASS, SQUARE_FOLDER_ACTION_STYLE } from "./folderActionStyles";
+
+const CHUNK_SIZE = 40;
+const CONCURRENCY = 4;
+const MERGE_CHUNK = 25;
+
+async function runConcurrent(tasks, concurrency) {
+  const results = new Array(tasks.length);
+  let index = 0;
+  async function runNext() {
+    while (index < tasks.length) {
+      const i = index++;
+      results[i] = await tasks[i]();
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(concurrency, tasks.length) }, runNext));
+  return results;
+}
+
+async function labelChunk(chunk, existingFolderNames, customInstructions) {
+  const photoData = chunk.map(photoDataForOrganize);
+  const folderOptions = buildFolderOptions(existingFolderNames);
+
+  const result = await base44.integrations.Core.InvokeLLM({
+    prompt: buildLabelPrompt({ photoData, folderOptions, customInstructions }),
+    response_json_schema: {
+      type: "object",
+      properties: {
+        labels: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              id: { type: "string" },
+              folder: { type: "string" },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  return result.labels || [];
+}
+
+async function mergeGroupBatch(groups, existingFolderNames, customInstructions) {
+  const result = await base44.integrations.Core.InvokeLLM({
+    prompt: buildMergePrompt({ groups, existingFolderNames, customInstructions }),
+    response_json_schema: {
+      type: "object",
+      properties: {
+        folders: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              name: { type: "string" },
+              ids: { type: "array", items: { type: "string" } },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  return (result.folders || []).map((f) => ({ name: f.name, ids: f.ids || [] }));
+}
+
+async function consolidateGroups(initialGroups, existingFolderNames, customInstructions, onProgress) {
+  let groups = initialGroups;
+  let pass = 1;
+
+  while (groups.length > MERGE_CHUNK) {
+    onProgress(`Phase 2 (pass ${pass}): merging ${groups.length} groups…`);
+    const batches = [];
+    for (let i = 0; i < groups.length; i += MERGE_CHUNK) {
+      batches.push(groups.slice(i, i + MERGE_CHUNK));
+    }
+    const batchResults = await runConcurrent(
+      batches.map((batch) => () => mergeGroupBatch(batch, existingFolderNames, customInstructions)),
+      CONCURRENCY
+    );
+    const merged = new Map();
+    for (const batch of batchResults) {
+      for (const { name, ids } of batch) {
+        const key = name.toLowerCase().trim();
+        if (!merged.has(key)) merged.set(key, { name, ids: new Set(ids) });
+        else ids.forEach((id) => merged.get(key).ids.add(id));
+      }
+    }
+    groups = Array.from(merged.values()).map((g) => ({ name: g.name, ids: [...g.ids] }));
+    pass++;
+  }
+
+  onProgress(`Phase 2: final consolidation of ${groups.length} groups…`);
+  const finalGroups = await mergeGroupBatch(groups, existingFolderNames, customInstructions);
+
+  const finalMap = new Map();
+  for (const { name, ids } of finalGroups) {
+    const key = name.toLowerCase().trim();
+    if (!finalMap.has(key)) finalMap.set(key, { name, ids: new Set(ids) });
+    else ids.forEach((id) => finalMap.get(key).ids.add(id));
+  }
+
+  return Array.from(finalMap.values()).map((g) => ({
+    name: g.name,
+    photo_ids: [...g.ids],
+  }));
+}
+
+export default function OrganizeButton({ photos, squareStyle = false }) {
+  const [organizing, setOrganizing] = useState(false);
+  const [progress, setProgress] = useState("");
+  const [showDialog, setShowDialog] = useState(false);
+  const [customInstructions, setCustomInstructions] = useState("");
+  const [includeOrganized, setIncludeOrganized] = useState(false);
+  const [sharpenTags, setSharpenTags] = useState(true);
+  const queryClient = useQueryClient();
+
+  const weakCount = photos.filter(isWeakMetadata).length;
+
+  const handleOrganize = async () => {
+    if (photos.length < 2) {
+      alert("You need at least 2 photos to organize.");
+      return;
+    }
+
+    setShowDialog(false);
+    setOrganizing(true);
+
+    try {
+      const existingFolders = await base44.entities.Folder.list();
+      const organizedPhotoIds = new Set(existingFolders.flatMap((f) => f.photo_ids || []));
+      const existingFolderNames = existingFolders.map((f) => f.name);
+
+      let photosToOrganize = includeOrganized
+        ? photos
+        : photos.filter((p) => !organizedPhotoIds.has(p.id));
+
+      if (photosToOrganize.length < 2) {
+        alert(
+          photosToOrganize.length === 0
+            ? "All photos are already in folders. Check 'Re-organize everything' to re-sort."
+            : "Only 1 loose photo found — need at least 2 to organize."
+        );
+        setOrganizing(false);
+        return;
+      }
+
+      if (includeOrganized && existingFolders.length > 0) {
+        setProgress(`Clearing ${existingFolders.length} existing folders for re-organization…`);
+        await runConcurrent(
+          existingFolders.map((f) => () => base44.entities.Folder.delete(f.id)),
+          5
+        );
+      }
+
+      if (sharpenTags) {
+        const weakInBatch = photosToOrganize.filter(isWeakMetadata).length;
+        if (weakInBatch > 0) {
+          setProgress(`Sharpening visual tags for ${weakInBatch} item${weakInBatch !== 1 ? "s" : ""}…`);
+          photosToOrganize = await reanalyzeWeakPhotos(photosToOrganize, { onProgress: setProgress });
+        }
+      }
+
+      const chunks = [];
+      for (let i = 0; i < photosToOrganize.length; i += CHUNK_SIZE) {
+        chunks.push(photosToOrganize.slice(i, i + CHUNK_SIZE));
+      }
+
+      const totalChunks = chunks.length;
+      let completedChunks = 0;
+      setProgress(
+        `Phase 1: labelling ${photosToOrganize.length} item${photosToOrganize.length !== 1 ? "s" : ""} (${totalChunks} batch${totalChunks !== 1 ? "es" : ""})…`
+      );
+
+      const labelTasks = chunks.map((chunk) => async () => {
+        const labels = await labelChunk(
+          chunk,
+          includeOrganized ? [] : existingFolderNames,
+          customInstructions
+        );
+        completedChunks++;
+        setProgress(`Phase 1: ${completedChunks}/${totalChunks} batches done…`);
+        return labels;
+      });
+
+      const labelResults = await runConcurrent(labelTasks, CONCURRENCY);
+      const allLabels = labelResults.flat();
+
+      const labelledIds = new Set(allLabels.map((l) => l.id));
+      for (const photo of photosToOrganize) {
+        if (!labelledIds.has(photo.id)) {
+          allLabels.push({ id: photo.id, folder: "Miscellaneous" });
+        }
+      }
+
+      const groupMap = new Map();
+      for (const { id, folder } of allLabels) {
+        const display = (folder || "Miscellaneous").trim();
+        const key = display.toLowerCase();
+        if (!groupMap.has(key)) groupMap.set(key, { name: display, ids: new Set() });
+        groupMap.get(key).ids.add(id);
+      }
+      const initialGroups = Array.from(groupMap.values()).map((g) => ({
+        name: g.name,
+        ids: [...g.ids],
+      }));
+
+      const finalFolders = await consolidateGroups(
+        initialGroups,
+        includeOrganized ? [] : existingFolderNames,
+        customInstructions,
+        setProgress
+      );
+
+      setProgress(`Saving ${finalFolders.length} folders…`);
+
+      const currentFolders = includeOrganized ? [] : existingFolders;
+
+      const seenThisRun = new Set();
+      const foldersToSave = [];
+      for (const folder of finalFolders) {
+        const uniqueIds = (folder.photo_ids || []).filter((id) => {
+          if (seenThisRun.has(id)) return false;
+          seenThisRun.add(id);
+          return true;
+        });
+        if (uniqueIds.length >= 1) {
+          foldersToSave.push({ ...folder, photo_ids: uniqueIds });
+        }
+      }
+
+      const folderTasks = foldersToSave.map((folder) => async () => {
+        const matchingFolder = currentFolders.find(
+          (f) => f.name.toLowerCase() === folder.name.toLowerCase()
+        );
+
+        if (matchingFolder) {
+          const mergedIds = [...new Set([...(matchingFolder.photo_ids || []), ...folder.photo_ids])];
+          const coverPhoto =
+            !matchingFolder.cover_photo_url && mergedIds.length > 0
+              ? photos.find((p) => p.id === mergedIds[0])
+              : null;
+          await base44.entities.Folder.update(matchingFolder.id, {
+            photo_ids: mergedIds,
+            ...(coverPhoto && { cover_photo_url: coverPhoto.file_url }),
+          });
+        } else {
+          const coverPhoto = photos.find((p) => p.id === folder.photo_ids[0]);
+          await base44.entities.Folder.create({
+            name: folder.name,
+            description: "",
+            photo_ids: folder.photo_ids,
+            cover_photo_url: coverPhoto?.file_url || "",
+          });
+        }
+      });
+
+      await runConcurrent(folderTasks, 5);
+
+      const totalSaved = foldersToSave.reduce((sum, f) => sum + f.photo_ids.length, 0);
+      const missed = photosToOrganize.length - totalSaved;
+
+      setProgress("");
+      queryClient.invalidateQueries({ queryKey: ["folders"] });
+      queryClient.invalidateQueries({ queryKey: ["photos"] });
+
+      if (foldersToSave.length === 0) {
+        alert("No groups found to organize.");
+      } else if (missed > 0) {
+        alert(
+          `Done! ${totalSaved} of ${photosToOrganize.length} items organized into ${foldersToSave.length} folders. ${missed} items had no clear group — press Organize again to retry.`
+        );
+      }
+    } catch (error) {
+      console.error("Error organizing:", error);
+      alert(error?.message || "Failed to organize photos. Please try again.");
+      setProgress("");
+    } finally {
+      setOrganizing(false);
+    }
+  };
+
+  return (
+    <>
+      {squareStyle ? (
+        <button
+          type="button"
+          data-rb-folder-action="organize"
+          onClick={() => setShowDialog(true)}
+          disabled={organizing || photos.length < 2}
+          className={`relative ${SQUARE_FOLDER_ACTION_CLASS}`}
+          style={SQUARE_FOLDER_ACTION_STYLE}
+        >
+          {organizing ? (
+            <Loader2 className={`${ORGANIZE_ICON_CLASS} animate-spin`} />
+          ) : (
+            <Sparkles className={ORGANIZE_ICON_CLASS} />
+          )}
+          <span className={ORGANIZE_LABEL_CLASS} data-rb-organize-label>
+            {organizing ? "Organizing..." : "Organize"}
+          </span>
+          {progress && (
+            <div className="absolute top-full left-0 right-0 mt-2 p-2 bg-white rounded-lg shadow-lg border border-orange-200 whitespace-nowrap z-10">
+              <div className="flex items-center gap-2 text-sm text-orange-600">
+                <Sparkles className="w-3 h-3 animate-pulse" />
+                {progress}
+              </div>
+            </div>
+          )}
+        </button>
+      ) : (
+        <div className="relative">
+          <Button
+            onClick={() => setShowDialog(true)}
+            disabled={organizing || photos.length < 2}
+            className="bg-gradient-to-r from-blue-400 to-purple-500 hover:from-blue-500 hover:to-purple-600 text-white gap-2"
+          >
+            {organizing ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Organizing...
+              </>
+            ) : (
+              <>
+                <FolderPlus className="w-4 h-4" />
+                Organize
+              </>
+            )}
+          </Button>
+          {progress && (
+            <div className="absolute top-full left-0 right-0 mt-2 p-2 bg-white rounded-lg shadow-lg border border-orange-200 whitespace-nowrap z-10">
+              <div className="flex items-center gap-2 text-sm text-orange-600">
+                <Sparkles className="w-3 h-3 animate-pulse" />
+                {progress}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      <Dialog open={showDialog} onOpenChange={setShowDialog}>
+        <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Organize Media</DialogTitle>
+            <DialogDescription>
+              AI groups photos and videos by what they look like — grass fields, beaches, pets, food, and more
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="instructions">
+                Custom Instructions (Optional)
+                {customInstructions && (
+                  <span className="ml-2 text-xs text-purple-600 font-semibold">✓ Instructions added</span>
+                )}
+              </Label>
+              <Textarea
+                id="instructions"
+                placeholder="e.g., 'Group by month and year' or 'Keep vacation photos separate' or 'Put all grass and field photos together'"
+                value={customInstructions}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setCustomInstructions(value);
+                  const needsOrganized = value
+                    .toLowerCase()
+                    .match(/\b(consolidate|merge|combine|take all folders|move folders|reorganize folders)\b/);
+                  if (needsOrganized && !includeOrganized) setIncludeOrganized(true);
+                }}
+                className="min-h-[100px]"
+              />
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="sharpen-tags"
+                checked={sharpenTags}
+                onCheckedChange={setSharpenTags}
+              />
+              <Label htmlFor="sharpen-tags" className="text-sm font-normal cursor-pointer">
+                Sharpen visual tags before organizing
+                {weakCount > 0 && (
+                  <span className="text-gray-500 ml-1">({weakCount} item{weakCount !== 1 ? "s" : ""} need better tags)</span>
+                )}
+              </Label>
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="include-organized"
+                checked={includeOrganized}
+                onCheckedChange={setIncludeOrganized}
+              />
+              <Label htmlFor="include-organized" className="text-sm font-normal cursor-pointer">
+                Re-organize everything — consolidate all existing folders and re-sort all media from scratch.
+              </Label>
+            </div>
+
+            {includeOrganized && (
+              <p className="text-xs text-orange-600 font-medium ml-6">
+                ⚠️ This will delete all existing folders and rebuild them. Your photos won&apos;t be deleted.
+              </p>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDialog(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleOrganize}
+              className="bg-gradient-to-r from-blue-400 to-purple-500 hover:from-blue-500 hover:to-purple-600"
+            >
+              <Sparkles className="w-4 h-4 mr-2" />
+              Auto Organize
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+
+
+════════════════════════════════════════════════════════════
+BASE44 PATH: src/components/gallery/CustomFolderButton.jsx
+ACTION: Open this exact path in the Base44 Code editor → Select All → Paste → Save
+════════════════════════════════════════════════════════════
+import React, { useState } from "react";
+import { base44 } from "@/api/base44Client";
+import { Button } from "@/components/ui/button";
+import { FolderPlus, Plus, X, Check, Loader2 } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { SQUARE_FOLDER_ACTION_CLASS, SQUARE_FOLDER_ACTION_STYLE } from "./folderActionStyles";
+
+export default function CustomFolderButton({ photos, squareStyle = false }) {
+  const [showDialog, setShowDialog] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [folders, setFolders] = useState([]);
+  const queryClient = useQueryClient();
+
+  const addFolder = () => {
+    setFolders([...folders, { name: "", description: "", photo_ids: [] }]);
+  };
+
+  const removeFolder = (index) => {
+    setFolders(folders.filter((_, i) => i !== index));
+  };
+
+  const updateFolder = (index, field, value) => {
+    const updated = [...folders];
+    updated[index][field] = value;
+    setFolders(updated);
+  };
+
+  const togglePhotoInFolder = (folderIndex, photoId) => {
+    const updated = [...folders];
+    const folder = updated[folderIndex];
+    if (folder.photo_ids.includes(photoId)) {
+      folder.photo_ids = folder.photo_ids.filter(id => id !== photoId);
+    } else {
+      folder.photo_ids.push(photoId);
+    }
+    setFolders(updated);
+  };
+
+  const handleCreate = async () => {
+    const validFolders = folders.filter(f => f.name.trim() && f.photo_ids.length > 0);
+    if (validFolders.length === 0) {
+      alert("Please add folder names and select photos.");
+      return;
+    }
+
+    setCreating(true);
+
+    try {
+      for (const folder of validFolders) {
+        const coverPhoto = photos.find(p => p.id === folder.photo_ids[0]);
+        await base44.entities.Folder.create({
+          name: folder.name,
+          description: folder.description || "",
+          photo_ids: folder.photo_ids,
+          cover_photo_url: coverPhoto?.file_url || ""
+        });
+      }
+
+      queryClient.invalidateQueries({ queryKey: ['folders'] });
+      setFolders([]);
+      setShowDialog(false);
+    } catch (error) {
+      console.error("Error creating folders:", error);
+      alert("Failed to create folders. Please try again.");
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  return (
+    <>
+      <Dialog open={showDialog} onOpenChange={(open) => {
+        setShowDialog(open);
+        if (!open) setFolders([]);
+      }}>
+        <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Create Custom Folders</DialogTitle>
+            <DialogDescription>
+              Create folders and assign photos manually
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div className="flex items-center justify-between">
+              <Label>Your Folders</Label>
+              <Button onClick={addFolder} size="sm" variant="outline" className="gap-2">
+                <Plus className="w-4 h-4" />
+                Add Folder
+              </Button>
+            </div>
+
+            {folders.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                Click "Add Folder" to create your first folder
+              </div>
+            ) : (
+              <div className="space-y-4 max-h-[400px] overflow-y-auto">
+                {folders.map((folder, index) => (
+                  <div key={index} className="p-4 border rounded-lg space-y-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 space-y-2">
+                        <Input
+                          placeholder="Folder name"
+                          value={folder.name}
+                          onChange={(e) => updateFolder(index, 'name', e.target.value)}
+                        />
+                        <Input
+                          placeholder="Description (optional)"
+                          value={folder.description}
+                          onChange={(e) => updateFolder(index, 'description', e.target.value)}
+                        />
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => removeFolder(index)}
+                        className="text-red-500"
+                      >
+                        <X className="w-4 h-4" />
+                      </Button>
+                    </div>
+
+                    <div>
+                      <Label className="text-sm text-gray-600">
+                        Select Photos ({folder.photo_ids.length} selected)
+                      </Label>
+                      <div className="mt-2 grid grid-cols-4 gap-2 max-h-[200px] overflow-y-auto p-2 border rounded">
+                        {photos.map((photo) => {
+                          const isSelected = folder.photo_ids.includes(photo.id);
+                          return (
+                            <div
+                              key={photo.id}
+                              onClick={() => togglePhotoInFolder(index, photo.id)}
+                              className={`relative aspect-square rounded-lg overflow-hidden cursor-pointer border-2 transition-all ${
+                                isSelected ? 'border-purple-500 ring-2 ring-purple-300' : 'border-gray-200'
+                              }`}
+                            >
+                              <img
+                                src={photo.file_url}
+                                alt={photo.ai_description}
+                                className="w-full h-full object-cover"
+                              />
+                              {isSelected && (
+                                <div className="absolute inset-0 bg-purple-500/30 flex items-center justify-center">
+                                  <div className="w-6 h-6 bg-purple-500 rounded-full flex items-center justify-center">
+                                    <Check className="w-4 h-4 text-white" />
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDialog(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleCreate}
+              disabled={folders.length === 0 || creating}
+              className="bg-gradient-to-r from-blue-400 to-purple-500 hover:from-blue-500 hover:to-purple-600"
+            >
+              {creating ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Creating...
+                </>
+              ) : (
+                'Create Folders'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {squareStyle ? (
+        <button
+          type="button"
+          data-rb-folder-action="new-folder"
+          onClick={() => setShowDialog(true)}
+          disabled={photos.length === 0}
+          className={SQUARE_FOLDER_ACTION_CLASS}
+          style={SQUARE_FOLDER_ACTION_STYLE}
+        >
+          <FolderPlus className="w-5 h-5 text-orange-500" />
+          <span>New Folder</span>
+        </button>
+      ) : (
+        <Button
+          onClick={() => setShowDialog(true)}
+          disabled={photos.length === 0}
+          className="bg-gradient-to-r from-blue-400 to-purple-500 hover:from-blue-500 hover:to-purple-600 text-white gap-2"
+        >
+          <FolderPlus className="w-4 h-4" />
+          Custom Folder
+        </Button>
+      )}
+    </>
+  );
+}
+
+
+════════════════════════════════════════════════════════════
+BASE44 PATH: src/components/gallery/DuplicateDetector.jsx
+ACTION: Open this exact path in the Base44 Code editor → Select All → Paste → Save
+════════════════════════════════════════════════════════════
+import React, { useState, useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import { base44 } from "@/api/base44Client";
+import { useQueryClient } from "@tanstack/react-query";
+import { Copy, Loader2, CheckCircle, AlertTriangle } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { SQUARE_FOLDER_ACTION_CLASS, SQUARE_FOLDER_ACTION_STYLE } from "./folderActionStyles";
+
+export default function DuplicateDetector({ photos, folders, squareStyle = false }) {
+  const [checking, setChecking] = useState(false);
+  const [duplicates, setDuplicates] = useState([]);
+  const [showDialog, setShowDialog] = useState(false);
+  const [consolidating, setConsolidating] = useState(false);
+  const queryClient = useQueryClient();
+
+  const findDuplicates = () => {
+    setChecking(true);
+    
+    // Find photos that appear in multiple folders
+    const photoFolderMap = {};
+    
+    folders.forEach(folder => {
+      const photoIds = folder.data?.photo_ids || folder.photo_ids || [];
+      photoIds.forEach(photoId => {
+        if (!photoFolderMap[photoId]) {
+          photoFolderMap[photoId] = [];
+        }
+        photoFolderMap[photoId].push(folder);
+      });
+    });
+    
+    // Find duplicates (photos in more than one folder)
+    const dupes = [];
+    Object.entries(photoFolderMap).forEach(([photoId, folderList]) => {
+      if (folderList.length > 1) {
+        const photo = photos.find(p => (p.data?.id || p.id) === photoId);
+        if (photo) {
+          dupes.push({
+            photo: photo.data || photo,
+            folders: folderList
+          });
+        }
+      }
+    });
+    
+    setDuplicates(dupes);
+    setShowDialog(true);
+    setChecking(false);
+  };
+
+  const consolidateDuplicates = async () => {
+    setConsolidating(true);
+    
+    try {
+      // For each duplicate, keep it only in the first folder
+      for (const dupe of duplicates) {
+        const [keepFolder, ...removeFolders] = dupe.folders;
+        
+        for (const folder of removeFolders) {
+          const folderId = folder.data?.id || folder.id;
+          const photoIds = folder.data?.photo_ids || folder.photo_ids || [];
+          const updatedIds = photoIds.filter(id => id !== dupe.photo.id);
+          await base44.entities.Folder.update(folderId, {
+            photo_ids: updatedIds
+          });
+        }
+      }
+      
+      queryClient.invalidateQueries({ queryKey: ['folders'] });
+      setShowDialog(false);
+      setDuplicates([]);
+    } catch (error) {
+      console.error("Error consolidating:", error);
+    } finally {
+      setConsolidating(false);
+    }
+  };
+
+  return (
+    <>
+      {squareStyle ? (
+        <button
+          type="button"
+          data-rb-folder-action="duplicates"
+          onClick={findDuplicates}
+          disabled={checking}
+          className={SQUARE_FOLDER_ACTION_CLASS}
+          style={SQUARE_FOLDER_ACTION_STYLE}
+        >
+          {checking ? <Loader2 className="w-5 h-5 animate-spin text-blue-500" /> : <Copy className="w-5 h-5 text-blue-500" />}
+          <span>Duplicates</span>
+        </button>
+      ) : (
+        <Button
+          onClick={findDuplicates}
+          disabled={checking}
+          className="bg-gradient-to-r from-blue-400 to-purple-500 hover:from-blue-500 hover:to-purple-600 text-white gap-2"
+        >
+          {checking ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <Copy className="w-4 h-4" />
+          )}
+          Check Duplicates
+        </Button>
+      )}
+
+      <Dialog open={showDialog} onOpenChange={setShowDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {duplicates.length > 0 ? (
+                <AlertTriangle className="w-5 h-5 text-amber-500" />
+              ) : (
+                <CheckCircle className="w-5 h-5 text-green-500" />
+              )}
+              Duplicate Check
+            </DialogTitle>
+            <DialogDescription>
+              {duplicates.length > 0 
+                ? `Found ${duplicates.length} photo${duplicates.length !== 1 ? 's' : ''} in multiple folders.`
+                : "No duplicates found! Your library is clean."
+              }
+            </DialogDescription>
+          </DialogHeader>
+
+          {duplicates.length > 0 && (
+            <div className="space-y-4">
+              <div className="max-h-60 overflow-y-auto space-y-3">
+                {duplicates.map((dupe, i) => (
+                  <div key={i} className="flex gap-3 p-2 bg-gray-50 rounded-lg">
+                    <img 
+                      src={dupe.photo.file_url} 
+                      className="w-12 h-12 object-cover rounded"
+                      alt=""
+                    />
+                    <div className="flex-1 min-w-0">
+                     <p className="text-sm text-gray-600 truncate">
+                       {dupe.photo.ai_description ? `${dupe.photo.ai_description.slice(0, 50)}...` : 'No description'}
+                     </p>
+                     <p className="text-xs text-amber-600">
+                       In: {dupe.folders.map(f => f.data?.name || f.name).join(", ")}
+                     </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <Button
+                onClick={consolidateDuplicates}
+                disabled={consolidating}
+                className="w-full bg-amber-500 hover:bg-amber-600"
+              >
+                {consolidating ? (
+                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                ) : null}
+                Consolidate (keep in first folder only)
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+
+════════════════════════════════════════════════════════════
+BASE44 PATH: src/components/ui/BrandGradientIcon.jsx
+ACTION: Open this exact path in the Base44 Code editor → Select All → Paste → Save
+════════════════════════════════════════════════════════════
+import { useId } from 'react';
+
+/** Shared blue→purple brand gradient (matches search bar / "Memories" title). */
+export const BRAND_GRADIENT_TEXT_CLASS =
+  'bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent';
+
+export function BrandGradientDefs() {
+  return (
+    <svg aria-hidden="true" focusable="false" className="absolute w-0 h-0 overflow-hidden pointer-events-none">
+      <defs>
+        <linearGradient id="rb-brand-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stopColor="#60a5fa" />
+          <stop offset="100%" stopColor="#a855f7" />
+        </linearGradient>
+      </defs>
+    </svg>
+  );
+}
+
+/** Gradient Lucide icon — embeds its own SVG defs so it works in Base44 without Layout. */
+export function BrandGradientIcon({ Icon, className, ...props }) {
+  const gradId = useId().replace(/:/g, '');
+  return (
+    <span className="inline-flex items-center justify-center leading-none">
+      <svg aria-hidden="true" focusable="false" className="absolute w-0 h-0 overflow-hidden pointer-events-none">
+        <defs>
+          <linearGradient id={gradId} x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="#60a5fa" />
+            <stop offset="100%" stopColor="#a855f7" />
+          </linearGradient>
+        </defs>
+      </svg>
+      <Icon className={className} stroke={`url(#${gradId})`} fill="none" {...props} />
+    </span>
+  );
+}
+
+
+
+════════════════════════════════════════════════════════════
+BASE44 PATH: src/Layout.jsx
+ACTION: Open this exact path in the Base44 Code editor → Select All → Paste → Save
+════════════════════════════════════════════════════════════
+import React, { useEffect, useRef } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { createPageUrl } from "@/utils";
+import { isGalleryPath, navigateToGallery, persistActiveSession } from "@/lib/gallery-nav";
+import { useAuth } from "@/lib/AuthContext";
+import { Search, Upload, User, ChevronLeft } from "lucide-react";
+
+/** Inlined for Base64 publish — native uses bundled AppIcon.png (remote logo blocked on iOS). */
+const RESTOREBRAINE_APP_LOGO =
+  typeof window !== 'undefined' && (window.Capacitor?.isNativePlatform?.() || window.location?.protocol === 'capacitor:')
+    ? new URL('AppIcon.png', window.location.href).href
+    : 'https://media.base44.com/images/public/68fdc5f42768c4d045fe1bac/e76571efc_appstore.png';
+import { AnimatePresence, motion } from "framer-motion";
+import { NavigationProvider, useNavigation } from "./components/NavigationContext";
+import { TabStateProvider } from "./components/TabStateContext";
+import { BrandGradientDefs } from "@/components/ui/BrandGradientIcon";
+const TAB_ORDER = ["Gallery", "Upload", "Account"];
+
+function LayoutInner({ children, currentPageName }) {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const prevIndexRef = useRef(0);
+  const { backState, popBack } = useNavigation();
+  const { resumeActiveSession } = useAuth();
+
+  const isTabActive = (name) => {
+    if (name === 'Gallery') return isGalleryPath(location.pathname);
+    return location.pathname === createPageUrl(name);
+  };
+
+  const currentIndex = TAB_ORDER.findIndex((name) => isTabActive(name));
+  const activeIndex = currentIndex === -1 ? 0 : currentIndex;
+  const direction = activeIndex >= prevIndexRef.current ? 1 : -1;
+
+  useEffect(() => {
+    prevIndexRef.current = activeIndex;
+  }, [activeIndex]);
+
+  // Dark mode detection
+  useEffect(() => {
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    const apply = (e) => document.documentElement.classList.toggle("dark", e.matches);
+    apply(mq);
+    mq.addEventListener("change", apply);
+    return () => mq.removeEventListener("change", apply);
+  }, []);
+
+  // Prevent overscroll bounce
+  useEffect(() => {
+    document.body.style.overscrollBehaviorY = "none";
+    return () => { document.body.style.overscrollBehaviorY = ""; };
+  }, []);
+
+  const tabs = [
+    { name: "Gallery", icon: Search, label: "Search" },
+    { name: "Upload", icon: Upload, label: "Upload" },
+    { name: "Account", icon: User, label: "Account" },
+  ];
+
+  const variants = {
+    enter: (dir) => ({ x: dir > 0 ? "100%" : "-100%", opacity: 0 }),
+    center: { x: 0, opacity: 1 },
+    exit: (dir) => ({ x: dir > 0 ? "-100%" : "100%", opacity: 0 }),
+  };
+
+  const handleBack = () => {
+    if (!backState) return;
+
+    if (isGalleryPath(location.pathname)) {
+      backState.onBack();
+      popBack();
+      return;
+    }
+
+    popBack();
+    navigateToGallery(navigate, { resumeActiveSession });
+  };
+
+  useEffect(() => {
+    if (!isGalleryPath(location.pathname)) popBack();
+  }, [location.pathname, popBack]);
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
+      <BrandGradientDefs />
+      <style>{`
+        :root {
+          --primary: 250 70% 75%;
+          --primary-dark: 250 65% 65%;
+        }
+        .safe-top { padding-top: env(safe-area-inset-top); }
+        .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+        * { -webkit-tap-highlight-color: transparent; }
+        button, a, [role="button"] { user-select: none; -webkit-user-select: none; }
+      `}</style>
+
+      {/* Top brand header */}
+      <header className="fixed top-0 left-0 right-0 z-50 bg-white/70 backdrop-blur-xl border-b border-purple-100 shadow-sm safe-top select-none">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center h-14 relative">
+            {/* Back button — shown on child routes */}
+            {backState ? (
+              <button
+                type="button"
+                data-rb-gallery-nav
+                onClick={handleBack}
+                className="flex items-center gap-1 text-purple-600 font-medium select-none absolute left-0"
+              >
+                <ChevronLeft className="w-5 h-5" />
+                <span className="text-sm">{backState.label}</span>
+              </button>
+            ) : null}
+
+            {/* Centered brand logo — hide when back button is shown to avoid overlap */}
+            <div className={`flex-1 flex justify-center ${backState ? 'invisible' : ''}`}>
+              <Link to={createPageUrl("Gallery")} className="flex items-center gap-2 select-none group">
+                <img
+                  src={RESTOREBRAINE_APP_LOGO}
+                  alt="Restorebraine"
+                  data-rb-logo="1"
+                  className="w-8 h-8 rounded-xl object-cover shadow-md transform group-hover:scale-105 transition-transform duration-200"
+                />
+                <span className="text-lg font-semibold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent select-none">
+                  Restorebraine
+                </span>
+              </Link>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Content with slide transition */}
+      <main className="pt-14 pb-20 safe-bottom overflow-hidden">
+        <AnimatePresence custom={direction} mode="wait">
+          <motion.div
+            key={location.pathname}
+            custom={direction}
+            variants={variants}
+            initial="enter"
+            animate="center"
+            exit="exit"
+            transition={{ type: "tween", duration: 0.22, ease: "easeInOut" }}
+          >
+            {children}
+          </motion.div>
+        </AnimatePresence>
+      </main>
+
+      {/* Bottom Tab Bar — always visible (hide toggle removed; broken on iOS) */}
+      <nav
+        className="fixed bottom-0 left-0 right-0 z-[100] select-none"
+        aria-label="App navigation"
+      >
+        <div className="bg-white/90 backdrop-blur-xl border-t border-purple-100 shadow-lg safe-bottom">
+          <div className="flex items-stretch max-w-lg mx-auto">
+            {tabs.map(({ name, icon: Icon, label }) => {
+              const isActive = isTabActive(name);
+              return (
+                <Link
+                  key={name}
+                  to={name === 'Gallery' ? createPageUrl('Gallery') : createPageUrl(name)}
+                  replace={isActive}
+                  data-rb-gallery-nav={name === 'Gallery' ? 'tab' : undefined}
+                  onClick={name === 'Gallery' ? () => {
+                    persistActiveSession().then(() => resumeActiveSession?.());
+                  } : undefined}
+                  className="flex-1 flex flex-col items-center justify-center py-3 gap-0.5 select-none relative"
+                >
+                  <Icon
+                    className={`w-5 h-5 transition-colors select-none ${
+                      isActive ? "text-purple-600" : "text-gray-400"
+                    }`}
+                  />
+                  <span
+                    className={`text-xs font-medium transition-colors select-none ${
+                      isActive ? "text-purple-600" : "text-gray-400"
+                    }`}
+                  >
+                    {label}
+                  </span>
+                  {isActive && (
+                    <span className="absolute bottom-0 w-8 h-0.5 bg-purple-500 rounded-full" />
+                  )}
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+      </nav>
+    </div>
+  );
+}
+
+export default function Layout({ children, currentPageName }) {
+  return (
+    <TabStateProvider>
+      <NavigationProvider>
+        <LayoutInner currentPageName={currentPageName} children={children} />
+      </NavigationProvider>
+    </TabStateProvider>
+  );
+}
+
+
+════════════════════════════════════════════════════════════
+BASE44 PATH: src/index.css
+ACTION: Open this exact path in the Base44 Code editor → Select All → Paste → Save
+════════════════════════════════════════════════════════════
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+
+/* :root {
+  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+
+  color-scheme: light dark;
+  color: rgba(255, 255, 255, 0.87);
+  background-color: #242424;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+a {
+  font-weight: 500;
+  color: #646cff;
+  text-decoration: inherit;
+}
+a:hover {
+  color: #535bf2;
+}
+
+body {
+  margin: 0;
+  display: flex;
+  place-items: center;
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+h1 {
+  font-size: 3.2em;
+  line-height: 1.1;
+}
+
+button {
+  border-radius: 8px;
+  border: 1px solid transparent;
+  padding: 0.6em 1.2em;
+  font-size: 1em;
+  font-weight: 500;
+  font-family: inherit;
+  background-color: #1a1a1a;
+  cursor: pointer;
+  transition: border-color 0.25s;
+}
+button:hover {
+  border-color: #646cff;
+}
+button:focus,
+button:focus-visible {
+  outline: 4px auto -webkit-focus-ring-color;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    color: #213547;
+    background-color: #ffffff;
+  }
+  a:hover {
+    color: #747bff;
+  }
+  button {
+    background-color: #f9f9f9;
+  }
+} */
+
+
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 0 0% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 3.9%;
+    --primary: 0 0% 9%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 0 0% 96.1%;
+    --secondary-foreground: 0 0% 9%;
+    --muted: 0 0% 96.1%;
+    --muted-foreground: 0 0% 45.1%;
+    --accent: 0 0% 96.1%;
+    --accent-foreground: 0 0% 9%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 89.8%;
+    --input: 0 0% 89.8%;
+    --ring: 0 0% 3.9%;
+    --chart-1: 12 76% 61%;
+    --chart-2: 173 58% 39%;
+    --chart-3: 197 37% 24%;
+    --chart-4: 43 74% 66%;
+    --chart-5: 27 87% 67%;
+    --radius: 0.5rem;
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 240 5.9% 10%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+  .dark {
+    --background: 0 0% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 0 0% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 0 0% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 0 0% 9%;
+    --secondary: 0 0% 14.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 0 0% 14.9%;
+    --muted-foreground: 0 0% 63.9%;
+    --accent: 0 0% 14.9%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 14.9%;
+    --input: 0 0% 14.9%;
+    --ring: 0 0% 83.1%;
+    --chart-1: 220 70% 50%;
+    --chart-2: 160 60% 45%;
+    --chart-3: 30 80% 55%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 340 75% 55%;
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}
+
+
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html,
+  body,
+  #root {
+    margin: 0;
+    min-height: 100%;
+    height: 100%;
+  }
+  body {
+    @apply bg-background text-foreground;
+    min-height: 100dvh;
+  }
+  #root {
+    min-height: 100dvh;
+  }
+}
+
+/* Folders tab: compact tiles — fill is the button, no outer border rim */
+div.grid.grid-cols-2.gap-1\.5.mb-5 > button,
+div.grid.grid-cols-2.gap-1\.5.mb-5 [data-rb-folder-action],
+div.grid.grid-cols-2.gap-2.mb-5 > button,
+div.grid.grid-cols-2.gap-2.mb-5 [data-rb-folder-action] {
+  box-sizing: border-box !important;
+  width: 100% !important;
+  height: auto !important;
+  min-height: 4.25rem !important;
+  max-width: none !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 0.25rem !important;
+  padding: 0.75rem !important;
+  border-radius: 1rem !important;
+  background: linear-gradient(to bottom right, #ffffff 0%, #ffffff 70%, rgb(250 245 255) 100%) !important;
+  border: 1px solid rgb(229 231 235) !important;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.08), 0 1px 2px -1px rgba(0, 0, 0, 0.04) !important;
+  font-size: 0.875rem !important;
+  font-weight: 600 !important;
+  outline: none !important;
+  -webkit-appearance: none !important;
+  appearance: none !important;
+}
+
+div.grid.grid-cols-2.gap-1\.5.mb-5 > button:not([data-rb-folder-action="organize"]),
+div.grid.grid-cols-2.gap-1\.5.mb-5 [data-rb-folder-action]:not([data-rb-folder-action="organize"]),
+div.grid.grid-cols-2.gap-2.mb-5 > button:not([data-rb-folder-action="organize"]),
+div.grid.grid-cols-2.gap-2.mb-5 [data-rb-folder-action]:not([data-rb-folder-action="organize"]) {
+  color: rgb(55 65 81) !important;
+}
+
+div.grid.grid-cols-2.gap-1\.5.mb-5 [data-rb-folder-action="select"].bg-purple-600,
+div.grid.grid-cols-2.gap-2.mb-5 [data-rb-folder-action="select"].bg-purple-600 {
+  background: rgb(147 51 234) !important;
+  color: #ffffff !important;
+}
+
+/* Organize: solid purple icon + label */
+div.grid.grid-cols-2.gap-1\.5.mb-5 [data-rb-folder-action="organize"] [data-rb-organize-label],
+div.grid.grid-cols-2.gap-2.mb-5 [data-rb-folder-action="organize"] [data-rb-organize-label] {
+  color: rgb(147 51 234) !important;
+  -webkit-text-fill-color: rgb(147 51 234) !important;
+  background: none !important;
+}
+
+div.grid.grid-cols-2.gap-1\.5.mb-5 [data-rb-folder-action="organize"] svg.lucide,
+div.grid.grid-cols-2.gap-2.mb-5 [data-rb-folder-action="organize"] svg.lucide {
+  stroke: rgb(168 85 247) !important;
+  color: rgb(168 85 247) !important;
+}
+
+div.grid.grid-cols-2.gap-1\.5.mb-5 button.border-purple-100,
+div.grid.grid-cols-2.gap-1\.5.mb-5 button.border-purple-200,
+div.grid.grid-cols-2.gap-2.mb-5 button.border-purple-100,
+div.grid.grid-cols-2.gap-2.mb-5 button.border-purple-200 {
+  border: 1px solid rgb(229 231 235) !important;
+  background: linear-gradient(to bottom right, #ffffff 0%, #ffffff 70%, rgb(250 245 255) 100%) !important;
+}
+
+div.grid.grid-cols-2.gap-1\.5.mb-5 button span.text-xs,
+div.grid.grid-cols-2.gap-2.mb-5 button span.text-xs {
+  font-size: 0.875rem !important;
+}
+
+
+
+AFTER PUBLISH — verify:
+  • View source on https://restorebraine.base44.app
+  • Must show: <meta name="restorebraine-deploy" content="v149">
+  • JS bundle hash must change (not index-CGrESmC2.js or index-DVkubWP5.js)
+  • App shows Sign In screen or gallery — NOT blank white page

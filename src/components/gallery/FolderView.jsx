@@ -7,6 +7,7 @@ import { base44 } from "@/api/base44Client";
 import { useQueryClient } from "@tanstack/react-query";
 import SelectablePhotoGrid from "./SelectablePhotoGrid";
 import { DragDropContext, Droppable } from "@hello-pangea/dnd";
+import { filterAndRankPhotos } from "@/lib/media-search";
 
 export default function FolderView({ 
   folder, 

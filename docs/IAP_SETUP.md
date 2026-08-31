@@ -49,6 +49,6 @@ Storage limit = `(paid_tier + 1) × 250`
 
 1. User selects files on **Upload** tab.
 2. If upload would exceed limit → **Storage Limit Reached** popup.
-3. **Pay with Stripe** → Checkout → return to web app → `verifyPayment` → upload continues.
+3. **Pay with Stripe** → in-app checkout sheet on iOS/Android (InAppBrowser), or same-tab checkout on web → return to app → `verifyPayment` → upload continues.
 
 Both web and iOS (hosted URL) share the same Stripe account and user `paid_tier`.

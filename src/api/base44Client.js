@@ -1,6 +1,7 @@
 import { createClient } from '@base44/sdk';
-import { appParams } from '@/lib/app-params';
-import { RESTOREBRAINE_APP_URL } from '@/lib/app-params';
+import { appParams, getAppOrigin } from '@/lib/app-params';
+import { getPlatformLoginUrl, openRestorebraineLogin } from '@/lib/auth-urls';
+import { isNativeShell, isHostedAppOrigin } from '@/lib/native-hosted-redirect';
 
 const { appId, serverUrl, token, functionsVersion } = appParams;
 
@@ -8,8 +9,23 @@ const { appId, serverUrl, token, functionsVersion } = appParams;
 export const base44 = createClient({
   appId,
   serverUrl,
-  appBaseUrl: RESTOREBRAINE_APP_URL,
+  appBaseUrl: getAppOrigin(),
   token,
   functionsVersion,
   requiresAuth: false
 });
+
+const originalRedirectToLogin = base44.auth.redirectToLogin.bind(base44.auth);
+base44.auth.redirectToLogin = (nextUrl) => {
+  if (typeof window === 'undefined') {
+    return originalRedirectToLogin(nextUrl);
+  }
+  if (isNativeShell() && !isHostedAppOrigin()) {
+    openRestorebraineLogin();
+    return;
+  }
+  const returnTo = nextUrl
+    ? new URL(nextUrl, window.location.origin).toString()
+    : window.location.href;
+  window.location.href = getPlatformLoginUrl(returnTo);
+};

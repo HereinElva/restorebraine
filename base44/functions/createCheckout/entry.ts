@@ -3,15 +3,23 @@ import Stripe from 'npm:stripe@17.5.0';
 
 const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY"));
 
-/** Hosted web app — Stripe success/cancel URLs always return here. */
+/** Hosted web app — Stripe success/cancel URLs return to the caller's verified domain. */
 const WEB_APP_URL = 'https://restorebraine.base44.app';
+const APP_HOSTS = ['restorebraine.base44.app', 'restorebraine.com', 'www.restorebraine.com'];
 
 function resolveReturnBase(req: Request, returnUrl?: string) {
   const origin = req.headers.get('origin') || '';
   const candidate = returnUrl || origin || WEB_APP_URL;
 
-  if (candidate.includes('restorebraine.base44.app')) {
-    return WEB_APP_URL;
+  for (const host of APP_HOSTS) {
+    if (candidate.includes(host)) {
+      try {
+        const parsed = new URL(candidate.startsWith('http') ? candidate : `https://${candidate}`);
+        return `${parsed.protocol}//${parsed.host}`;
+      } catch {
+        return WEB_APP_URL;
+      }
+    }
   }
   if (candidate.includes('localhost')) {
     try {

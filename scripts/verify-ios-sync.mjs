@@ -8,11 +8,45 @@ const hasOAuthFixInBundle = () => {
   );
 };
 
+const hasBadLoginUrlInBundle = () => {
+  const assetsDir = resolve('ios/App/App/public/assets');
+  return readdirSync(assetsDir).some((file) => {
+    if (!file.endsWith('.js')) return false;
+    const content = readFileSync(join(assetsDir, file), 'utf8');
+    return content.includes('app.base44.com/login') || content.includes('68fdc53372ff0fbf07eee38d');
+  });
+};
+
+const isLocalBundleMode = process.env.CAPACITOR_LOCAL === '1';
+
 const checks = [
   {
     path: 'ios/App/App/BUILD_STAMP.txt',
-    test: (content) => content.includes('kbrown native v'),
+    test: (content) => /kbrown (v4-core|native) v/.test(content),
     message: 'BUILD_STAMP.txt is missing or outdated',
+  },
+  ...(isLocalBundleMode
+    ? []
+    : [
+        {
+          path: 'capacitor.config.json',
+          test: (content) => /"url"\s*:\s*"https:\/\/restorebraine\.base44\.app"/.test(content),
+          message: 'capacitor.config.json must set server.url to hosted Restorebraine app',
+        },
+        {
+          path: 'ios/App/App/capacitor.config.json',
+          test: (content) => /"url"\s*:\s*"https:\/\/restorebraine\.base44\.app"/.test(content),
+          message: 'ios/App/App/capacitor.config.json must set server.url — run npm run build',
+        },
+      ]),
+  {
+    path: 'ios/App/App/public/index.html',
+    test: (content) => {
+      const match = content.match(/src="\.\/assets\/([^"]+\.js)"/);
+      if (!match) return false;
+      return existsSync(resolve('ios/App/App/public/assets', match[1]));
+    },
+    message: 'index.html references a missing JS bundle — run npm run build:native-local',
   },
   {
     path: 'ios/App/App/public/assets',
@@ -20,9 +54,19 @@ const checks = [
     message: 'Bundled assets are missing the OAuth fix',
   },
   {
+    path: 'ios/App/App/public/assets',
+    test: () => !hasBadLoginUrlInBundle(),
+    message: 'Bundled assets contain hardcoded app.base44.com/login URLs — rebuild required',
+  },
+  {
     path: 'ios/App/App/capacitor.config.json',
-    test: (content) => content.includes('restorebraine.base44.app') && content.includes('accounts.google.com'),
-    message: 'ios/App/App/capacitor.config.json missing required OAuth allowNavigation hosts',
+    test: (content) =>
+      isLocalBundleMode
+        ? !/"url"\s*:/.test(content)
+        : content.includes('restorebraine.base44.app') && content.includes('accounts.google.com'),
+    message: isLocalBundleMode
+      ? 'local bundle mode should not set server.url'
+      : 'ios/App/App/capacitor.config.json missing required OAuth allowNavigation hosts',
   },
   {
     path: 'ios/App/App/public/assets',

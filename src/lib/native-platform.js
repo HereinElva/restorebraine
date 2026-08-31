@@ -1,5 +1,7 @@
-/** Canonical hosted web app — Stripe checkout redirects here. */
-export const WEB_APP_URL = 'https://restorebraine.base44.app';
+import { DEFAULT_APP_ORIGIN, isAppHost } from './app-domains';
+
+/** Canonical hosted web app — Stripe checkout redirects here when origin is unknown. */
+export const WEB_APP_URL = DEFAULT_APP_ORIGIN;
 
 export const isNativeShell = () => {
   try {
@@ -17,15 +19,14 @@ export const isNativeShell = () => {
 export const isHostedWebApp = () => {
   try {
     if (typeof window === 'undefined') return false;
-    const hostname = window.location.hostname;
-    return hostname === 'restorebraine.base44.app' || hostname === 'localhost';
+    return isAppHost(window.location.hostname);
   } catch {
     return false;
   }
 };
 
 /**
- * Stripe is synchronized with the web version at restorebraine.base44.app.
+ * Stripe is synchronized with the hosted web app on any verified app domain.
  * Use Stripe whenever on the hosted web app — including the iOS app, which
  * loads that same URL in a WebView.
  */

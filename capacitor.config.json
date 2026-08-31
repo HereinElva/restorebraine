@@ -2,27 +2,33 @@
   "appId": "com.restorebraine.app",
   "appName": "Restorebraine",
   "webDir": "dist",
+  "ios": {
+    "contentInset": "automatic",
+    "backgroundColor": "#ffffff",
+    "allowsLinkPreview": false,
+    "zoomEnabled": false
+  },
+  "android": {
+    "backgroundColor": "#ffffff"
+  },
+  "packageClassList": [
+    "AppPlugin",
+    "CAPBrowserPlugin",
+    "InAppBrowserPlugin",
+    "PreferencesPlugin",
+    "NativePurchasesPlugin",
+    "RestorebraineOAuthPlugin"
+  ],
   "server": {
     "url": "https://restorebraine.base44.app",
     "cleartext": false,
     "allowNavigation": [
       "restorebraine.base44.app",
+      "restorebraine.com",
+      "www.restorebraine.com",
       "app.base44.com",
       "accounts.google.com",
-      "appleid.apple.com",
-      "checkout.stripe.com",
-      "pay.stripe.com",
-      "stripe.com",
-      "js.stripe.com",
-      "m.stripe.com",
-      "hooks.stripe.com"
+      "appleid.apple.com"
     ]
-  },
-  "ios": {
-    "contentInset": "automatic",
-    "backgroundColor": "#ffffff"
-  },
-  "android": {
-    "backgroundColor": "#ffffff"
   }
 }

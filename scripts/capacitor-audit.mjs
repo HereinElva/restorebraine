@@ -1,153 +1,229 @@
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
+/**
+ * Full Capacitor iOS audit — run after build:native-local or when device shows "no change".
+ * Usage: node scripts/capacitor-audit.mjs
+ *        CAPACITOR_LOCAL=1 node scripts/capacitor-audit.mjs
+ */
+import { createHash } from 'node:crypto';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
-const root = resolve('.');
-const read = (relPath) => readFileSync(resolve(root, relPath), 'utf8');
+const isLocal = process.env.CAPACITOR_LOCAL === '1';
+const repo = resolve(import.meta.dirname, '..');
 
-const checks = [
-  {
-    layer: '1 · Web bootstrap',
-    name: 'main.jsx bootstraps session before React',
-    ok: () => {
-      const main = read('src/main.jsx');
-      return main.includes('restoreSessionFromNativeStorage') && main.includes('installNativeOAuthFix');
-    },
-  },
-  {
-    layer: '1 · Web bootstrap',
-    name: 'OAuth token capture from URL',
-    ok: () => read('src/lib/native-oauth-fix.js').includes('captureAccessTokenFromUrl'),
-  },
-  {
-    layer: '1 · Web bootstrap',
-    name: 'Login URL uses Restorebraine app domain (not platform)',
-    ok: () => {
-      const guard = read('src/lib/native-platform-guard.js');
-      return guard.includes('RESTOREBRAINE_FROM_URL}/login') && !guard.includes('app.base44.com/login?');
-    },
-  },
-  {
-    layer: '1 · Web bootstrap',
-    name: 'Centralized Google login URL (not moderator)',
-    ok: () => {
-      const auth = read('src/lib/auth-urls.js');
-      const guard = read('src/lib/native-platform-guard.js');
-      return auth.includes('getAppScopedLoginUrl') && guard.includes("prompt: 'select_account'")
-        && guard.includes('68fdc5f42768c4d045fe1bac');
-    },
-  },
-  {
-    layer: '1 · Web bootstrap',
-    name: 'Sandbox iframe messaging disabled on native',
-    ok: () => read('src/App.jsx').includes('isNativeShell'),
-  },
-  {
-    layer: '2 · Capacitor config',
-    name: 'server.url points at hosted Restorebraine app',
-    ok: () => read('capacitor.config.json').includes('https://restorebraine.base44.app'),
-  },
-  {
-    layer: '2 · Capacitor config',
-    name: 'OAuth hosts allowed in allowNavigation',
-    ok: () => {
-      const config = read('capacitor.config.json');
-      return config.includes('restorebraine.base44.app')
-        && config.includes('accounts.google.com')
-        && config.includes('app.base44.com');
-    },
-  },
-  {
-    layer: '2 · Capacitor config',
-    name: 'iOS synced capacitor.config.json',
-    ok: () => existsSync('ios/App/App/capacitor.config.json'),
-  },
-  {
-    layer: '1 · Web bootstrap',
-    name: 'Native platform guard blocks Base44 dashboard',
-    ok: () => read('src/lib/native-platform-guard.js').includes('guardPlatformNavigation'),
-  },
-  {
-    layer: '3 · Native bridge',
-    name: 'AppDelegate session bridge + OAuth popup fix',
-    ok: () => {
-      const delegate = read('ios/App/App/AppDelegate.swift');
-      return delegate.includes('openLoginInSystemBrowser')
-        && delegate.includes('installPlatformGuard')
-        && delegate.includes('installLocationNavigationGuard');
-    },
-  },
-  {
-    layer: '3 · Native bridge',
-    name: 'Info.plist URL scheme for deep links',
-    ok: () => read('ios/App/App/Info.plist').includes('restorebraine'),
-  },
-  {
-    layer: '3 · Native bridge',
-    name: 'Capacitor App + Preferences plugins installed',
-    ok: () => {
-      const pkg = read('package.json');
-      return pkg.includes('@capacitor/app') && pkg.includes('@capacitor/preferences') && pkg.includes('@capacitor/inappbrowser');
-    },
-  },
-  {
-    layer: '4 · Bundled assets',
-    name: 'iOS public bundle synced',
-    ok: () => existsSync('ios/App/App/public/index.html'),
-  },
-  {
-    layer: '4 · Bundled assets',
-    name: 'BUILD_STAMP.txt present',
-    ok: () => existsSync('ios/App/App/BUILD_STAMP.txt'),
-  },
-  {
-    layer: '4 · Bundled assets',
-    name: 'OAuth fix in bundled assets',
-    ok: () => {
-      const assetsDir = resolve('ios/App/App/public/assets');
-      return readdirSync(assetsDir).some((file) =>
-        file.endsWith('.js') && readFileSync(join(assetsDir, file), 'utf8').includes('__restorebraineOAuthFixInstalled')
-      );
-    },
-  },
-  {
-    layer: '4 · Bundled assets',
-    name: 'npm build runs cap sync ios',
-    ok: () => read('package.json').includes('npx cap sync ios'),
-  },
-];
+const read = (rel) => {
+  const p = resolve(repo, rel);
+  return existsSync(p) ? readFileSync(p, 'utf8') : null;
+};
 
-let failed = 0;
-const byLayer = {};
+const hash = (rel) => {
+  const p = resolve(repo, rel);
+  if (!existsSync(p)) return null;
+  return createHash('sha256').update(readFileSync(p)).digest('hex').slice(0, 12);
+};
 
-for (const check of checks) {
-  byLayer[check.layer] ??= [];
-  try {
-    const pass = check.ok();
-    byLayer[check.layer].push({ name: check.name, pass });
-    if (!pass) failed += 1;
-  } catch (error) {
-    byLayer[check.layer].push({ name: check.name, pass: false, error: error.message });
-    failed += 1;
+const warn = (msg) => console.warn(`WARN  ${msg}`);
+const fail = (msg) => console.error(`FAIL  ${msg}`);
+const ok = (msg) => console.log(`OK    ${msg}`);
+
+let issues = 0;
+const bump = () => {
+  issues += 1;
+};
+
+console.log('=== Restorebraine Capacitor iOS Audit ===\n');
+
+// 1. Mode flags
+const modeSrc = read('src/lib/native-bundle-mode.js') ?? '';
+const buildInfo = read('src/lib/build-info.js') ?? '';
+const buildNum = buildInfo.match(/BUILD_NUMBER = (\d+)/)?.[1] ?? '?';
+const localFlag = /LOCAL_NATIVE_BUNDLE = true/.test(modeSrc);
+ok(`BUILD_NUMBER=${buildNum}, LOCAL_NATIVE_BUNDLE=${localFlag}`);
+
+if (isLocal && !localFlag) {
+  fail('CAPACITOR_LOCAL=1 but native-bundle-mode.js is false — run use-local-native-bundle.mjs --local');
+  bump();
+}
+
+// 2. capacitor.config.json
+for (const rel of ['capacitor.config.json', 'ios/App/App/capacitor.config.json']) {
+  const content = read(rel);
+  if (!content) {
+    fail(`${rel} missing`);
+    bump();
+    continue;
+  }
+  const hasUrl = /"url"\s*:/.test(content);
+  if (isLocal && hasUrl) {
+    fail(`${rel} has server.url — device loads hosted site, NOT local bundle`);
+    bump();
+  } else if (!isLocal && !hasUrl) {
+    warn(`${rel} has no server.url (native-local mode)`);
+  } else if (hasUrl) {
+    ok(`${rel} hosted mode (server.url set)`);
+  } else {
+    ok(`${rel} native-local (no server.url)`);
   }
 }
 
-console.log('\nRestorebraine Capacitor 4-layer audit\n');
-
-for (const [layer, items] of Object.entries(byLayer)) {
-  console.log(layer);
-  for (const item of items) {
-    const mark = item.pass ? 'OK  ' : 'FAIL';
-    console.log(`  [${mark}] ${item.name}${item.error ? ` (${item.error})` : ''}`);
+// 3. dist vs ios/public
+const distAssets = resolve(repo, 'dist/assets');
+const iosAssets = resolve(repo, 'ios/App/App/public/assets');
+if (!existsSync(distAssets) || !existsSync(iosAssets)) {
+  fail('dist/assets or ios/App/App/public/assets missing — run npm run build:native-local');
+  bump();
+} else {
+  const distFiles = new Set(readdirSync(distAssets));
+  const iosFiles = new Set(readdirSync(iosAssets));
+  const orphans = [...iosFiles].filter((f) => !distFiles.has(f));
+  const missing = [...distFiles].filter((f) => !iosFiles.has(f));
+  if (orphans.length) {
+    fail(`ios/public/assets has ${orphans.length} orphan file(s) not in dist: ${orphans.slice(0, 4).join(', ')}`);
+    bump();
   }
-  console.log('');
+  if (missing.length) {
+    fail(`ios/public/assets missing ${missing.length} file(s) from dist`);
+    bump();
+  }
+  if (!orphans.length && !missing.length) {
+    ok(`dist/assets and ios/public/assets identical (${distFiles.size} files)`);
+  }
+
+  const distIndex = read('dist/index.html') ?? '';
+  const iosIndex = read('ios/App/App/public/index.html') ?? '';
+  const entry = distIndex.match(/src="\.\/assets\/([^"]+\.js)"/)?.[1];
+  if (entry) {
+    ok(`Entry chunk: ${entry} (hash ${hash(`dist/assets/${entry}`)})`);
+    if (!iosFiles.has(entry)) {
+      fail(`index.html references ${entry} but missing from ios/public/assets`);
+      bump();
+    }
+  }
 }
 
-if (failed > 0) {
-  console.error(`${failed} check(s) failed. Run: npm run ios:prepare`);
-  process.exit(1);
+// 4. BUILD_STAMP + Xcode version
+const stamp = read('ios/App/App/BUILD_STAMP.txt')?.trim();
+if (stamp) ok(`BUILD_STAMP: ${stamp}`);
+else {
+  warn('BUILD_STAMP.txt missing');
+  bump();
 }
 
-const stamp = existsSync('ios/App/App/BUILD_STAMP.txt')
-  ? readFileSync(resolve(root, 'ios/App/App/BUILD_STAMP.txt'), 'utf8').trim()
-  : 'unknown';
-console.log(`All 4 layers OK — kbrown9000 native flow ready (${stamp})\n`);
+const pbx = read('ios/App/App.xcodeproj/project.pbxproj') ?? '';
+const xcodeVer = pbx.match(/CURRENT_PROJECT_VERSION = (\d+)/)?.[1];
+if (xcodeVer && xcodeVer !== buildNum) {
+  fail(`CURRENT_PROJECT_VERSION (${xcodeVer}) != BUILD_NUMBER (${buildNum}) — run write-build-info`);
+  bump();
+} else if (xcodeVer) {
+  ok(`CURRENT_PROJECT_VERSION=${xcodeVer} matches BUILD_NUMBER`);
+}
+
+// 5. LOCAL_NATIVE_BUNDLE in bundles
+if (existsSync(distAssets)) {
+  const appChunk = readdirSync(distAssets).find((f) => f.startsWith('App-') && f.endsWith('.js'));
+  const entryChunk = read('dist/index.html')?.match(/src="\.\/assets\/([^"]+\.js)"/)?.[1];
+  for (const [label, file] of [
+    ['App chunk', appChunk],
+    ['Entry chunk', entryChunk],
+  ]) {
+    if (!file) continue;
+    const content = readFileSync(resolve(distAssets, file), 'utf8');
+    if (/LOCAL_NATIVE_BUNDLE=!1|LOCAL_NATIVE_BUNDLE=false/.test(content)) {
+      fail(`${label} ${file} has LOCAL_NATIVE_BUNDLE=false`);
+      bump();
+    } else if (/LOCAL_NATIVE_BUNDLE=!0|LOCAL_NATIVE_BUNDLE=true|ar=!0/.test(content)) {
+      ok(`${label} ${file} has LOCAL_NATIVE_BUNDLE=true`);
+    }
+    if (isLocal && (label === 'App chunk' || (label === 'Entry chunk' && !appChunk))) {
+      if (/Continue With Google|Continue with Apple|Sign In With Email|NativeLoginCard|data-rb-auth=sign-in-v4/.test(content)) {
+        ok(`${label} ${file} has native login card (multi-provider)`);
+      } else {
+        fail(`${label} ${file} missing SignInScreen — old login bundle?`);
+        bump();
+      }
+      if (/data:image\/png;base64,/.test(content)) {
+        ok(`${label} ${file} has embedded logo data (splash/native fallback)`);
+      } else {
+        warn(`${label} ${file} has no embedded logo data — OK if login page has no logo`);
+      }
+    }
+  }
+}
+
+// 6. Build v4 bridge in ios/public
+const v4Bridge = read('ios/App/App/public/restorebraine-v4-bridge.js');
+if (v4Bridge && v4Bridge.includes('__restorebraineSessionBridgeInstalled')) {
+  ok(`restorebraine-v4-bridge.js in ios/public (${v4Bridge.length} bytes)`);
+} else {
+  fail('restorebraine-v4-bridge.js missing from ios/public — run build:native-local');
+  bump();
+}
+
+const iosIndex = read('ios/App/App/public/index.html');
+if (iosIndex && /restorebraine-v4-bridge\.js/.test(iosIndex)) {
+  fail('index.html has sync v4-bridge script — causes white screen; bridge loads async in main.jsx');
+  bump();
+} else if (iosIndex) {
+  ok('index.html has no sync v4-bridge (async load OK)');
+}
+
+for (const required of ['restorebraine-v4-bridge.js', 'v4-native-oauth.js']) {
+  const iosPath = resolve(`ios/App/App/public/${required}`);
+  if (existsSync(iosPath)) {
+    ok(`${required} in ios/public (${readFileSync(iosPath).length} bytes)`);
+  } else {
+    fail(`${required} missing from ios/public — run npm run cap:merge-web-into-ios`);
+    bump();
+  }
+}
+
+const loginLogoPath = resolve('ios/App/App/public/login-logo.png');
+const appIconPath = resolve('ios/App/App/public/AppIcon.png');
+if (existsSync(loginLogoPath)) {
+  const bytes = readFileSync(loginLogoPath).length;
+  ok(`login-logo.png in ios/public (${bytes} bytes — optional legacy asset)`);
+} else {
+  ok('login-logo.png not in ios/public (OK — login has no logo)');
+  bump();
+}
+if (existsSync(appIconPath)) {
+  const bytes = readFileSync(appIconPath).length;
+  ok(`AppIcon.png in ios/public (${bytes} bytes)`);
+} else {
+  warn('AppIcon.png missing from ios/public');
+}
+
+// 7. Git-tracked stale public risk
+try {
+  const { execSync } = await import('node:child_process');
+  const tracked = execSync('git ls-files ios/App/App/public/', { cwd: repo, encoding: 'utf8' }).trim();
+  if (tracked) {
+    const count = tracked.split('\n').filter(Boolean).length;
+    warn(`${count} file(s) in ios/App/App/public/ are git-tracked — git checkout can restore stale bundles`);
+    warn('Run: bash scripts/mac-ios-native-rebuild.sh (do NOT git checkout public/ before npm build)');
+  }
+} catch {
+  /* not a git repo */
+}
+
+// 8. Omega v4-core protected UI (gallery/folders/nav)
+try {
+  const { execSync } = await import('node:child_process');
+  execSync('node scripts/verify-omega-baseline.mjs', { cwd: repo, stdio: 'inherit' });
+  execSync('node scripts/verify-auth-flow.mjs', { cwd: repo, stdio: 'inherit' });
+} catch {
+  bump();
+}
+
+// 9. Xcode folder reference note
+console.log('\n--- Xcode deploy checklist ---');
+console.log('1. bash scripts/mac-ios-native-rebuild.sh');
+console.log('2. Xcode: delete app -> Clean Build Folder -> Run');
+console.log('3. On device badge: v{N} · v4-core, origin capacitor://localhost');
+console.log('4. Expanded badge shows entry chunk name (proves loaded JS)');
+console.log('5. After Run, verify installed .app:');
+console.log('   APP=$(find ~/Library/Developer/Xcode/DerivedData -name App.app -path "*-iphoneos/*" | head -1)');
+console.log('   cat "$APP/BUILD_STAMP.txt"');
+console.log('   grep script "$APP/public/index.html"');
+
+console.log(`\n=== Audit complete: ${issues} issue(s) ===`);
+if (issues) process.exit(1);

@@ -16,6 +16,10 @@ dist
 dist-ssr
 *.local
 
+# iOS build artifacts — always regenerate via npm run build:native-local
+ios/App/App/public/
+ios/App/App/BUILD_STAMP.txt
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

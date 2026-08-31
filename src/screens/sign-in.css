@@ -1,0 +1,167 @@
+.rb-signin {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  padding: max(16px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right))
+    max(16px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
+  background: linear-gradient(135deg, #eff6ff 0%, #f5f3ff 50%, #fdf2f8 100%);
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+.rb-signin-card {
+  width: 100%;
+  max-width: 360px;
+  padding: 36px 28px;
+  border-radius: 24px;
+  background: #fff;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+  text-align: center;
+}
+
+.rb-signin-title {
+  margin: 0 0 6px;
+  font-size: 24px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.rb-signin-tag {
+  margin: 0 0 20px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #7c3aed;
+}
+
+.rb-signin-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.rb-signin-google,
+.rb-signin-apple,
+.rb-signin-email-btn {
+  width: 100%;
+  padding: 14px 16px;
+  border: none;
+  border-radius: 14px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.rb-signin-google {
+  background: linear-gradient(135deg, #60a5fa 0%, #a78bfa 100%);
+  color: #fff;
+}
+
+.rb-signin-apple {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 16px;
+  margin: 0;
+  border: none;
+  border-radius: 8px;
+  background: #000;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 600;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;
+  letter-spacing: -0.01em;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  box-shadow: none;
+  margin-bottom: 10px;
+}
+
+.rb-signin-apple-inner {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.rb-signin-apple img[data-rb-apple-logo],
+.rb-signin-apple span[data-rb-apple-logo],
+.rb-signin-apple svg {
+  display: block !important;
+  width: 20px !important;
+  height: 20px !important;
+  min-width: 20px !important;
+  min-height: 20px !important;
+  flex-shrink: 0 !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  object-fit: contain !important;
+}
+
+.rb-signin-email-btn {
+  background: #f3f4f6;
+  color: #111827;
+  border: 1px solid #e5e7eb;
+}
+
+.rb-signin-google:disabled,
+.rb-signin-apple:disabled,
+.rb-signin-email-btn:disabled {
+  opacity: 0.75;
+  cursor: wait;
+}
+
+.rb-signin-divider {
+  margin: 20px 0 16px;
+  font-size: 13px;
+  color: #9ca3af;
+  text-transform: lowercase;
+}
+
+.rb-signin-email {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  text-align: left;
+}
+
+.rb-signin-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 12px 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  font-size: 16px;
+  background: #fff;
+  color: #111827;
+}
+
+.rb-signin-input:focus {
+  outline: none;
+  border-color: #a78bfa;
+  box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.25);
+}
+
+.rb-signin-link {
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  font-size: 13px;
+  color: #7c3aed;
+  cursor: pointer;
+  text-align: center;
+}
+
+.rb-signin-error {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: #dc2626;
+  text-align: center;
+}

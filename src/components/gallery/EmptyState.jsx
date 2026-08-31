@@ -21,7 +21,7 @@ export default function EmptyState() {
           No Media Yet
         </h3>
         <p className="text-gray-600 mb-8">
-          Upload your photos and videos and let AI analyze them. You'll be able to search through them instantly using natural language.
+          Upload photos and videos — AI tags what it sees so you can search by physical description. Type &quot;grass&quot; to find field photos, or &quot;beach&quot; for ocean scenes.
         </p>
 
         <Link to={createPageUrl("Upload")}>
