@@ -17,9 +17,7 @@ echo "  • accidental bundled (capacitor://localhost) instead of hosted"
 echo "  • version drift from write-build-info.mjs (e.g. v296 vs Base44 v295)"
 echo ""
 
-bash scripts/mac-sync-github.sh
-echo ""
-bash scripts/mac-build.sh --hosted --no-git
+exec bash scripts/mac-complete-rebuild.sh "$@"
 
 echo ""
 echo "════════════════════════════════════════════════════════════════"

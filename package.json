@@ -28,6 +28,7 @@
     "sync:build-numbers": "node scripts/sync-build-numbers.mjs",
     "mac:build": "bash scripts/mac-build.sh",
     "mac:recover-hosted": "bash scripts/mac-recover-hosted.sh",
+    "mac:complete-rebuild": "bash scripts/mac-complete-rebuild.sh",
     "mac:doctor": "bash scripts/mac-doctor.sh",
     "mac:appstore": "bash scripts/mac-build.sh --hosted",
     "mac:start-fresh": "bash scripts/mac-build.sh --hosted",
