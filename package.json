@@ -23,6 +23,7 @@
     "audit:base44": "node scripts/audit-base44-bundle.mjs",
     "verify:release": "node scripts/verify-release-pipeline.mjs",
     "verify:full-stack": "node scripts/verify-full-stack-sync.mjs",
+    "audit:omega7": "node scripts/audit-omega7-lineage.mjs",
     "verify:build-sync": "node scripts/verify-build-sync.mjs",
     "sync:build-numbers": "node scripts/sync-build-numbers.mjs",
     "mac:build": "bash scripts/mac-build.sh",
