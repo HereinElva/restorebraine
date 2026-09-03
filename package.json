@@ -23,6 +23,7 @@
     "audit:base44": "node scripts/audit-base44-bundle.mjs",
     "base44:partial": "bash scripts/base44-partial-publish-wizard.sh",
     "verify:base44-publish": "bash scripts/verify-base44-publish-applied.sh",
+    "base44:editor-check": "bash scripts/base44-editor-checklist.sh",
     "verify:release": "node scripts/verify-release-pipeline.mjs",
     "verify:full-stack": "node scripts/verify-full-stack-sync.mjs",
     "audit:omega7": "node scripts/audit-omega7-lineage.mjs",
