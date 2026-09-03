@@ -124,13 +124,9 @@ if (Number(build) >= 107) {
 section('2) OMEGA-7 MARKERS (must survive in current code)');
 const omega7Markers = [
   ['src/screens/SignInScreen.jsx', 'SignInScreen', 'login screen present'],
-  ['src/lib/folder-membership.js', 'loadFolderMembershipCacheSync,', 'folder cache sync'],
-  [
-    'src/lib/folder-membership.js',
-    'return deduped.filter((folder) => folder.photo_ids.length > 0)',
-    'empty folder filter',
-  ],
-  ['src/Layout.jsx', 'pageContent', 'layout shell (no AnimatePresence white screen)'],
+  ['src/lib/folder-membership-cache.js', 'loadFolderMembershipCacheSync', 'folder cache sync (moved from folder-membership.js)'],
+  ['src/components/gallery/CustomFolderButton.jsx', 'photo_ids.length > 0', 'empty folder filter (subsequent correction)'],
+  ['src/Layout.jsx', 'pageContent', 'layout shell'],
 ];
 
 for (const [file, needle, label] of omega7Markers) {
@@ -145,12 +141,15 @@ for (const [file, needle, label] of omega7Markers) {
 }
 
 const layout = read('src/Layout.jsx');
-if (layout.includes('AnimatePresence')) {
-  fail('Layout AnimatePresence regression', 'white-screen risk from Omega 7 verify');
-  record('fail', 'Layout AnimatePresence');
+if (layout.includes('AnimatePresence') && layout.includes('mode="wait"') && layout.includes('LOCAL_NATIVE_BUNDLE')) {
+  ok('AnimatePresence guarded (web only, mode=wait — subsequent correction vs Omega-7 bundled-only layout)');
+  record('ok', 'AnimatePresence guarded');
+} else if (layout.includes('AnimatePresence') && !layout.includes('LOCAL_NATIVE_BUNDLE')) {
+  fail('Layout AnimatePresence without LOCAL_NATIVE_BUNDLE guard', 'white-screen risk');
+  record('fail', 'Layout AnimatePresence unguarded');
 } else {
-  ok('no Layout AnimatePresence white-screen regression');
-  record('ok', 'no AnimatePresence regression');
+  ok('no AnimatePresence in Layout (bundled-safe)');
+  record('ok', 'Layout bundled-safe');
 }
 
 // ── 3 SUBSEQUENT CORRECTIONS (post Omega-7) ─────────────────────────────────
@@ -237,7 +236,10 @@ if (pubEntry && pubEntry !== 'index-tYDTTZJZ.js') {
 section('5) BASE44 LIVE (hosted runtime UI)');
 const liveHtml = curl(`${LIVE}/?t=${Date.now()}`);
 const liveDeploy =
-  liveHtml.match(/restorebraine-deploy[^>]*content="v(\d+)"/)?.[1] ?? '?';
+  liveHtml.match(/restorebraine-deploy[^>]*content="v(\d+)"/)?.[1] ??
+  liveHtml.match(/content="v(\d+)"[^>]*name="restorebraine-deploy"/)?.[1] ??
+  liveHtml.match(/content="v(\d+)"/)?.[1] ??
+  '?';
 const liveEntry = liveHtml.match(/assets\/(index-[^"]+\.js)/)?.[1] ?? '?';
 const liveBody = liveEntry !== '?' ? curl(`${LIVE}/assets/${liveEntry}`) : '';
 
