@@ -33,7 +33,9 @@ echo ""
 
 # ── 2. Hosted vs bundled ────────────────────────────────────────────────────
 URL=$(grep -o '"url": *"[^"]*"' ios/App/App/capacitor.config.json 2>/dev/null | head -1 | sed 's/.*"url": *"\([^"]*\)".*/\1/' || echo missing)
-STRIPE_NAV=$(grep -c 'stripe\.com' ios/App/App/capacitor.config.json 2>/dev/null || echo 0)
+STRIPE_NAV=$(grep -c 'stripe\.com' ios/App/App/capacitor.config.json 2>/dev/null || true)
+STRIPE_NAV=$(printf '%s' "${STRIPE_NAV:-0}" | tr -d '\n\r' | head -c 8)
+STRIPE_NAV=${STRIPE_NAV:-0}
 BUNDLED_FLAG=$([ -f ios/App/App/BUNDLED_MODE.txt ] && echo yes || echo no)
 
 echo "2) Native shell mode (what the installed app loads)"
@@ -58,7 +60,7 @@ echo ""
 # ── 3. Live Base44 (what hosted apps actually run) ──────────────────────────
 echo "3) Live Base44 (hosted WebView loads this)"
 LIVE_HTML=$(curl -sL --max-time 12 "$LIVE_URL/" 2>/dev/null || true)
-LIVE_DEPLOY=$(echo "$LIVE_HTML" | grep -oE 'content="v[0-9]+"' | head -1 | tr -d '"' || echo unknown)
+LIVE_DEPLOY=$(echo "$LIVE_HTML" | grep -oE 'content="v[0-9]+"' | head -1 | sed 's/content="//;s/"//' || echo unknown)
 LIVE_ENTRY=$(echo "$LIVE_HTML" | grep -o 'src="/assets/index-[^"]*\.js"' | head -1 | sed 's/.*index-/index-/;s/"//' || echo unknown)
 LIVE_BUNDLE=$(curl -sL --max-time 20 "${LIVE_URL}/assets/${LIVE_ENTRY}" 2>/dev/null || true)
 
@@ -100,34 +102,40 @@ echo "     → Fix: delete app → run mac-build.sh --hosted --no-git"
 echo "            → Xcode Clean → Run (must show Restorebraine DEPLOY OK)"
 echo ""
 echo "   BUILD_STAMP triggers WebView cache wipe only when the stamp changes."
-STAMP=$(tr -d '\n' < ios/App/App/BUILD_STAMP.txt 2>/dev/null || echo missing)
+STAMP=$(cat ios/App/App/BUILD_STAMP.txt 2>/dev/null | tr -d '\n' || echo missing)
 echo "   Repo BUILD_STAMP: ${STAMP}"
 echo "   After Base44 Publish alone, stamp may be unchanged → cached old JS on device."
 echo ""
 
 # ── 5. Xcode / device install ───────────────────────────────────────────────
-echo "5) Xcode device install"
-XCODE_TEAMS=$(bash scripts/mac-list-xcode-account-teams.sh --ids-only 2>/dev/null || true)
-if [ -n "$XCODE_TEAMS" ]; then
-  echo "   Apple ID in Xcode: yes"
+echo "5) Xcode device install (Mac only — skip in CI/cloud)"
+if [ "$(uname -s)" != "Darwin" ]; then
+  echo "   SKIP: not macOS — run this section on your Mac"
+elif ! [ -d "$HOME/Library/Developer/Xcode/DerivedData" ]; then
+  echo "   SKIP: Xcode DerivedData not found"
 else
-  echo "   ⚠ Apple ID in Xcode: NO — Run to iPhone never installs new builds"
-  FAIL=1
-fi
-
-APP=$(find ~/Library/Developer/Xcode/DerivedData -name 'App.app' -path '*/Build/Products/*-iphoneos/*' ! -path '*Index.noindex*' 2>/dev/null | head -1)
-if [ -n "$APP" ] && [ -f "$APP/capacitor.config.json" ]; then
-  APP_URL=$(grep -o '"url": *"[^"]*"' "$APP/capacitor.config.json" 2>/dev/null | head -1 | sed 's/.*"url": *"\([^"]*\)".*/\1/' || echo missing)
-  APP_STAMP=$(tr -d '\n' < "$APP/BUILD_STAMP.txt" 2>/dev/null || echo missing)
-  echo "   Latest App.app server.url: ${APP_URL}"
-  echo "   Latest App.app BUILD_STAMP: ${APP_STAMP}"
-  if [[ "$APP_URL" != *"restorebraine.base44.app"* ]] && [[ "$URL" == *"restorebraine.base44.app"* ]]; then
-    echo "   ⚠ Xcode built app is BUNDLED but repo is HOSTED — re-run mac-build.sh --hosted"
+  XCODE_TEAMS=$(bash scripts/mac-list-xcode-account-teams.sh --ids-only 2>/dev/null || true)
+  if [ -n "$XCODE_TEAMS" ]; then
+    echo "   Apple ID in Xcode: yes"
+  else
+    echo "   ⚠ Apple ID in Xcode: NO — Run to iPhone never installs new builds"
     FAIL=1
   fi
-else
-  echo "   No device App.app found — Xcode Run to iPhone may never have succeeded"
-  FAIL=1
+
+  APP=$(find ~/Library/Developer/Xcode/DerivedData -name 'App.app' -path '*/Build/Products/*-iphoneos/*' ! -path '*Index.noindex*' 2>/dev/null | head -1)
+  if [ -n "$APP" ] && [ -f "$APP/capacitor.config.json" ]; then
+    APP_URL=$(grep -o '"url": *"[^"]*"' "$APP/capacitor.config.json" 2>/dev/null | head -1 | sed 's/.*"url": *"\([^"]*\)".*/\1/' || echo missing)
+    APP_STAMP=$(cat "$APP/BUILD_STAMP.txt" 2>/dev/null | tr -d '\n' || echo missing)
+    echo "   Latest App.app server.url: ${APP_URL}"
+    echo "   Latest App.app BUILD_STAMP: ${APP_STAMP}"
+    if [[ "$APP_URL" != *"restorebraine.base44.app"* ]] && [[ "$URL" == *"restorebraine.base44.app"* ]]; then
+      echo "   ⚠ Xcode built app is BUNDLED but repo is HOSTED — re-run mac-build.sh --hosted"
+      FAIL=1
+    fi
+  else
+    echo "   No device App.app found — Xcode Run to iPhone may never have succeeded"
+    FAIL=1
+  fi
 fi
 echo ""
 
