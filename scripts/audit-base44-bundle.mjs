@@ -176,11 +176,13 @@ if (existsSync('dist/index.html')) {
   const distBody = distBundle && existsSync(`dist/assets/${distBundle}`)
     ? read(`dist/assets/${distBundle}`)
     : '';
-  const distMarkers = REQUIRED_BUNDLE_MARKERS.filter((m) => distBody.includes(m.pattern)).map((m) => m.id);
+  const distPresent = REQUIRED_BUNDLE_MARKERS.filter((m) => distBody.includes(m.pattern));
+  const distMissing = REQUIRED_BUNDLE_MARKERS.filter((m) => !distBody.includes(m.pattern));
   console.log(`   dist bundle: ${distBundle ?? 'unknown'}`);
-  console.log(`   dist markers: ${distMarkers.join(', ') || 'none'}`);
-  if (distMarkers.length < REQUIRED_BUNDLE_MARKERS.length) {
-    warnings.push('Local dist build missing some markers — run npm run build:web');
+  console.log(`   dist markers: ${distPresent.map((m) => m.id).join(', ') || 'none'}`);
+  if (distMissing.length) {
+    const ids = distMissing.map((m) => m.id).join(', ');
+    warnings.push(`Local dist missing: ${ids} — run npm run build:web (or mac-complete-rebuild.sh)`);
   }
 } else {
   console.log('   (no dist/ — run npm run build:web to compare)');
@@ -197,8 +199,42 @@ if (stripeInHostedScript) blockers.push('scripts/use-local-native-bundle.mjs sti
 if (stripeInAllowNav) warnings.push('capacitor.config.json still lists stripe.com in allowNavigation');
 console.log('');
 
-console.log('8) INDEX.HTML PARTIAL UPDATE TRAP');
-console.log(`   Stripe inline guard in live HTML: ${hasStripeGuard ? 'yes' : 'no'}`);
+console.log('8) PARTIAL PUBLISH TRAP (index.html / public/ can drift while bundle looks OK)');
+console.log(`   Stripe inline guard present: ${hasStripeGuard ? 'yes' : 'no'}`);
+const gitStripeIntercept = read('index.html').includes('return openInApp(u);}var a=Location');
+const liveStripeIntercept = html.includes('return openInApp(u);}var a=Location');
+const liveStripeBroken = html.includes('openInApp(u);return true;}var a=Location');
+if (hasStripeGuard) {
+  const stripeStatus = liveStripeIntercept ? 'OK  ' : liveStripeBroken ? 'BROKEN' : 'UNKNOWN';
+  console.log(`   Stripe intercept return: ${stripeStatus} (git uses return openInApp(u))`);
+  if (liveStripeBroken && !liveStripeIntercept) {
+    blockers.push('Live index.html Stripe guard broken (openInApp; return true) — re-paste index.html → Publish');
+  }
+} else {
+  console.log('   Stripe intercept return: missing guard');
+  warnings.push('Live index.html missing Stripe inline guard — paste index.html → Publish');
+}
+
+let liveGuardBody = '';
+try {
+  liveGuardBody = fetchLiveText('/hosted-runtime-guard.js');
+} catch {
+  liveGuardBody = '';
+}
+const gitGuardBody = existsSync('public/hosted-runtime-guard.js') ? read('public/hosted-runtime-guard.js') : '';
+const liveHasOverlayGuard = /rbHostedRuntimeGuard/.test(liveGuardBody);
+const gitHasOverlayGuard = /rbHostedRuntimeGuard/.test(gitGuardBody);
+console.log(`   hosted-runtime-guard overlay: ${liveHasOverlayGuard ? 'OK  ' : 'OLD '} (git rbHostedRuntimeGuard ${gitHasOverlayGuard ? 'yes' : 'no'})`);
+if (gitHasOverlayGuard && !liveHasOverlayGuard) {
+  blockers.push('Live hosted-runtime-guard.js is old redirect script — paste public/hosted-runtime-guard.js + index.html → Publish');
+}
+
+const hasRuntimeDiag = liveBundleBody.includes('Runtime diagnostic') || liveBundleBody.includes('__restorebraineFolderClaimStatus');
+console.log(`   RuntimeDiagnostic in live bundle: ${hasRuntimeDiag ? 'yes' : 'no'}`);
+if (!hasRuntimeDiag) {
+  warnings.push('RuntimeDiagnostic not in live bundle — paste src/pages/Account.jsx + RuntimeDiagnostic.jsx → Publish');
+}
+
 console.log(`   Deploy meta can update WITHOUT bundle rebuild if only index.html/scrub pasted.`);
 if (liveDeploy === localDeploy && KNOWN_STALE_BUNDLES.includes(liveBundle)) {
   blockers.push('Deploy stamp v' + localDeploy + ' updated but JS bundle unchanged — partial Publish detected');
