@@ -60,14 +60,15 @@ const guardIsJs =
   !guardFetch.trimStart().startsWith('<!DOCTYPE');
 
 const localIndex = read('index.html');
-const liveStripeInline = liveHtml.match(/function intercept\(u\)\{[^}]+\}/)?.[0] ?? '';
-const localStripeInline = localIndex.match(/function intercept\(u\)\{[^}]+\}/)?.[0] ?? '';
+const liveStripeInline = liveHtml;
+const localStripeInline = localIndex;
 const stripeInlineFixed =
   localStripeInline.includes('return openInApp(u)') &&
   !localStripeInline.includes('openInApp(u);return true');
 const liveStripeInlineBroken =
   liveStripeInline.includes('openInApp(u);return true') ||
-  (liveStripeInline.includes('openInApp(u)') &&
+  (liveStripeInline.includes('function intercept(u)') &&
+    liveStripeInline.includes('openInApp(u)') &&
     !liveStripeInline.includes('return openInApp(u)'));
 
 let liveBundleBody = '';
