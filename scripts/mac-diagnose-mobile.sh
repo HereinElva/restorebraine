@@ -79,14 +79,39 @@ elif [ "$LIVE_ENTRY" != "unknown" ]; then
   echo "   OK: bundle hash is not known stale file"
 fi
 
-MARKERS=""
-echo "$LIVE_BUNDLE" | grep -q 'claimOrphanedData' && MARKERS="${MARKERS} claimOrphanedData"
-echo "$LIVE_BUNDLE" | grep -q 'data-rb-payment-modal' && MARKERS="${MARKERS} payment-modal"
-echo "$LIVE_BUNDLE" | grep -q 'openInWebView' && MARKERS="${MARKERS} stripe-inapp"
-if [ -n "$MARKERS" ]; then
-  echo "   Bundle markers:${MARKERS}"
+if echo "$LIVE_BUNDLE" | grep -q 'claimOrphanedData' && echo "$LIVE_BUNDLE" | grep -q 'data-rb-payment-modal' && echo "$LIVE_BUNDLE" | grep -q 'openInWebView'; then
+  echo "   Bundle markers: claimOrphanedData payment-modal stripe-inapp"
 else
   echo "   WARN: bundle missing folder/payment markers - Base44 Publish incomplete"
+  FAIL=1
+fi
+
+LIVE_GUARD=$(curl -sL --max-time 12 "${LIVE_URL}/hosted-runtime-guard.js" 2>/dev/null || true)
+GUARD_BYTES=$(printf '%s' "$LIVE_GUARD" | wc -c | tr -d ' ')
+if echo "$LIVE_GUARD" | grep -q 'rbHostedRuntimeGuard'; then
+  echo "   hosted-runtime-guard: OK (rbHostedRuntimeGuard, ${GUARD_BYTES} bytes)"
+else
+  echo "   WARN: hosted-runtime-guard OLD (${GUARD_BYTES} bytes) — paste public/hosted-runtime-guard.js → Publish"
+  FAIL=1
+fi
+if echo "$LIVE_HTML" | grep -q 'return openInApp(u);}var a=Location'; then
+  echo "   Stripe intercept: OK (return openInApp)"
+elif echo "$LIVE_HTML" | grep -q 'openInApp(u);return true;}var a=Location'; then
+  echo "   WARN: Stripe intercept BROKEN — paste index.html → Publish"
+  FAIL=1
+else
+  echo "   Stripe intercept: unknown (check index.html in Base44)"
+fi
+if echo "$LIVE_BUNDLE" | grep -q 'Runtime diagnostic'; then
+  echo "   RuntimeDiagnostic: present in live bundle"
+else
+  echo "   WARN: RuntimeDiagnostic missing — Account.jsx publish did not rebuild live bundle yet"
+fi
+if [ "$LIVE_ENTRY" = "index-DH2_Ello.js" ] && [ "$GUARD_BYTES" -lt 2000 ] 2>/dev/null; then
+  echo ""
+  echo "   >>> PUBLISH NOT APPLIED — live site unchanged after editor Save."
+  echo "   >>> In Base44: click Publish (wait for build), then run:"
+  echo "   >>>   node scripts/audit-base44-bundle.mjs"
   FAIL=1
 fi
 echo ""
