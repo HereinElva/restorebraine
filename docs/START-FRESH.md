@@ -1,32 +1,34 @@
 # Start fresh — one command
 
-**Stop using Base44 paste workflows.** Use this:
+**App Store / TestFlight (current): hosted shell + live Base44 UI.**
 
 ```bash
 cd ~/restorebraine
-git pull origin cursor/fix-native-localhost-oauth-bacf
-bash scripts/mac-build.sh
+bash scripts/mac-sync-github.sh
+bash scripts/base44-publish-wizard.sh    # if audit-base44-bundle.mjs fails
+node scripts/audit-base44-bundle.mjs       # must PASS
+bash scripts/mac-build.sh --hosted --no-git
 ```
 
-Xcode: **Clean → Run → Archive**
+Xcode: **Delete app from iPhone → Clean → Run → Archive**
 
-Full guide: [BUILD.md](./BUILD.md)
+Full guide: [RELEASE-PIPELINE.md](./RELEASE-PIPELINE.md)
 
 ## What this replaces
 
 | Old (broken) | New |
 |--------------|-----|
-| 35-file Base44 wizard | Not needed for iPhone build |
-| `mac-resync-omega.sh` | `mac-build.sh` |
-| `mac-start-fresh.sh` | `mac-build.sh` |
+| `mac-recover-v4.sh` / `fix-native-localhost-oauth-bacf` | `mac-sync-github.sh` on `fix-folder-persistence-bacf` |
+| `mac-apple-login-bundled.sh` for App Store | `mac-build.sh --hosted` |
+| `mac-start-fresh.sh` (bundled default) | `mac-build.sh --hosted` |
 
 ## Modes
 
 ```bash
-bash scripts/mac-build.sh              # bundled — full v178 on iPhone (default)
-bash scripts/mac-build.sh --hosted     # Omega — loads live Base44 site
+bash scripts/mac-build.sh --hosted       # App Store / TestFlight (recommended)
+bash scripts/mac-build.sh --bundled      # dev only — full app in ios/public
 ```
 
-Bundled = entire app from git, no Base44 dependency.
+**Hosted** = Capacitor loads `https://restorebraine.base44.app` — folder + Stripe fixes require Base44 Publish.
 
-Hosted = App Store 1.0.1 (3) architecture — login comes from live website.
+**Bundled** = `capacitor://localhost` — ignores Base44; use only for local Apple login experiments.

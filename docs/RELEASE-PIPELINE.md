@@ -37,12 +37,16 @@ Capacitor iOS/Android WebView loads this URL
 
 ## What blocks mobile today
 
-**Base44 live bundle is stale** (`index-mlcqt5ef.js`). Deploy meta shows v295 but bundle lacks:
+Run `node scripts/audit-base44-bundle.mjs` — if it **PASS**es, Base44 is not the blocker.
 
-- `claimOrphanedData` (folder persistence)
-- `data-rb-payment-modal` (iPhone payment sheet)
+When hosted audits pass but the **native app** still shows old behavior, the usual causes are:
 
-Until Base44 Publish includes all files in `docs/BASE44-PUBLISH.md`, **no Xcode or Play Store upload will show folder/payment fixes** — the app loads the old web bundle.
+1. **WKWebView cache** — Base44 published a new bundle but `BUILD_STAMP` on the installed app did not change, so iOS keeps cached JS from `restorebraine.base44.app`.
+2. **Wrong shell mode** — `mac-build.sh` without `--hosted` ships bundled `capacitor://localhost` (ignores Base44 entirely).
+3. **Wrong branch** — e.g. `cursor/fix-apple-sign-in-bacf` re-adds `stripe.com` to `allowNavigation`.
+4. **Xcode never installed** — Omega check blocked `mac-build.sh`, or Run failed before `Restorebraine DEPLOY OK`.
+
+Diagnose on Mac: `bash scripts/mac-diagnose-mobile.sh`
 
 ## Safe release order
 

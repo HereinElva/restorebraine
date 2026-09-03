@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Diagnose iOS deploy pipeline — run on Mac when verify fails or device shows "no change".
 set -uo pipefail
-BRANCH="${1:-cursor/fix-native-localhost-oauth-bacf}"
+BRANCH="${1:-cursor/fix-folder-persistence-bacf}"
 cd "$(git rev-parse --show-toplevel)"
 
 echo "=== Restorebraine iOS doctor ==="
@@ -63,7 +63,11 @@ fi
 
 URL_COUNT=$(grep -c '"url"' ios/App/App/capacitor.config.json 2>/dev/null || true)
 URL_COUNT=${URL_COUNT:-0}
-echo "server.url in capacitor.config.json: $URL_COUNT (must be 0 for v4-core)"
+if grep -q 'restorebraine.base44.app' ios/App/App/capacitor.config.json 2>/dev/null; then
+  echo "server.url: hosted (restorebraine.base44.app) — UI from Base44 Publish"
+else
+  echo "server.url count: $URL_COUNT — bundled mode (capacitor://localhost)"
+fi
 
 if [ -d "$HOME/Library/Developer/Xcode/DerivedData" ]; then
   echo ""
