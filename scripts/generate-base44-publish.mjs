@@ -55,8 +55,10 @@ const FILES = [
   'src/lib/folder-membership.js',
   'src/lib/run-media-organize.js',
   'public/native-ui-scrub.js',
+  'public/hosted-runtime-guard.js',
   'src/Layout.jsx',
   'src/pages/Account.jsx',
+  'src/components/RuntimeDiagnostic.jsx',
   'src/index.css',
 ];
 

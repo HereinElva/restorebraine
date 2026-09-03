@@ -39,8 +39,10 @@ const REQUIRED_PUBLISH_PATHS = [
   'src/lib/stripe-checkout.js',
   'src/pages/Account.jsx',
   'public/native-ui-scrub.js',
+  'public/hosted-runtime-guard.js',
   'index.html',
   'src/deploy-marker.js',
+  'src/components/RuntimeDiagnostic.jsx',
 ];
 
 function read(path) {
