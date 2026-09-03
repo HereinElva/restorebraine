@@ -45,6 +45,8 @@
     "ios:prepare": "node scripts/sync-build-numbers.mjs && node scripts/use-local-native-bundle.mjs --hosted && npm run build:web && bash scripts/mac-fix-build-stamp.sh && node scripts/cap-merge-web-into-ios.mjs && node scripts/verify-ios-sync.mjs",
     "audit:capacitor": "node scripts/capacitor-audit.mjs",
     "audit:layers": "node scripts/audit-layer-discrepancies.mjs",
+    "audit:shakedown": "node scripts/audit-full-shakedown.mjs",
+    "mac:shakedown": "bash scripts/mac-full-shakedown.sh",
     "postinstall": "node scripts/patch-native-purchases-podspec.mjs"
   },
   "dependencies": {
