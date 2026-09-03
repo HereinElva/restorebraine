@@ -60,11 +60,19 @@ mkdir -p ios/App/App/public/assets
 
 AFTER=$(git rev-parse --short HEAD)
 MSG=$(git log -1 --oneline)
+DEPLOY=$(grep -E '^export const DEPLOY_BUILD = ' src/deploy-marker.js | sed 's/.*= //;s/;//')
 
 echo ""
 echo "Mac is now:  $AFTER"
 echo "             $MSG"
+echo "             deploy v${DEPLOY}"
 echo ""
+
+if [ "${DEPLOY:-0}" -lt 295 ] 2>/dev/null; then
+  echo "WARN: deploy v${DEPLOY} is behind expected v295+ — fetch may have been stale."
+  echo "  Run: git fetch origin $BRANCH && git reset --hard origin/$BRANCH"
+  echo ""
+fi
 
 FAIL=0
 for f in scripts/mac-build.sh scripts/mac-sync-apple-fix.sh scripts/mac-apple-login-bundled.sh; do
