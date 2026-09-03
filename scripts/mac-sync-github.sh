@@ -32,22 +32,28 @@ BEFORE=$(git rev-parse --short HEAD 2>/dev/null || echo none)
 echo "Mac was at:  $BEFORE"
 
 echo "Fetching from GitHub..."
-git fetch "$REMOTE" "$BRANCH"
-git fetch "$REMOTE" --tags 2>/dev/null || true
+git fetch origin "$BRANCH"
+git fetch origin --tags 2>/dev/null || true
 
-echo "Discarding local build artifacts (build-info.js, configs) before reset..."
-bash scripts/mac-discard-build-files.sh 2>/dev/null || true
-
-git checkout -B "$BRANCH" "FETCH_HEAD"
-git reset --hard "FETCH_HEAD"
-
-# Ensure origin remote exists for future commands
+# Ensure origin remote matches RESTOREBRAINE_REMOTE
 if ! git remote get-url origin >/dev/null 2>&1; then
   git remote add origin "$REMOTE"
 else
   git remote set-url origin "$REMOTE"
 fi
-git branch --set-upstream-to="origin/$BRANCH" "$BRANCH" 2>/dev/null || true
+
+TARGET="origin/$BRANCH"
+if ! git rev-parse --verify "$TARGET^{commit}" >/dev/null 2>&1; then
+  echo "FAIL: $TARGET not found after fetch — check network and branch name"
+  exit 1
+fi
+
+echo "Discarding local build artifacts (build-info.js, configs) before reset..."
+bash scripts/mac-discard-build-files.sh 2>/dev/null || true
+
+git checkout -B "$BRANCH" "$TARGET"
+git reset --hard "$TARGET"
+git branch --set-upstream-to="$TARGET" "$BRANCH" 2>/dev/null || true
 
 rm -rf ios/App/App/public
 mkdir -p ios/App/App/public/assets
