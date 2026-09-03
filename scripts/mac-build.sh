@@ -10,16 +10,16 @@
 #   • Login: Google, Apple, Microsoft, email
 #
 # Usage:
-#   bash scripts/mac-build.sh              # bundled — full app on iPhone (default)
-#   bash scripts/mac-build.sh --hosted     # Omega thin shell → Base44 live
-#   bash scripts/mac-build.sh --omega      # same as default bundled 1.0.1
+#   bash scripts/mac-build.sh              # hosted — App Store / TestFlight (default)
+#   bash scripts/mac-build.sh --bundled    # dev full app on iPhone (capacitor://localhost)
+#   bash scripts/mac-build.sh --omega      # alias for --bundled (dev localhost)
 #   bash scripts/mac-build.sh --nuclear    # extra cache wipe (when device shows stale app)
 #   bash scripts/mac-build.sh --no-git     # skip git sync (already synced)
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 
 BRANCH="${RESTOREBRAINE_BRANCH:-cursor/fix-folder-persistence-bacf}"
-MODE=bundled
+MODE=hosted
 SKIP_GIT=0
 NUCLEAR=0
 
@@ -33,8 +33,8 @@ for arg in "$@"; do
       cat <<HELP
 Restorebraine 1.0.1 — one-shot build
 
-  bash scripts/mac-build.sh              bundled full app (recommended)
-  bash scripts/mac-build.sh --hosted     Omega shell → restorebraine.base44.app
+  bash scripts/mac-build.sh              hosted shell → restorebraine.base44.app (default)
+  bash scripts/mac-build.sh --bundled    dev bundled localhost only
   bash scripts/mac-build.sh --nuclear    extra wipe when iPhone shows old app
   bash scripts/mac-build.sh --no-git     skip git fetch
 
@@ -54,7 +54,7 @@ echo "Mode: ${MODE} · Marketing version 1.0.1"
 if [ "$MODE" = "bundled" ]; then
   echo "  Full app from GitHub — no Base44 paste required"
 else
-  echo "  Omega shell — loads live restorebraine.base44.app"
+  echo "  Hosted shell — loads live restorebraine.base44.app (UI from Base44 Publish)"
 fi
 echo ""
 

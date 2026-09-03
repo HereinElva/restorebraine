@@ -8,8 +8,18 @@ export async function claimOrphanedUserData() {
   if (claimInFlight) return claimInFlight;
   claimInFlight = base44.functions
     .invoke('claimOrphanedData')
+    .then((result) => {
+      if (typeof window !== 'undefined') {
+        window.__restorebraineFolderClaimStatus = result?.data?.message || 'claim ok';
+      }
+      return result;
+    })
     .catch((error) => {
-      console.warn('claimOrphanedData failed:', error);
+      const msg = error?.message || String(error);
+      console.error('claimOrphanedData failed:', error);
+      if (typeof window !== 'undefined') {
+        window.__restorebraineFolderClaimStatus = `claim FAILED: ${msg}`;
+      }
       return null;
     })
     .finally(() => {

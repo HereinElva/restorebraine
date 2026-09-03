@@ -218,9 +218,11 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                 .trimmingCharacters(in: .whitespacesAndNewlines),
               !stamp.isEmpty else { return false }
 
+        let bundleVersion = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? ""
         let cacheKey = "restorebraine_webview_cache_stamp"
+        let cacheValue = "\(stamp)|\(bundleVersion)"
         let defaults = UserDefaults.standard
-        guard defaults.string(forKey: cacheKey) != stamp else { return false }
+        guard defaults.string(forKey: cacheKey) != cacheValue else { return false }
 
         URLCache.shared.removeAllCachedResponses()
         HTTPCookieStorage.shared.removeCookies(since: .distantPast)
@@ -230,7 +232,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         let group = DispatchGroup()
         group.enter()
         dataStore.removeData(ofTypes: dataTypes, modifiedSince: .distantPast) {
-            defaults.set(stamp, forKey: cacheKey)
+            defaults.set(cacheValue, forKey: cacheKey)
             group.leave()
         }
         _ = group.wait(timeout: .now() + 3.0)

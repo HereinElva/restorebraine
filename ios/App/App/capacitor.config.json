@@ -17,7 +17,7 @@
     "RestorebraineOAuthPlugin"
   ],
   "server": {
-    "url": "https://restorebraine.base44.app",
+    "url": "https://restorebraine.base44.app/?rb_native=v295",
     "cleartext": false,
     "allowNavigation": [
       "restorebraine.base44.app",

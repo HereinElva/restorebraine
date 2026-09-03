@@ -88,6 +88,7 @@ const urlIos = capIos.match(/"url":\s*"([^"]+)"/)?.[1];
 const hosted = urlIos?.includes('restorebraine.base44.app');
 
 check('hosted server.url', !!hosted, urlIos ?? 'missing');
+check('hosted cache-bust param', /rb_native=v\d+/.test(capIos), 'rb_native in server.url');
 check('root/ios configs match url', urlRoot === urlIos, urlRoot);
 check('no stripe.com in allowNavigation', !/stripe\.com/.test(capRoot + capIos));
 check('no BUNDLED_MODE.txt', !existsSync(resolve(repo, 'ios/App/App/BUNDLED_MODE.txt')));

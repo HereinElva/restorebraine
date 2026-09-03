@@ -171,8 +171,7 @@
       if (!current || current.__rbStripeOpenWrapped) return;
       Location.prototype[method] = function (url) {
         if (isStripe(url)) {
-          openStripeInApp(url);
-          return;
+          if (openStripeInApp(url)) return;
         }
         return current.call(this, url);
       };
@@ -186,8 +185,7 @@
         var origHrefSet = hrefDesc.set;
         hrefDesc.set = function (url) {
           if (isStripe(url)) {
-            openStripeInApp(url);
-            return;
+            if (openStripeInApp(url)) return;
           }
           return origHrefSet.call(this, url);
         };

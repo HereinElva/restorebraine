@@ -9,6 +9,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { useNavigation } from "@/components/NavigationContext";
 import { navigateToGalleryFromAccount } from "@/lib/gallery-back-nav";
 import { isHostedAppOrigin, isNativeShell } from "@/lib/native-hosted-redirect";
+import RuntimeDiagnostic from "@/components/RuntimeDiagnostic";
 
 export default function Account() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -122,6 +123,7 @@ export default function Account() {
               </Button>
             </div>
           </div>
+          <RuntimeDiagnostic />
         </div>
       </div>
       <AlertDialog open={showLogoutDialog} onOpenChange={setShowLogoutDialog}>

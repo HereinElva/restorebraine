@@ -47,6 +47,7 @@ const PUBLISH_FILES = [
   'public/native-ui-scrub.js',
   'src/Layout.jsx',
   'src/pages/Account.jsx',
+  'src/components/RuntimeDiagnostic.jsx',
   'src/index.css',
 ];
 
