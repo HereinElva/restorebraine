@@ -155,6 +155,13 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 
     func onWebViewDidFinish(_ webView: WKWebView) {
+        if pendingCacheReload {
+            pendingCacheReload = false
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                webView.reloadFromOrigin()
+            }
+            return
+        }
         if isBundledNativeMode {
             appleLoginOverlay.detach()
         } else {
@@ -207,9 +214,37 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                 forMainFrameOnly: false
             )
             userContentController.addUserScript(appleFix)
+
+            if !isBundledNativeMode {
+                let hostedOverlay = WKUserScript(
+                    source: hostedRuntimeOverlayScript(),
+                    injectionTime: .atDocumentEnd,
+                    forMainFrameOnly: true
+                )
+                userContentController.addUserScript(hostedOverlay)
+            }
         }
 
         onWebViewDidFinish(webView)
+    }
+
+    private func hostedRuntimeOverlayScript() -> String {
+        return """
+        (function(){
+          if(window.__rbHostedOverlayInstalled)return;
+          window.__rbHostedOverlayInstalled=1;
+          function paint(){
+            if(document.getElementById('rb-native-shell-overlay'))return;
+            var o=document.createElement('div');
+            o.id='rb-native-shell-overlay';
+            o.style.cssText='position:fixed;right:8px;top:calc(8px + env(safe-area-inset-top,0px));z-index:2147483647;padding:6px 10px;border-radius:10px;background:rgba(88,28,135,.92);color:#fff;font:10px/1.3 ui-monospace,Menlo,monospace;max-width:90vw;pointer-events:none';
+            o.textContent='shell '+location.origin+' · '+(String(window.__RESTOREBRAINE_NATIVE_BUILD__||'native?'));
+            document.documentElement.appendChild(o);
+          }
+          if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',paint);}else{paint();}
+          window.addEventListener('load',paint);
+        })();
+        """
     }
 
     private func clearWebViewCacheIfBuildChanged() -> Bool {
@@ -222,7 +257,11 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         let cacheKey = "restorebraine_webview_cache_stamp"
         let cacheValue = "\(stamp)|\(bundleVersion)"
         let defaults = UserDefaults.standard
-        guard defaults.string(forKey: cacheKey) != cacheValue else { return false }
+
+        let hostedFreshKey = "restorebraine_hosted_fresh_launch"
+        let needsHostedFresh = !isBundledNativeMode && defaults.string(forKey: hostedFreshKey) != cacheValue
+
+        guard defaults.string(forKey: cacheKey) != cacheValue || needsHostedFresh else { return false }
 
         URLCache.shared.removeAllCachedResponses()
         HTTPCookieStorage.shared.removeCookies(since: .distantPast)
@@ -233,6 +272,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         group.enter()
         dataStore.removeData(ofTypes: dataTypes, modifiedSince: .distantPast) {
             defaults.set(cacheValue, forKey: cacheKey)
+            if needsHostedFresh {
+                defaults.set(cacheValue, forKey: hostedFreshKey)
+            }
             group.leave()
         }
         _ = group.wait(timeout: .now() + 3.0)
@@ -266,7 +308,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 
     @objc private func onBridgeDidLoad() {
-        pendingCacheReload = false
         installSessionBridge()
     }
 

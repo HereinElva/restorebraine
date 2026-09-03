@@ -45,6 +45,7 @@ const PUBLISH_FILES = [
   'src/lib/stripe-checkout.js',
   'src/components/upload/PaymentModal.jsx',
   'public/native-ui-scrub.js',
+  'public/hosted-runtime-guard.js',
   'src/Layout.jsx',
   'src/pages/Account.jsx',
   'src/components/RuntimeDiagnostic.jsx',
