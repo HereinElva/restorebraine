@@ -21,6 +21,7 @@
     "verify:sync": "node scripts/verify-restorebraine-sync.mjs",
     "verify:base44": "node scripts/verify-base44-live.mjs",
     "audit:base44": "node scripts/audit-base44-bundle.mjs",
+    "base44:partial": "bash scripts/base44-partial-publish-wizard.sh",
     "verify:release": "node scripts/verify-release-pipeline.mjs",
     "verify:full-stack": "node scripts/verify-full-stack-sync.mjs",
     "audit:omega7": "node scripts/audit-omega7-lineage.mjs",
