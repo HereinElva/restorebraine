@@ -26,7 +26,7 @@
     "verify:build-sync": "node scripts/verify-build-sync.mjs",
     "sync:build-numbers": "node scripts/sync-build-numbers.mjs",
     "mac:build": "bash scripts/mac-build.sh",
-    "mac:sync": "bash scripts/mac-sync-github.sh",
+    "mac:recover-hosted": "bash scripts/mac-recover-hosted.sh",
     "mac:doctor": "bash scripts/mac-doctor.sh",
     "mac:appstore": "bash scripts/mac-build.sh --hosted",
     "mac:start-fresh": "bash scripts/mac-build.sh --hosted",

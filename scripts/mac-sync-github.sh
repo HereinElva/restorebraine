@@ -35,6 +35,9 @@ echo "Fetching from GitHub..."
 git fetch "$REMOTE" "$BRANCH"
 git fetch "$REMOTE" --tags 2>/dev/null || true
 
+echo "Discarding local build artifacts (build-info.js, configs) before reset..."
+bash scripts/mac-discard-build-files.sh 2>/dev/null || true
+
 git checkout -B "$BRANCH" "FETCH_HEAD"
 git reset --hard "FETCH_HEAD"
 
@@ -73,9 +76,9 @@ if [ "$FAIL" -eq 0 ]; then
   echo "██  PASS — Mac matches GitHub                               ██"
   echo "████████████████████████████████████████████████████████████"
   echo ""
-  echo "Next (Apple login fix):"
-  echo "  bash scripts/mac-sync-apple-fix.sh --no-git"
-  echo "  or: bash scripts/mac-build.sh --no-git"
+  echo "Next (hosted App Store shell — loads Base44 live):"
+  echo "  bash scripts/mac-recover-hosted.sh"
+  echo "  or: bash scripts/mac-build.sh --hosted --no-git"
 else
   echo "FAIL — still missing scripts. Check internet / repo URL."
   exit 1
