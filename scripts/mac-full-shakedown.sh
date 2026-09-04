@@ -73,6 +73,7 @@ echo ""
 # ── Phase 2: Full audit ───────────────────────────────────────────────────────
 echo "=== Phase 2/4: Full shakedown audit ==="
 AUDIT_EXIT=0
+node scripts/audit-blindspots.mjs || true
 node scripts/audit-full-shakedown.mjs || AUDIT_EXIT=$?
 echo ""
 
