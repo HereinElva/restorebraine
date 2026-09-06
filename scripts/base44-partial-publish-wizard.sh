@@ -10,6 +10,7 @@ DEPLOY=$(grep -E '^export const DEPLOY_BUILD = ' src/deploy-marker.js | sed 's/.
 
 FILES=(
   "index.html"
+  "src/deploy-marker.js"
   "public/hosted-runtime-guard.js"
   "src/pages/Account.jsx"
   "src/components/RuntimeDiagnostic.jsx"
@@ -20,7 +21,7 @@ copy_file() {
 }
 
 echo "╔══════════════════════════════════════════════════════════════╗"
-echo "║  Base44 PARTIAL Publish — v${DEPLOY} (4 stale-trap files)       ║"
+echo "║  Base44 PARTIAL Publish — v${DEPLOY} (5 fingerprint + stale files) ║"
 echo "╚══════════════════════════════════════════════════════════════╝"
 echo ""
 echo "Run this when audit section 8 shows:"
@@ -28,7 +29,7 @@ echo "  • Stripe intercept BROKEN"
 echo "  • hosted-runtime-guard overlay OLD"
 echo "  • RuntimeDiagnostic missing from live bundle"
 echo ""
-echo "These 4 files must be saved in Base44, then click PUBLISH once."
+echo "These 5 files must be saved in Base44, then click PUBLISH once."
 echo ""
 read -r -p "Ready? (y/N) " READY
 if [[ ! "$READY" =~ ^[Yy]$ ]]; then
@@ -68,7 +69,7 @@ done
 
 echo ""
 echo "════════════════════════════════════════════════════════════════"
-echo "  4 FILES DONE — click PUBLISH in Base44 now"
+echo "  5 FILES DONE — click PUBLISH in Base44 now"
 echo "════════════════════════════════════════════════════════════════"
 echo ""
 echo "IMPORTANT — Save alone does NOT update the live site."

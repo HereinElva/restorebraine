@@ -11,11 +11,17 @@ export default function RuntimeDiagnostic() {
     const moduleScript = document.querySelector('script[type="module"]')?.getAttribute('src') || '?';
     const deployMeta =
       document.querySelector('meta[name="restorebraine-deploy"]')?.getAttribute('content') || '?';
+    const sourceCommit =
+      document.querySelector('meta[name="restorebraine-source-commit"]')?.getAttribute('content') || '?';
+    const buildId =
+      document.querySelector('meta[name="restorebraine-build-id"]')?.getAttribute('content') || '?';
 
     setInfo({
       origin: window.location.origin,
       host: window.location.hostname,
       deployMeta,
+      sourceCommit,
+      buildId,
       gitDeploy: `v${DEPLOY_BUILD}`,
       buildNumber: BUILD_NUMBER,
       moduleScript,
@@ -55,6 +61,13 @@ export default function RuntimeDiagnostic() {
           {info.deployMeta} (git {info.gitDeploy})
         </span>
       </p>
+      <p>
+        source commit:{' '}
+        <span className={info.sourceCommit !== '?' ? 'text-green-700' : 'text-orange-600'}>
+          {info.sourceCommit}
+        </span>
+      </p>
+      <p>build ID: {info.buildId}</p>
       <p>JS bundle: {info.moduleScript}</p>
       <p>native stamp: {info.nativeBuild}</p>
       <p>InAppBrowser: {info.inAppBrowser ? 'ok' : 'MISSING'}</p>

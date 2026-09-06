@@ -27,12 +27,13 @@ function bundleFromHtml(html) {
 }
 
 function deployFromHtml(html) {
-  return (
+  const named =
     html.match(/restorebraine-deploy[^>]*content="v(\d+)"/)?.[1] ??
     html.match(/content="v(\d+)"[^>]*restorebraine-deploy/)?.[1] ??
-    html.match(/name="restorebraine-deploy"[^>]*content="v(\d+)"/)?.[1] ??
-    '?'
-  );
+    html.match(/name="restorebraine-deploy"[^>]*content="v(\d+)"/)?.[1];
+  if (named) return named;
+  const meta = html.match(/<meta[^>]*restorebraine-deploy[^>]*>/i)?.[0];
+  return meta?.match(/content="v(\d+)"/)?.[1] ?? '?';
 }
 
 function stripePattern(html) {
