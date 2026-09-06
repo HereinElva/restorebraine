@@ -214,37 +214,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                 forMainFrameOnly: false
             )
             userContentController.addUserScript(appleFix)
-
-            if !isBundledNativeMode {
-                let hostedOverlay = WKUserScript(
-                    source: hostedRuntimeOverlayScript(),
-                    injectionTime: .atDocumentEnd,
-                    forMainFrameOnly: true
-                )
-                userContentController.addUserScript(hostedOverlay)
-            }
         }
 
         onWebViewDidFinish(webView)
-    }
-
-    private func hostedRuntimeOverlayScript() -> String {
-        return """
-        (function(){
-          if(window.__rbHostedOverlayInstalled)return;
-          window.__rbHostedOverlayInstalled=1;
-          function paint(){
-            if(document.getElementById('rb-native-shell-overlay'))return;
-            var o=document.createElement('div');
-            o.id='rb-native-shell-overlay';
-            o.style.cssText='position:fixed;right:8px;top:calc(8px + env(safe-area-inset-top,0px));z-index:2147483647;padding:6px 10px;border-radius:10px;background:rgba(88,28,135,.92);color:#fff;font:10px/1.3 ui-monospace,Menlo,monospace;max-width:90vw;pointer-events:none';
-            o.textContent='shell '+location.origin+' · '+(String(window.__RESTOREBRAINE_NATIVE_BUILD__||'native?'));
-            document.documentElement.appendChild(o);
-          }
-          if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',paint);}else{paint();}
-          window.addEventListener('load',paint);
-        })();
-        """
     }
 
     private func clearWebViewCacheIfBuildChanged() -> Bool {
