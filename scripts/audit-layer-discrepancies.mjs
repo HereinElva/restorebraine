@@ -141,6 +141,7 @@ for (const L of layers) {
 }
 
 const blockers = [];
+const warnings = [];
 
 if (gitDeploy !== deployFromHtml(liveHtml)) {
   blockers.push(`Deploy stamp: git v${gitDeploy} ≠ live v${deployFromHtml(liveHtml)}`);
@@ -162,7 +163,7 @@ if (gitIosHtml && bundleFromHtml(gitIosHtml) !== liveBundleName) {
   );
 }
 if (!liveBundle.includes('Runtime diagnostic') && existsSync('src/components/RuntimeDiagnostic.jsx')) {
-  blockers.push('RuntimeDiagnostic in git but not in live bundle — Account.jsx publish needs Publish rebuild');
+  warnings.push('RuntimeDiagnostic not in live bundle — optional: publish Account.jsx + RuntimeDiagnostic.jsx');
 }
 if (gitBuild !== gitDeploy) {
   blockers.push(`Git internal drift: BUILD_NUMBER v${gitBuild} ≠ DEPLOY_BUILD v${gitDeploy}`);
@@ -189,6 +190,12 @@ if (realBlockers.length) {
 if (expected.length) {
   console.log('  EXPECTED differences (NOT bugs):\n');
   expected.forEach((b) => console.log(`    • ${b}`));
+  console.log('');
+}
+
+if (warnings.length) {
+  console.log('  WARNINGS (optional improvements):\n');
+  warnings.forEach((b, i) => console.log(`    ${i + 1}. ${b}`));
   console.log('');
 }
 

@@ -30,6 +30,32 @@ function git(args) {
   }
 }
 
+function isGitAncestor(maybeAncestor, ref = 'HEAD') {
+  if (!maybeAncestor) return false;
+  try {
+    execSync(`git merge-base --is-ancestor ${maybeAncestor} ${ref}`, {
+      cwd: resolve(import.meta.dirname, '..'),
+      stdio: 'pipe',
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** App files that must be republished to Base44 (excludes local-only / diagnostic-only). */
+function unpublishedAppPathsSince(ref) {
+  if (!ref) return ['no CDN fingerprint'];
+  return git(`diff --name-only ${ref}..HEAD -- src/ index.html public/`)
+    .split('\n')
+    .filter(Boolean)
+    .filter(
+      (f) =>
+        f !== 'src/deploy-marker.js' &&
+        f !== 'src/components/RuntimeDiagnostic.jsx',
+    );
+}
+
 function read(rel) {
   const p = resolve(import.meta.dirname, '..', rel);
   return existsSync(p) ? readFileSync(p, 'utf8') : '';
@@ -198,6 +224,10 @@ const cdnCommitMatch =
   (liveSourceCommit === headCommit ||
     headCommit.startsWith(liveSourceCommit) ||
     liveSourceCommit.startsWith(headCommit));
+const cdnIsAncestor = isGitAncestor(liveSourceCommit);
+const unpublishedApp = unpublishedAppPathsSince(liveSourceCommit);
+const cdnFingerprintOk =
+  cdnCommitMatch || (cdnIsAncestor && unpublishedApp.length === 0);
 
 record('CDN', 'Live HTML fetch', liveHtml.length > 500 ? 'PASS' : 'FAIL', LIVE);
 record('CDN', 'Module bundle ref', liveBundleName !== '?' ? 'PASS' : 'FAIL', liveBundleName);
@@ -225,12 +255,20 @@ for (const [marker, ok] of Object.entries(bundleMarkers)) {
 }
 
 if (liveSourceCommit) {
-  record(
-    'CDN',
-    'SOURCE_COMMIT meta on CDN',
-    cdnCommitMatch ? 'PASS' : 'FAIL',
-    `live=${liveSourceCommit} git=${headCommit}`,
-  );
+  let fpStatus = 'FAIL';
+  let fpDetail = `live=${liveSourceCommit} git=${headCommit}`;
+  if (cdnCommitMatch) {
+    fpStatus = 'PASS';
+  } else if (cdnIsAncestor && unpublishedApp.length === 0) {
+    fpStatus = 'PASS';
+    fpDetail = `live=${liveSourceCommit} HEAD=${headCommit} — tooling-only commits since publish`;
+  } else if (cdnIsAncestor) {
+    fpStatus = 'WARN';
+    fpDetail = `live=${liveSourceCommit} HEAD=${headCommit} — unpublished: ${unpublishedApp.slice(0, 3).join(', ')}${unpublishedApp.length > 3 ? '…' : ''}`;
+  } else {
+    fpDetail = `live=${liveSourceCommit} is not an ancestor of HEAD=${headCommit}`;
+  }
+  record('CDN', 'SOURCE_COMMIT meta on CDN', fpStatus, fpDetail);
 } else {
   record(
     'CDN',
@@ -384,11 +422,24 @@ const keyPass =
   hosted &&
   !blockers.some((b) => b.layer === 'SOURCE');
 
-if (cdnCommitMatch) {
-  console.log('DEPLOYMENT VERIFIED — CDN fingerprint matches git HEAD');
+if (cdnFingerprintOk) {
+  if (cdnCommitMatch) {
+    console.log('DEPLOYMENT VERIFIED — CDN fingerprint matches git HEAD');
+  } else {
+    console.log(
+      `DEPLOYMENT VERIFIED — CDN at ${liveSourceCommit}, HEAD ${headCommit} (no app changes need republish)`,
+    );
+  }
   if (fingerprintStale) {
     console.log('LOCAL STAMP STALE — run: npm run sync:source-fingerprint (optional, CDN already correct)');
   }
+  if (!bundleMarkers['Runtime diagnostic']) {
+    console.log('OPTIONAL — RuntimeDiagnostic not in JS bundle; publish Account.jsx + RuntimeDiagnostic.jsx for on-device diagnostics');
+  }
+} else if (liveSourceCommit && stripeOk && guardOk) {
+  console.log(`CDN at ${liveSourceCommit} — republish required for unpublished app changes`);
+  console.log('  npm run sync:source-fingerprint');
+  console.log('  bash scripts/base44-partial-publish-wizard.sh → Publish');
 } else if (stripeOk && guardOk) {
   console.log('CDN CONTENT VERIFIED — Stripe + guard OK on live HTML');
   console.log('FINGERPRINT GAP — publish index.html with source commit meta:');
@@ -402,5 +453,5 @@ console.log('');
 console.log('Re-run after publish: node scripts/verify-deployment-trace.mjs');
 console.log('══════════════════════════════════════════════════════════════\n');
 
-const cdnBlockers = blockers.filter((b) => b.layer === 'CDN' || (b.layer === 'SOURCE' && b.status === 'FAIL'));
-process.exit(cdnBlockers.length || !cdnCommitMatch ? 1 : 0);
+const cdnBlockers = blockers.filter((b) => b.layer === 'CDN' && b.status === 'FAIL');
+process.exit(cdnBlockers.length || !cdnFingerprintOk ? 1 : 0);

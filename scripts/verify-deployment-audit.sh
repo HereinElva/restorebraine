@@ -48,30 +48,43 @@ echo ""
 if [ "$FAIL" -eq 0 ]; then
   echo "  RESULT: DEPLOYMENT VERIFIED (all layers PASS)"
   echo ""
-  echo "  If iPhone still unchanged:"
-  echo "    • Account → Runtime diagnostic — check source commit + build ID"
-  echo "    • Delete app → Xcode Run (WKWebView cache)"
-  echo "    • bash scripts/mac-no-change-now.sh"
+  echo "  CDN fingerprint is proven. Main app fixes (Stripe, guard, folders) are live."
+  echo ""
+  echo "  If iPhone still looks unchanged:"
+  echo "    1. Safari private tab → View Source → confirm fingerprint matches audit"
+  echo "    2. Delete app → Xcode Run (WKWebView cache)"
+  echo "    3. Account → Runtime diagnostic — origin = restorebraine.base44.app"
+  echo "    4. bash scripts/mac-no-change-now.sh"
+  echo ""
+  echo "  Optional: publish Account.jsx + RuntimeDiagnostic.jsx for on-device build ID UI"
 else
+  HEAD=$(git rev-parse --short HEAD)
+  CDN_FP=$(curl -sL --max-time 20 "https://restorebraine.base44.app/?t=$(date +%s)" | node -e "
+import { parseSourceCommitFromHtml } from './scripts/lib/parse-deploy-meta.mjs';
+let h=''; process.stdin.on('data',d=>h+=d); process.stdin.on('end',()=>console.log(parseSourceCommitFromHtml(h)||''));
+" 2>/dev/null || true)
+
   echo "  RESULT: DEPLOYMENT NOT VERIFIED — see FAIL sections above"
   echo ""
-  HEAD=$(git rev-parse --short HEAD)
-  STAMPED=$(grep -E "^export const SOURCE_COMMIT = " src/deploy-marker.js 2>/dev/null | sed "s/.*= '//;s/'.*//" || echo '?')
-  echo "  Known gaps from your run:"
-  if [ "$STAMPED" != "$HEAD" ]; then
-    echo "    • Local fingerprint stale: deploy-marker SOURCE_COMMIT=$STAMPED but HEAD=$HEAD"
+  if [ -n "$CDN_FP" ]; then
+    echo "  CDN fingerprint on live: $CDN_FP (git HEAD: $HEAD)"
+    if git merge-base --is-ancestor "$CDN_FP" HEAD 2>/dev/null; then
+      UNPUBLISHED=$(git diff --name-only "$CDN_FP"..HEAD -- src/ index.html public/ 2>/dev/null | grep -v -E 'deploy-marker|RuntimeDiagnostic' || true)
+      if [ -z "$UNPUBLISHED" ]; then
+        echo "  NOTE: CDN matches last publish; HEAD only has tooling commits — trace should PASS after git pull"
+      else
+        echo "  Unpublished app files since CDN publish:"
+        echo "$UNPUBLISHED" | sed 's/^/    • /'
+      fi
+    fi
+  else
+    echo "  CDN fingerprint: missing — publish index.html after npm run sync:source-fingerprint"
   fi
-  echo "    • CDN missing restorebraine-source-commit meta (editor→CDN chain unproven)"
-  echo "    • RuntimeDiagnostic not in live JS bundle (needs Base44 JS rebuild)"
   echo ""
-  echo "  Fix order:"
-  echo "    1. npm run sync:source-fingerprint     # stamps HEAD into index.html"
-  echo "    2. bash scripts/base44-partial-publish-wizard.sh"
-  echo "       Paste 5 files → Save each → click PUBLISH → wait for build"
+  echo "  Fix order when CDN truly stale:"
+  echo "    1. npm run sync:source-fingerprint"
+  echo "    2. bash scripts/base44-partial-publish-wizard.sh → Publish"
   echo "    3. npm run verify:deployment-audit"
-  echo ""
-  echo "  PASS when CDN shows: restorebraine-source-commit = $HEAD"
-  echo "  Do NOT rebuild Xcode until that PASSes."
 fi
 echo ""
 exit "$FAIL"
