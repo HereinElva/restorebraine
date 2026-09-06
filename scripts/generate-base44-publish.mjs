@@ -51,8 +51,14 @@ const FILES = [
   'src/components/gallery/CustomFolderButton.jsx',
   'src/components/gallery/DuplicateDetector.jsx',
   'src/components/ui/BrandGradientIcon.jsx',
+  'src/lib/folder-server-sync.js',
+  'src/lib/folder-membership.js',
+  'src/lib/run-media-organize.js',
+  'public/native-ui-scrub.js',
+  'public/hosted-runtime-guard.js',
   'src/Layout.jsx',
   'src/pages/Account.jsx',
+  'src/components/RuntimeDiagnostic.jsx',
   'src/index.css',
 ];
 
@@ -117,7 +123,7 @@ lines.push(
   'AFTER PUBLISH — verify:',
   '  • View source on https://restorebraine.base44.app',
   `  • Must show: <meta name="restorebraine-deploy" content="v${deployBuild}">`,
-  '  • JS bundle hash must change (not index-CGrESmC2.js or index-DVkubWP5.js)',
+  '  • JS bundle hash must change (not index-mlcqt5ef.js or index-DVkubWP5.js)',
   '  • App shows Sign In screen or gallery — NOT blank white page',
 );
 

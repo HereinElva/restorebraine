@@ -10,16 +10,16 @@
 #   • Login: Google, Apple, Microsoft, email
 #
 # Usage:
-#   bash scripts/mac-build.sh              # bundled — full app on iPhone (default)
-#   bash scripts/mac-build.sh --hosted     # Omega thin shell → Base44 live
-#   bash scripts/mac-build.sh --omega      # same as default bundled 1.0.1
+#   bash scripts/mac-build.sh              # hosted — App Store / TestFlight (default)
+#   bash scripts/mac-build.sh --bundled    # dev full app on iPhone (capacitor://localhost)
+#   bash scripts/mac-build.sh --omega      # alias for --bundled (dev localhost)
 #   bash scripts/mac-build.sh --nuclear    # extra cache wipe (when device shows stale app)
 #   bash scripts/mac-build.sh --no-git     # skip git sync (already synced)
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 
-BRANCH="${RESTOREBRAINE_BRANCH:-cursor/fix-apple-sign-in-bacf}"
-MODE=bundled
+BRANCH="${RESTOREBRAINE_BRANCH:-cursor/fix-folder-persistence-bacf}"
+MODE=hosted
 SKIP_GIT=0
 NUCLEAR=0
 
@@ -33,8 +33,8 @@ for arg in "$@"; do
       cat <<HELP
 Restorebraine 1.0.1 — one-shot build
 
-  bash scripts/mac-build.sh              bundled full app (recommended)
-  bash scripts/mac-build.sh --hosted     Omega shell → restorebraine.base44.app
+  bash scripts/mac-build.sh              hosted shell → restorebraine.base44.app (default)
+  bash scripts/mac-build.sh --bundled    dev bundled localhost only
   bash scripts/mac-build.sh --nuclear    extra wipe when iPhone shows old app
   bash scripts/mac-build.sh --no-git     skip git fetch
 
@@ -53,10 +53,33 @@ echo ""
 echo "Mode: ${MODE} · Marketing version 1.0.1"
 if [ "$MODE" = "bundled" ]; then
   echo "  Full app from GitHub — no Base44 paste required"
+  echo ""
+  echo "  ⚠  BUNDLED = capacitor://localhost — ignores Base44 Publish."
+  echo "     For App Store / TestFlight / hosted fixes use:"
+  echo "       bash scripts/mac-build.sh --hosted"
 else
-  echo "  Omega shell — loads live restorebraine.base44.app"
+  echo "  Hosted shell — loads live restorebraine.base44.app (UI from Base44 Publish)"
 fi
 echo ""
+
+CURRENT_BRANCH=$(git branch --show-current 2>/dev/null || echo unknown)
+if [ "$CURRENT_BRANCH" != "$BRANCH" ]; then
+  echo "WARN: branch is $CURRENT_BRANCH (fixes are on $BRANCH)"
+  if [ "$SKIP_GIT" = "1" ]; then
+    echo "  Fix: bash scripts/mac-sync-github.sh"
+    echo "  Or:  bash scripts/mac-recover-hosted.sh"
+    echo ""
+  fi
+fi
+
+if [ "$SKIP_GIT" = "1" ] && git diff --quiet HEAD -- src/lib/build-info.js 2>/dev/null; then
+  :
+elif [ "$SKIP_GIT" = "1" ] && ! git diff --quiet HEAD -- src/lib/build-info.js src/deploy-marker.js index.html 2>/dev/null; then
+  echo "WARN: local build stamps differ from git (blocks git pull)"
+  echo "  Fix: bash scripts/mac-discard-build-files.sh && git pull"
+  echo "  Or:  bash scripts/mac-sync-github.sh  (reset --hard, no merge)"
+  echo ""
+fi
 
 if [ "$SKIP_GIT" = "0" ]; then
   echo "=== Step 1: sync Mac ← GitHub ==="
@@ -103,6 +126,20 @@ node scripts/verify-ios-bundle-version.mjs
 
 if [ "$MODE" = "bundled" ]; then
   node scripts/verify-bundled-deploy-ready.mjs
+else
+  if [ -f ios/App/App/BUNDLED_MODE.txt ]; then
+    echo ""
+    echo "FAIL: hosted build requested but BUNDLED_MODE.txt is present"
+    echo "  You may have an outdated mac-build.sh or ran bundled by mistake."
+    echo "  Fix: bash scripts/mac-recover-hosted.sh"
+    exit 1
+  fi
+  if ! grep -q 'restorebraine.base44.app' ios/App/App/capacitor.config.json 2>/dev/null; then
+    echo ""
+    echo "FAIL: hosted build requested but server.url is missing from capacitor.config.json"
+    echo "  Fix: bash scripts/mac-recover-hosted.sh"
+    exit 1
+  fi
 fi
 
 BUILD_NUM=$(grep -E '^export const BUILD_NUMBER = ' src/lib/build-info.js | sed 's/.*= //;s/;//')

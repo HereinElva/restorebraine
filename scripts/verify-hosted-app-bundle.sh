@@ -30,7 +30,7 @@ echo "Repo server.url: ${REPO_URL}"
 echo ""
 
 if [[ "$REPO_URL" != *"restorebraine.base44.app"* ]]; then
-  echo "FAIL: Repo not in hosted mode — run: bash scripts/mac-resync-omega.sh --native-only"
+  echo "FAIL: Repo not in hosted mode — run: bash scripts/mac-complete-rebuild.sh"
   echo "      (or: bash scripts/mac-xcode-full-replace.sh --hosted)"
   exit 1
 fi

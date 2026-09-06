@@ -4,11 +4,13 @@ set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 
 echo "╔══════════════════════════════════════════════════════════════╗"
-echo "║  Apple login fix — BUNDLED build (recommended for App Store) ║"
+echo "║  Apple login fix — BUNDLED build (dev / experiments only)    ║"
 echo "╚══════════════════════════════════════════════════════════════╝"
 echo ""
-echo "This ships login UI from your Mac (Sign in with Apple + logo)."
-echo "Does NOT load old Base44 v162 website for login."
+echo "⚠ App Store / TestFlight should use HOSTED mode instead:"
+echo "    bash scripts/mac-build.sh --hosted"
+echo ""
+echo "Bundled ships login UI from ios/public — ignores Base44 folder/stripe fixes."
 echo ""
 
 bash scripts/mac-build.sh --bundled "$@"

@@ -17,7 +17,7 @@ console.log(`
 Base44 does NOT auto-update from GitHub. You must paste files in the Code editor and click Publish.
 
 Live bundle right now: ${liveBundle}
-Target after publish: a NEW hash (not index-DVkubWP5.js) + deploy v${deployBuild}
+Target after publish: a NEW hash (not index-mlcqt5ef.js) + deploy v${deployBuild}
 
 Run "node scripts/list-base44-publish-files.mjs" for the full paste list.
 

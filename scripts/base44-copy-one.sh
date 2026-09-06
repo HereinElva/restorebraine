@@ -48,8 +48,16 @@ FILES=(
   "src/components/gallery/CustomFolderButton.jsx"
   "src/components/gallery/DuplicateDetector.jsx"
   "src/components/ui/BrandGradientIcon.jsx"
+  "src/lib/stripe-checkout.js"
+  "src/components/upload/PaymentModal.jsx"
+  "src/lib/folder-server-sync.js"
+  "src/lib/folder-membership.js"
+  "src/lib/run-media-organize.js"
+  "public/native-ui-scrub.js"
+  "public/hosted-runtime-guard.js"
   "src/Layout.jsx"
   "src/pages/Account.jsx"
+  "src/components/RuntimeDiagnostic.jsx"
   "src/index.css"
 )
 

@@ -18,6 +18,11 @@ import {
   saveFolderMembershipCache,
   saveFolderSnapshotCache,
 } from '@/lib/folder-membership-cache';
+import {
+  claimOrphanedUserData,
+  listUserFolders,
+  withFolderOwner,
+} from '@/lib/folder-server-sync';
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -81,7 +86,11 @@ function withFolderApiTimeout(promise, label, timeoutMs = FOLDER_API_TIMEOUT_MS)
   ]);
 }
 
-export async function listAllFoldersSafe({ timeoutMs = 12000 } = {}) {
+export async function listAllFoldersSafe({ email, timeoutMs = 12000 } = {}) {
+  if (email) {
+    await claimOrphanedUserData();
+    return listUserFolders(email, { timeoutMs });
+  }
   try {
     const result = await withFolderApiTimeout(
       base44.entities.Folder.list('-created_date', 200),
@@ -95,8 +104,8 @@ export async function listAllFoldersSafe({ timeoutMs = 12000 } = {}) {
   }
 }
 
-export async function listAllFolders() {
-  return listAllFoldersSafe();
+export async function listAllFolders(email) {
+  return listAllFoldersSafe({ email });
 }
 
 async function getFolderOnServer(folderId) {
@@ -107,9 +116,9 @@ async function getFolderOnServer(folderId) {
   return normalizeFolderRecord(folder);
 }
 
-async function createFolderOnServer(payload, timeoutMs = FOLDER_API_TIMEOUT_MS) {
+async function createFolderOnServer(payload, userEmail, timeoutMs = FOLDER_API_TIMEOUT_MS) {
   const folder = await withFolderApiTimeout(
-    base44.entities.Folder.create(payload),
+    base44.entities.Folder.create(withFolderOwner(payload, userEmail)),
     'Folder.create',
     timeoutMs,
   );
@@ -156,10 +165,10 @@ export async function deleteFoldersWithTimeout(folderIds, { timeoutMs = FOLDER_D
   return { deleted, failed };
 }
 
-/** Gallery load: Folder.list (with timeout) + merged local snapshot fallback. */
+/** Gallery load: user-scoped Folder API + merged local snapshot fallback. */
 export async function fetchGalleryFoldersWithMembership(email, photos = []) {
   const snapshot = email ? await loadFullFolderSnapshotAsync(email) : [];
-  const listed = await listAllFoldersSafe();
+  const listed = await listAllFoldersSafe({ email });
 
   // Always merge API + local snapshot — never drop folders the API hasn't returned yet
   let folderSource = mergeApiFoldersWithLocal(listed, snapshot);
@@ -313,6 +322,7 @@ export async function assignLoosePhotosByFolder({
               photo_ids: photoIds,
               cover_photo_url: groupPhotos[0]?.file_url || '',
             },
+            userEmail,
             ORGANIZE_SAVE_TIMEOUT_MS,
           );
         } catch (error) {
@@ -387,7 +397,7 @@ export async function assignLoosePhotosOneByOne({
         description: '',
         photo_ids: [photo.id],
         cover_photo_url: photo.file_url || '',
-      });
+      }, userEmail);
       let verified = created;
       if (!photoIdsPersisted(created?.photo_ids, [photo.id])) {
         verified = await appendPhotoToFolderOnServer(created.id, photo, userEmail);
@@ -507,7 +517,7 @@ export async function reconcileOrganizeBatch({
 
   for (let attempt = 0; attempt < 3; attempt++) {
     await sleep(attempt === 0 ? 300 : 500 * attempt);
-    const apiFolders = await listAllFolders();
+    const apiFolders = await listAllFolders(userEmail);
 
     const missedPhotos = getUnorganizedPhotos(batchPhotos, apiFolders);
     if (missedPhotos.length === 0) {
@@ -530,7 +540,7 @@ export async function reconcileOrganizeBatch({
     desiredFolders = retryResult.folders;
   }
 
-  const apiFolders = await listAllFolders();
+  const apiFolders = await listAllFolders(userEmail);
   const missedPhotos = getUnorganizedPhotos(batchPhotos, apiFolders);
 
   return {

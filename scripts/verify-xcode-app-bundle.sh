@@ -37,7 +37,13 @@ find_deployed_app() {
 
 APP=$(find_deployed_app)
 
+REPO_HOSTED=0
+if grep -q 'restorebraine.base44.app' ios/App/App/capacitor.config.json 2>/dev/null; then
+  REPO_HOSTED=1
+fi
+
 echo "=== Verify installed App.app bundle ==="
+echo "Repo mode:       $([ "$REPO_HOSTED" = "1" ] && echo 'hosted (Base44 live UI)' || echo 'bundled (localhost UI)')"
 echo "Repo BUILD_STAMP: $REPO_STAMP"
 echo "Repo entry JS:    $REPO_ENTRY"
 echo ""
@@ -99,9 +105,10 @@ URL_IN_CONFIG=${URL_IN_CONFIG:-0}
 
 echo "App BUILD_STAMP:  $APP_STAMP"
 echo "App entry JS:     $APP_ENTRY"
+APP_URL=$(grep -o '"url": *"[^"]*"' "$APP/capacitor.config.json" 2>/dev/null | head -1 | sed 's/.*"url": *"\([^"]*\)".*/\1/' || echo missing)
+echo "App server.url: $APP_URL"
 echo "DEPLOY_MANIFEST:"
 echo "$APP_MANIFEST" | sed 's/^/  /'
-echo "server.url count: $URL_IN_CONFIG (must be 0 for v4-core)"
 echo ""
 
 FAIL=0
@@ -113,7 +120,16 @@ elif [ "$REPO_ENTRY" != "$APP_ENTRY" ]; then
   echo "FAIL: entry JS mismatch (repo=$REPO_ENTRY app=$APP_ENTRY)"
   FAIL=1
 fi
-[ "$URL_IN_CONFIG" = "0" ] || { echo "FAIL: server.url set — app loads hosted site not bundle"; FAIL=1; }
+if [ "$REPO_HOSTED" = "1" ]; then
+  if [[ "$APP_URL" != *"restorebraine.base44.app"* ]]; then
+    echo "FAIL: hosted repo but App.app missing server.url — re-run mac-build.sh --hosted"
+    FAIL=1
+  else
+    echo "OK: hosted App.app will load Base44 live (entry JS in public/ is shell fallback only)"
+  fi
+else
+  [ "$URL_IN_CONFIG" = "0" ] || { echo "FAIL: bundled mode but server.url set — run mac-build.sh --bundled"; FAIL=1; }
+fi
 [ -f "$APP/public/assets/$APP_ENTRY" ] || { echo "FAIL: entry file missing inside App.app"; FAIL=1; }
 [ -f "$APP/public/restorebraine-v4-bridge.js" ] || { echo "FAIL: restorebraine-v4-bridge.js missing from App.app/public — OAuth will not work"; FAIL=1; }
 BRIDGE_BYTES=$(wc -c < "$APP/public/restorebraine-v4-bridge.js" 2>/dev/null || echo 0)
@@ -135,10 +151,15 @@ if [ "$FAIL" -eq 0 ]; then
   echo "OK: App.app on Mac matches repo"
   echo ""
   echo "NOTE: This checks DerivedData on your Mac, NOT the iPhone itself."
-  echo "If login on phone still looks old:"
+  echo "If UI on phone still looks old:"
+  echo "  Account tab -> Runtime diagnostic (origin must be restorebraine.base44.app)"
   echo "  bash scripts/mac-push-to-iphone.sh"
-  echo "  or Xcode: delete app → Clean → Run (Cmd+R)"
-  echo "On phone tap purple badge → must show v4-core · capacitor://localhost · auth: sign-in-v4"
+  echo "  or Xcode: delete app -> Clean -> Run (Cmd+R)"
+  if [ "$REPO_HOSTED" = "1" ]; then
+    echo "Hosted mode: phone UI comes from Base44 live bundle, not ios/public entry JS"
+  else
+    echo "Bundled mode: phone UI from App.app/public entry JS"
+  fi
 else
   echo ""
   echo "Fix: delete app -> Clean Build Folder -> Run -> build log must show 'Restorebraine DEPLOY OK'"

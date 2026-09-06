@@ -3,6 +3,10 @@ import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { FolderPlus, Plus, X, Check, Loader2 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/lib/AuthContext";
+import { withFolderOwner } from "@/lib/folder-server-sync";
+import { normalizeFolderRecord } from "@/lib/folder-membership";
+import { persistGalleryFoldersFast } from "@/lib/folder-membership-cache";
 import {
   Dialog,
   DialogContent,
@@ -20,6 +24,8 @@ export default function CustomFolderButton({ photos, squareStyle = false }) {
   const [creating, setCreating] = useState(false);
   const [folders, setFolders] = useState([]);
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const userEmail = user?.email;
 
   const addFolder = () => {
     setFolders([...folders, { name: "", description: "", photo_ids: [] }]);
@@ -56,14 +62,21 @@ export default function CustomFolderButton({ photos, squareStyle = false }) {
     setCreating(true);
 
     try {
+      const createdFolders = [];
       for (const folder of validFolders) {
         const coverPhoto = photos.find(p => p.id === folder.photo_ids[0]);
-        await base44.entities.Folder.create({
+        const created = await base44.entities.Folder.create(withFolderOwner({
           name: folder.name,
           description: folder.description || "",
           photo_ids: folder.photo_ids,
           cover_photo_url: coverPhoto?.file_url || ""
-        });
+        }, userEmail));
+        createdFolders.push(normalizeFolderRecord(created));
+      }
+
+      if (userEmail && createdFolders.length) {
+        const existing = queryClient.getQueryData(['folders', userEmail]) ?? [];
+        persistGalleryFoldersFast(userEmail, [...existing, ...createdFolders]);
       }
 
       queryClient.invalidateQueries({ queryKey: ['folders'] });
