@@ -37,6 +37,7 @@ const indexPath = resolve(repo, 'index.html');
 if (existsSync(indexPath)) {
   let html = readFileSync(indexPath, 'utf8');
   html = upsertMeta(html, 'restorebraine-source-commit', commit);
+  html = upsertMeta(html, 'restorebraine-source-fingerprint', commit);
   html = upsertMeta(html, 'restorebraine-build-id', buildId);
   html = upsertMeta(html, 'restorebraine-source-branch', branch);
   writeFileSync(indexPath, html);

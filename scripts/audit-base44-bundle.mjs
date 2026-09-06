@@ -7,6 +7,12 @@
 import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { execSync } from 'node:child_process';
+import {
+  parseDeployFromHtml,
+  parseSourceCommitFromHtml,
+  parseBuildIdFromHtml,
+  metaContent,
+} from './lib/parse-deploy-meta.mjs';
 
 const LIVE_URL = 'https://restorebraine.base44.app';
 const KNOWN_STALE_BUNDLES = [
@@ -68,7 +74,7 @@ function headStatus(path) {
 
 const localDeploy = read('src/deploy-marker.js').match(/DEPLOY_BUILD = (\d+)/)?.[1] ?? '?';
 const localBuild = read('src/lib/build-info.js').match(/BUILD_NUMBER = (\d+)/)?.[1] ?? '?';
-const indexMeta = read('index.html').match(/restorebraine-deploy[^>]*content="v(\d+)"/)?.[1] ?? '?';
+const indexMeta = parseDeployFromHtml(read('index.html'));
 
 let html = '';
 try {
@@ -78,9 +84,8 @@ try {
   process.exit(1);
 }
 
-const liveDeploy = html.match(/restorebraine-deploy[^>]*content="v(\d+)"/)?.[1]
-  ?? html.match(/content="v(\d+)"[^>]*restorebraine-deploy/)?.[1]
-  ?? '?';
+const liveDeploy = parseDeployFromHtml(html);
+const liveDeployRaw = metaContent(html, 'restorebraine-deploy') ?? '?';
 const liveBundle = html.match(/assets\/(index-[^"]+\.js)/)?.[1] ?? 'unknown';
 const liveCss = html.match(/assets\/(index-[^"]+\.css)/)?.[1] ?? 'unknown';
 const hasStripeGuard = /restorebraine-stripe-checkout/i.test(html);
@@ -103,7 +108,7 @@ console.log('1) VERSION STAMPS');
 console.log(`   Git DEPLOY_BUILD:     v${localDeploy}`);
 console.log(`   Git BUILD_NUMBER:     v${localBuild}`);
 console.log(`   Git index.html meta:  v${indexMeta}`);
-console.log(`   Live deploy meta:     v${liveDeploy}`);
+console.log(`   Live deploy meta:     v${liveDeploy} (${liveDeployRaw})`);
 console.log(`   Live JS bundle:       ${liveBundle}`);
 console.log(`   Live CSS:             ${liveCss}`);
 console.log(`   Live scrub script:    ${scrubVersion}`);

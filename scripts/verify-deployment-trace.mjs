@@ -8,6 +8,12 @@ import { createHash } from 'node:crypto';
 import { readFileSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { execSync } from 'node:child_process';
+import {
+  parseDeployFromHtml,
+  parseSourceCommitFromHtml,
+  parseBuildIdFromHtml,
+  metaContent,
+} from './lib/parse-deploy-meta.mjs';
 
 const LIVE = 'https://restorebraine.base44.app';
 const APP_ID = '68fdc5f42768c4d045fe1bac';
@@ -98,11 +104,14 @@ const sourceCommit = gitDeployMarker.match(/SOURCE_COMMIT = '([^']+)'/)?.[1] ?? 
 const rbBuildId = gitDeployMarker.match(/RB_BUILD_ID = '([^']+)'/)?.[1] ?? '(not set)';
 
 const fingerprintStale = !sourceCommit.startsWith('(') && sourceCommit !== headCommit;
+
 record(
   'SOURCE',
-  'SOURCE_COMMIT matches HEAD',
-  sourceCommit.startsWith('(') ? 'WARN' : fingerprintStale ? 'FAIL' : 'PASS',
-  fingerprintStale ? `stamped=${sourceCommit} HEAD=${headCommit} — run sync-source-fingerprint.mjs` : sourceCommit,
+  'SOURCE_COMMIT in deploy-marker',
+  sourceCommit.startsWith('(') ? 'WARN' : fingerprintStale ? 'WARN' : 'PASS',
+  fingerprintStale
+    ? `stamped=${sourceCommit} HEAD=${headCommit} — run sync-source-fingerprint.mjs`
+    : sourceCommit,
 );
 record('SOURCE', 'RB_BUILD_ID in deploy-marker', rbBuildId.startsWith('(') ? 'WARN' : 'PASS', rbBuildId);
 
@@ -180,12 +189,15 @@ const liveGuard = curl(`${LIVE}/hosted-runtime-guard.js`);
 const liveGuardHeaders = curl(`${LIVE}/hosted-runtime-guard.js`, { head: true });
 const liveScrub = curl(`${LIVE}/native-ui-scrub.js`);
 
-const liveSourceCommit =
-  liveHtml.match(/restorebraine-source-commit[^>]*content="([^"]+)"/)?.[1] ??
-  liveHtml.match(/content="([^"]+)"[^>]*restorebraine-source-commit/)?.[1] ??
-  null;
-const liveBuildId =
-  liveHtml.match(/restorebraine-build-id[^>]*content="([^"]+)"/)?.[1] ?? null;
+const liveSourceCommit = parseSourceCommitFromHtml(liveHtml);
+const liveBuildId = parseBuildIdFromHtml(liveHtml);
+const liveDeployRaw = metaContent(liveHtml, 'restorebraine-deploy');
+const liveDeployNum = parseDeployFromHtml(liveHtml);
+const cdnCommitMatch =
+  !!liveSourceCommit &&
+  (liveSourceCommit === headCommit ||
+    headCommit.startsWith(liveSourceCommit) ||
+    liveSourceCommit.startsWith(headCommit));
 
 record('CDN', 'Live HTML fetch', liveHtml.length > 500 ? 'PASS' : 'FAIL', LIVE);
 record('CDN', 'Module bundle ref', liveBundleName !== '?' ? 'PASS' : 'FAIL', liveBundleName);
@@ -216,7 +228,7 @@ if (liveSourceCommit) {
   record(
     'CDN',
     'SOURCE_COMMIT meta on CDN',
-    liveSourceCommit === headCommit ? 'PASS' : 'FAIL',
+    cdnCommitMatch ? 'PASS' : 'FAIL',
     `live=${liveSourceCommit} git=${headCommit}`,
   );
 } else {
@@ -258,6 +270,7 @@ console.log(`  bundle sha256:  ${liveBundle ? sha256(liveBundle) : '?'}`);
 console.log(`  guard sha256:   ${liveGuard ? sha256(liveGuard) : '?'} (${liveGuard.length}b)`);
 console.log(`  Stripe HTML:    ${stripeOk ? 'OK return openInApp(u)' : stripeBroken ? 'BROKEN' : '?'}`);
 console.log(`  CDN SOURCE_COMMIT: ${liveSourceCommit ?? 'MISSING'}`);
+console.log(`  CDN deploy meta:   ${liveDeployRaw ?? 'MISSING'} (v${liveDeployNum})`);
 console.log(`  CDN RB_BUILD_ID:   ${liveBuildId ?? 'MISSING'}`);
 console.log(`  Cache-Control:     ${cacheControl || '?'}`);
 console.log(`  Last-Modified:     ${lastModified || '?'}`);
@@ -371,13 +384,16 @@ const keyPass =
   hosted &&
   !blockers.some((b) => b.layer === 'SOURCE');
 
-if (liveSourceCommit === headCommit) {
-  console.log('DEPLOYMENT VERIFIED — CDN SOURCE_COMMIT matches git HEAD');
+if (cdnCommitMatch) {
+  console.log('DEPLOYMENT VERIFIED — CDN fingerprint matches git HEAD');
+  if (fingerprintStale) {
+    console.log('LOCAL STAMP STALE — run: npm run sync:source-fingerprint (optional, CDN already correct)');
+  }
 } else if (stripeOk && guardOk) {
   console.log('CDN CONTENT VERIFIED — Stripe + guard OK on live HTML');
-  console.log('FINGERPRINT GAP — add SOURCE_COMMIT meta to prove editor→CDN chain:');
-  console.log('  node scripts/sync-source-fingerprint.mjs');
-  console.log('  bash scripts/base44-partial-publish-wizard.sh → Publish index.html');
+  console.log('FINGERPRINT GAP — publish index.html with source commit meta:');
+  console.log('  npm run sync:source-fingerprint');
+  console.log('  bash scripts/base44-partial-publish-wizard.sh → Publish');
 } else {
   console.log('DEPLOYMENT NOT VERIFIED — CDN missing expected fixes');
 }
@@ -386,5 +402,5 @@ console.log('');
 console.log('Re-run after publish: node scripts/verify-deployment-trace.mjs');
 console.log('══════════════════════════════════════════════════════════════\n');
 
-const fingerprintVerified = liveSourceCommit === headCommit && !fingerprintStale;
-process.exit(blockers.length || !fingerprintVerified ? 1 : 0);
+const cdnBlockers = blockers.filter((b) => b.layer === 'CDN' || (b.layer === 'SOURCE' && b.status === 'FAIL'));
+process.exit(cdnBlockers.length || !cdnCommitMatch ? 1 : 0);

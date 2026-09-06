@@ -12,7 +12,10 @@ export default function RuntimeDiagnostic() {
     const deployMeta =
       document.querySelector('meta[name="restorebraine-deploy"]')?.getAttribute('content') || '?';
     const sourceCommit =
-      document.querySelector('meta[name="restorebraine-source-commit"]')?.getAttribute('content') || '?';
+      document.querySelector('meta[name="restorebraine-source-commit"]')?.getAttribute('content') ??
+      document.querySelector('meta[name="restorebraine-source-fingerprint"]')?.getAttribute('content') ??
+      document.querySelector('meta[name="restorebraine-deploy"]')?.getAttribute('content')?.match(/-([0-9a-f]{7,40})$/i)?.[1] ??
+      '?';
     const buildId =
       document.querySelector('meta[name="restorebraine-build-id"]')?.getAttribute('content') || '?';
 

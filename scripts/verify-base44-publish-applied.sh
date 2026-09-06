@@ -10,11 +10,31 @@ FAIL=0
 HTML=$(curl -sL --max-time 20 "$LIVE/?t=$(date +%s)" || true)
 GUARD=$(curl -sL --max-time 15 "$LIVE/hosted-runtime-guard.js" || true)
 BUNDLE=$(echo "$HTML" | grep -o 'assets/index-[^"]*\.js' | head -1 | sed 's|assets/||')
-DEPLOY=$(echo "$HTML" | grep -o 'content="v[0-9]*"' | head -1 | sed 's/content="//;s/"//')
+DEPLOY=$(node -e "
+const h=process.argv[1];
+const t=h.match(/restorebraine-deploy[^>]*content=\"([^\"]+)\"/i)?.[0]
+  ?? h.match(/content=\"([^\"]+)\"[^>]*restorebraine-deploy/i)?.[0];
+const c=t?.match(/content=\"([^\"]+)\"/i)?.[1] ?? '';
+const m=c.match(/^v?(\\d+)/);
+console.log(m?'v'+m[1]:'?');
+" "$HTML" 2>/dev/null || echo "?")
+FINGERPRINT=$(node -e "
+const h=process.argv[1];
+const names=['restorebraine-source-fingerprint','restorebraine-source-commit'];
+for (const n of names) {
+  const tag=h.match(new RegExp('<meta[^>]*name=\"'+n+'\"[^>]*>','i'))?.[0]
+    ?? h.match(new RegExp('content=\"([^\"]+)\"[^>]*name=\"'+n+'\"','i'));
+  const c=tag?.match(/content=\"([^\"]+)\"/i)?.[1];
+  if (c) { console.log(c); process.exit(0); }
+}
+const d=h.match(/restorebraine-deploy[^>]*content=\"v\\d+-([0-9a-f]+)\"/i)?.[1];
+if (d) console.log(d);
+" "$HTML" 2>/dev/null || true)
 
 echo "=== Base44 Publish applied? ==="
 echo ""
 echo "Live deploy:  ${DEPLOY:-unknown}"
+echo "Live fingerprint: ${FINGERPRINT:-missing}"
 echo "Live bundle:  ${BUNDLE:-unknown}"
 echo ""
 

@@ -7,6 +7,10 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { execSync } from 'node:child_process';
+import {
+  parseDeployFromHtml,
+  parseSourceCommitFromHtml,
+} from './lib/parse-deploy-meta.mjs';
 
 const LIVE = 'https://restorebraine.base44.app';
 
@@ -27,13 +31,7 @@ function bundleFromHtml(html) {
 }
 
 function deployFromHtml(html) {
-  const named =
-    html.match(/restorebraine-deploy[^>]*content="v(\d+)"/)?.[1] ??
-    html.match(/content="v(\d+)"[^>]*restorebraine-deploy/)?.[1] ??
-    html.match(/name="restorebraine-deploy"[^>]*content="v(\d+)"/)?.[1];
-  if (named) return named;
-  const meta = html.match(/<meta[^>]*restorebraine-deploy[^>]*>/i)?.[0];
-  return meta?.match(/content="v(\d+)"/)?.[1] ?? '?';
+  return parseDeployFromHtml(html);
 }
 
 function stripePattern(html) {
