@@ -97,7 +97,13 @@ const gitRuntimeDiag = read('src/components/RuntimeDiagnostic.jsx');
 const sourceCommit = gitDeployMarker.match(/SOURCE_COMMIT = '([^']+)'/)?.[1] ?? '(not set — run sync-source-fingerprint.mjs)';
 const rbBuildId = gitDeployMarker.match(/RB_BUILD_ID = '([^']+)'/)?.[1] ?? '(not set)';
 
-record('SOURCE', 'SOURCE_COMMIT in deploy-marker', sourceCommit.startsWith('(') ? 'WARN' : 'PASS', sourceCommit);
+const fingerprintStale = !sourceCommit.startsWith('(') && sourceCommit !== headCommit;
+record(
+  'SOURCE',
+  'SOURCE_COMMIT matches HEAD',
+  sourceCommit.startsWith('(') ? 'WARN' : fingerprintStale ? 'FAIL' : 'PASS',
+  fingerprintStale ? `stamped=${sourceCommit} HEAD=${headCommit} — run sync-source-fingerprint.mjs` : sourceCommit,
+);
 record('SOURCE', 'RB_BUILD_ID in deploy-marker', rbBuildId.startsWith('(') ? 'WARN' : 'PASS', rbBuildId);
 
 const gitFingerprints = {
@@ -217,8 +223,8 @@ if (liveSourceCommit) {
   record(
     'CDN',
     'SOURCE_COMMIT meta on CDN',
-    'WARN',
-    'missing — run node scripts/sync-source-fingerprint.mjs → publish index.html',
+    'FAIL',
+    'missing — sync fingerprint → partial publish wizard → Publish index.html',
   );
 }
 
@@ -380,4 +386,5 @@ console.log('');
 console.log('Re-run after publish: node scripts/verify-deployment-trace.mjs');
 console.log('══════════════════════════════════════════════════════════════\n');
 
-process.exit(blockers.length ? 1 : 0);
+const fingerprintVerified = liveSourceCommit === headCommit && !fingerprintStale;
+process.exit(blockers.length || !fingerprintVerified ? 1 : 0);

@@ -18,13 +18,14 @@ section() {
 run() {
   local name="$1"
   shift
+  local code=0
   section "$name"
-  if "$@"; then
-    echo ""
+  "$@" || code=$?
+  echo ""
+  if [ "$code" -eq 0 ]; then
     echo "  → $name: PASS"
   else
-    echo ""
-    echo "  → $name: FAIL (exit $?)"
+    echo "  → $name: FAIL (exit $code)"
     FAIL=1
   fi
 }
@@ -54,12 +55,23 @@ if [ "$FAIL" -eq 0 ]; then
 else
   echo "  RESULT: DEPLOYMENT NOT VERIFIED — see FAIL sections above"
   echo ""
-  echo "  Fix order:"
-  echo "    1. node scripts/sync-source-fingerprint.mjs"
-  echo "    2. bash scripts/base44-partial-publish-wizard.sh → Publish"
-  echo "    3. Re-run: bash scripts/verify-deployment-audit.sh"
+  HEAD=$(git rev-parse --short HEAD)
+  STAMPED=$(grep -E "^export const SOURCE_COMMIT = " src/deploy-marker.js 2>/dev/null | sed "s/.*= '//;s/'.*//" || echo '?')
+  echo "  Known gaps from your run:"
+  if [ "$STAMPED" != "$HEAD" ]; then
+    echo "    • Local fingerprint stale: deploy-marker SOURCE_COMMIT=$STAMPED but HEAD=$HEAD"
+  fi
+  echo "    • CDN missing restorebraine-source-commit meta (editor→CDN chain unproven)"
+  echo "    • RuntimeDiagnostic not in live JS bundle (needs Base44 JS rebuild)"
   echo ""
-  echo "  Do NOT rebuild Xcode until CDN audit PASSes."
+  echo "  Fix order:"
+  echo "    1. npm run sync:source-fingerprint     # stamps HEAD into index.html"
+  echo "    2. bash scripts/base44-partial-publish-wizard.sh"
+  echo "       Paste 5 files → Save each → click PUBLISH → wait for build"
+  echo "    3. npm run verify:deployment-audit"
+  echo ""
+  echo "  PASS when CDN shows: restorebraine-source-commit = $HEAD"
+  echo "  Do NOT rebuild Xcode until that PASSes."
 fi
 echo ""
 exit "$FAIL"
