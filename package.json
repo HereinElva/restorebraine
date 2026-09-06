@@ -48,6 +48,7 @@
     "audit:shakedown": "node scripts/audit-full-shakedown.mjs",
     "audit:blindspots": "node scripts/audit-blindspots.mjs",
     "mac:shakedown": "bash scripts/mac-full-shakedown.sh",
+    "mac:no-change": "bash scripts/mac-no-change-now.sh",
     "postinstall": "node scripts/patch-native-purchases-podspec.mjs"
   },
   "dependencies": {
